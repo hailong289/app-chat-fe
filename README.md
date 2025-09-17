@@ -120,7 +120,7 @@ app-chat-fe/
 
 ## 📄 License
 
-Dự án này thuộc về [Tên tác giả/Tổ chức]. Xem file `LICENSE` để biết thêm chi tiết.
+Dự án này thuộc về [Đinh Hải Long]. Xem file `LICENSE` để biết thêm chi tiết.
 
 ## Thành viên
 
