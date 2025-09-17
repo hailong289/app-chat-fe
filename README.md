@@ -122,7 +122,7 @@ app-chat-fe/
 
 Dự án này thuộc về [Tên tác giả/Tổ chức]. Xem file `LICENSE` để biết thêm chi tiết.
 
-## 📞 Liên hệ
+## Thành viên
 
-- Email: [your-email@example.com]
-- GitHub: [your-github-username]
+- Đinh Hải Long
+- Lê Thiên Trí
