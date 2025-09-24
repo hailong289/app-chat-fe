@@ -14,14 +14,20 @@ import {
   CardHeader,
   Chip,
 } from "@heroui/react";
+import { useCounterStore } from "@/store/useCounterStore";
 
 // Note: Metadata cannot be exported from client components
 // It should be defined in layout.tsx or a parent server component
 
 export default function Page() {
+  const { count, increase, decrease } = useCounterStore();
   return (
     <div className="bg-content text-foreground">
       <Header />
+
+      <Button onPress={increase}>Increase</Button>
+      <Button onPress={decrease}>Decrease</Button>
+      <div>Count: {count}</div> 
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <Hero />
