@@ -60,7 +60,8 @@ npm run build
 
 #### Build desktop application
 ```bash
-npm run tauri build
+npx tauri dev
+
 ```
 
 ## 📁 Cấu trúc dự án
