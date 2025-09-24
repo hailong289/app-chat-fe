@@ -20,13 +20,14 @@ import { useCounterStore } from "@/store/useCounterStore";
 // It should be defined in layout.tsx or a parent server component
 
 export default function Page() {
-  const { count, increase, decrease } = useCounterStore();
+  const { count, increase, decrease, getData } = useCounterStore();
   return (
     <div className="bg-content text-foreground">
       <Header />
 
       <Button onPress={increase}>Increase</Button>
       <Button onPress={decrease}>Decrease</Button>
+      <Button onPress={getData}>Get All</Button>
       <div>Count: {count}</div> 
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
