@@ -16,44 +16,86 @@ import {
 } from "@heroui/react";
 import Image from "next/image";
 import { CalendarDate } from "@internationalized/date";
-import z from "zod";
 import { PayloadRegister } from "@/types/auth.type";
 import Helpers from "@/libs/helpers";
 import useToast from "@/hooks/useToast";
 import useAuthStore from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
+import Joi from "joi";
+
+const registerSchema = Joi.object({
+  type: Joi.string().valid('email', 'phone').required().messages({
+    'any.required': 'Loại đăng ký không được để trống',
+    'string.empty': 'Loại đăng ký không được để trống',
+    'any.only': 'Loại đăng ký không hợp lệ',
+  }),
+  fullname: Joi.string().required().messages({
+    'any.required': 'Họ và tên không được để trống',
+    'string.empty': 'Họ và tên không được để trống',
+  }),
+  username: Joi.string()
+    .required()
+    .custom((value, helpers) => {
+      const type  = helpers.prefs.context?.type; // lấy type từ object cha
+
+      if (type === "email") {
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailPattern.test(value)) {
+          return helpers.error("string.email");
+        }
+      }
+
+      if (type === "phone") {
+        const phonePattern = /^(\+84|84|0)(3|5|7|8|9)\d{8}$/;
+        if (!phonePattern.test(value.replace(/\s/g, ""))) {
+          return helpers.error("string.pattern.base");
+        }
+      }
+
+      return value;
+    })
+    .messages({
+      "any.required": "Trường này không được để trống",
+      "string.empty": "Trường này không được để trống",
+      "string.email": "Vui lòng nhập email hợp lệ",
+      "string.pattern.base": "Vui lòng nhập số điện thoại hợp lệ",
+    }),
+  password: Joi.string().min(6).required().messages({
+    'any.required': 'Mật khẩu không được để trống',
+    'string.empty': 'Mật khẩu không được để trống',
+    'string.min': 'Mật khẩu phải có ít nhất 6 ký tự',
+  }),
+  confirm: Joi.string()
+    .required()
+    .custom((value, helpers) => {
+      // Lấy password từ object cha (submit form)
+      const root = helpers.state.ancestors?.[0] || {};
+      const passwordFromRoot = root.password;
+
+      // Lấy password từ context (validate field đơn lẻ)
+      const passwordFromContext = helpers.prefs.context?.password;
+
+      const password = passwordFromRoot ?? passwordFromContext;
+
+      if (value !== password) {
+        return helpers.error("any.only");
+      }
+      return value;
+    })
+    .messages({
+      "any.required": "Xác nhận mật khẩu không được để trống",
+      "string.empty": "Xác nhận mật khẩu không được để trống",
+      "any.only": "Mật khẩu xác nhận không khớp",
+    }),
+  dateOfBirth: Joi.any(),
+  gender: Joi.string().valid('male', 'female', 'other').required().messages({
+    'any.required': 'Giới tính không được để trống',
+    'string.empty': 'Giới tính không được để trống',
+    'any.only': 'Giới tính không hợp lệ',
+  }),
+});
 
 
-const registerSchema = z.object({
-  fullname: z.string().min(1, "Họ và tên không được để trống"),
-  username: z.string().min(1, "Tên đăng nhập không được để trống"),
-  password: z.string().min(6, "Mật khẩu phải có ít nhất 6 ký tự").nonempty('Mật khẩu không được để trống'),
-  confirm: z.string().min(6, "Mật khẩu phải có ít nhất 6 ký tự").nonempty('Xác nhận mật khẩu không được để trống'),
-  dateOfBirth: z.any(),
-  gender: z.string().nonempty('Giới tính không được để trống'),
-  type: z.enum(["email", "phone"]),
-})
-  .refine((data) => data.password === data.confirm, { message: "Mật khẩu xác nhận không khớp", path: ["confirm"] })
-  .refine((data) => {
-    if (data.type === "email") {
-      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      console.log(emailRegex.test(data.username));
-      return emailRegex.test(data.username);
-    }
-    return true;
-  }, {
-    message: "Email không hợp lệ",
-    path: ["username"],
-  }).refine((data) => {
-    if (data.type === "phone") {
-      const phoneRegex = /^(\+84|84|0)(3|5|7|8|9)\d{8}$/;
-      return phoneRegex.test(data.username.replace(/\s/g, ""));
-    }
-    return true;
-  }, {
-    message: "Số điện thoại không hợp lệ",
-    path: ["username"],
-  });
 
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -66,60 +108,50 @@ export default function RegisterPage() {
     type: "email" as "email" | "phone",
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const { success, error } = useToast();
+  const { success, error: showError } = useToast();
   const { isLoading, register } = useAuthStore();
   const router = useRouter();
 
   const validateField = (field: keyof PayloadRegister, value: string) => {
-    try {
-      const partialSchema = registerSchema.pick({ [field]: true });
-      partialSchema.parse({ [field]: value });
-      setFieldErrors(prev => ({ ...prev, [field]: '' }));
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        const errorMessage = err.issues[0]?.message || 'Dữ liệu không hợp lệ';
-        setFieldErrors(prev => ({ ...prev, [field]: errorMessage }));
-      }
-    }
+    const fieldSchema = registerSchema.extract(field);
+    const { error } = fieldSchema.validate(value, { context: { type: form.type, password: form.password } });
+    setFieldErrors((prev) => ({
+      ...prev,
+      [field]: error ? error.details[0].message : '',
+    }));
   };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    try {
-      const parsedData = registerSchema.parse({
-        ...form,
-        dateOfBirth: form.dateOfBirth ? new Date(form.dateOfBirth.toString()) : undefined,
+    const { error, value: parsedData } = registerSchema.validate(form);
+    console.log({ parsedData, error });
+    if (error) {
+      const errors: Record<string, string> = {};
+      error.details.forEach((detail) => {
+        const field = detail.path[0] as string;
+        errors[field] = detail.message;
       });
-
-      register({
-        fullname: parsedData.fullname,
-        username: parsedData.username,
-        password: parsedData.password,
-        confirm: parsedData.confirm,
-        dateOfBirth: parsedData.dateOfBirth,
-        gender: parsedData.gender as "male" | "female" | "other",
-        type: parsedData.type,
-        callback: (err) => {
-          if (err) {
-            console.error("Registration failed:", err);
-            error(err.message || "Đăng ký thất bại. Vui lòng thử lại.");
-          } else {
-            success("Đăng ký thành công!");
-            router.push("/"); // Redirect to home page after successful registration
-          }
-        }
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const errors: Record<string, string> = {};
-        error.issues.forEach((err) => {
-          if (err.path[0]) {
-            errors[err.path[0] as string] = err.message;
-          }
-        });
-        setFieldErrors(errors);
-      }
+      setFieldErrors(errors);
+      return;
     }
+    register({
+      fullname: parsedData.fullname,
+      username: parsedData.username,
+      password: parsedData.password,
+      confirm: parsedData.confirm,
+      dateOfBirth: parsedData.dateOfBirth,
+      gender: parsedData.gender as "male" | "female" | "other",
+      type: parsedData.type,
+      callback: (err) => {
+        if (err) {
+          console.error("Registration failed:", err);
+          showError(err.message || "Đăng ký thất bại. Vui lòng thử lại.");
+        } else {
+          success("Đăng ký thành công!");
+          router.push("/"); // Redirect to home page after successful registration
+        }
+      }
+    });
   }
 
   return (
@@ -141,7 +173,7 @@ export default function RegisterPage() {
             selectedKey={form.type}
             size="md"
             onSelectionChange={(key) => setForm({ ...form, type: key as 'email' | 'phone', username: '' })}
-            color="success"
+            color="primary"
           >
             <Tab key="email" title="Email">
               <form onSubmit={handleSubmit} className="space-y-4">

@@ -16,7 +16,26 @@ const config = {
     },
   },
   darkMode: "class",
-  plugins: [heroui()],
+  plugins: [heroui({
+    themes: {
+      light: {
+        colors: {
+          primary: {
+            DEFAULT: "#42A59F",
+            foreground: "#FFFFFF"
+          },
+          secondary: {
+            DEFAULT: "#51BEA1",
+            foreground: "#FFFFFF"
+          },
+          success: {
+            DEFAULT: "#4BB543",
+            foreground: "#FFFFFF"
+          }
+        }
+      }
+    }
+  })],
 }
 
 module.exports = config;

@@ -19,12 +19,12 @@
     "axios": "^1.12.2",
     "dexie": "^4.2.0",
     "framer-motion": "^12.23.19",
+    "joi": "^18.0.1",
     "next": "15.5.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "sass": "^1.93.2",
     "socket.io-client": "^4.8.1",
-    "zod": "^4.1.11",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

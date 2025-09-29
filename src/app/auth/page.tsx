@@ -14,28 +14,30 @@ import {
 import Image from "next/image";
 import { InboxIcon, PhoneIcon } from '@heroicons/react/24/solid'
 import { PayloadLogin } from "@/types/auth.type";
-import { z } from "zod";
 import useAuthStore from "@/store/useAuthStore";
 import useToast from "@/hooks/useToast";
 import { useRouter } from "next/navigation";
+import Joi from "joi";
 
-// Zod validation schema
-const loginSchema = z.object({
-  username: z.string()
-    .min(1, "Tên đăng nhập không được để trống")
-    .refine((username) => {
-      // Kiểm tra email
-      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (emailPattern.test(username)) return true;
-
-      // Kiểm tra số điện thoại Việt Nam
-      const phonePattern = /^(\+84|84|0)(3|5|7|8|9)\d{8}$/;
-      if (phonePattern.test(username.replace(/\s/g, ""))) return true;
-
-      return false;
-    }, "Vui lòng nhập email hợp lệ hoặc số điện thoại"),
-  password: z.string().min(1, "Mật khẩu không được để trống"),
+const loginSchema = Joi.object({
+  username: Joi.string().required().messages({ 
+    'any.required': 'Tên đăng nhập không được để trống',
+    'string.empty': 'Tên đăng nhập không được để trống',
+  }).custom((value, helpers) => {
+    // Kiểm tra email
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (emailPattern.test(value)) return value;
+    // Kiểm tra số điện thoại Việt Nam
+    const phonePattern = /^(\+84|84|0)(3|5|7|8|9)\d{8}$/;
+    if (phonePattern.test(value.replace(/\s/g, ""))) return value;
+    return helpers.message({ 'custom': 'Vui lòng nhập email hợp lệ hoặc số điện thoại' });
+  }),
+  password: Joi.string().required().messages({ 
+    'any.required': 'Mật khẩu không được để trống',
+    'string.empty': 'Mật khẩu không được để trống',
+  }),
 });
+
 
 export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
@@ -59,16 +61,12 @@ export default function LoginPage() {
 
   // Validate field on blur
   const validateField = (field: keyof PayloadLogin, value: string) => {
-    try {
-      const partialSchema = loginSchema.pick({ [field]: true });
-      partialSchema.parse({ [field]: value });
-      setFieldErrors(prev => ({ ...prev, [field]: '' }));
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        const errorMessage = err.issues[0]?.message || 'Dữ liệu không hợp lệ';
-        setFieldErrors(prev => ({ ...prev, [field]: errorMessage }));
-      }
-    }
+    const fieldSchema = loginSchema.extract(field);
+    const { error } = fieldSchema.validate(value);
+    setFieldErrors((prev) => ({
+      ...prev,
+      [field]: error ? error.details[0].message : '',
+    }));
   };
 
   async function handleSubmit(e: React.FormEvent) {
@@ -76,34 +74,28 @@ export default function LoginPage() {
     setError(null);
     setFieldErrors({});
     // Validate form with Zod
-    try {
-      const validatedData = loginSchema.parse(form);
-      await login({
-        ...validatedData, callback: (error) => {
-          if (error) {
-            console.error("Login failed:", error);
-            showError(error.message || "Đăng nhập thất bại. Vui lòng thử lại.");
-          } else {
-            success("Đăng nhập thành công!");
-            router.push("/"); // Redirect to home page after successful login
-          }
-        }
+    const { error, value } = loginSchema.validate(form, { abortEarly: false });
+    if (error) {
+      const errors: Record<string, string> = {};
+      error.details.forEach((detail) => {
+        const field = detail.path[0] as string;
+        errors[field] = detail.message;
       });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        // Handle validation errors
-        const errors: Record<string, string> = {};
-        error.issues.forEach(err => {
-          if (err.path[0]) {
-            errors[err.path[0] as string] = err.message;
-          }
-        });
-        setFieldErrors(errors);
-      } else {
-        console.error("Login error:", error);
-        setError("Đăng nhập thất bại. Vui lòng kiểm tra thông tin và thử lại.");
-      }
+      setFieldErrors(errors);
+      return;
     }
+
+    await login({
+      ...value, callback: (error) => {
+        if (error) {
+          console.error("Login failed:", error);
+          showError(error.message || "Đăng nhập thất bại. Vui lòng thử lại.");
+        } else {
+          success("Đăng nhập thành công!");
+          router.push("/"); // Redirect to home page after successful login
+        }
+      }
+    });
   }
 
   // Prevent hydration mismatch by not rendering until mounted
@@ -168,7 +160,7 @@ export default function LoginPage() {
             />
 
             <div className="flex items-center justify-between">
-              <Checkbox isSelected={remember} onValueChange={setRemember} color="success">
+              <Checkbox isSelected={remember} onValueChange={setRemember} color="secondary">
                 Ghi nhớ tôi
               </Checkbox>
               <Link
@@ -203,8 +195,9 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 isLoading={loading}
-                className="w-full btn-primary"
+                className="w-full"
                 disabled={loading}
+                color="primary"
               >
                 Đăng nhập
               </Button>
