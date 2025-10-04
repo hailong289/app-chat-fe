@@ -10,11 +10,20 @@ import {
     PaperAirplaneIcon
 } from "@heroicons/react/24/outline";
 import { Avatar } from "@heroui/react";
+import { useState } from "react";
 
 export default function ChatPage() {
+    const [widthClass, setWidthClass] = useState('w-full');
+    const callbackSetSize = () => {
+        if (widthClass === 'w-full') {
+            setWidthClass('w-[calc(100%-400px)]');
+        } else {
+            setWidthClass('w-full');
+        }
+    }
     return (
-        <div className="bg-light h-screen w-full">
-            <ChatHeader />
+        <div className={`bg-light h-screen ${widthClass}`}>
+            <ChatHeader callback={callbackSetSize} />
             <main className="w-full h-[calc(100vh-80px)] relative">
                 {/* Chat messages would go here */}
                 <div className="p-4 space-y-4 overflow-y-auto h-full">

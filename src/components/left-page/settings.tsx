@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { XMarkIcon } from '@heroicons/react/24/solid';
 import { Card, CardBody, Avatar, Button, Input } from '@heroui/react';
 import { LockClosedIcon, ShareIcon } from '@heroicons/react/24/outline';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { DocumentArrowDownIcon } from '@heroicons/react/24/outline';
 import { ArrowDownCircleIcon } from '@heroicons/react/24/outline';
@@ -20,7 +20,10 @@ interface DocumentItem {
 
 const Settings: React.FC = () => {
     const router = useRouter();
-
+    const pathname = usePathname();
+    const handleClose = () => () => {
+        router.push(pathname || '/');
+    }
     return (
         <Card className="bg-white w-full shadow-none border-none rounded-none">
             <CardBody>
@@ -34,7 +37,7 @@ const Settings: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button isIconOnly variant="light" className="text-gray-500" onClick={() => router.push('/')}>
+                        <Button isIconOnly variant="light" className="text-gray-500" onPress={handleClose()}>
                             <XMarkIcon className="w-5 h-5" />
                         </Button>
                     </div>

@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { ChevronUpIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import { Card, CardBody, Avatar, Badge, Button } from '@heroui/react';
 import { LockClosedIcon } from '@heroicons/react/24/outline';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 interface StatusUpdate {
     id: string;
@@ -41,7 +41,10 @@ const Messages: React.FC = () => {
     ];
 
     const router = useRouter();
-
+    const pathname = usePathname();
+    const handleClose = () => () => {
+        router.push(pathname || '/');
+    }
     return (
         <Card className="bg-white w-full shadow-none border-none rounded-none">
             <CardBody>
@@ -67,8 +70,8 @@ const Messages: React.FC = () => {
                             <p className="text-gray-500 text-sm">Nhấn để thêm cập nhật trạng thái</p>
                         </div>
                     </div>
-                    <Button isIconOnly variant="light" className="text-gray-500" onClick={() => router.push('/')}>
-                       <XMarkIcon className="w-5 h-5" />
+                    <Button isIconOnly variant="light" className="text-gray-500" onPress={handleClose()}>
+                        <XMarkIcon className="w-5 h-5" />
                     </Button>
                 </div>
 

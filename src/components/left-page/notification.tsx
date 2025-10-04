@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { XMarkIcon } from '@heroicons/react/24/solid';
 import { Card, CardBody, Avatar, Button } from '@heroui/react';
 import { LockClosedIcon } from '@heroicons/react/24/outline';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 interface NotificationItem {
@@ -18,6 +18,7 @@ interface NotificationItem {
 
 const Notification: React.FC = () => {
     const router = useRouter();
+    const pathname = usePathname();
     const [notifications, setNotifications] = useState<NotificationItem[]>([
         {
             id: '1',
@@ -65,6 +66,10 @@ const Notification: React.FC = () => {
         setNotifications(notifications.filter(n => n.id !== id));
     };
 
+    const handleClose = () => () => {
+        router.push(pathname || '/');
+    }
+
     return (
         <Card className="bg-white w-full shadow-none border-none rounded-none">
             <CardBody>
@@ -73,7 +78,7 @@ const Notification: React.FC = () => {
                         <h2 className="text-3xl font-semibold leading-tight">Thông báo</h2>
                         <p className="text-gray-400 text-xl mt-1">Lưu trữ tin nhắn…</p>
                     </div>
-                    <Button isIconOnly variant="light" className="text-gray-500" onClick={() => router.push('/')}> 
+                    <Button isIconOnly variant="light" className="text-gray-500" onPress={handleClose()}>
                         <XMarkIcon className="w-8 h-8" />
                     </Button>
                 </div>
@@ -96,7 +101,7 @@ const Notification: React.FC = () => {
                                         <div className="text-gray-400 text-base mt-1 truncate max-w-[260px]">{item.message}</div>
                                     </div>
                                 </div>
-                                <Button isIconOnly variant="light" className="text-gray-400 opacity-80 hover:opacity-100" onClick={() => handleRemove(item.id)}>
+                                <Button isIconOnly variant="light" className="text-gray-400 opacity-80 hover:opacity-100" onPress={() => handleRemove(item.id)}>
                                     <XMarkIcon className="w-7 h-7" />
                                 </Button>
                             </CardBody>

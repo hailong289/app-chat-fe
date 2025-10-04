@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { ChevronUpIcon, XMarkIcon, MagnifyingGlassIcon } from '@heroicons/react/24/solid';
 import { Card, CardBody, Avatar, Badge, Button, Tabs, Tab, Input } from '@heroui/react';
 import { LockClosedIcon } from '@heroicons/react/24/outline';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 interface StatusUpdate {
@@ -48,6 +48,11 @@ const Contacts: React.FC = () => {
     ];
 
     const router = useRouter();
+    const pathname = usePathname();
+
+    const handleClose = () => () => {
+        router.push(pathname || '/');
+    }
 
     return (
         <Card className="bg-white w-full shadow-none border-none rounded-none">
@@ -62,10 +67,10 @@ const Contacts: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button isIconOnly variant="light" className="text-gray-500" onClick={() => setShowSearch(v => !v)}>
+                        <Button isIconOnly variant="light" className="text-gray-500" onPress={() => setShowSearch(v => !v)}>
                             <MagnifyingGlassIcon className="w-5 h-5" />
                         </Button>
-                        <Button isIconOnly variant="light" className="text-gray-500" onClick={() => router.push('/')}>
+                        <Button isIconOnly variant="light" className="text-gray-500" onPress={handleClose()}>
                             <XMarkIcon className="w-5 h-5" />
                         </Button>
                     </div>
