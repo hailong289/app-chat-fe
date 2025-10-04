@@ -1,0 +1,62 @@
+name: Auto PR to Developer
+
+on:
+  push:
+    branches-ignore:
+      - developer
+
+jobs:
+  auto-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get branch name
+        run: echo "BRANCH_NAME=${GITHUB_REF#refs/heads/}" >> $GITHUB_ENV
+
+      - name: Fetch developer branch
+        run: git fetch origin developer
+
+      - name: Check diff with developer
+        id: diffcheck
+        run: |
+          if git diff --quiet origin/developer..HEAD; then
+            echo "has_diff=false" >> $GITHUB_ENV
+          else
+            echo "has_diff=true" >> $GITHUB_ENV
+          fi
+
+      - name: Check if PR already exists
+        if: env.has_diff == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Kiểm tra xem đã có PR từ branch hiện tại vào developer chưa
+          existing_pr=$(gh pr list --base developer --head "${BRANCH_NAME}" --json number --jq '.[0].number // empty')
+          if [ -n "$existing_pr" ]; then
+            echo "pr_exists=true" >> $GITHUB_ENV
+            echo "existing_pr_number=$existing_pr" >> $GITHUB_ENV
+            echo "Pull request #$existing_pr already exists for branch ${BRANCH_NAME} -> developer"
+          else
+            echo "pr_exists=false" >> $GITHUB_ENV
+            echo "No existing pull request found for branch ${BRANCH_NAME} -> developer"
+          fi
+
+      - name: Create PR into developer
+        if: env.has_diff == 'true' && env.pr_exists == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # hoặc GITHUB_TOKEN nếu bạn đã bật quyền Write
+        run: |
+          gh pr create \
+            --base developer \
+            --head "${BRANCH_NAME}" \
+            --title "Merge branch ${BRANCH_NAME} into developer" \
+            --body "This PR was automatically generated to merge branch **${BRANCH_NAME}** into **developer**."
+
+      - name: Update existing PR (optional)
+        if: env.has_diff == 'true' && env.pr_exists == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Pull request #${existing_pr_number} already exists and will be automatically updated with new commits."

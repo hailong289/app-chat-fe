@@ -10,15 +10,21 @@
     "build:tauri": "npx tauri dev"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
     "@heroui/button": "^2.2.26",
     "@heroui/react": "^2.8.4",
     "@heroui/system": "^2.4.22",
     "@heroui/theme": "^2.4.22",
+    "@internationalized/date": "^3.9.0",
+    "axios": "^1.12.2",
+    "cookies-next": "^6.1.0",
     "dexie": "^4.2.0",
     "framer-motion": "^12.23.19",
+    "joi": "^18.0.1",
     "next": "15.5.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "sass": "^1.93.2",
     "socket.io-client": "^4.8.1",
     "zustand": "^5.0.8"
   },

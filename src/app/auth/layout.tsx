@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Providers } from "../providers";
 
 export const metadata: Metadata = {
   title: "Đăng nhập - ChatApp",

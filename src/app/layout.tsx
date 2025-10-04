@@ -5,6 +5,8 @@ import type { Metadata } from "next";
 // adjust the path if necessary
 import "@/styles/globals.css";
 import {Providers} from "./providers";
+import"@/styles/main.scss";
+import { ClientLayout } from "./client-layout";
 
 export const metadata: Metadata = {
   title: "ChatApp",
@@ -13,10 +15,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({children}: { readonly children: React.ReactNode }) {
   return (
-    <html lang="en" >
-      <body>
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <Providers>
-          {children}
+          <ClientLayout>{children}</ClientLayout>
         </Providers>
       </body>
     </html>
