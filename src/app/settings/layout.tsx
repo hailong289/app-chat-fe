@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Nhắn tin - Ichat",
-  description: "Nhắn tin với bạn bè trên Ichat",
+  title: "Cài đặt - Ichat",
+  description: "Cài đặt tài khoản và thông tin cá nhân trên Ichat",
 };
 
 export default function ChatLayout({
