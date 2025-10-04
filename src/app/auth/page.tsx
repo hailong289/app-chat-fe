@@ -38,7 +38,6 @@ const loginSchema = Joi.object({
   }),
 });
 
-
 export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   const [remember, setRemember] = useState(true);

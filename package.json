@@ -17,6 +17,7 @@
     "@heroui/theme": "^2.4.22",
     "@internationalized/date": "^3.9.0",
     "axios": "^1.12.2",
+    "cookies-next": "^6.1.0",
     "dexie": "^4.2.0",
     "framer-motion": "^12.23.19",
     "joi": "^18.0.1",

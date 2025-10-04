@@ -1,54 +1,48 @@
 "use client";
-
+import { UserCircleIcon } from "@heroicons/react/16/solid";
+import { ChatBubbleBottomCenterIcon } from "@heroicons/react/20/solid";
+import { BellIcon, ChatBubbleLeftRightIcon, Cog8ToothIcon, HomeIcon, HomeModernIcon, TvIcon } from "@heroicons/react/24/solid";
 import { Button, Navbar, NavbarBrand, NavbarContent, NavbarItem } from "@heroui/react";
+import Image from "next/image";
 import Link from "next/link";
 
 export const Header = () => {
   return (
     <Navbar
-      maxWidth="2xl"
-      className="bg-background/70 backdrop-blur border-b border-divider"
+      className="bg-primary h-full justify-start items-start"
+      maxWidth="full"
     >
-      <NavbarBrand>
-        <Link href="/" className="flex items-center gap-2">
-          <div className="size-9 grid place-items-center rounded-md bg-foreground text-background font-bold">
-            C
-          </div>
-          <span className="font-semibold bg-gradient-to-r from-indigo-600 to-violet-500 bg-clip-text text-transparent">
-            ChatApp
-          </span>
-        </Link>
+      <NavbarBrand className="mb-10 absolute top-4 left-0 w-full h-22 flex items-center justify-center border-b border-white/20">
+        <Image
+          src="/logo.png"
+          alt="ChatApp Logo"
+          width={80}
+          height={80}
+        />
+        {/* <span className="text-2xl font-bold">ChatApp</span> */}
       </NavbarBrand>
-      <NavbarContent justify="end" className="hidden sm:flex">
+      <NavbarContent className="flex-col gap-7 items-start mt-[16rem]">
+        {/* Logo */}
         <NavbarItem>
-          <Link
-            href="#features"
-            className="text-foreground-600 hover:text-primary"
-          >
-            Tính năng
-          </Link>
+          <Button isIconOnly color="primary" aria-label="ChatApp Home" as={Link} href="/">
+            <ChatBubbleLeftRightIcon className="h-20 w-20" />
+          </Button>
         </NavbarItem>
         <NavbarItem>
-          <Link
-            href="#about"
-            className="text-foreground-600 hover:text-primary"
-          >
-            Giới thiệu
-          </Link>
+          <Button isIconOnly color="primary" aria-label="Contacts" as={Link} href="/me">
+            <UserCircleIcon className="h-20 w-20" />
+          </Button>
         </NavbarItem>
         <NavbarItem>
-          <Link
-            href="#contact"
-            className="text-foreground-600 hover:text-primary"
-          >
-            Liên hệ
-          </Link>
+          <Button isIconOnly color="primary" aria-label="Notifications" as={Link} href="/me">
+            <BellIcon className="h-20 w-20" />
+          </Button>
         </NavbarItem>
-      </NavbarContent>
-      <NavbarContent justify="end">
-        <Button as={Link} href="#" color="primary" size="sm">
-          Trải nghiệm ngay
-        </Button>
+        <NavbarItem>
+          <Button isIconOnly color="primary" aria-label="Settings" as={Link} href="/me">
+            <Cog8ToothIcon className="h-20 w-20" />
+          </Button>
+        </NavbarItem>
       </NavbarContent>
     </Navbar>
   );

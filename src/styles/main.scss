@@ -23,6 +23,19 @@
 .text-teal-dark { color: var(--color-teal-dark); }
 .text-teal-dark-foreground { color: white; }
 
+.bg-primary {
+  background-color: var(--color-teal-dark);
+}
+
+
+.bg-secondary {
+  background-color: var(--color-emerald-medium);
+}
+
+.bg-header {
+  background-color: var(--color-teal-medium);
+}
+
 /* Gradient utility class */
 .bg-gradient-mint-teal {
   background: linear-gradient(90deg, 

@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 import "@/styles/globals.css";
 import {Providers} from "./providers";
 import"@/styles/main.scss";
+import { ClientLayout } from "./client-layout";
 
 export const metadata: Metadata = {
   title: "ChatApp",
@@ -17,7 +18,7 @@ export default function RootLayout({children}: { readonly children: React.ReactN
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
         <Providers>
-          {children}
+          <ClientLayout>{children}</ClientLayout>
         </Providers>
       </body>
     </html>
