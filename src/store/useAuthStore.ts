@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { AuthState } from "./types/auth.state";
 import { createJSONStorage, persist } from "zustand/middleware";
 import AuthService from "@/service/auth.service";
-import { setCookie } from "cookies-next";
+import { deleteCookie, setCookie } from "cookies-next";
 
 // Lưu trạng thái xác thực trong localStorage
 const useAuthStore = create<AuthState>()(
@@ -59,8 +59,16 @@ const useAuthStore = create<AuthState>()(
                     payload.callback?.(error);
                 }
             },
-            logout: () => {
-                set({ isAuthenticated: false, isLoading: false, user: null, tokens: null });
+            logout: async (callback) => {
+                set({ isLoading: true });
+                try {
+                    await AuthService.logout();
+                    set({ isAuthenticated: false, isLoading: false, user: null, tokens: null });
+                    deleteCookie("tokens", { path: "/" });
+                    callback?.();
+                } catch (error) {
+                    callback?.(error);
+                }
 
             },
             setAuth: (isAuthenticated) => set({ isAuthenticated }),

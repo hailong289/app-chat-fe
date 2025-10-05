@@ -12,6 +12,6 @@ export interface AuthState {
     } | null;
     login: (payload: PayloadLogin) => void;
     register: (payload: PayloadRegister) => void;
-    logout: () => void;
+    logout: (callback?: (error?: any) => void) => void;
     setAuth: (isAuthenticated: boolean) => void;
 }

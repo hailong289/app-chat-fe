@@ -19,4 +19,8 @@ export default class AuthService {
         }
         return apiService.post<AuthResponse>('/auth/register', params);
     }
+
+    static logout() {
+        return apiService.post<AuthResponse>('/auth/logout');
+    }
 }
