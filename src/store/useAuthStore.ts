@@ -3,6 +3,7 @@ import { AuthState } from "./types/auth.state";
 import { createJSONStorage, persist } from "zustand/middleware";
 import AuthService from "@/service/auth.service";
 import { deleteCookie, setCookie } from "cookies-next";
+import { p } from "framer-motion/client";
 
 // Lưu trạng thái xác thực trong localStorage
 const useAuthStore = create<AuthState>()(
@@ -70,6 +71,28 @@ const useAuthStore = create<AuthState>()(
                     callback?.(error);
                 }
 
+            },
+            forgotPassword: async (payload) => {
+                set({ isLoading: true });
+                try {
+                    await AuthService.forgotPassword(payload);
+                    set({ isLoading: false });
+                    payload.callback?.();
+                } catch (error) {
+                    payload.callback?.(error);
+                    set({ isLoading: false });
+                }
+            },
+            resetPassword: async (payload) => {
+                set({ isLoading: true });
+                try {
+                    await AuthService.resetPassword(payload);
+                    set({ isLoading: false });
+                    payload.callback?.();
+                } catch (error) {
+                    payload.callback?.(error);
+                    set({ isLoading: false });
+                }
             },
             setAuth: (isAuthenticated) => set({ isAuthenticated }),
         }),

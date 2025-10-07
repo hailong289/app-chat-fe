@@ -44,3 +44,16 @@ export interface AuthResponse {
     reasonStatusCode: string;
     metadata: AuthMetadata | null;
 }
+
+export interface ForgotPasswordPayload {
+    email: string;
+    username: string;
+    callback?: (error?: any) => void; // Optional callback for success
+}
+
+export interface ResetPasswordPayload {
+    token: string;
+    newPassword: string;
+    confirmPassword: string;
+    callback?: (error?: any) => void; // Optional callback for success
+}

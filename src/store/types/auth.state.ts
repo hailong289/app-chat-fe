@@ -1,4 +1,4 @@
-import { PayloadLogin, PayloadRegister, User } from "@/types/auth.type";
+import { ForgotPasswordPayload, PayloadLogin, PayloadRegister, ResetPasswordPayload, User } from "@/types/auth.type";
 
 export interface AuthState {
     isLoading: boolean;
@@ -14,4 +14,6 @@ export interface AuthState {
     register: (payload: PayloadRegister) => void;
     logout: (callback?: (error?: any) => void) => void;
     setAuth: (isAuthenticated: boolean) => void;
+    forgotPassword: (payload: ForgotPasswordPayload) => void;
+    resetPassword: (payload: ResetPasswordPayload) => void;
 }

@@ -6,7 +6,9 @@ import {
     ModalFooter,
     Button,
     useDisclosure,
+    InputOtp,
 } from "@heroui/react";
+import { useState } from "react";
 
 export default function ForgotPasswordModal({
     isOpen,
@@ -20,12 +22,18 @@ export default function ForgotPasswordModal({
     onAccept?: (data?: any) => void;
 }) {
 
+    const [otp, setOtp] = useState("");
+
     const handleClose = () => {
         onClose();
     };
 
     const handleAccept = () => {
-        onAccept();
+        if (otp.length < 6) {
+            alert("Vui lòng nhập mã OTP hợp lệ.");
+            return;
+        }
+        onAccept(otp);
     };
 
     return (
@@ -34,32 +42,18 @@ export default function ForgotPasswordModal({
                 <ModalContent>
                     {() => (
                         <>
-                            <ModalHeader className="flex flex-col gap-1">Modal Title</ModalHeader>
-                            <ModalBody>
-                                <p>
-                                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam pulvinar risus non
-                                    risus hendrerit venenatis. Pellentesque sit amet hendrerit risus, sed porttitor
-                                    quam.
-                                </p>
-                                <p>
-                                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam pulvinar risus non
-                                    risus hendrerit venenatis. Pellentesque sit amet hendrerit risus, sed porttitor
-                                    quam.
-                                </p>
-                                <p>
-                                    Magna exercitation reprehenderit magna aute tempor cupidatat consequat elit dolor
-                                    adipisicing. Mollit dolor eiusmod sunt ex incididunt cillum quis. Velit duis sit
-                                    officia eiusmod Lorem aliqua enim laboris do dolor eiusmod. Et mollit incididunt
-                                    nisi consectetur esse laborum eiusmod pariatur proident Lorem eiusmod et. Culpa
-                                    deserunt nostrud ad veniam.
-                                </p>
+                            <ModalHeader className="flex flex-col gap-1">Nhập mã xác nhận</ModalHeader>
+                            <ModalBody className="flex justify-center">
+                                <InputOtp
+                                    length={6}
+                                    onChange={(value) => setOtp(value as unknown as string)}
+                                    autoFocus
+                                    isRequired
+                                />
                             </ModalBody>
                             <ModalFooter>
-                                <Button color="danger" variant="light" onPress={handleClose}>
-                                    Close
-                                </Button>
                                 <Button color="primary" onPress={handleAccept}>
-                                    Action
+                                    Xác nhận
                                 </Button>
                             </ModalFooter>
                         </>
