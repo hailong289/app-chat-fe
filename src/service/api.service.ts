@@ -43,16 +43,13 @@ class ApiService {
             (error) => {
                 const statusCode = error.response?.status || 500;
                 const reasonStatusCode = error.response?.statusText || "Internal Server Error";
-
+                const responseData = error.response?.data;
                 return Promise.reject({
                     success: false,
                     statusCode,
                     reasonStatusCode,
-                    message:
-                        (error.response?.data as any)?.message ||
-                        error.message ||
-                        "Unknown error",
-                    metadata: error.response?.data || null,
+                    message: this.formatValidationErrors(responseData) || responseData?.message || error.message,
+                    metadata: responseData || null,
                 });
             }
         );
@@ -112,6 +109,33 @@ class ApiService {
     public async setBaseURL(url: string) {
         this.axiosInstance.defaults.baseURL = url;
         return this;
+    }
+
+    /**
+     * Xử lý và format lỗi validation từ API response
+     * @param errorData - Dữ liệu lỗi từ API response
+     * @returns Chuỗi lỗi đã được format
+     */
+    private formatValidationErrors(errorData: any): string {
+        if (Array.isArray(errorData)) {
+            return errorData.map((item: any) => {
+                if (item.field && item.errors && Array.isArray(item.errors)) {
+                    return `${item.field}: ${item.errors.join(', ')}`;
+                }
+                return item.toString();
+            }).join('; ');
+        }
+        
+        if (Array.isArray(errorData?.message)) {
+            return errorData.message.map((item: any) => {
+                if (item.field && item.errors && Array.isArray(item.errors)) {
+                    return `${item.field}: ${item.errors.join(', ')}`;
+                }
+                return item.toString();
+            }).join('; ');
+        }
+
+        return errorData?.message || errorData?.toString() || 'Unknown error';
     }
 }
 

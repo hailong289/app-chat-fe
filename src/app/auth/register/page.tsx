@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Button,
   Card,
@@ -22,6 +22,7 @@ import useToast from "@/hooks/useToast";
 import useAuthStore from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import Joi from "joi";
+import { useFirebase } from "@/components/providers/firebase.provider";
 
 const registerSchema = Joi.object({
   type: Joi.string().valid('email', 'phone').required().messages({
@@ -93,6 +94,7 @@ const registerSchema = Joi.object({
     'string.empty': 'Giới tính không được để trống',
     'any.only': 'Giới tính không hợp lệ',
   }),
+  fcmToken: Joi.string().optional().allow(null),
 });
 
 
@@ -106,11 +108,19 @@ export default function RegisterPage() {
     gender: "male" as "male" | "female" | "other",
     dateOfBirth: Helpers.getDefaultDate() as CalendarDate | null,
     type: "email" as "email" | "phone",
+    fcmToken: null as string | null,
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { success, error: showError } = useToast();
   const { isLoading, register } = useAuthStore();
   const router = useRouter();
+  const firebase = useFirebase();
+
+   useEffect(() => {
+      if (firebase.token) {
+        setForm((prev) => ({ ...prev, fcmToken: firebase.token }));
+      }
+    }, [firebase.token]);
 
   const validateField = (field: keyof PayloadRegister, value: string) => {
     const fieldSchema = registerSchema.extract(field);
@@ -142,6 +152,7 @@ export default function RegisterPage() {
       dateOfBirth: parsedData.dateOfBirth,
       gender: parsedData.gender as "male" | "female" | "other",
       type: parsedData.type,
+      fcmToken: parsedData.fcmToken,
       callback: (err) => {
         if (err) {
           console.error("Registration failed:", err);
