@@ -7,9 +7,15 @@ import { LeftSide } from "@/components/intro/left-side";
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const isAuthPage = path.startsWith("/auth");
+  
+  // Define valid routes
+  const validRoutes = ["/", "/chat", "/settings"];
+  const isValidRoute = !validRoutes.some(route => 
+    path === route || path.startsWith(route + "/")
+  ) || isAuthPage;
 
-  if (isAuthPage) {
-    // layout cho trang login/register
+  if (isValidRoute) {
+    // layout cho trang login/register/404
     return (
       <main className="w-full h-screen">
         {children}

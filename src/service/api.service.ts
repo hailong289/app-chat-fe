@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getCookie } from "cookies-next";
 
 class ApiService {
     private static instance: ApiService;
@@ -9,7 +10,7 @@ class ApiService {
         this.axiosInstance = axios.create({
             baseURL: process.env.API_URL || 'http://localhost:5000/api', // Thay đổi thành URL API thực tế
         });
-        this.axiosInstance.interceptors.request.use((config) => {
+        this.axiosInstance.interceptors.request.use(async (config) => {
             if (config.data instanceof FormData) {
                 config.headers["Content-Type"] = "multipart/form-data";
             } else if (config.data instanceof Blob || config.data instanceof File) {
@@ -27,6 +28,11 @@ class ApiService {
                 config.headers["Content-Type"] = "text/plain";
             }
             // Kiểm tra và thêm header Authorization nếu token tồn tại
+            const tokens = getCookie("tokens")?.toString();
+            if (tokens) {
+                const { accessToken: token } = JSON.parse(tokens);
+                config.headers["Authorization"] = `Bearer ${token}`;
+            }
             return config;
         });
 
