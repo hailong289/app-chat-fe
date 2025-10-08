@@ -3,7 +3,6 @@ import { AuthState } from "./types/auth.state";
 import { createJSONStorage, persist } from "zustand/middleware";
 import AuthService from "@/service/auth.service";
 import { deleteCookie, setCookie } from "cookies-next";
-import { p } from "framer-motion/client";
 
 // Lưu trạng thái xác thực trong localStorage
 const useAuthStore = create<AuthState>()(
@@ -20,10 +19,10 @@ const useAuthStore = create<AuthState>()(
             },
             login: async (payload) => {
                 set({ isLoading: true });
-                const { username, password } = payload;
+                const { username, password, fcmToken } = payload;
                 try {
                     const dateNow = Math.floor(Date.now() / 1000)
-                    const response = await AuthService.login({ username, password });
+                    const response = await AuthService.login({ username, password, fcmToken });
                     set({ 
                         isAuthenticated: true, 
                         isLoading: false, user: response.data.metadata?.user, 

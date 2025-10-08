@@ -3,10 +3,26 @@
 import { usePathname } from "next/navigation";
 import { Header } from "@/components/intro/header";
 import { LeftSide } from "@/components/intro/left-side";
+import { useFirebase } from "@/components/providers/firebase.provider";
+import { useEffect } from "react";
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
+  const firebase = useFirebase();
   const path = usePathname();
   const isAuthPage = path.startsWith("/auth");
+
+  useEffect(() => {
+    const handleRequestPermission = async () => {
+      try {
+        await firebase.requestPermission();
+        console.log("🚀 Thông báo quyền đã được cấp.");
+      } catch (err) {
+        console.error("🚫 Không thể cấp quyền thông báo.", err);
+      }
+    };
+
+    handleRequestPermission();
+  }, [firebase]);
   
   // Define valid routes
   const validRoutes = ["/", "/chat", "/settings"];
