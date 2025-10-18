@@ -38,11 +38,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   // layout mặc định cho app
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen w-full">
       <nav className="relative">
         <Header />
       </nav>
-      <main className="w-[calc(100%-100px)] h-screen flex">
+      <main className="w-full h-screen flex">
         <LeftSide />
         <div className="w-full overflow-y-auto">{children}</div>
       </main>

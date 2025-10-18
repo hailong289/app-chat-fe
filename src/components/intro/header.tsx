@@ -16,8 +16,7 @@ import { DocumentIcon } from "@heroicons/react/24/outline";
 import { ArrowLeftEndOnRectangleIcon } from "@heroicons/react/24/solid";
 import {
   BellIcon,
-  ChatBubbleLeftRightIcon,
-  Cog8ToothIcon,
+  ChatBubbleLeftRightIcon,  Cog8ToothIcon,
   HomeIcon,
   HomeModernIcon,
   TvIcon,
@@ -52,6 +51,9 @@ export const Header = () => {
     setIsToggledState(!isToggled);
     console.log(!isToggled);
   };
+  const userInfo = JSON.parse(localStorage.getItem("auth-storage") || "{}")
+    ?.state.user;
+  console.log("🚀 ~ Header ~ userInfo:", userInfo);
   const handleLink = (tab: string, path: string = "") => {
     if (path) {
       router.push(`${path}`);
@@ -82,64 +84,15 @@ export const Header = () => {
     });
   };
   return (
-    // <Navbar
-    //   className=" h-full items-start"
-    //   maxWidth="full"
-    // >
-    //   <NavbarBrand className="mb-10 absolute top-4 left-0 w-full h-22 flex items-center justify-center border-b border-white/20">
-    //     <Image
-    //       src="/logo.png"
-    //       alt="ChatApp Logo"
-    //       width={80}
-    //       height={80}
-    //       onClick={() => router.push('/')}
-    //       className="cursor-pointer"
-    //     />
-    //     {/* <span className="text-2xl font-bold">ChatApp</span> */}
-    //   </NavbarBrand>
-    //   <NavbarContent className="flex-col gap-7 items-start mt-[16rem]">
-    //     {/* Logo */}
-    //     <NavbarItem className={`relative ${activeTab('messages')}`}>
-    //       <Button isIconOnly color="primary" aria-label="ChatApp Home" onPress={() => handleLink('messages')}>
-    //         <ChatBubbleLeftRightIcon className="h-20 w-20" />
-    //       </Button>
-    //     </NavbarItem>
-    //     <NavbarItem className={`relative ${activeTab('contacts')}`}>
-    //       <Button isIconOnly color="primary" aria-label="Contacts" onPress={() => handleLink('contacts')}>
-    //         <UserCircleIcon className="h-20 w-20" />
-    //       </Button>
-    //     </NavbarItem>
-    //     <NavbarItem className={`relative ${activeTab('notifications')}`}>
-    //       <Button isIconOnly color="primary" aria-label="Notifications" onPress={() => handleLink('notifications')}>
-    //         <BellIcon className="h-20 w-20" />
-    //       </Button>
-    //     </NavbarItem>
-    //     <NavbarItem className={`relative ${activeTab('documents')}`}>
-    //       <Button isIconOnly color="primary" aria-label="Documents" onPress={() => handleLink('documents')}>
-    //         <DocumentIcon className="h-20 w-20" />
-    //       </Button>
-    //     </NavbarItem>
-    //     <NavbarItem className={`relative ${activeTab('settings')}`}>
-    //       <Button isIconOnly color="primary" aria-label="Settings" onPress={() =>` handleLink('settings', '/settings')`}>
-    //         <Cog8ToothIcon className="h-20 w-20" />
-    //       </Button>
-    //     </NavbarItem>
-    //     <NavbarItem className={`relative ${activeTab('logout')}`}>
-    //       <Button isIconOnly color="primary" aria-label="Logout" onPress={() => logout()}>
-    //         <ArrowLeftEndOnRectangleIcon className="h-20 w-20" />
-    //       </Button>
-    //     </NavbarItem>
-    //   </NavbarContent>
-    // </Navbar>
     <div>
       <nav
-        className={`relative flex flex-col top-0 left-0 bg-primary px-1 overflow-hidden transition-all duration-300  ${
+        className={`relative flex flex-col justify-between top-0 left-0 bg-primary px-1 overflow-hidden transition-all duration-300  ${
           isToggledState ? "w-15" : "w-80"
         } h-screen`}
       >
         <div className=" relative min-w-15 bg-primary top-0 left-0  w-full mt-10 space-y-6 flex flex-col items-start overflow-hidden">
           <Button
-            className="w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white"
+            className=" w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white"
             variant="light"
             onPress={() => router.push("/")}
           >
@@ -173,10 +126,26 @@ export const Header = () => {
             <span>Tệp</span>
           </Button>
         </div>
-        <div className="fixed px-1 bottom-0 overflow-hidden w-10 flex flex-col gap-4 justify-center items-center mb-4">
+        <div
+          className={`relative  bottom-0 overflow-hidden  flex flex-col gap-4 justify-center items-start mb-4`}
+        >
           <Dropdown>
             <DropdownTrigger>
-              <Avatar src="https://i.pravatar.cc/150?u=a042581f4e29026024d" />
+              <div className="flex  w-full transition-all relative left-0 top-0 duration-300 justify-start items-center gap-4 text-white overflow-hidden">
+                <Avatar
+                  className=" relative block  min-w-[40px] h-[40px] text-white"
+                  src={
+                    userInfo?.avatar
+                      ? userInfo?.avatar
+                      : `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                          userInfo?.fullname
+                        )}&background=random`
+                  }
+                />
+                <div className="relative left-0 bottom-0 whitesspace-nowrap">
+                  {userInfo?.fullname}
+                </div>
+              </div>
             </DropdownTrigger>
             <DropdownMenu
               aria-label="Example with disabled actions"
@@ -187,14 +156,16 @@ export const Header = () => {
               </DropdownItem>
               <DropdownItem
                 key="setting"
-                onPress={() => handleLink('settings', '/settings')}
+                onPress={() => handleLink("settings", "/settings")}
               >
                 Cài Đặt
               </DropdownItem>
-              <DropdownItem key="logout">Đăng Xuất</DropdownItem>
+              <DropdownItem key="logout" onPress={() => logout()}>
+                Đăng Xuất
+              </DropdownItem>
             </DropdownMenu>
           </Dropdown>
-          <Button variant="light" onPress={() => changeToggle()}>
+          <Button variant="light" size="sm" onPress={() => changeToggle()}>
             {isToggledState ? <Bars3BottomLeftIcon /> : <XCircleIcon />}
           </Button>
         </div>
