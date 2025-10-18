@@ -19,6 +19,7 @@
     "axios": "^1.12.2",
     "cookies-next": "^6.1.0",
     "dexie": "^4.2.0",
+    "firebase": "^12.3.0",
     "framer-motion": "^12.23.19",
     "joi": "^18.0.1",
     "next": "15.5.3",

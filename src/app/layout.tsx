@@ -7,6 +7,7 @@ import "@/styles/globals.css";
 import {Providers} from "./providers";
 import"@/styles/main.scss";
 import { ClientLayout } from "./client-layout";
+import { FirebaseProvider } from "@/components/providers/firebase.provider";
 
 export const metadata: Metadata = {
   title: "ChatApp",
@@ -18,7 +19,9 @@ export default function RootLayout({children}: { readonly children: React.ReactN
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
         <Providers>
-          <ClientLayout>{children}</ClientLayout>
+          <FirebaseProvider>
+            <ClientLayout>{children}</ClientLayout>
+          </FirebaseProvider>
         </Providers>
       </body>
     </html>

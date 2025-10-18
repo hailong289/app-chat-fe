@@ -10,23 +10,25 @@ import Document from "../left-page/document";
 import Settings from "../left-page/settings";
 
 export const LeftSide = () => {
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const path = usePathname();
-    const tab = searchParams.get("tab") || "home";
-    return (
-        <div className="bg-white h-screen flex flex-col w-3/12">
-            {/* Render different components based on the tab */}
-            {path.includes('/settings') && !searchParams.get("tab")  ? <Settings /> : (
-                <>
-                    {tab === "home" && <Home />}
-                    {tab === "messages" && <Messages />}
-                    {tab === "contacts" && <Contacts />}
-                    {tab === "notifications" && <Notification />}
-                    {tab === "documents" && <Document />}
-                    {tab === "settings" && <Settings />}
-                </>
-            )}
-        </div>
-    );
-}
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const path = usePathname();
+  const tab = searchParams.get("tab") || "home";
+  return (
+    <div className="bg-white h-screen flex flex-col w-4/12">
+      {/* Render different components based on the tab */}
+      {path.includes("/settings") && !searchParams.get("tab") ? (
+        <Settings />
+      ) : (
+        <>
+          {tab === "home" && <Home />}
+          {tab === "messages" && <Messages />}
+          {tab === "contacts" && <Contacts />}
+          {tab === "notifications" && <Notification />}
+          {tab === "documents" && <Document />}
+          {tab === "settings" && <Settings />}
+        </>
+      )}
+    </div>
+  );
+};
