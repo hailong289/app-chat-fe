@@ -15,7 +15,7 @@ export const LeftSide = () => {
   const path = usePathname();
   const tab = searchParams.get("tab") || "home";
   return (
-    <div className="bg-white h-screen flex flex-col w-4/12">
+    <div className="bg-white h-screen flex flex-col max-w-5/12">
       {/* Render different components based on the tab */}
       {path.includes("/settings") && !searchParams.get("tab") ? (
         <Settings />

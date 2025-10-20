@@ -16,7 +16,8 @@ import { DocumentIcon } from "@heroicons/react/24/outline";
 import { ArrowLeftEndOnRectangleIcon } from "@heroicons/react/24/solid";
 import {
   BellIcon,
-  ChatBubbleLeftRightIcon,  Cog8ToothIcon,
+  ChatBubbleLeftRightIcon,
+  Cog8ToothIcon,
   HomeIcon,
   HomeModernIcon,
   TvIcon,
@@ -36,7 +37,7 @@ import {
 } from "@heroui/react";
 import Image from "next/image";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export const Header = () => {
   const router = useRouter();
@@ -44,15 +45,33 @@ export const Header = () => {
   const searchParams = useSearchParams();
   const { logout: handleLogout } = useAuthStore();
   const { success, error: showError } = useToast();
-  const isToggled = localStorage.getItem("isSideBarToggled") === "true";
-  const [isToggledState, setIsToggledState] = useState(isToggled);
+  const [isToggledState, setIsToggledState] = useState(false);
+  const [userInfo, setUserInfo] = useState<any>(null);
+
+  // Chỉ truy cập localStorage sau khi component mount
+  useEffect(() => {
+    const isToggled = localStorage.getItem("isSideBarToggled") === "true";
+    setIsToggledState(isToggled);
+
+    // Lấy user info từ localStorage
+    try {
+      const authStorage = localStorage.getItem("auth-storage");
+      if (authStorage) {
+        const parsed = JSON.parse(authStorage);
+        setUserInfo(parsed?.state?.user);
+      }
+    } catch (error) {
+      console.error("Error parsing auth-storage:", error);
+    }
+  }, []);
+
   const changeToggle = () => {
-    localStorage.setItem("isSideBarToggled", (!isToggled).toString());
-    setIsToggledState(!isToggled);
-    console.log(!isToggled);
+    const newToggleState = !isToggledState;
+    localStorage.setItem("isSideBarToggled", newToggleState.toString());
+    setIsToggledState(newToggleState);
+    console.log(newToggleState);
   };
-  const userInfo = JSON.parse(localStorage.getItem("auth-storage") || "{}")
-    ?.state.user;
+
   console.log("🚀 ~ Header ~ userInfo:", userInfo);
   const handleLink = (tab: string, path: string = "") => {
     if (path) {
@@ -70,7 +89,7 @@ export const Header = () => {
     ) {
       return "active-menu-item";
     }
-    return searchParams.get("tab") === tab ? "active-menu-item" : "";
+    return searchParams.get("tab") === tab ? "bg-default/40" : "";
   };
 
   const logout = () => {
@@ -87,12 +106,14 @@ export const Header = () => {
     <div>
       <nav
         className={`relative flex flex-col justify-between top-0 left-0 bg-primary px-1 overflow-hidden transition-all duration-300  ${
-          isToggledState ? "w-15" : "w-80"
+          isToggledState ? "w-15" : "w-50"
         } h-screen`}
       >
         <div className=" relative min-w-15 bg-primary top-0 left-0  w-full mt-10 space-y-6 flex flex-col items-start overflow-hidden">
           <Button
-            className=" w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white"
+            className={`${activeTab(
+              "/"
+            )} w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white`}
             variant="light"
             onPress={() => router.push("/")}
           >
@@ -100,7 +121,9 @@ export const Header = () => {
             <span>Đoạn chat</span>
           </Button>
           <Button
-            className="w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white"
+            className={`${activeTab(
+              "contacts"
+            )} w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white`}
             variant="light"
             onPress={() => handleLink("contacts")}
           >
@@ -108,7 +131,9 @@ export const Header = () => {
             <span>Bạn bè</span>
           </Button>
           <Button
-            className="w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 "
+            className={`${activeTab(
+              "contacts"
+            )} w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 `}
             variant="light"
             onPress={() => handleLink("notifications")}
           >
@@ -118,7 +143,9 @@ export const Header = () => {
             <span className="text-white">Thông Báo</span>
           </Button>
           <Button
-            className="w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white"
+            className={`${activeTab(
+              "documents"
+            )} w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white`}
             variant="light"
             onPress={() => handleLink("documents")}
           >
