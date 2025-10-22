@@ -112,7 +112,7 @@ export const Header = () => {
         <div className=" relative min-w-15 bg-primary top-0 left-0  w-full mt-10 space-y-6 flex flex-col items-start overflow-hidden">
           <Button
             className={`${activeTab(
-              "/"
+              ""
             )} w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white`}
             variant="light"
             onPress={() => router.push("/")}
@@ -132,7 +132,7 @@ export const Header = () => {
           </Button>
           <Button
             className={`${activeTab(
-              "contacts"
+              "notifications"
             )} w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 `}
             variant="light"
             onPress={() => handleLink("notifications")}
@@ -183,7 +183,7 @@ export const Header = () => {
               </DropdownItem>
               <DropdownItem
                 key="setting"
-                onPress={() => handleLink("settings", "/settings")}
+                onPress={() => handleLink("settings")}
               >
                 Cài Đặt
               </DropdownItem>

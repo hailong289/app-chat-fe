@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { CounterState } from "./types/count.state";
-import { db } from "@/libs/db.";
-
+import { db } from "@/libs/db";
 
 export const useCounterStore = create<CounterState>((set) => ({
   count: 0,
@@ -19,5 +18,5 @@ export const useCounterStore = create<CounterState>((set) => ({
     const allTable2 = await db.table2.toArray();
     console.log("All Table1:", allTable1);
     console.log("All Table2:", allTable2);
-  }
+  },
 }));
