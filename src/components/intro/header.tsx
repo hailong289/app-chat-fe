@@ -1,27 +1,15 @@
 "use client";
 import useToast from "@/hooks/useToast";
 import useAuthStore from "@/store/useAuthStore";
+import useCounterStore from "@/store/useCounterStore";
+
 import {
-  AdjustmentsHorizontalIcon,
   Bars3BottomLeftIcon,
   BookmarkIcon,
-  ClockIcon,
-  HeartIcon,
-  UserCircleIcon,
   UserPlusIcon,
   XCircleIcon,
 } from "@heroicons/react/16/solid";
-import { ArrowLeftCircleIcon } from "@heroicons/react/24/outline";
-import { DocumentIcon } from "@heroicons/react/24/outline";
-import { ArrowLeftEndOnRectangleIcon } from "@heroicons/react/24/solid";
-import {
-  BellIcon,
-  ChatBubbleLeftRightIcon,
-  Cog8ToothIcon,
-  HomeIcon,
-  HomeModernIcon,
-  TvIcon,
-} from "@heroicons/react/24/solid";
+import { BellIcon, ChatBubbleLeftRightIcon } from "@heroicons/react/24/solid";
 import {
   Avatar,
   Badge,
@@ -30,14 +18,8 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Navbar,
-  NavbarBrand,
-  NavbarContent,
-  NavbarItem,
 } from "@heroui/react";
-import Image from "next/image";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
 
 export const Header = () => {
   const router = useRouter();
@@ -45,34 +27,15 @@ export const Header = () => {
   const searchParams = useSearchParams();
   const { logout: handleLogout } = useAuthStore();
   const { success, error: showError } = useToast();
-  const [isToggledState, setIsToggledState] = useState(false);
-  const [userInfo, setUserInfo] = useState<any>(null);
-
+  const userState = useAuthStore((state) => state);
+  const counterState = useCounterStore((state) => state);
+  // const [room, setRoom] = useState<Record<string, any>>([{}]);
   // Chỉ truy cập localStorage sau khi component mount
-  useEffect(() => {
-    const isToggled = localStorage.getItem("isSideBarToggled") === "true";
-    setIsToggledState(isToggled);
-
-    // Lấy user info từ localStorage
-    try {
-      const authStorage = localStorage.getItem("auth-storage");
-      if (authStorage) {
-        const parsed = JSON.parse(authStorage);
-        setUserInfo(parsed?.state?.user);
-      }
-    } catch (error) {
-      console.error("Error parsing auth-storage:", error);
-    }
-  }, []);
 
   const changeToggle = () => {
-    const newToggleState = !isToggledState;
-    localStorage.setItem("isSideBarToggled", newToggleState.toString());
-    setIsToggledState(newToggleState);
-    console.log(newToggleState);
+    counterState.setToggleState(!counterState.isToggled);
   };
 
-  console.log("🚀 ~ Header ~ userInfo:", userInfo);
   const handleLink = (tab: string, path: string = "") => {
     if (path) {
       router.push(`${path}`);
@@ -95,7 +58,9 @@ export const Header = () => {
   const logout = () => {
     handleLogout((error) => {
       if (error) {
+        console.log(error);
         showError("Đăng xuất thất bại. Vui lòng thử lại.");
+
         return;
       }
       success("Đăng xuất thành công!");
@@ -106,7 +71,7 @@ export const Header = () => {
     <div>
       <nav
         className={`relative flex flex-col justify-between top-0 left-0 bg-primary px-1 overflow-hidden transition-all duration-300  ${
-          isToggledState ? "w-15" : "w-50"
+          counterState.isToggled ? "w-15" : "w-50"
         } h-screen`}
       >
         <div className=" relative min-w-15 bg-primary top-0 left-0  w-full mt-10 space-y-6 flex flex-col items-start overflow-hidden">
@@ -161,16 +126,11 @@ export const Header = () => {
               <div className="flex  w-full transition-all relative left-0 top-0 duration-300 justify-start items-center gap-4 text-white overflow-hidden">
                 <Avatar
                   className=" relative block  min-w-[40px] h-[40px] text-white"
-                  src={
-                    userInfo?.avatar
-                      ? userInfo?.avatar
-                      : `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                          userInfo?.fullname
-                        )}&background=random`
-                  }
+                  src={userState.user?.avatar ? userState.user?.avatar : ""}
+                  name={userState.user?.fullname || "User"}
                 />
                 <div className="relative left-0 bottom-0 whitesspace-nowrap">
-                  {userInfo?.fullname}
+                  {userState.user?.fullname}
                 </div>
               </div>
             </DropdownTrigger>
@@ -193,7 +153,7 @@ export const Header = () => {
             </DropdownMenu>
           </Dropdown>
           <Button variant="light" size="sm" onPress={() => changeToggle()}>
-            {isToggledState ? <Bars3BottomLeftIcon /> : <XCircleIcon />}
+            {counterState.isToggled ? <Bars3BottomLeftIcon /> : <XCircleIcon />}
           </Button>
         </div>
       </nav>

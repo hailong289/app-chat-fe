@@ -57,6 +57,11 @@ class ApiService {
         });
       }
     );
+    this.axiosInstance.interceptors.request.use((config) => {
+      // console.log("📦 Params:", config.params);
+      console.log("📦 Data:", config.baseURL);
+      return config;
+    });
   }
 
   public static getInstance(): ApiService {

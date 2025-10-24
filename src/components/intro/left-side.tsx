@@ -10,12 +10,11 @@ import Document from "../left-page/document";
 import Settings from "../left-page/settings";
 
 export const LeftSide = () => {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const path = usePathname();
   const tab = searchParams.get("tab") || "home";
   return (
-    <div className="bg-white h-screen flex flex-col max-w-5/12">
+    <div className="bg-white h-screen flex flex-col min-w-3/10">
       {/* Render different components based on the tab */}
       {path.includes("/settings") && !searchParams.get("tab") ? (
         <Settings />

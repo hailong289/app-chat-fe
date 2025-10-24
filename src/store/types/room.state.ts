@@ -1,26 +1,37 @@
 import { QueryRooms } from "@/types/room.type";
 
 export interface RoomsState {
+  type: "group" | "private" | "channel" | "all";
   isLoading: boolean;
-  rooms: room[];
+  rooms: roomType[];
   error: string | null;
-  getRooms: (queryParams?: QueryRooms) => Promise<room[]>;
+  room: roomType | null;
+  getRooms: (queryParams?: QueryRooms) => Promise<roomType[]>;
   clearRooms: () => void;
-  setRooms: (rooms: room[]) => void;
+  setRooms: (rooms: roomType[]) => void;
+  getRoomById: (id: string) => Promise<roomType | undefined>;
+  getRoomsByType: (type: string) => Promise<roomType[]>;
+  changeRoomName: (id: string, name: string) => Promise<void>;
+  leavingRoom: () => Promise<boolean>;
+  deleteMember: (memberId: string) => Promise<void>;
+  changeNickName: (memberId: string, name: string) => Promise<void>;
+  setType: (type: "group" | "private" | "channel" | "all") => void;
+  updateAvatar: (link: string) => Promise<void>;
 }
 
-export type room = {
-  id: string;
+export type roomType = {
+  id: string; // Primary key - must not be null
   roomId: string;
   type: "group" | "private" | "channel";
-  name: string;
-  avatar: string;
+  name: string | null;
+  avatar: string | null;
   members: roomMembers[];
+  updatedAt: string;
 };
 
 export type roomMembers = {
   id: string;
-  name: string;
-  role: string;
-  avatar: string;
+  name: string | null;
+  role: string | null;
+  avatar: string | null;
 };
