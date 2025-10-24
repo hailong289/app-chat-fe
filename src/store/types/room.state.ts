@@ -17,6 +17,12 @@ export interface RoomsState {
   changeNickName: (memberId: string, name: string) => Promise<void>;
   setType: (type: "group" | "private" | "channel" | "all") => void;
   updateAvatar: (link: string) => Promise<void>;
+  createRoom: (
+    type: "group" | "private" | "channel",
+    name: string | undefined,
+    memberIds: string[]
+  ) => Promise<void>;
+  addMember: (memberIds: string[]) => Promise<void>;
 }
 
 export type roomType = {

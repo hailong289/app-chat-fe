@@ -7,6 +7,7 @@ import {
   Avatar,
   Chip,
   Input,
+  useDisclosure,
 } from "@heroui/react";
 import {
   PencilIcon,
@@ -33,6 +34,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   isOnline = true,
   callback = () => {},
 }) => {
+  const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
   const [showSearch, setShowSearch] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState("");
@@ -43,19 +45,19 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     caller: { id: "", name: "", avatar: "" },
   });
   const roomState = useRoomStore((state) => state);
-  const handleOpenDrawer = () => {
-    setIsDrawerOpen(true);
-    if (callback) {
-      callback();
-    }
-  };
+  // const handleOpenDrawer = () => {
+  //   setIsDrawerOpen(true);
+  //   if (callback) {
+  //     callback();
+  //   }
+  // };
 
-  const handleCloseDrawer = () => {
-    setIsDrawerOpen(false);
-    if (callback) {
-      callback();
-    }
-  };
+  // const handleCloseDrawer = () => {
+  //   setIsDrawerOpen(false);
+  //   if (callback) {
+  //     callback();
+  //   }
+  // };
 
   const handleShowModalCall = (
     isVideo: boolean,
@@ -209,7 +211,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 variant="light"
                 className="rounded-full hover:bg-cyan-100 text-white"
                 size="sm"
-                onPress={handleOpenDrawer}
+                onPress={onOpen}
               >
                 <EllipsisVerticalIcon className="w-5 h-5" />
               </Button>
@@ -217,7 +219,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           </NavbarContent>
         )}
       </Navbar>
-      <ChatDrawer isOpen={isDrawerOpen} onClose={handleCloseDrawer} />
+      <ChatDrawer isOpen={isOpen} onClose={onOpenChange} />
       <CallModal
         isOpen={formModalCall.isOpen}
         onClose={() => setFormModalCall((prev) => ({ ...prev, isOpen: false }))}

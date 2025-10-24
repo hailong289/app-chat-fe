@@ -22,16 +22,8 @@ import {
 } from "@heroui/react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { CreateRoomModal } from "../chat/modals/createRoom.modal";
 
-function btnNewMsg() {
-  return (
-    <Tooltip content="Tin nhắn mới" placement="bottom">
-      <Button variant="light" size="sm">
-        <PencilSquareIcon className="w-5 h-5" />
-      </Button>
-    </Tooltip>
-  );
-}
 export const Home = () => {
   const router = useRouter();
   const pathname = usePathname();
@@ -40,9 +32,6 @@ export const Home = () => {
   const handleTab = (tab: string) => () => {
     router.push(`${pathname}?tab=${tab}`);
   };
-  const [type, setType] = useState<"group" | "private" | "channel" | "all">(
-    "all"
-  );
 
   const roomState = useRoomStore((state) => state);
   const [limit, setLimit] = useState(roomState.rooms.length || 20);
@@ -52,6 +41,7 @@ export const Home = () => {
     type: roomState.type,
   };
   const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [openModal, setOpenModal] = useState(false);
   useEffect(() => {
     // Load từ IndexedDB vào state (nếu có cache)
     roomState.getRoomsByType("all"); // ← Đọc từ DB vào state
@@ -82,6 +72,16 @@ export const Home = () => {
     if (bottomRef.current) observer.observe(bottomRef.current);
     return () => observer.disconnect();
   }, []);
+
+  function btnNewMsg() {
+    return (
+      <Tooltip content="Tin nhắn mới" placement="bottom">
+        <Button variant="light" size="sm" onPress={() => setOpenModal(true)}>
+          <PencilSquareIcon className="w-5 h-5" />
+        </Button>
+      </Tooltip>
+    );
+  }
   return (
     <>
       {!isSearchVisible && (
@@ -183,19 +183,13 @@ export const Home = () => {
                 fullWidth
                 selectedKey={roomState.type}
                 onSelectionChange={(key) =>
-                  roomState.setType(key as "all" | "group" | "private" | "channel")
+                  roomState.setType(
+                    key as "all" | "group" | "private" | "channel"
+                  )
                 }
               >
-                <Tab
-                  key="all"
-                  title="Tin nhắn"
-                  onClick={() => roomState.setType("all")}
-                />
-                <Tab
-                  key="group"
-                  title="Nhóm"
-                  onClick={() => roomState.setType("group")}
-                />
+                <Tab key="all" title="Tin nhắn" />
+                <Tab key="group" title="Nhóm" />
                 <Tab key="call" title="Cuộc gọi" />
               </Tabs>
             </div>
@@ -262,6 +256,7 @@ export const Home = () => {
           <div ref={bottomRef}></div>
         </div>
       </div>
+      <CreateRoomModal isOpen={openModal} onClose={() => setOpenModal(false)} />
     </>
   );
 };

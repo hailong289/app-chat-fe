@@ -35,6 +35,7 @@ import {
   ShieldExclamationIcon,
   TrashIcon,
   UserIcon,
+  UserPlusIcon,
 } from "@heroicons/react/16/solid";
 import useRoomStore from "@/store/useRoomStore";
 import useAuthStore from "../../../store/useAuthStore";
@@ -43,6 +44,9 @@ import { DelelteMD } from "../modals/confirm-delete-mbr.model";
 import { ChangeNickNameModal } from "../modals/changeNickName.model";
 import UploadFileButton from "@/components/upload/UploadFileButton";
 import UploadService from "@/service/uploadfile.service";
+import { AddMemberModal } from "../modals/add-member.model";
+import { u } from "framer-motion/client";
+import { useRouter } from "next/navigation";
 
 export default function ChatDrawer({
   isOpen,
@@ -100,6 +104,7 @@ export default function ChatDrawer({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [memberIdToDelete, setMemberIdToDelete] = useState<string | null>(null);
   const [openChangeNickNameModal, setOpenChangeNickNameModal] = useState(false);
+  const [openAddMemberModal, setOpenAddMemberModal] = useState(false);
   const roomState = useRoomStore((state) => state);
   const userState = useAuthStore((state) => state);
   const user = userState.user;
@@ -112,6 +117,11 @@ export default function ChatDrawer({
     owner: "chủ sở hữu",
     guest: "Khách",
   };
+  const router = useRouter();
+  const handleChatPrivate = (id: string) => {
+    roomState.createRoom("private", `Chat với ${id}`, [id]);
+    router.push(`/chat?chatId=${id}`);
+  };
   return (
     <>
       <Drawer
@@ -121,7 +131,7 @@ export default function ChatDrawer({
         className="w-[400px]"
       >
         <DrawerContent>
-          {() => (
+          {(onClose) => (
             <>
               {/* <DrawerHeader className="flex items-center justify-between p-6 relative w-full">
               <div className="flex w-full items-center gap-4">
@@ -143,7 +153,7 @@ export default function ChatDrawer({
                     </h3>
                   </CardBody>
                 </Card>
-                <Accordion>
+                <Accordion selectionMode="multiple">
                   <AccordionItem
                     key="1"
                     aria-label="Accordion 1"
@@ -172,9 +182,7 @@ export default function ChatDrawer({
                             icon={
                               <PhotoIcon className="w-4 h-4 text-gray-400" />
                             }
-                            onDone={(urls) =>
-                              roomState.updateAvatar(urls[0])
-                            }
+                            onDone={(urls) => roomState.updateAvatar(urls[0])}
                             accept="image/*"
                             folder="avatar"
                             label="Thay đổi ảnh"
@@ -238,6 +246,7 @@ export default function ChatDrawer({
                                   <Button
                                     className="w-full justify-start"
                                     variant="light"
+                                    onPress={() => handleChatPrivate(member.id)}
                                     startContent={
                                       <ChatBubbleLeftIcon className="w-5 h-5 text-gray-400" />
                                     }
@@ -278,6 +287,16 @@ export default function ChatDrawer({
                           )}
                         </div>
                       ))}
+                      <Button
+                        className="w-full justify-start"
+                        variant="light"
+                        onPress={() => setOpenAddMemberModal(true)}
+                        startContent={
+                          <UserPlusIcon className="w-4 h-4 text-gray-400" />
+                        }
+                      >
+                        Thêm thành viên
+                      </Button>
                     </AccordionItem>
                   ) : null}
                   <AccordionItem
@@ -430,6 +449,10 @@ export default function ChatDrawer({
       <ChangeNickNameModal
         isOpen={openChangeNickNameModal}
         onClose={() => setOpenChangeNickNameModal(false)}
+      />
+      <AddMemberModal
+        isOpen={openAddMemberModal}
+        onClose={() => setOpenAddMemberModal(false)}
       />
     </>
   );

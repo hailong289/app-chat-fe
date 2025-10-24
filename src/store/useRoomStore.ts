@@ -11,7 +11,6 @@ import {
   upsertMany,
   upsertOne,
 } from "@/libs/crud";
-
 const useRoomStore = create<RoomsState>()(
   persist(
     (set, get) => ({
@@ -215,6 +214,44 @@ const useRoomStore = create<RoomsState>()(
           isLoading: false,
         });
         await get().getRoomsByType(get().type);
+      },
+      createRoom: async (
+        type: "group" | "private" | "channel",
+        name: string | undefined,
+        memberIds: string[]
+      ) => {
+        set({ isLoading: true });
+        const body = {
+          type,
+          name,
+          memberIds,
+        };
+        const result: any = await RoomService.createRoom(body);
+        if (result.data.statusCode !== 200) {
+          set({ isLoading: false, error: "Failed to create room" });
+          return;
+        }
+        await upsertOne(db.rooms, result.data.metadata);
+        await get().getRoomsByType(get().type);
+        set({ isLoading: false, room: result.data.metadata });
+      },
+      addMember: async (memberIds: string[]) => {
+        set({ isLoading: true });
+        const room = get().room;
+        if (!room) return;
+        // Call API to add members
+        const body = {
+          roomId: room.id,
+          memberIds: memberIds,
+        };
+        const result: any = await RoomService.addMembers(body);
+        if (result.data.statusCode !== 200) {
+          set({ isLoading: false, error: "Failed to add members" });
+          return;
+        }
+        await updateOne(db.rooms, room.id, { ...room });
+        await get().getRoomsByType(get().type);
+        set({ isLoading: false });
       },
     }),
 

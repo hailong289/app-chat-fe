@@ -25,4 +25,15 @@ export default class RoomService {
   static changeAvatar(body: { roomId: string; link: string }) {
     return apiService.patch("/chat/rooms/avatar", body);
   }
+  static addMembers(body: { roomId: string; memberIds: string[] }) {
+    return apiService.patch("/chat/rooms/members/add", body);
+  }
+
+  static createRoom(body: {
+    type: "group" | "private" | "channel";
+    name?: string;
+    memberIds: string[];
+  }) {
+    return apiService.post("/chat/rooms", body);
+  }
 }
