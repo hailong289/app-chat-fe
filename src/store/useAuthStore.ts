@@ -23,9 +23,10 @@ const useAuthStore = create<AuthState>()(
                 try {
                     const dateNow = Math.floor(Date.now() / 1000)
                     const response = await AuthService.login({ username, password, fcmToken });
-                    set({ 
-                        isAuthenticated: true, 
-                        isLoading: false, user: response.data.metadata?.user, 
+                    set({
+                        isAuthenticated: true,
+                        isLoading: false,
+                        user: response.data.metadata?.user,
                         tokens: {
                             accessToken: response.data.metadata?.accessToken || null,
                             refreshToken: response.data.metadata?.refreshToken || null,
@@ -52,7 +53,27 @@ const useAuthStore = create<AuthState>()(
                 set({ isLoading: true });
                 try {
                     const response = await AuthService.register(payload);
-                    set({ isAuthenticated: true, isLoading: false, user: response.data.metadata?.user });
+                    const dateNow = Math.floor(Date.now() / 1000);
+                    set({
+                        isAuthenticated: true,
+                        isLoading: false,
+                        user: response.data.metadata?.user,
+                        tokens: {
+                            accessToken: response.data.metadata?.accessToken || null,
+                            refreshToken: response.data.metadata?.refreshToken || null,
+                            expiresIn: response.data.metadata?.expiresIn || 0,
+                            expiredAt: dateNow + (response.data.metadata?.expiresIn || 0),
+                        }
+                    });
+                    setCookie("tokens", JSON.stringify({
+                        accessToken: response.data.metadata?.accessToken || null,
+                        refreshToken: response.data.metadata?.refreshToken || null,
+                        expiresIn: response.data.metadata?.expiresIn || 0,
+                        expiredAt: dateNow + (response.data.metadata?.expiresIn || 0),
+                    }), {
+                        maxAge: response.data.metadata?.expiresIn || 0,
+                        path: "/",
+                    });
                     payload.callback?.();
                 } catch (error) {
                     set({ isAuthenticated: false, isLoading: false, user: null });
@@ -67,6 +88,7 @@ const useAuthStore = create<AuthState>()(
                     deleteCookie("tokens", { path: "/" });
                     callback?.();
                 } catch (error) {
+                    set({ isLoading: false });
                     callback?.(error);
                 }
 
@@ -78,8 +100,9 @@ const useAuthStore = create<AuthState>()(
                     set({ isLoading: false });
                     payload.callback?.();
                 } catch (error) {
-                    payload.callback?.(error);
                     set({ isLoading: false });
+                    payload.callback?.(error);
+                   
                 }
             },
             resetPassword: async (payload) => {
@@ -89,8 +112,8 @@ const useAuthStore = create<AuthState>()(
                     set({ isLoading: false });
                     payload.callback?.();
                 } catch (error) {
-                    payload.callback?.(error);
                     set({ isLoading: false });
+                    payload.callback?.(error);
                 }
             },
             setAuth: (isAuthenticated) => set({ isAuthenticated }),
