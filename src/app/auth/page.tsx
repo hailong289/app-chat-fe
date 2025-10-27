@@ -18,6 +18,7 @@ import useAuthStore from "@/store/useAuthStore";
 import useToast from "@/hooks/useToast";
 import { useRouter } from "next/navigation";
 import Joi from "joi";
+import { useFirebase } from "@/components/providers/firebase.provider";
 
 const loginSchema = Joi.object({
   username: Joi.string().required().messages({ 
@@ -36,27 +37,35 @@ const loginSchema = Joi.object({
     'any.required': 'Mật khẩu không được để trống',
     'string.empty': 'Mật khẩu không được để trống',
   }),
+  fcmToken: Joi.string().optional().allow(null),
 });
 
 export default function LoginPage() {
+  const firebase = useFirebase();
   const [mounted, setMounted] = useState(false);
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState<PayloadLogin>({
     username: '',
-    password: ''
+    password: '',
+    fcmToken: null,
   });
   const router = useRouter();
-
   const { success, error: showError } = useToast();
-
   const { isLoading: loading, login } = useAuthStore(); // Replace with actual loading state from your auth store
 
   // Prevent hydration mismatch
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Set FCM token when available
+  useEffect(() => {
+    if (firebase.token) {
+      setForm((prev) => ({ ...prev, fcmToken: firebase.token }));
+    }
+  }, [firebase.token]);
 
   // Validate field on blur
   const validateField = (field: keyof PayloadLogin, value: string) => {
@@ -74,6 +83,7 @@ export default function LoginPage() {
     setFieldErrors({});
     // Validate form with Zod
     const { error, value } = loginSchema.validate(form, { abortEarly: false });
+    console.log('Validation result:', { error, value });
     if (error) {
       const errors: Record<string, string> = {};
       error.details.forEach((detail) => {
@@ -83,6 +93,8 @@ export default function LoginPage() {
       setFieldErrors(errors);
       return;
     }
+
+    console.log('Submitting login with values:', { ...value, fcmToken: firebase.token });
 
     await login({
       ...value, callback: (error) => {
