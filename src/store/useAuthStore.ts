@@ -58,11 +58,17 @@ const useAuthStore = create<AuthState>()(
             isAuthenticated: false,
             isLoading: false,
             user: null,
-            tokens: null,
+            tokens: {
+              accessToken: null,
+              refreshToken: null,
+              expiresIn: 0,
+              expiredAt: 0,
+            }
           });
           payload.callback?.(error);
         }
       },
+
       register: async (payload) => {
         set({ isLoading: true });
         try {
