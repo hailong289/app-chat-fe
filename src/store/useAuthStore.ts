@@ -83,7 +83,7 @@ const useAuthStore = create<AuthState>()(
         try {
           await AuthService.logout();
           await Dexie.delete("app-chat-db");
-          
+
           set({
             isAuthenticated: false,
             isLoading: false,
@@ -119,6 +119,7 @@ const useAuthStore = create<AuthState>()(
         }
       },
       setAuth: (isAuthenticated) => set({ isAuthenticated }),
+      
     }),
     {
       name: "auth-storage", // unique name

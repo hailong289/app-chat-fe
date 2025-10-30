@@ -37,6 +37,8 @@ export const Header = () => {
   };
 
   const handleLink = (tab: string, path: string = "") => {
+    if (path === "/" && tab === "") counterState.setTab("home");
+    else counterState.setTab(tab);
     if (path) {
       router.push(`${path}`);
     } else {
@@ -52,7 +54,9 @@ export const Header = () => {
     ) {
       return "active-menu-item";
     }
-    return searchParams.get("tab") === tab ? "bg-default/40" : "";
+    return searchParams.get("tab") === tab || counterState.tab === tab
+      ? "bg-default/40"
+      : "";
   };
 
   const logout = () => {
@@ -77,10 +81,10 @@ export const Header = () => {
         <div className=" relative min-w-15 bg-primary top-0 left-0  w-full mt-10 space-y-6 flex flex-col items-start overflow-hidden">
           <Button
             className={`${activeTab(
-              ""
+              "home"
             )} w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white`}
             variant="light"
-            onPress={() => router.push("/")}
+            onPress={() => handleLink("", "/")}
           >
             <ChatBubbleLeftRightIcon className=" relative block  min-w-[24px] h-[24px] text-white" />
             <span>Đoạn chat</span>
@@ -90,7 +94,7 @@ export const Header = () => {
               "contacts"
             )} w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white`}
             variant="light"
-            onPress={() => handleLink("contacts")}
+            onPress={() => handleLink("contacts", "/contacts")}
           >
             <UserPlusIcon className=" relative block  min-w-[24px] h-[24px] text-white" />
             <span>Bạn bè</span>

@@ -10,6 +10,7 @@
     "build:tauri": "npx tauri dev"
   },
   "dependencies": {
+    "@emoji-mart/react": "^1.1.1",
     "@heroicons/react": "^2.2.0",
     "@heroui/button": "^2.2.26",
     "@heroui/react": "^2.8.4",
@@ -21,6 +22,8 @@
     "cookies-next": "^6.1.0",
     "dexie": "^4.2.0",
     "dexie-encrypted": "^2.0.0",
+    "emoji-mart": "^5.6.0",
+    "emoji-picker-react": "^4.15.0",
     "firebase": "^12.3.0",
     "framer-motion": "^12.23.19",
     "joi": "^18.0.1",

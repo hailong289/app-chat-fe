@@ -1,6 +1,6 @@
 import { createJSONStorage, persist } from "zustand/middleware";
 import { create } from "zustand";
-import { RoomsState } from "./types/room.state";
+import { RoomsState, roomType } from "./types/room.state";
 import RoomService from "@/service/room.service";
 import { QueryRooms } from "@/types/room.type";
 import { db } from "@/libs/db";
@@ -23,37 +23,28 @@ const useRoomStore = create<RoomsState>()(
 
       getRooms: async (queryParams?: QueryRooms) => {
         set({ isLoading: true, error: null });
-        try {
-          // RoomService.getRooms trả về axios response
-          const response: any = await RoomService.getRooms(queryParams || {});
 
-          // Axios response có structure: response.data
-          // API của bạn có thể trả về: { data: {...}, success: true } hoặc trực tiếp data
-          const rooms = response.data.metadata || [];
+        // RoomService.getRooms trả về axios response
+        const response: any = await RoomService.getRooms(queryParams || {});
 
-          console.log("✅ Fetched rooms:", rooms);
+        // Axios response có structure: response.data
+        // API của bạn có thể trả về: { data: {...}, success: true } hoặc trực tiếp data
+        const rooms = response.data.metadata || [];
 
-          await upsertMany(db.rooms, rooms);
-          set({
-            rooms,
-            isLoading: false,
-            error: null,
-          });
-          // await get().getRoomsByType(queryParams?.type || "");
-          return rooms;
-        } catch (error: any) {
-          console.error("❌ Error fetching rooms:", error);
-          const errorMessage =
-            error.response?.data?.message ||
-            error.message ||
-            "Failed to fetch rooms";
+        console.log("✅ Fetched rooms:", rooms);
 
-          set({
-            isLoading: false,
-            error: errorMessage,
-          });
-          throw error;
-        }
+        await upsertMany(db.rooms, rooms);
+        set({
+          rooms,
+          isLoading: false,
+          error: null,
+        });
+        // await get().getRoomsByType(queryParams?.type || "");
+
+        set({
+          isLoading: false,
+        });
+        return rooms;
       },
 
       // Clear rooms
@@ -252,6 +243,11 @@ const useRoomStore = create<RoomsState>()(
         await updateOne(db.rooms, room.id, { ...room });
         await get().getRoomsByType(get().type);
         set({ isLoading: false });
+      },
+      // handel socket
+      updateRoomSocket: async (data: roomType) => {
+        await upsertOne(db.rooms, data);
+        get().getRoomsByType(get().type);
       },
     }),
 

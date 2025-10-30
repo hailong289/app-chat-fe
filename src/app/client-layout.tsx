@@ -25,7 +25,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   }, [firebase]);
 
   // Define valid routes
-  const validRoutes = ["/", "/chat", "/settings"];
+  const validRoutes = ["/", "/chat", "/settings", "/contacts"];
   const isValidRoute =
     !validRoutes.some(
       (route) => path === route || path.startsWith(route + "/")

@@ -1,18 +1,21 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Home } from "../left-page/home";
 import Messages from "../left-page/messages";
 import Contacts from "../left-page/contact";
 import Notification from "../left-page/notification";
 import Document from "../left-page/document";
 import Settings from "../left-page/settings";
+import useCounterStore from "@/store/useCounterStore";
 
 export const LeftSide = () => {
+  const countState = useCounterStore((state) => state);
   const searchParams = useSearchParams();
   const path = usePathname();
-  const tab = searchParams.get("tab") || "home";
+
+  const tab =
+    searchParams.get("tab") || (path === "/" ? "home" : countState.tab);
   return (
     <div className="bg-white h-screen flex flex-col min-w-3/10">
       {/* Render different components based on the tab */}
