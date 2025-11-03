@@ -1,10 +1,15 @@
 // app/page.tsx – Rewrite of the provided static HTML using Next.js App Router + HeroUI
 // Assumes you already set up Tailwind v4 and wrapped the app with <HeroUIProvider /> in app/providers.tsx
 "use client";
+// import useRoomStore from "@/store/useRoomStore";
 import Image from "next/image";
+// import { useEffect } from "react";
 
 export default function Page() {
-
+  // const { getRooms } = useRoomStore();
+  // useEffect(() => {
+  //   getRooms();
+  // }, [getRooms]);
   return (
     <div className="w-full h-screen flex items-center justify-center bg-light">
       <div className="text-center max-w-2xl px-8">
@@ -16,7 +21,7 @@ export default function Page() {
             Chào mừng đến với Chat App
           </h1>
           <p className="text-lg text-gray-600 mb-6">
-            Ứng dụng chat hiện đại giúp bạn kết nối và trò chuyện với bạn bè, 
+            Ứng dụng chat hiện đại giúp bạn kết nối và trò chuyện với bạn bè,
             đồng nghiệp một cách dễ dàng và tiện lợi.
           </p>
         </div>
