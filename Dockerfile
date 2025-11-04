@@ -1,0 +1,19 @@
+FROM node:20-alpine
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=8080
+
+# Install dependencies (include dev deps for build)
+COPY package.json package-lock.json* ./
+RUN npm ci || npm install
+
+# Copy source and build
+COPY . .
+RUN npm run build && npm prune --omit=dev
+
+EXPOSE 8080
+CMD ["sh","-c","npm run start -- -p ${PORT:-8080}"]
+
+
