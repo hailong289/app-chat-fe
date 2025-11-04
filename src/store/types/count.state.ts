@@ -5,4 +5,6 @@ export interface CounterState {
   //   getData: () => void;
   isToggled: boolean;
   setToggleState: (value: boolean) => void;
+  tab: string;
+  setTab: (tab: string) => void;
 }

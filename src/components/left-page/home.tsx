@@ -23,8 +23,11 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { CreateRoomModal } from "../chat/modals/createRoom.modal";
+import { useSocket } from "../providers/SocketProvider";
 
 export const Home = () => {
+  const { socket, status } = useSocket();
+
   const router = useRouter();
   const pathname = usePathname();
   const [activeTab, setActiveTab] = useState("chat");
@@ -72,7 +75,15 @@ export const Home = () => {
     if (bottomRef.current) observer.observe(bottomRef.current);
     return () => observer.disconnect();
   }, []);
-
+  useEffect(() => {
+    if (!socket) return;
+    console.log("nhận xử lý socket");
+    socket.on("room-new", roomState.updateRoomSocket);
+    // socket.on("status");
+    return () => {
+      socket.off("room-new", roomState.updateRoomSocket);
+    };
+  }, [socket]);
   function btnNewMsg() {
     return (
       <Tooltip content="Tin nhắn mới" placement="bottom">
@@ -225,7 +236,7 @@ export const Home = () => {
                   // Handle chat selection
                   console.log(`Selected chat with ${chat.name}`);
                   // You can use useRouter to navigate if needed
-
+                  socket?.emit("join", { roomId: chat.roomId }); // tham gia room chat
                   router.push(`/chat?chatId=${chat.id}`);
                   setIsSearchVisible(false);
                   setSearch("");

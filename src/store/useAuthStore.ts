@@ -125,6 +125,7 @@ const useAuthStore = create<AuthState>()(
         }
       },
       setAuth: (isAuthenticated) => set({ isAuthenticated }),
+      
     }),
     {
       name: "auth-storage", // unique name

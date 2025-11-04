@@ -23,6 +23,7 @@ export interface RoomsState {
     memberIds: string[]
   ) => Promise<void>;
   addMember: (memberIds: string[]) => Promise<void>;
+  updateRoomSocket: (room: roomType) => void;
 }
 
 export type roomType = {

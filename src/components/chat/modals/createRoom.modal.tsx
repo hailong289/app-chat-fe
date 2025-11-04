@@ -1,16 +1,12 @@
 import useRoomStore from "@/store/useRoomStore";
 import {
-  MagnifyingGlassCircleIcon,
   MagnifyingGlassIcon,
 } from "@heroicons/react/16/solid";
 import {
   Button,
   Checkbox,
   CheckboxGroup,
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownTrigger,
+
   Input,
   Modal,
   ModalBody,
@@ -21,7 +17,6 @@ import {
   SelectItem,
   User,
 } from "@heroui/react";
-import { m } from "framer-motion";
 import { useState } from "react";
 
 interface Props {

@@ -9,7 +9,10 @@ const useCounterStore = create<CounterState>()(
       count: 0,
       isToggled: false,
       setToggleState: (value: boolean) => set({ isToggled: value }),
+      tab: "home",
+      setTab: (tab: string) => set({ tab }),
     }),
+
     {
       name: "counter-storage", // unique name
       storage: createJSONStorage(() => localStorage), // (optional) by default, the storage is sessionStorage
