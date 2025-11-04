@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    name: Deploy Notification to Cloud Run
+    name: Deploy App Chat FE to Cloud Run
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -34,7 +34,6 @@ jobs:
             --memory=128Mi \
             --port=8080 \
             --timeout=60s \
-            --use-http2 \
             --set-env-vars NODE_ENV=${{ secrets.NODE_ENV }} \
             --set-env-vars API_URL=${{ secrets.API_URL }} \
             --set-env-vars NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }} \
