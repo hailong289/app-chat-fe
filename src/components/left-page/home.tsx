@@ -24,9 +24,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { CreateRoomModal } from "../chat/modals/createRoom.modal";
 import { useSocket } from "../providers/SocketProvider";
+import useMessageStore from "@/store/useMessageStore";
 
 export const Home = () => {
-  const { socket, status } = useSocket();
+  const { socket } = useSocket();
 
   const router = useRouter();
   const pathname = usePathname();
@@ -75,15 +76,7 @@ export const Home = () => {
     if (bottomRef.current) observer.observe(bottomRef.current);
     return () => observer.disconnect();
   }, []);
-  useEffect(() => {
-    if (!socket) return;
-    console.log("nhận xử lý socket");
-    socket.on("room-new", roomState.updateRoomSocket);
-    // socket.on("status");
-    return () => {
-      socket.off("room-new", roomState.updateRoomSocket);
-    };
-  }, [socket]);
+
   function btnNewMsg() {
     return (
       <Tooltip content="Tin nhắn mới" placement="bottom">
@@ -250,16 +243,24 @@ export const Home = () => {
                   />
                   <div>
                     <h3 className="font-semibold text-gray-800">{chat.name}</h3>
-                    {/* <p className="text-sm text-gray-500">{chat.message}</p> */}
+                    <p
+                      className={`text-sm ${
+                        chat.is_read ? "font-normal" : "font-semibold"
+                      } text-gray-600 truncate w-48`}
+                    >
+                      {chat?.last_message?.content || ""}
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-gray-400">
                     {chat.updatedAt ? formatTimeAgo(chat.updatedAt) : ""}
                   </p>
-                  <Badge color="danger" size="sm" content="5">
-                    <span />
-                  </Badge>
+                  {chat.unread_count > 0 && (
+                    <Badge color="danger" size="sm" content={chat.unread_count}>
+                      <span />
+                    </Badge>
+                  )}
                 </div>
               </CardBody>
             </Card>

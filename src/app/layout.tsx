@@ -9,6 +9,7 @@ import "@/styles/main.scss";
 import { ClientLayout } from "./client-layout";
 import { FirebaseProvider } from "@/components/providers/firebase.provider";
 import { SocketProvider } from "@/components/providers/SocketProvider";
+import { SocketEventGlobal } from "@/components/socketEventGlobal";
 
 export const metadata: Metadata = {
   title: "ChatApp",
@@ -26,6 +27,7 @@ export default function RootLayout({
         <Providers>
           <FirebaseProvider>
             <SocketProvider>
+              <SocketEventGlobal />
               <ClientLayout>{children}</ClientLayout>
             </SocketProvider>
           </FirebaseProvider>

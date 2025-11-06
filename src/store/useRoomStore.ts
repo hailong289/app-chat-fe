@@ -245,8 +245,8 @@ const useRoomStore = create<RoomsState>()(
         set({ isLoading: false });
       },
       // handel socket
-      updateRoomSocket: async (data: roomType) => {
-        await upsertOne(db.rooms, data);
+      updateRoomSocket: (data: roomType) => {
+        upsertOne(db.rooms, data);
         get().getRoomsByType(get().type);
       },
     }),

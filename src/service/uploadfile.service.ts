@@ -19,7 +19,7 @@ export default class UploadService {
     return apiService.post<UploadSingleResp>("/filesystem/upload-single", form);
   }
 
-  static uploadMultiple(files: Array<File | Blob>, folder = "avatar") {
+  static uploadMultiple(files: Array<File | Blob>, folder = "message") {
     const form = new FormData();
     files.forEach((f) => form.append("files", f)); // tên field: "files" khớp cURL của bạn
     form.append("folder", folder);

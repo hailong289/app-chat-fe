@@ -12,7 +12,7 @@ import { io, Socket } from "socket.io-client";
 import useAuthStore from "@/store/useAuthStore";
 import { getCookie } from "cookies-next";
 
-type SocketStatus = "idle" | "connecting" | "connected" | "error";
+export type SocketStatus = "idle" | "connecting" | "connected" | "error";
 
 type SocketCtx = {
   socket: Socket | null;

@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import useRoomStore from "@/store/useRoomStore";
 import { useSearchParams } from "next/navigation";
 import ChatInputBar from "@/components/chat/inputBar";
+import { ChatMessages } from "@/components/chat/ChatMessages";
 // import { useRouter } from "next/router";
 
 export default function ChatPage() {
@@ -39,35 +40,9 @@ export default function ChatPage() {
       <ChatHeader callback={callbackSetSize} />
       <main className="w-full h-[calc(100vh-80px)] relative">
         {/* Chat messages would go here */}
-        <div className="p-4 space-y-4 overflow-y-auto h-full">
-          {/* Example message */}
-          <div className="flex justify-start">
-            <Avatar
-              src="https://avatar.iran.liara.run/public"
-              name="Rohini Sharma"
-              size="sm"
-              className="w-8 h-8 mr-2"
-            />
-            <div className="bg-white p-3 rounded-lg shadow max-w-xs">
-              Hello! How are you?
-            </div>
-          </div>
-          <div className="flex justify-end">
-            <div className="bg-primary text-white p-3 rounded-lg shadow max-w-xs">
-              I'm good, thanks! And you?
-            </div>
-            <Avatar
-              src="https://avatar.iran.liara.run/public"
-              name="You"
-              size="sm"
-              className="w-8 h-8 ml-2"
-            />
-          </div>
-          {/* More messages... */}
-        </div>
-
+        <ChatMessages chatId={chatId} />
         {/* Message input area */}
-        <ChatInputBar />
+        <ChatInputBar chatId={chatId} />
       </main>
     </div>
   );

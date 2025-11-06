@@ -16,6 +16,16 @@ export const LeftSide = () => {
 
   const tab =
     searchParams.get("tab") || (path === "/" ? "home" : countState.tab);
+
+
+
+
+
+
+
+
+
+    
   return (
     <div className="bg-white h-screen flex flex-col min-w-3/10">
       {/* Render different components based on the tab */}
