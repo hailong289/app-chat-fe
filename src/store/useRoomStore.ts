@@ -19,6 +19,8 @@ const useRoomStore = create<RoomsState>()(
       error: null,
       room: null,
       type: "all",
+      readedRooms: {},
+      // last_message_id: null,
       setType: (type: "group" | "private" | "channel" | "all") => set({ type }),
 
       getRooms: async (queryParams?: QueryRooms) => {
@@ -245,9 +247,17 @@ const useRoomStore = create<RoomsState>()(
         set({ isLoading: false });
       },
       // handel socket
-      updateRoomSocket: async (data: roomType) => {
-        await upsertOne(db.rooms, data);
+      updateRoomSocket: (data: roomType) => {
+        upsertOne(db.rooms, data);
         get().getRoomsByType(get().type);
+      },
+      setRoomReaded: (data: { lastMessageId: string; roomId: string }) => {
+        set({
+          readedRooms: {
+            ...get().readedRooms,
+            [data.roomId]: data.lastMessageId,
+          },
+        });
       },
     }),
 

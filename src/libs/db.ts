@@ -1,4 +1,5 @@
 import { ContactType } from "@/store/types/contact.type";
+import { MessageType } from "@/store/types/message.state";
 import { roomType } from "@/store/types/room.state";
 import Dexie, { Table } from "dexie";
 import { applyEncryptionMiddleware, ENCRYPT_LIST } from "dexie-encrypted";
@@ -8,6 +9,7 @@ export class AppDB extends Dexie {
   // table2!: Table<Table2, number>;
   rooms!: Table<roomType, string>; // roomStore
   contacts!: Table<ContactType, string>; // contactStore
+  messages!: Table<MessageType, string>; // messageStore
 
   constructor() {
     super("app-chat-db");
@@ -24,11 +26,13 @@ export class AppDB extends Dexie {
       .stores({
         rooms: "id, roomId, type, updatedAt", // indexed fields only
         contacts: "id, fullname, email, status, createdAt, updatedAt", // indexed fields only
+        messages: "id, roomId, type, createdAt, pinned", // indexed fields only
       })
       .upgrade(async (trans) => {
         // Clear all old data on upgrade to avoid encryption conflicts
         await trans.table("rooms").clear();
         await trans.table("contacts").clear();
+        await trans.table("messages").clear();
       });
 
     // Apply encryption AFTER schema is defined
@@ -46,6 +50,10 @@ export class AppDB extends Dexie {
       contacts: {
         type: ENCRYPT_LIST,
         fields: ["avatar", "phone", "gender", "dateOfBirth"], // encrypt sensitive contact fields
+      },
+      messages: {
+        type: ENCRYPT_LIST,
+        fields: ["content", "sender", "type"], // encrypt sensitive message fields
       },
     };
 
