@@ -2,6 +2,7 @@
 import * as React from "react";
 import { ObjectId } from "bson";
 import { FilePreview } from "@/store/types/message.state";
+import imageCompression from "browser-image-compression";
 
 /** ===== Types & Defaults ===== */
 
@@ -11,12 +12,16 @@ export type FileAcceptConfig = {
   accept: string[]; // ví dụ: ["image/*", "video/*", "application/pdf"]
   maxFiles: number; // số file tối đa
   maxSizeMB: number; // giới hạn size mỗi file (MB)
+  compressImages?: boolean; // Tự động nén ảnh
+  compressQuality?: number; // Chất lượng nén (0-1)
 };
 
 export const defaultConfig: FileAcceptConfig = {
   accept: ["image/*", "video/*", "application/pdf"],
   maxFiles: 10,
-  maxSizeMB: 20,
+  maxSizeMB: 50, // Tăng lên 50MB để hỗ trợ video files lớn hơn
+  compressImages: false, // Mặc định không nén, để user chọn
+  compressQuality: 0.8, // Chất lượng nén 80%
 };
 
 /** Build regex từ accept pattern ("image/*" -> /^image\/.*$/i) */
@@ -71,6 +76,84 @@ export function guessMimeByExt(name: string): string | null {
 
 /** ===== Utilities ===== */
 
+/**
+ * Nén ảnh sử dụng browser-image-compression
+ * @param file File ảnh cần nén
+ * @param quality Chất lượng nén (0-1), mặc định 0.8
+ * @returns File đã nén hoặc file gốc nếu không thể nén
+ */
+export async function compressImage(
+  file: File,
+  quality: number = 0.8
+): Promise<File> {
+  // Chỉ nén nếu là ảnh
+  if (!file.type.startsWith("image/")) {
+    console.log("⏭️ Skipping compression (not an image):", file.name);
+    return file;
+  }
+
+  // Không nén GIF và SVG
+  if (file.type === "image/gif" || file.type === "image/svg+xml") {
+    console.log("⏭️ Skipping compression (GIF/SVG):", file.name);
+    return file;
+  }
+
+  try {
+    const originalSize = file.size / 1024 / 1024; // MB
+    console.log(
+      `🗜️ Compressing image: ${file.name} (${originalSize.toFixed(2)}MB)`
+    );
+
+    const options = {
+      maxSizeMB: 10, // Nén tối đa xuống 10MB
+      maxWidthOrHeight: 1920, // Resize xuống max 1920px
+      useWebWorker: true,
+      initialQuality: quality,
+    };
+
+    const compressedFile = await imageCompression(file, options);
+    const compressedSize = compressedFile.size / 1024 / 1024; // MB
+
+    console.log(
+      `✅ Compressed: ${file.name} | ${originalSize.toFixed(
+        2
+      )}MB → ${compressedSize.toFixed(2)}MB (${(
+        (1 - compressedSize / originalSize) *
+        100
+      ).toFixed(1)}% reduction)`
+    );
+
+    return compressedFile;
+  } catch (error) {
+    console.error("❌ Compression failed:", error);
+    return file; // Trả về file gốc nếu lỗi
+  }
+}
+
+/**
+ * Nén nhiều files
+ * @param files Mảng files cần nén
+ * @param quality Chất lượng nén
+ * @param onProgress Callback để track tiến trình
+ */
+export async function compressFiles(
+  files: File[],
+  quality: number = 0.8,
+  onProgress?: (current: number, total: number) => void
+): Promise<File[]> {
+  const compressed: File[] = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    onProgress?.(i + 1, files.length);
+
+    const result = await compressImage(file, quality);
+    compressed.push(result);
+  }
+
+  return compressed;
+}
+
 export function formatBytes(n: number) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -92,32 +175,72 @@ export function dataUrlToFile(dataUrl: string, filename: string): File {
 /** Kiểm tra file có được chấp nhận theo accept list không */
 export function isAccepted(file: File, accept: string[], acceptRegex?: RegExp) {
   const regex = acceptRegex ?? buildAcceptRegex(accept);
-  if (file.type && regex.test(file.type)) return true;
+
+  // Log để debug
+  console.log("🔍 Checking file:", {
+    name: file.name,
+    type: file.type,
+    size: file.size,
+  });
+
+  if (file.type && regex.test(file.type)) {
+    console.log("✅ Accepted by file.type:", file.type);
+    return true;
+  }
 
   // fallback nếu type rỗng: đoán theo tên
   const guessed = guessMimeByExt(file.name);
-  if (guessed && regex.test(guessed)) return true;
+  console.log("🔍 Guessed MIME:", guessed);
+
+  if (guessed && regex.test(guessed)) {
+    console.log("✅ Accepted by guessed MIME:", guessed);
+    return true;
+  }
 
   // chấp nhận mọi loại nếu có "*/*"
-  if (accept.includes("*/*")) return true;
+  if (accept.includes("*/*")) {
+    console.log("✅ Accepted by */*");
+    return true;
+  }
 
+  console.log("❌ File rejected");
   return false;
 }
 
-/** Chuẩn hoá + validate danh sách File */
-export function normalizeAndValidateFiles(
+/** Chuẩn hoá + validate danh sách File (bất đồng bộ để hỗ trợ nén) */
+export async function normalizeAndValidateFiles(
   files: File[],
   cfg: FileAcceptConfig
-): File[] {
+): Promise<File[]> {
   const out: File[] = [];
   const MAX_SIZE_BYTES = cfg.maxSizeMB * 1024 * 1024;
   const acceptRegex = buildAcceptRegex(cfg.accept);
 
   for (const f of files) {
-    if (!isAccepted(f, cfg.accept, acceptRegex)) continue;
-    if (f.size > MAX_SIZE_BYTES) continue;
+    if (!isAccepted(f, cfg.accept, acceptRegex)) {
+      console.log("❌ File not accepted:", f.name);
+      continue;
+    }
 
-    out.push(f);
+    // Nén ảnh nếu được bật
+    let processedFile = f;
+    if (cfg.compressImages && f.type.startsWith("image/")) {
+      processedFile = await compressImage(f, cfg.compressQuality || 0.8);
+    }
+
+    // Kiểm tra lại size sau khi nén
+    if (processedFile.size > MAX_SIZE_BYTES) {
+      console.log(
+        "❌ File too large:",
+        processedFile.name,
+        `(${(processedFile.size / 1024 / 1024).toFixed(1)}MB > ${
+          cfg.maxSizeMB
+        }MB)`
+      );
+      continue;
+    }
+
+    out.push(processedFile);
     if (out.length >= cfg.maxFiles) break;
   }
   return out;
@@ -140,11 +263,13 @@ export function toPreviews(files: File[]): FilePreview[] {
     return {
       _id: new ObjectId().toHexString(),
       kind,
-      url,
+      url, // Local blob URL
       name: f.name,
       size: f.size,
       mimeType,
       status: "pending", // Trạng thái ban đầu
+      uploadProgress: 0,
+      file: f, // 🔥 Lưu File gốc để upload sau
     };
   });
 }
@@ -159,12 +284,12 @@ export function revokePreviews(previews: FilePreview[]) {
 }
 
 /** Thêm files mới vào state attachments (FilePreview[]) */
-export function addFiles(
+export async function addFiles(
   current: FilePreview[],
   incoming: File[],
   cfg: FileAcceptConfig = defaultConfig
-): FilePreview[] {
-  const valid = normalizeAndValidateFiles(incoming, cfg);
+): Promise<FilePreview[]> {
+  const valid = await normalizeAndValidateFiles(incoming, cfg);
   if (!valid.length) return current;
 
   const combined = [...current, ...toPreviews(valid)];
@@ -201,10 +326,12 @@ export function cleanupAll(previewsRef: React.MutableRefObject<FilePreview[]>) {
 
 /** onPaste cho div/input */
 export function handlePasteFactory(
-  setAttachments: (updater: (prev: FilePreview[]) => FilePreview[]) => void,
+  setAttachments: (
+    updater: (prev: FilePreview[]) => FilePreview[] | Promise<FilePreview[]>
+  ) => void,
   cfg: FileAcceptConfig = defaultConfig
 ) {
-  return (e: React.ClipboardEvent) => {
+  return async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items?.length) return;
 
@@ -227,19 +354,21 @@ export function handlePasteFactory(
     if (!files.length) return;
 
     e.preventDefault(); // chặn chèn binary vào input
-    setAttachments((prev) => addFiles(prev, files, cfg));
+    setAttachments(async (prev) => await addFiles(prev, files, cfg));
   };
 }
 
 /** onChange của <input type="file" multiple> */
 export function handleFilePickFactory(
-  setAttachments: (updater: (prev: FilePreview[]) => FilePreview[]) => void,
+  setAttachments: (
+    updater: (prev: FilePreview[]) => FilePreview[] | Promise<FilePreview[]>
+  ) => void,
   cfg: FileAcceptConfig = defaultConfig
 ) {
-  return (e: React.ChangeEvent<HTMLInputElement>) => {
+  return async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files ? Array.from(e.target.files) : [];
     if (list.length) {
-      setAttachments((prev) => addFiles(prev, list, cfg));
+      setAttachments(async (prev) => await addFiles(prev, list, cfg));
     }
     // reset để chọn lại cùng file vẫn trigger
     e.currentTarget.value = "";
@@ -262,14 +391,17 @@ export function handleDragLeaveFactory(setIsDragging?: (v: boolean) => void) {
 
 /** onDrop của container */
 export function handleDropFactory(
-  setAttachments: (updater: (prev: FilePreview[]) => FilePreview[]) => void,
+  setAttachments: (
+    updater: (prev: FilePreview[]) => FilePreview[] | Promise<FilePreview[]>
+  ) => void,
   cfg: FileAcceptConfig = defaultConfig,
   setIsDragging?: (v: boolean) => void
 ) {
-  return (e: React.DragEvent<HTMLDivElement>) => {
+  return async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging?.(false);
     const files = e.dataTransfer?.files ? Array.from(e.dataTransfer.files) : [];
-    if (files.length) setAttachments((prev) => addFiles(prev, files, cfg));
+    if (files.length)
+      setAttachments(async (prev) => await addFiles(prev, files, cfg));
   };
 }

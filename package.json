@@ -19,6 +19,7 @@
     "@internationalized/date": "^3.9.0",
     "@types/pako": "^2.0.4",
     "axios": "^1.12.2",
+    "browser-image-compression": "^2.0.2",
     "bson": "^6.10.4",
     "cookies-next": "^6.1.0",
     "dexie": "^4.2.0",

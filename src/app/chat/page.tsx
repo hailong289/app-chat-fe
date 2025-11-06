@@ -10,14 +10,14 @@ import {
   PaperAirplaneIcon,
 } from "@heroicons/react/24/outline";
 import { Avatar } from "@heroui/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import useRoomStore from "@/store/useRoomStore";
 import { useSearchParams } from "next/navigation";
 import ChatInputBar from "@/components/chat/inputBar";
 import { ChatMessages } from "@/components/chat/ChatMessages";
 // import { useRouter } from "next/router";
 
-export default function ChatPage() {
+function ChatPageContent() {
   const [widthClass, setWidthClass] = useState("w-full");
   const callbackSetSize = () => {
     if (widthClass === "w-full") {
@@ -45,5 +45,19 @@ export default function ChatPage() {
         <ChatInputBar chatId={chatId} />
       </main>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="bg-light h-screen w-full flex items-center justify-center">
+          <p className="text-gray-500">Đang tải cuộc trò chuyện...</p>
+        </div>
+      }
+    >
+      <ChatPageContent />
+    </Suspense>
   );
 }

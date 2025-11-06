@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { Header } from "@/components/intro/header";
 import { LeftSide } from "@/components/intro/left-side";
 import { useFirebase } from "@/components/providers/firebase.provider";
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { useSocket } from "@/components/providers/SocketProvider";
 import Helpers, { getToastElements } from "@/libs/helpers";
 import { addToast } from "@heroui/react";
@@ -45,11 +45,15 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen w-full">
       <nav className="relative">
-        <Header />
+        <Suspense fallback={<div className="w-full h-16" />}>
+          <Header />
+        </Suspense>
       </nav>
 
       <main className="w-full h-screen flex">
-        <LeftSide />
+        <Suspense fallback={<div className="w-80 h-full" />}>
+          <LeftSide />
+        </Suspense>
         <div className="w-full overflow-y-auto">{children}</div>
       </main>
     </div>

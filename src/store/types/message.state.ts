@@ -8,7 +8,7 @@ export type MessageSender = {
 export type FilePreview = {
   _id: string;
   kind: string;
-  url: string;
+  url: string; // Local blob URL hoặc remote URL sau upload
   name: string;
   size: number;
   mimeType: string;
@@ -16,7 +16,10 @@ export type FilePreview = {
   width?: number;
   height?: number;
   duration?: number | null;
-  status?: string;
+  status?: string; // "pending" | "uploading" | "uploaded" | "failed"
+  uploadProgress?: number; // 0-100 (%)
+  uploadedUrl?: string; // URL sau khi upload thành công
+  file?: File; // File gốc để upload
 };
 export type MessageType = {
   id: string;
@@ -76,17 +79,36 @@ export type MessageType = {
 export interface MessageState {
   isLoading: boolean;
   messagesRoom: Record<string, msg>; // roomId -> messages
+  readedRooms: Record<string, string>; // roomId -> lastMessageId
 
   upsetMsg: (msgData: MessageType) => Promise<void>;
   sendMessage: (data: SendMessageArgs) => Promise<void>;
+  getMessageByRoomId: (roomId: string) => Promise<void>;
+  markMessageAsRead: (
+    roomId: string,
+    messageId: string,
+    socket: any
+  ) => Promise<void>;
+  uploadAttachments: (
+    roomId: string,
+    messageId: string,
+    attachments: FilePreview[]
+  ) => Promise<FilePreview[]>;
+  updateAttachmentProgress: (
+    roomId: string,
+    messageId: string,
+    fileId: string,
+    progress: number,
+    status?: string
+  ) => void;
 }
 export type msg = {
   input: string | null;
-  attachments: Array<File> | null;
+  attachments: Array<FilePreview> | null; // Đổi từ File sang FilePreview
   ghim: Array<string> | null;
   updatedAt: string | null;
   messages: Array<MessageType>;
-  last_message_id: string | null;
+  last_message_id?: string | null;
   reply?: {
     _id: string;
     type: string;

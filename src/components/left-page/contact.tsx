@@ -162,13 +162,13 @@ const Contacts: React.FC = () => {
                 fullWidth
               >
                 <Tab key="0" title="Danh sách bạn bè">
-                  {friendRequests.map((update) => (
+                  {/* {friendRequests.map((update) => (
                     <ItemContact
                       key={update.id}
                       item={update}
                       onPress={() => onPress(update.id)}
                     />
-                  ))}
+                  ))} */}
                 </Tab>
 
                 <Tab key="1" title="Lời mời kết bạn">
@@ -180,13 +180,13 @@ const Contacts: React.FC = () => {
                   >
                     <h5>Xem lời mời đã gửi</h5>
                   </Button>
-                  {sentRequests.map((item) => (
+                  {/* {sentRequests.map((item) => (
                     <ItemContact
                       item={item}
                       key={item.id}
                       onPress={() => onPress(item.id)}
                     />
-                  ))}
+                  ))} */}
                 </Tab>
               </Tabs>
             </div>

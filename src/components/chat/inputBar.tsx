@@ -6,15 +6,17 @@ import {
   handleDropFactory,
   handleFilePickFactory,
   handlePasteFactory,
+  FileAcceptConfig,
 } from "@/libs/file-handlers";
 import {
   Bars3Icon,
   FaceSmileIcon,
   MicrophoneIcon,
   PaperAirplaneIcon,
+  PaperClipIcon,
+  PhotoIcon,
 } from "@heroicons/react/16/solid";
-import { Button } from "@heroui/button";
-import { Input } from "@heroui/react";
+import { Button, Switch, Input } from "@heroui/react";
 import { useEffect, useRef, useState } from "react";
 import FilePreviewGridModal from "../FilePreviewGridModal";
 import useMessageStore from "@/store/useMessageStore";
@@ -27,8 +29,15 @@ export default function ChatInputBar({ chatId }: { chatId: string }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachments, setAttachments] = useState<FilePreview[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [compressImages, setCompressImages] = useState(false); // Toggle nén ảnh
   const attRef = useRef<FilePreview[]>([]);
   attRef.current = attachments;
+
+  // Config với compression setting
+  const config: FileAcceptConfig = {
+    ...defaultConfig,
+    compressImages,
+  };
 
   useEffect(() => {
     cleanupAll(attRef);
@@ -36,16 +45,27 @@ export default function ChatInputBar({ chatId }: { chatId: string }) {
     setIsDragging(false);
   }, [chatId]);
 
-  const onPaste = handlePasteFactory(setAttachments, defaultConfig);
-  const onPick = handleFilePickFactory(setAttachments, defaultConfig);
+  // Wrapper để xử lý async
+  const setAttachmentsAsync = (
+    updater: (prev: FilePreview[]) => Promise<FilePreview[]>
+  ) => {
+    setAttachments((prev) => {
+      updater(prev).then(setAttachments);
+      return prev; // Giữ state cũ trong khi chờ
+    });
+  };
+
+  const onPaste = handlePasteFactory(setAttachmentsAsync as any, config);
+  const onPick = handleFilePickFactory(setAttachmentsAsync as any, config);
   const onDrop = handleDropFactory(
-    setAttachments,
-    defaultConfig,
+    setAttachmentsAsync as any,
+    config,
     setIsDragging
   );
   const useMessage = useMessageStore((state) => state);
   const authState = useAuthStore((state) => state);
   const { socket } = useSocket();
+  const [type, setType] = useState<"text" | "image" | "file" | "video">("text");
 
   const onSend = () => {
     if (!message.trim() && attachments.length === 0) return;
@@ -53,8 +73,8 @@ export default function ChatInputBar({ chatId }: { chatId: string }) {
     useMessage.sendMessage({
       roomId: chatId,
       content: message,
-      attachments: [], // Tạm thời để rỗng, sẽ xử lý upload sau
-      type: "text",
+      attachments: attachments, // Tạm thời để rỗng, sẽ xử lý upload sau
+      type: type,
       socket,
       userId: authState.user?.id,
       userFullname: authState.user?.fullname,
@@ -63,12 +83,13 @@ export default function ChatInputBar({ chatId }: { chatId: string }) {
 
     setMessage("");
     setAttachments([]);
+    setType("text");
   };
   const onDragLeave = handleDragLeaveFactory(setIsDragging);
   return (
-    <div
+    <section
+      aria-label="Chat input area"
       className="absolute bottom-8 left-[5%] bg-white w-[90%] p-4 rounded-2xl"
-      role="region"
       onPaste={onPaste}
       onDrop={onDrop}
       onDragOver={(e) => {
@@ -94,6 +115,19 @@ export default function ChatInputBar({ chatId }: { chatId: string }) {
         }}
         showPdfInline={true}
       />
+
+      {/* Toggle nén ảnh */}
+      {attachments.some((att) => att.kind === "photo") && (
+        <div className="mb-2 flex items-center justify-between bg-gray-50 p-2 rounded-lg">
+          <span className="text-sm text-gray-600">Nén ảnh trước khi gửi</span>
+          <Switch
+            size="sm"
+            isSelected={compressImages}
+            onValueChange={setCompressImages}
+          />
+        </div>
+      )}
+
       <div className="flex items-center gap-3">
         {/* Left icons */}
         <div className="flex items-center gap-2">
@@ -112,7 +146,7 @@ export default function ChatInputBar({ chatId }: { chatId: string }) {
             size="sm"
             onClick={() => fileInputRef.current?.click()}
           >
-            <Bars3Icon className="w-5 h-5" />
+            <PhotoIcon className="w-5 h-5" />
           </Button>
           <Button
             isIconOnly
@@ -176,6 +210,6 @@ export default function ChatInputBar({ chatId }: { chatId: string }) {
         onChange={onPick}
         accept={defaultConfig.accept.join(",")}
       />
-    </div>
+    </section>
   );
 }

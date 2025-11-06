@@ -36,10 +36,11 @@ const fmt = (n: number) => {
   }
 };
 
-const isImage = (t: string) => t.startsWith("image/");
-const isVideo = (t: string) => t.startsWith("video/");
-const isAudio = (t: string) => t.startsWith("audio/");
-const isPdf = (t: string) => t === "application/pdf";
+const isImage = (t: string) =>
+  t.startsWith("image/") || t === "image" || t === "photo";
+const isVideo = (t: string) => t.startsWith("video/") || t === "video";
+const isAudio = (t: string) => t.startsWith("audio/") || t === "audio";
+const isPdf = (t: string) => t === "application/pdf" || t === "pdf";
 
 const getFileType = (file: FilePreview) => file.mimeType || file.kind;
 
