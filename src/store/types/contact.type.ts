@@ -11,6 +11,7 @@ export interface ContactType {
   dateOfBirth: string | null;
   friendship?: "PENDING" | "ACCEPTED" | "REJECTED" | "BLOCKED" | "INVALID";
   actionUserId?: string | null;
+  isOnline?: boolean;
 }
 
 export interface ContactState {

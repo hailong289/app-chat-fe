@@ -73,22 +73,36 @@ export type MessageType = {
     | "failed"
     | "pending"
     | "uploading"
-    | "uploaded";
+    | "uploaded"
+    | "recalled";
 };
+
+export interface RoomData {
+  messages: MessageType[];
+  input: string | null;
+  attachments: FilePreview[] | null;
+  ghim: string[] | null;
+  updatedAt: string | null;
+}
 
 export interface MessageState {
   isLoading: boolean;
-  messagesRoom: Record<string, msg>; // roomId -> messages
+  messagesRoom: Record<string, RoomData>; // roomId -> room data
   readedRooms: Record<string, string>; // roomId -> lastMessageId
 
   upsetMsg: (msgData: MessageType) => Promise<void>;
   sendMessage: (data: SendMessageArgs) => Promise<void>;
-  getMessageByRoomId: (roomId: string) => Promise<void>;
-  markMessageAsRead: (
+  resendMessage: (
     roomId: string,
     messageId: string,
-    socket: any
+    socket?: any
   ) => Promise<void>;
+  getMessageByRoomId: (roomId: string) => Promise<void>;
+  loadOlderMessages: (roomId: string, limit?: number) => Promise<any[]>;
+  deleteMessage: (roomId: string, messageId: string) => Promise<void>;
+  recallMessage: (roomId: string, messageId: string) => Promise<void>;
+  fetchNewMessages: (roomId: string, lastMessageId?: string) => Promise<void>;
+
   uploadAttachments: (
     roomId: string,
     messageId: string,
@@ -108,7 +122,6 @@ export type msg = {
   ghim: Array<string> | null;
   updatedAt: string | null;
   messages: Array<MessageType>;
-  last_message_id?: string | null;
   reply?: {
     _id: string;
     type: string;

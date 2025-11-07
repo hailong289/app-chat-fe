@@ -6,7 +6,6 @@ export interface RoomsState {
   rooms: roomType[];
   error: string | null;
   room: roomType | null;
-  readedRooms: Record<string, string>;
   // last_message_id: string | null;
   getRooms: (queryParams?: QueryRooms) => Promise<roomType[]>;
   clearRooms: () => void;
@@ -26,7 +25,12 @@ export interface RoomsState {
   ) => Promise<void>;
   addMember: (memberIds: string[]) => Promise<void>;
   updateRoomSocket: (room: roomType) => void;
-  setRoomReaded: (data: { lastMessageId: string; roomId: string }) => void;
+  setRoomReaded: (data: {
+    lastMessageId: string;
+    roomId: string;
+  }) => Promise<void>;
+  markMessageAsRead: (roomId: string, messageId: string, socket: any) => void;
+
 }
 
 export type roomType = {

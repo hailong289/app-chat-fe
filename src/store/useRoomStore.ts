@@ -251,12 +251,28 @@ const useRoomStore = create<RoomsState>()(
         upsertOne(db.rooms, data);
         get().getRoomsByType(get().type);
       },
-      setRoomReaded: (data: { lastMessageId: string; roomId: string }) => {
-        set({
-          readedRooms: {
-            ...get().readedRooms,
-            [data.roomId]: data.lastMessageId,
-          },
+
+      setRoomReaded: async (data: {
+        lastMessageId: string;
+        roomId: string;
+      }) => {
+        // await upsertOne(db.rooms, {
+        //   id: data.roomId,
+        //   last_read_id: data.lastMessageId,
+        // } as any);
+        get().getRoomsByType(get().type);
+        if (data.roomId === get().room?.id) {
+          get().getRoomById(data.roomId);
+        }
+      },
+      markMessageAsRead: (roomId: string, messageId: string, socket: any) => {
+        socket?.emit("mark:read", {
+          roomId,
+          lastMessageId: messageId,
+        });
+        get().setRoomReaded({
+          lastMessageId: messageId,
+          roomId: roomId,
         });
       },
     }),

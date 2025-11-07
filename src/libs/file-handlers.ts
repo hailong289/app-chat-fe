@@ -260,11 +260,18 @@ export function toPreviews(files: File[]): FilePreview[] {
       ? "audio"
       : "file";
 
+    // Tạo tên file mới với timestamp và random string
+    const fileExtension = f.name.split(".").pop() || "";
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 8);
+    const extensionPart = fileExtension ? `.${fileExtension}` : "";
+    const newFileName = `file_${timestamp}_${randomStr}${extensionPart}`;
+
     return {
       _id: new ObjectId().toHexString(),
       kind,
       url, // Local blob URL
-      name: f.name,
+      name: newFileName, // Tên mới thay vì f.name
       size: f.size,
       mimeType,
       status: "pending", // Trạng thái ban đầu

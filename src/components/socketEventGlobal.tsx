@@ -14,11 +14,11 @@ export const SocketEventGlobal = () => {
     console.log("nhận xử lý socket");
     socket.on("room:upset", roomState.updateRoomSocket);
     socket.on("message:upset", messageState.upsetMsg);
-    socket.on("mark:read", roomState.setRoomReaded);
+    socket.on("mark:readed", roomState.setRoomReaded);
     return () => {
       socket.off("room:upset", roomState.updateRoomSocket);
       socket.off("message:upset", messageState.upsetMsg);
-      socket.off("mark:read", roomState.setRoomReaded);
+      socket.off("mark:readed", roomState.setRoomReaded);
     };
   }, [socket]);
   return <></>;

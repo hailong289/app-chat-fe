@@ -35,6 +35,13 @@ export class AppDB extends Dexie {
         await trans.table("messages").clear();
       });
 
+    // Version 3: Add compound index for messages
+    this.version(3).stores({
+      rooms: "id, roomId, type, updatedAt",
+      contacts: "id, fullname, email, status, createdAt, updatedAt",
+      messages: "id, roomId, type, createdAt, pinned, [roomId+createdAt]", // added compound index
+    });
+
     // Apply encryption AFTER schema is defined
     const rawKey =
       "1f0f48c72e7ba865b9cbc0a0b280b2d2af8d3f7f9befa7ecf34e318b3c9c12c7";
