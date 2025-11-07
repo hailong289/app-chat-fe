@@ -1,0 +1,47 @@
+name: Deploy App Chat FE to Cloud Run
+
+on:
+  push:
+    branches:
+      - developer
+
+jobs:
+  deploy:
+    name: Deploy App Chat FE to Cloud Run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: app-chat-2b616
+      - run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+      - run: |
+          IMAGE="asia-southeast1-docker.pkg.dev/app-chat-2b616/app-chat-fe:latest"
+          docker build -t $IMAGE -f Dockerfile .
+          docker push $IMAGE
+      - run: |
+          gcloud run deploy app-chat-fe \
+            --image asia-southeast1-docker.pkg.dev/app-chat-2b616/app-chat-fe:latest \
+            --region asia-southeast1 \
+            --platform managed \
+            --allow-unauthenticated \
+            --min-instances=0 \
+            --max-instances=3 \
+            --cpu=1 \
+            --memory=128Mi \
+            --port=8080 \
+            --timeout=60s \
+            --set-env-vars NODE_ENV=${{ secrets.NODE_ENV }} \
+            --set-env-vars API_URL=${{ secrets.API_URL }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_VAPID_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }}
+           
