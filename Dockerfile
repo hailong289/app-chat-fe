@@ -11,7 +11,7 @@ RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
 # Copy source and build
 COPY . .
-RUN npm run build --legacy-peer-deps
+RUN npm run build
 
 EXPOSE 8080
 CMD ["sh","-c","npm run start -- -p ${PORT:-8080}"]
