@@ -5,6 +5,8 @@
 export type MessageGroup = {
   dateLabel: string; // "Hôm nay", "Hôm qua", "DD/MM/YYYY"
   messages: any[]; // Your MessageType
+  isNewMessageDivider?: boolean; // Đánh dấu đây là divider "Tin nhắn mới"
+  newMessageIndex?: number; // Vị trí tin nhắn mới trong group này
 };
 
 /**
@@ -46,11 +48,11 @@ export function formatDateLabel(date: Date): string {
 }
 
 /**
- * Group messages by date
+ * Group messages by date and mark new messages
  */
-export function groupMessagesByDate<T extends { createdAt: string }>(
-  messages: T[]
-): MessageGroup[] {
+export function groupMessagesByDate<
+  T extends { id: string; createdAt: string }
+>(messages: T[], lastReadId?: string | null): MessageGroup[] {
   const groups: Record<string, T[]> = {};
 
   messages.forEach((msg) => {
@@ -63,8 +65,16 @@ export function groupMessagesByDate<T extends { createdAt: string }>(
     groups[dateKey].push(msg);
   });
 
+  // Tìm vị trí tin nhắn đã đọc cuối cùng
+  let lastReadIndex = -1;
+  if (lastReadId) {
+    lastReadIndex = messages.findIndex((msg) => msg.id === lastReadId);
+  }
+
   // Convert to array and sort by date (oldest first)
-  return Object.keys(groups)
+  const result: MessageGroup[] = [];
+
+  Object.keys(groups)
     .sort((a, b) => {
       const [yearA, monthA, dayA] = a.split("-").map(Number);
       const [yearB, monthB, dayB] = b.split("-").map(Number);
@@ -72,14 +82,30 @@ export function groupMessagesByDate<T extends { createdAt: string }>(
       const dateB = new Date(yearB, monthB, dayB);
       return dateA.getTime() - dateB.getTime();
     })
-    .map((dateKey) => {
+    .forEach((dateKey) => {
       const [year, month, day] = dateKey.split("-").map(Number);
       const date = new Date(year, month, day);
-      return {
+      const groupMessages = groups[dateKey];
+
+      // Kiểm tra xem group này có tin nhắn mới không
+      let newMessageIndex = -1;
+      if (lastReadIndex >= 0) {
+        groupMessages.forEach((msg, idx) => {
+          const msgIndex = messages.findIndex((m) => m.id === msg.id);
+          if (msgIndex > lastReadIndex && newMessageIndex === -1) {
+            newMessageIndex = idx;
+          }
+        });
+      }
+
+      result.push({
         dateLabel: formatDateLabel(date),
-        messages: groups[dateKey],
-      };
+        messages: groupMessages,
+        newMessageIndex: newMessageIndex >= 0 ? newMessageIndex : undefined,
+      });
     });
+
+  return result;
 }
 
 /**

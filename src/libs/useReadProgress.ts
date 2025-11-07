@@ -38,140 +38,145 @@ export function useReadProgress(opts: {
   // debounce commit để tránh spam API khi kéo nhanh
   const commitTimer = useRef<number | null>(null);
   const lastCommittedId = useRef<string>("");
-  
+
   const debouncedCommit = (id: string) => {
     if (!onCommit || lastCommittedId.current === id) return;
     if (commitTimer.current) window.clearTimeout(commitTimer.current);
     commitTimer.current = window.setTimeout(() => {
       lastCommittedId.current = id;
       onCommit(id);
-    }, 180);
+    }, 300); // Tăng debounce lên 300ms
   };
+
+  // Track observed elements để tránh re-observe
+  const observedIds = useRef(new Set<string>());
 
   useEffect(() => {
     if (!messages.length) return;
 
-    // Check if scrolled to bottom
-    const checkScrolledToBottom = () => {
+    let ticking = false;
+
+    // Optimized: Check if scrolled to bottom
+    const isAtBottom = (): boolean => {
       if (!container) {
-        // Check window scroll
-        const scrollHeight = document.documentElement.scrollHeight;
-        const scrollTop = window.scrollY || document.documentElement.scrollTop;
-        const clientHeight = window.innerHeight;
-        return scrollHeight - scrollTop - clientHeight <= 10; // 10px threshold
+        const { scrollHeight, scrollTop, clientHeight } =
+          document.documentElement;
+        return scrollHeight - (scrollTop + clientHeight) <= 50;
       } else {
-        // Check container scroll
-        return (
-          container.scrollHeight -
-            container.scrollTop -
-            container.clientHeight <=
-          10
-        );
+        const { scrollHeight, scrollTop, clientHeight } = container;
+        return scrollHeight - (scrollTop + clientHeight) <= 50;
       }
     };
 
-    // Mark all visible messages as read when at bottom
-    const markAllVisibleAsRead = () => {
-      if (!checkScrolledToBottom()) return;
+    // Mark last visible message as read
+    const updateLastRead = (id: string) => {
+      const currentIdx = indexOf.get(lastReadId) ?? -1;
+      const newIdx = indexOf.get(id) ?? -1;
 
-      // Find the last non-mine, non-deleted message
-      let lastVisibleId: string | null = null;
+      if (newIdx > currentIdx) {
+        console.log("📖 Mark as read:", id);
+        setLastReadId(id);
+        debouncedCommit(id);
+      }
+    };
+
+    // Find last non-mine message
+    const getLastReadableMessageId = (): string | null => {
       for (let i = messages.length - 1; i >= 0; i--) {
         const msg = messages[i];
         if (!msg.isMine && !msg.deleted) {
-          lastVisibleId = msg.id;
-          break;
+          return msg.id;
         }
       }
-
-      if (lastVisibleId) {
-        const currentIdx = indexOf.get(lastReadId) ?? -1;
-        const newIdx = indexOf.get(lastVisibleId) ?? -1;
-        
-        // Chỉ update nếu ID mới lớn hơn
-        if (newIdx > currentIdx) {
-          console.log("📖 Mark as read (at bottom):", lastVisibleId);
-          setLastReadId(lastVisibleId);
-          debouncedCommit(lastVisibleId);
-        }
-      }
-    };
-
-    // Throttle scroll event
-    let scrollTimeout: number | null = null;
-    const throttledMarkAllVisible = () => {
-      if (scrollTimeout) return;
-      scrollTimeout = window.setTimeout(() => {
-        markAllVisibleAsRead();
-        scrollTimeout = null;
-      }, 100); // Throttle 100ms
+      return null;
     };
 
     const io = new IntersectionObserver(
       (entries) => {
-        // lấy những entry đủ tỷ lệ hiển thị
+        // Nếu đang ở bottom, mark hết luôn
+        if (isAtBottom()) {
+          const lastId = getLastReadableMessageId();
+          if (lastId) updateLastRead(lastId);
+          return;
+        }
+
+        // Lấy những entry visible
         const visible = entries
           .filter(
             (e) => e.isIntersecting && e.intersectionRatio >= minVisibleRatio
           )
           .map((e) => e.target as HTMLElement);
 
-        if (visible.length === 0) {
-          // Nếu không có visible entry, vẫn check bottom
-          throttledMarkAllVisible();
-          return;
-        }
+        if (visible.length === 0) return;
 
-        // lấy message có index lớn nhất trong nhóm vừa thấy
-        let best: { id: string; idx: number } | null = null;
+        // Lấy message có index lớn nhất
+        let maxIdx = -1;
+        let maxId: string | null = null;
+
         for (const el of visible) {
-          const id = el.dataset.mid!;
+          const id = el.dataset.mid;
+          if (!id) continue;
+
           const msg = messages[indexOf.get(id)!];
-          // bỏ qua tin của chính mình hoặc đã xóa nếu bạn muốn
           if (msg?.isMine || msg?.deleted) continue;
 
           const idx = indexOf.get(id);
-          if (idx == null) continue;
-          if (!best || idx > best.idx) best = { id, idx };
-        }
-
-        if (best) {
-          // chỉ tăng mốc (không lùi)
-          const currentIdx = indexOf.get(lastReadId) ?? -1;
-          if (best.idx > currentIdx) {
-            console.log("📖 Mark as read (intersect):", best.id);
-            setLastReadId(best.id);
-            debouncedCommit(best.id);
+          if (idx != null && idx > maxIdx) {
+            maxIdx = idx;
+            maxId = id;
           }
         }
 
-        // Also check if scrolled to bottom after intersection update
-        throttledMarkAllVisible();
+        if (maxId) {
+          updateLastRead(maxId);
+        }
       },
       {
-        root: container ?? null, // null = viewport
-        rootMargin: `0px 0px -${stickyBottomPx}px 0px`, // trừ vùng sticky ở đáy
-        threshold: Array.from({ length: 10 }, (_, i) => (i + 1) / 10), // 0.1..1
+        root: container ?? null,
+        rootMargin: `0px 0px -${stickyBottomPx}px 0px`,
+        threshold: [0, 0.25, 0.5, 0.75, 1], // Giảm từ 10 xuống 5 threshold
       }
     );
 
-    // observe tất cả message nodes hiện có
+    // Chỉ observe messages mới (chưa được observe)
     for (const msg of messages) {
+      if (observedIds.current.has(msg.id)) continue;
+
       const el = refMap.current.get(msg.id);
-      if (el) io.observe(el);
+      if (el) {
+        io.observe(el);
+        observedIds.current.add(msg.id);
+      }
     }
 
-    // Add scroll listener to check when reaching bottom
-    const scrollTarget = container ?? window;
-    scrollTarget.addEventListener("scroll", throttledMarkAllVisible);
+    // Optimized scroll handler với RAF
+    const handleScroll = () => {
+      if (ticking) return;
 
-    // Initial check on mount
-    markAllVisibleAsRead();
+      ticking = true;
+      requestAnimationFrame(() => {
+        if (isAtBottom()) {
+          const lastId = getLastReadableMessageId();
+          if (lastId) updateLastRead(lastId);
+        }
+        ticking = false;
+      });
+    };
+
+    // Add scroll listener
+    const scrollTarget = container ?? window;
+    scrollTarget.addEventListener("scroll", handleScroll, { passive: true });
+
+    // Initial check
+    if (isAtBottom()) {
+      const lastId = getLastReadableMessageId();
+      if (lastId) updateLastRead(lastId);
+    }
 
     return () => {
       io.disconnect();
-      scrollTarget.removeEventListener("scroll", throttledMarkAllVisible);
-      if (scrollTimeout) window.clearTimeout(scrollTimeout);
+      observedIds.current.clear();
+      scrollTarget.removeEventListener("scroll", handleScroll);
       if (commitTimer.current) window.clearTimeout(commitTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -42,6 +42,7 @@ function ChatPageContent() {
         {/* Chat messages would go here */}
         <ChatMessages chatId={chatId} />
         {/* Message input area */}
+
         <ChatInputBar chatId={chatId} />
       </main>
     </div>

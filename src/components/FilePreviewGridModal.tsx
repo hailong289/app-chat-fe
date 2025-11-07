@@ -36,11 +36,14 @@ const fmt = (n: number) => {
   }
 };
 
-const isImage = (t: string) =>
-  t.startsWith("image/") || t === "image" || t === "photo";
-const isVideo = (t: string) => t.startsWith("video/") || t === "video";
-const isAudio = (t: string) => t.startsWith("audio/") || t === "audio";
-const isPdf = (t: string) => t === "application/pdf" || t === "pdf";
+const isImage = (t: string | undefined) =>
+  t && (t.startsWith("image/") || t === "image" || t === "photo");
+const isVideo = (t: string | undefined) =>
+  t && (t.startsWith("video/") || t === "video");
+const isAudio = (t: string | undefined) =>
+  t && (t.startsWith("audio/") || t === "audio");
+const isPdf = (t: string | undefined) =>
+  t && (t === "application/pdf" || t === "pdf");
 
 const getFileType = (file: FilePreview) => file.mimeType || file.kind;
 
@@ -178,19 +181,12 @@ export default function FilePreviewGridModal({
           }
 
           return (
-            <div
+            <button
               key={`${item.name}-${item.url}`}
-              role="button"
+              type="button"
               className="h-25 w-25 relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
               title={`${item.name} (${fmt(item.size)})`}
               onClick={() => openPreview(i)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  openPreview(i);
-                }
-              }}
-              tabIndex={0}
             >
               {previewContent}
 
@@ -207,7 +203,7 @@ export default function FilePreviewGridModal({
                   <XMarkIcon className="w-4 h-4" />
                 </button>
               )}
-            </div>
+            </button>
           );
         })}
       </div>
