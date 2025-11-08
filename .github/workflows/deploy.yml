@@ -19,12 +19,12 @@ jobs:
           project_id: app-chat-2b616
       - run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
       - run: |
-          IMAGE="asia-southeast1-docker.pkg.dev/app-chat-2b616/app-chat-fe:latest"
+          IMAGE="asia-southeast1-docker.pkg.dev/app-chat-2b616/microservices/appchat:latest"
           docker build -t $IMAGE -f Dockerfile .
           docker push $IMAGE
       - run: |
-          gcloud run deploy app-chat-fe \
-            --image asia-southeast1-docker.pkg.dev/app-chat-2b616/app-chat-fe:latest \
+          gcloud run deploy app-chat-fe-service \
+            --image asia-southeast1-docker.pkg.dev/app-chat-2b616/microservices/appchat:latest \
             --region asia-southeast1 \
             --platform managed \
             --allow-unauthenticated \
