@@ -10,7 +10,7 @@ export type FilePreview = {
   kind: string;
   url: string; // Local blob URL hoặc remote URL sau upload
   name: string;
-  size: number;
+  size: number; // Support both local and server formats
   mimeType: string;
   thumbUrl?: string;
   width?: number;
@@ -24,7 +24,7 @@ export type FilePreview = {
 export type MessageType = {
   id: string;
   roomId: string;
-  type: "text" | "image" | "file" | "video";
+  type: "text" | "image" | "file" | "system" | "video" | "audio" | "gif";
   content: string;
   createdAt: string;
   editedAt?: string | null;

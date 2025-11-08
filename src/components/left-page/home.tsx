@@ -296,7 +296,7 @@ export const Home = () => {
                     </h3>
                     <p
                       className={`
-    text-sm text-gray-600 truncate font-${chat.is_read ? "normal" : "semibold"}
+    text-sm text-gray-700 truncate font-${chat.is_read ? "normal" : "semibold"}
     block w-full max-w-[220px]
   `}
                       title={chat?.last_message?.content || ""}
@@ -311,9 +311,9 @@ export const Home = () => {
                   </p>
                   {chat.unread_count > 0 && (
                     <div className="flex justify-end mt-1">
-                      <Badge color="danger" size="sm">
+                      <Chip size="sm" color="danger" variant="solid">
                         {chat.unread_count > 99 ? "99+" : chat.unread_count}
-                      </Badge>
+                      </Chip>
                     </div>
                   )}
                 </div>

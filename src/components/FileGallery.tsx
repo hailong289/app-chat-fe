@@ -219,8 +219,16 @@ export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
   );
 };
 
-// Helper function
-function formatFileSize(bytes: number): string {
+// Helper function to handle both number and MongoDB Long format
+function formatFileSize(size: number | { low: number; high: number; unsigned: boolean }): string {
+  // Convert MongoDB Long to number if needed
+  let bytes: number;
+  if (typeof size === 'number') {
+    bytes = size;
+  } else {
+    bytes = size.low + size.high * 0x100000000;
+  }
+  
   if (bytes === 0) return "0 B";
   const k = 1024;
   const sizes = ["B", "KB", "MB", "GB"];

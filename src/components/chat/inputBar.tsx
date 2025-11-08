@@ -237,7 +237,8 @@ export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
       setAttachments((prev) => [...prev, filePreview]);
 
       // Không đóng picker - để user tiếp tục chọn GIF khác nếu muốn
-
+      //  gửi tin nhăn luôn
+      onSend();
       console.log("✅ GIF added as attachment:", fileName);
     } catch (error) {
       console.error("❌ Error downloading GIF:", error);
