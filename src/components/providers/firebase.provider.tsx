@@ -1,11 +1,12 @@
 "use client";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { app, messaging, firebaseConfig } from "@/libs/firebase";
-import { getToken, onMessage } from "firebase/messaging";
+import { getToken, onMessage, Messaging } from "firebase/messaging";
+import type { FirebaseApp } from "firebase/app";
 
 type FirebaseContextType = {
-  app: typeof app;
-  messaging: typeof messaging;
+  app: FirebaseApp | null;
+  messaging: Messaging | null;
   token: string | null;
   message: any;
   requestPermission: () => Promise<void>;
