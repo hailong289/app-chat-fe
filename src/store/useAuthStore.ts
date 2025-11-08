@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import AuthService from "@/service/auth.service";
 import { deleteCookie, setCookie } from "cookies-next";
 import Dexie from "dexie";
+import * as LocalStorageUtils from "@/utils/localStorage";
 
 // Lưu trạng thái xác thực trong localStorage
 const useAuthStore = create<AuthState>()(
@@ -63,7 +64,7 @@ const useAuthStore = create<AuthState>()(
               refreshToken: null,
               expiresIn: 0,
               expiredAt: 0,
-            }
+            },
           });
           payload.callback?.(error);
         }
@@ -89,6 +90,7 @@ const useAuthStore = create<AuthState>()(
         try {
           await AuthService.logout();
           await Dexie.delete("app-chat-db");
+          LocalStorageUtils.clearAllLocalStorage();
 
           set({
             isAuthenticated: false,
@@ -98,6 +100,7 @@ const useAuthStore = create<AuthState>()(
           });
           deleteCookie("tokens", { path: "/" });
           callback?.();
+          set({ isLoading: false });
         } catch (error) {
           callback?.(error);
         }
@@ -125,7 +128,6 @@ const useAuthStore = create<AuthState>()(
         }
       },
       setAuth: (isAuthenticated) => set({ isAuthenticated }),
-      
     }),
     {
       name: "auth-storage", // unique name

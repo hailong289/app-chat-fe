@@ -21,15 +21,54 @@ import MessageService from "@/service/message.service";
 /**
  * Sanitize message data before saving to IndexedDB
  * Remove File objects and other non-serializable data
+ * Deep clone to avoid circular references and ensure clean data
  */
 const sanitizeMessageForDB = (msg: MessageType): MessageType => {
-  return {
-    ...msg,
-    attachments: msg.attachments?.map((att) => ({
-      ...att,
-      file: undefined, // Remove File object
-    })),
-  };
+  try {
+    // Create a clean copy using JSON parse/stringify to remove circular refs
+    const cleanMsg = JSON.parse(JSON.stringify({
+      ...msg,
+      attachments: msg.attachments?.map((att) => ({
+        _id: att._id,
+        kind: att.kind,
+        url: att.url,
+        name: att.name,
+        size: att.size,
+        mimeType: att.mimeType,
+        thumbUrl: att.thumbUrl,
+        width: att.width,
+        height: att.height,
+        duration: att.duration,
+        status: att.status,
+        uploadProgress: att.uploadProgress,
+        uploadedUrl: att.uploadedUrl,
+        // Explicitly exclude file and any non-serializable data
+      })),
+      // Ensure sender is clean
+      sender: msg.sender ? {
+        _id: msg.sender._id,
+        fullname: msg.sender.fullname,
+        avatar: msg.sender.avatar,
+      } : undefined,
+      // Ensure content is a clean string
+      content: msg.content ? String(msg.content) : "",
+    }));
+    
+    return cleanMsg;
+  } catch (error) {
+    console.error("❌ Error sanitizing message for DB:", error, msg);
+    // Return a minimal valid message if sanitization fails
+    return {
+      ...msg,
+      content: msg.content ? String(msg.content) : "",
+      attachments: [],
+      sender: msg.sender ? {
+        _id: msg.sender._id,
+        fullname: msg.sender.fullname || "Unknown",
+        avatar: msg.sender.avatar,
+      } : undefined,
+    } as MessageType;
+  }
 };
 
 /**

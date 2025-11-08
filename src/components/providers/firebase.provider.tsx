@@ -29,8 +29,19 @@ export const FirebaseProvider = ({
   const [token, setToken] = useState<string | null>(null);
   const [message, setMessage] = useState<any>(null);
 
+  // Load token từ localStorage khi mount
   useEffect(() => {
-    if (!messaging || typeof window === "undefined") return;
+    if (globalThis.window === undefined) return;
+
+    const savedToken = localStorage.getItem("fcm-token");
+    if (savedToken) {
+      setToken(savedToken);
+      console.log("✅ Loaded FCM token from localStorage");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!messaging || globalThis.window === undefined) return;
 
     async function init() {
       try {
@@ -79,12 +90,33 @@ export const FirebaseProvider = ({
         console.error("❌ SW register error:", err);
       }
 
-      // // Lắng nghe foreground message (1 lần duy nhất)
-      // const unsubscribe = messaging ? onMessage(messaging, (payload) => {
-      //     console.log('📩 Foreground message:', payload);
-      // }) : () => {};
+      // Lắng nghe foreground message (khi app đang mở)
+      const unsubscribe = messaging
+        ? onMessage(messaging, (payload) => {
+            console.log("📩 Foreground message:", payload);
+            setMessage(payload);
 
-      return () => {}; // cleanup nếu component unmount
+            // Hiển thị notification thủ công khi app đang mở
+            if (Notification.permission === "granted") {
+              const notificationTitle =
+                payload.notification?.title || "Tin nhắn mới";
+              const notificationOptions = {
+                body: payload.notification?.body || "",
+                icon: payload.notification?.icon || "/icons/icon-192x192.png",
+                badge: "/icons/badge-72x72.png",
+                tag: payload.data?.roomId || "default",
+                data: payload.data,
+                requireInteraction: false,
+              };
+
+              new Notification(notificationTitle, notificationOptions);
+            }
+          })
+        : () => {};
+
+      return () => {
+        unsubscribe();
+      }; // cleanup nếu component unmount
     }
 
     init();
@@ -93,20 +125,61 @@ export const FirebaseProvider = ({
   // Hàm xin quyền và lấy token
   async function requestPermission() {
     try {
+      if (!messaging) {
+        console.error("❌ Firebase messaging not initialized");
+        return;
+      }
+
+      // Kiểm tra xem trình duyệt có hỗ trợ không
+      if (!("Notification" in globalThis)) {
+        console.error("❌ Browser doesn't support notifications");
+        alert("Trình duyệt của bạn không hỗ trợ thông báo");
+        return;
+      }
+
+      // Xin quyền
       const permission = await Notification.requestPermission();
+      console.log("🔔 Notification permission:", permission);
+
       if (permission !== "granted") {
         console.warn("🚫 Notification permission denied");
         return;
       }
+
+      // Đợi service worker ready
       const registration = await navigator.serviceWorker.ready;
-      const t = await getToken(messaging!, {
+
+      // Lấy token
+      const t = await getToken(messaging, {
         vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
         serviceWorkerRegistration: registration,
       });
-      setToken(t);
-      console.log("✅ FCM Token:", t);
+
+      if (t) {
+        setToken(t);
+        console.log("✅ FCM Token:", t);
+
+        // Lưu token vào localStorage để sử dụng sau
+        localStorage.setItem("fcm-token", t);
+
+        // Gửi token lên server
+        try {
+          // Dynamic import để tránh SSR issues
+          const { NotificationService } = await import(
+            "@/service/notification.service"
+          );
+          await NotificationService.registerToken(t);
+          console.log("✅ Token registered with server");
+        } catch (error) {
+          console.error("❌ Failed to register token with server:", error);
+          // Không throw error để không ảnh hưởng đến flow chính
+        }
+      } else {
+        console.error("❌ No registration token available");
+      }
     } catch (err) {
-      console.error("❌ Error getting token", err);
+      console.error("❌ Error getting token:", err);
+      alert("Có lỗi khi xin quyền thông báo. Vui lòng thử lại.");
     }
   }
 

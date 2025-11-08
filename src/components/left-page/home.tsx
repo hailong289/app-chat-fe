@@ -246,26 +246,12 @@ export const Home = () => {
                   )
                 }
               >
-                <Tab key="all" title="Tin nhắn" />
+                <Tab key="all" title="Tất cả" />
                 <Tab key="group" title="Nhóm" />
-                <Tab key="call" title="Cuộc gọi" />
+                <Tab key="channel" title="Kênh" />
               </Tabs>
             </div>
           )}
-
-          {/* {activeTab === "contact" && (
-              <div className="w-8/12 mx-auto mb-3">
-                <Tabs
-                  aria-label="Chat type"
-                  variant="solid"
-                  color="primary"
-                  fullWidth
-                >
-                  <Tab key="direct" title="Trực tiếp" />
-                  <Tab key="group" title="Nhóm" />
-                </Tabs>
-              </div>
-            )} */}
         </CardBody>
       </Card>
       <div

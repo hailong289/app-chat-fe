@@ -1,15 +1,11 @@
-// app/page.tsx – Rewrite of the provided static HTML using Next.js App Router + HeroUI
-// Assumes you already set up Tailwind v4 and wrapped the app with <HeroUIProvider /> in app/providers.tsx
+
 "use client";
-// import useRoomStore from "@/store/useRoomStore";
+
 import Image from "next/image";
-// import { useEffect } from "react";
+
 
 export default function Page() {
-  // const { getRooms } = useRoomStore();
-  // useEffect(() => {
-  //   getRooms();
-  // }, [getRooms]);
+
   return (
     <div className="w-full h-screen flex items-center justify-center bg-light">
       <div className="text-center max-w-2xl px-8">

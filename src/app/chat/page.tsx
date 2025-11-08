@@ -29,12 +29,17 @@ function ChatPageContent() {
   const roomState = useRoomStore((state) => state);
   const searchParams = useSearchParams();
   const [room, setRoom] = useState<any>(undefined);
-  const chatId = searchParams.get("chatId") || "";
+  const [chatId, setChatId] = useState<string>("");
   const isLoading = useRoomStore((s) => s.isLoading);
   console.log("Chat ID:", chatId);
   useEffect(() => {
-    roomState.getRoomById(chatId);
-  }, [chatId]);
+    if (!roomState.room?.id) {
+      setChatId(searchParams.get("chatId") || "");
+      roomState.getRoomById(searchParams.get("chatId") || "");
+    } else {
+      setChatId(roomState.room.id);
+    }
+  }, [roomState.room]);
   return (
     <div className={`bg-light h-screen ${widthClass}`}>
       <ChatHeader callback={callbackSetSize} />

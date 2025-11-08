@@ -10,6 +10,9 @@ import { ClientLayout } from "./client-layout";
 import { FirebaseProvider } from "@/components/providers/firebase.provider";
 import { SocketProvider } from "@/components/providers/SocketProvider";
 import { SocketEventGlobal } from "@/components/socketEventGlobal";
+import SocketStatusIndicator from "@/components/socket/SocketStatusIndicator";
+import ToastContainer from "@/components/toast/ToastContainer";
+import NotificationPermission from "@/components/notifications/NotificationPermission";
 
 export const metadata: Metadata = {
   title: "ChatApp",
@@ -28,6 +31,9 @@ export default function RootLayout({
           <FirebaseProvider>
             <SocketProvider>
               <SocketEventGlobal />
+              <SocketStatusIndicator />
+              <ToastContainer />
+              <NotificationPermission />
               <ClientLayout>{children}</ClientLayout>
             </SocketProvider>
           </FirebaseProvider>

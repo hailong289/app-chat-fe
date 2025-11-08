@@ -89,6 +89,13 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
     const isActuallySwitchingChat = prevChatIdRef.current !== chatId;
 
     if (isActuallySwitchingChat) {
+      console.log(
+        "🔄 Switching chat from",
+        prevChatIdRef.current,
+        "to",
+        chatId
+      );
+
       // Set loading state ngay khi bắt đầu chuyển chat
       setIsSwitchingChat(true);
 
@@ -96,118 +103,151 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
       setShouldAnimate(false);
       prevChatIdRef.current = chatId;
       renderedMessageIds.current.clear(); // Clear tracked messages
-      setDisplayedMessagesCount(MESSAGES_PER_GROUP); // Reset về 20 messages khi chuyển chat
+      setDisplayedMessagesCount(MESSAGES_PER_GROUP); // Reset về 15 messages khi chuyển chat
       setHasMoreOnServer(true); // Reset server flag when switching chats
       hasTriedLoadingFromServer.current = false; // Reset tried flag
       setExpandedMessages(new Set()); // Reset expanded messages when switching chats
       setReplyingTo(null); // Reset reply target
       setIsFetchingNewMessages(false); // Reset fetching state khi chuyển chat
       lastFetchedServerMessageIdRef.current = null; // Reset fetch tracking khi chuyển chat
+      hasInitialFetchRef.current = {}; // Reset initial fetch flag khi chuyển chat
 
       setIsBottomVisible(false);
 
-      // Load messages cho chat mới
-      messageState.getMessageByRoomId(chatId);
+      // Load messages cho chat mới - QUAN TRỌNG: Đợi load xong rồi mới render
+      console.log("📥 Loading messages for chatId:", chatId);
+      messageState
+        .getMessageByRoomId(chatId)
+        .then(() => {
+          console.log("✅ Messages loaded, enabling animations");
 
-      // Delay để đảm bảo messages được load và render xong
-      const renderTimer = setTimeout(() => {
-        setShouldAnimate(true);
-        setIsSwitchingChat(false); // Tắt loading state sau khi render xong
+          // Delay ngắn để đảm bảo messages được load và render xong
+          requestAnimationFrame(() => {
+            setShouldAnimate(true);
+            setIsSwitchingChat(false);
 
-        // Scroll sau khi data load xong
-        requestAnimationFrame(() => {
-          scrollToMessage(lastMsgId);
+            // Scroll sau khi render xong
+            requestAnimationFrame(() => {
+              scrollToMessage(lastMsgId);
+            });
+          });
+        })
+        .catch((error) => {
+          console.error("❌ Error loading messages:", error);
+          setIsSwitchingChat(false);
+          setShouldAnimate(true);
         });
-      }, 300); // Tăng delay để đảm bảo render hoàn thành
-
-      return () => clearTimeout(renderTimer);
-    } else {
-      // Không chuyển chat, enable animations cho messages mới
-      setShouldAnimate(true);
-      setIsSwitchingChat(false);
     }
-  }, [messages.length, chatId]);
+
+    // Không return cleanup function ở đây để tránh cancel loading
+  }, [chatId]); // CHỈ depend vào chatId, không depend vào messages.length
 
   // Theo dõi khi messages được load xong để tắt loading state
   useEffect(() => {
+    // Chỉ chạy khi đang switching và messages đã có data
     if (isSwitchingChat && messages.length > 0) {
+      console.log("✅ Messages available, count:", messages.length);
       // Delay nhẹ để đảm bảo DOM được render
       const timer = setTimeout(() => {
         setIsSwitchingChat(false);
         setShouldAnimate(true);
+        console.log("🎨 Rendering complete, animations enabled");
       }, 100);
 
       return () => clearTimeout(timer);
     }
-  }, [isSwitchingChat]);
+  }, [messages.length, isSwitchingChat]); // Depend vào cả messages.length và isSwitchingChat
 
   // Tách logic kiểm tra tin nhắn mới thành useEffect riêng với loading state
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchedServerMessageIdRef = useRef<string | null>(null);
-  const hasInitialFetchRef = useRef(false); // Track initial fetch
+  const hasInitialFetchRef = useRef<Record<string, boolean>>({}); // Track initial fetch per chatId
 
-  // việc gọi tin nhắn mới từ api dùng để lấy dùng để khi vào phòng tải những tin nhắn mới trong lúc offline
+  /**
+   * useEffect #1: Load tin nhắn ban đầu nếu local chưa có
+   * Xảy ra khi: User mới login, xóa cache, chuyển thiết bị
+   */
   useEffect(() => {
-    // Nếu không có tin nhắn local, lấy 100 tin nhắn đầu tiên từ API
-    if (messages.length === 0 && !hasInitialFetchRef.current) {
+    console.log(
+      "🔍 [INITIAL LOAD] Check for chatId:",
+      chatId,
+      "messages.length:",
+      messages.length
+    );
+
+    // TRƯỜNG HỢP 1: Không có tin nhắn local → Lấy 100 tin nhắn đầu tiên từ API
+    if (messages.length === 0 && !hasInitialFetchRef.current[chatId]) {
       console.log(
-        "📥 Không có tin nhắn local, lấy 100 tin nhắn đầu tiên từ API"
+        "📥 [INITIAL LOAD] Không có tin nhắn local, lấy 100 tin nhắn đầu tiên từ API cho chatId:",
+        chatId
       );
-      hasInitialFetchRef.current = true;
+      hasInitialFetchRef.current[chatId] = true;
       setIsFetchingNewMessages(true);
 
       messageState
         .fetchMessagesFromAPI(chatId, { limit: 100 })
         .then((fetchedMessages) => {
-          console.log(`✅ Đã tải ${fetchedMessages.length} tin nhắn từ API`);
+          console.log(
+            `✅ [INITIAL LOAD] Đã tải ${fetchedMessages.length} tin nhắn từ API`
+          );
+          setIsFetchingNewMessages(false);
         })
         .catch((error) => {
-          console.error("❌ Lỗi khi tải tin nhắn từ API:", error);
-        })
-        .finally(() => {
+          console.error(
+            "❌ [INITIAL LOAD] Lỗi khi tải tin nhắn từ API:",
+            error
+          );
           setIsFetchingNewMessages(false);
+          // Reset flag để có thể thử lại
+          hasInitialFetchRef.current[chatId] = false;
         });
-
-      return;
     }
+  }, [chatId, messages.length]); // Dependency array cố định
 
-    // Reset flag khi chuyển chat
-    if (prevChatIdRef.current !== chatId) {
-      hasInitialFetchRef.current = false;
-    }
-
-    // Bỏ qua nếu chưa có room
+  /**
+   * useEffect #2: Đồng bộ tin nhắn mới từ server
+   * Xảy ra khi: User offline rồi quay lại, có tin nhắn mới khi inactive
+   */
+  useEffect(() => {
+    // Bỏ qua nếu chưa có room info từ server
     if (!roomState.room?.last_message?.id) {
+      console.log("⏭️ [SYNC NEW] Skipping: No room info from server yet");
       return;
     }
 
     const lastLocalMessageId = messages.at(-1)?.id;
     const lastServerMessageId = roomState.room.last_message.id;
 
-    // Bỏ qua nếu không có messages local hoặc đã fetch server message này rồi
-    if (
-      !lastLocalMessageId ||
-      lastFetchedServerMessageIdRef.current === lastServerMessageId
-    ) {
+    // Bỏ qua nếu không có messages local
+    if (!lastLocalMessageId) {
+      console.log("⏭️ [SYNC NEW] Skipping: No local messages yet");
       return;
     }
 
-    // Kiểm tra tin nhắn mới từ server
+    // Bỏ qua nếu đã fetch server message này rồi
+    if (lastFetchedServerMessageIdRef.current === lastServerMessageId) {
+      console.log(
+        "⏭️ [SYNC NEW] Skipping: Already fetched this server message"
+      );
+      return;
+    }
+
+    // TRƯỜNG HỢP 2: Có tin nhắn mới từ server → Fetch tin nhắn bị missed
     if (lastServerMessageId !== lastLocalMessageId) {
+      console.log("🔄 [SYNC NEW] Phát hiện tin nhắn mới từ server:", {
+        serverLastId: lastServerMessageId,
+        localLastId: lastLocalMessageId,
+        messagesCount: messages.length,
+        chatId,
+      });
+
       // Clear timeout cũ nếu có
       if (fetchTimeoutRef.current) {
         clearTimeout(fetchTimeoutRef.current);
       }
 
-      // Debounce việc fetch để tránh gọi API liên tục - GIẢM DELAY CHO TIN NHẮN MỚI
+      // Debounce việc fetch để tránh gọi API liên tục
       fetchTimeoutRef.current = setTimeout(async () => {
-        console.log("🔄 Phát hiện tin nhắn mới từ server:", {
-          serverLastId: lastServerMessageId,
-          localLastId: lastLocalMessageId,
-          messagesCount: messages.length,
-          chatId,
-        });
-
         // Set loading state
         setIsFetchingNewMessages(true);
 
@@ -215,25 +255,27 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
         lastFetchedServerMessageIdRef.current = lastServerMessageId;
 
         try {
-          // Fetch tin nhắn mới
+          // Fetch tin nhắn mới từ lastLocalMessageId đến lastServerMessageId
           await messageState.fetchNewMessages(chatId, lastLocalMessageId);
-          console.log("✅ Đã tải tin nhắn mới thành công");
+          console.log("✅ [SYNC NEW] Đã tải tin nhắn mới thành công");
         } catch (error) {
-          console.error("❌ Lỗi khi tải tin nhắn mới:", error);
+          console.error("❌ [SYNC NEW] Lỗi khi tải tin nhắn mới:", error);
+          // Reset để có thể thử lại
+          lastFetchedServerMessageIdRef.current = null;
         } finally {
           // Clear loading state
           setIsFetchingNewMessages(false);
         }
-      }, 100); // GIẢM từ 500ms xuống 100ms để tin nhắn mới hiện nhanh hơn
+      }, 100);
     }
 
-    // Cleanup timeout khi unmount
+    // Cleanup timeout khi unmount hoặc dependencies thay đổi
     return () => {
       if (fetchTimeoutRef.current) {
         clearTimeout(fetchTimeoutRef.current);
       }
     };
-  }, [chatId, messages.length, roomState.room?.last_message?.id]);
+  }, [chatId, messages.length, roomState.room?.last_message?.id]); // Dependencies cố định: luôn là 3 items
 
   // Virtual scrolling: chỉ render một số messages gần nhất
   const visibleMessages = useMemo(() => {

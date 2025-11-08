@@ -7,19 +7,56 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useCallback,
 } from "react";
 import { io, Socket } from "socket.io-client";
 import useAuthStore from "@/store/useAuthStore";
 import { getCookie } from "cookies-next";
 
-export type SocketStatus = "idle" | "connecting" | "connected" | "error";
+export type SocketStatus =
+  | "idle"
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "error";
 
 type SocketCtx = {
   socket: Socket | null;
   status: SocketStatus;
+  reconnectCount: number;
+  lastError: string | null;
+  forceReconnect: () => void;
+  disconnect: () => void;
 };
 
-const Ctx = createContext<SocketCtx>({ socket: null, status: "idle" });
+const Ctx = createContext<SocketCtx>({
+  socket: null,
+  status: "idle",
+  reconnectCount: 0,
+  lastError: null,
+  forceReconnect: () => {},
+  disconnect: () => {},
+});
+
+/**
+ * Tạo hoặc lấy client ID duy nhất cho sticky session
+ * Giúp load balancer route về đúng server instance
+ */
+function getOrCreateClientId(): string {
+  if (globalThis.window === undefined) return "";
+
+  const key = "socket_client_id";
+  let clientId = localStorage.getItem(key);
+
+  if (!clientId) {
+    clientId = `client_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 9)}`;
+    localStorage.setItem(key, clientId);
+  }
+
+  return clientId;
+}
 
 /**
  * Lấy accessToken:
@@ -52,25 +89,73 @@ function useAccessToken(): string | null {
   return access ?? fallbackAccess;
 }
 
-export function SocketProvider({ children }: { children: React.ReactNode }) {
+export function SocketProvider({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const token = useAccessToken();
   const [status, setStatus] = useState<SocketStatus>("idle");
+  const [reconnectCount, setReconnectCount] = useState(0);
+  const [lastError, setLastError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const url = process.env.NEXT_PUBLIC_SOCKET_URL!;
-  // Bạn có thể thay đổi transports tuỳ hạ tầng (mặc định ưu tiên websocket)
+
+  // Enhanced socket options for Auto Scaling environments
   const opts = useMemo(
     () => ({
-      transports: ["websocket"],
+      transports: ["websocket", "polling"], // Fallback to polling if websocket fails
       auth: token ? { token } : undefined,
       reconnection: true,
       reconnectionAttempts: Infinity, // Thử reconnect vô hạn
       reconnectionDelay: 1000, // Delay ban đầu 1s
       reconnectionDelayMax: 10000, // Tối đa 10s giữa các lần thử
-      timeout: 10_000,
+      timeout: 20_000, // Tăng timeout cho load balancer
+      // Cho phép upgrade từ polling lên websocket
+      upgrade: true,
+      // Quan trọng cho Auto Scaling: enable sticky session
+      forceNew: false,
+      // Gửi heartbeat để giữ connection alive qua load balancer
+      pingInterval: 25000,
+      pingTimeout: 60000,
+      // Custom query params có thể dùng cho sticky session
+      query: {
+        clientId: getOrCreateClientId(),
+        version: "1.0.0",
+      },
     }),
     [token]
   );
+
+  // Force reconnect function
+  const forceReconnect = useCallback(() => {
+    console.log("🔄 [Socket] Force reconnect requested");
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current.connect();
+    }
+  }, []);
+
+  // Disconnect function - sử dụng khi logout
+  const disconnect = useCallback(() => {
+    console.log("🔌 [Socket] Manual disconnect requested");
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+    setStatus("idle");
+    setReconnectCount(0);
+    setLastError(null);
+  }, []);
+
+  useEffect(() => {
+    // Cleanup timer on unmount
+    return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Mỗi lần token đổi (login/logout), ngắt kết nối cũ & kết nối lại nếu có token
@@ -79,39 +164,89 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     if (!token) {
       setStatus("idle");
+      setReconnectCount(0);
+      setLastError(null);
       return;
     }
 
+    console.log("🔌 [Socket] Initializing connection to:", url);
     setStatus("connecting");
     const s = io(url, opts);
 
     s.on("connect", () => {
-      console.log("✅ [Socket] Connected! ID:", s.id);
+      console.log(
+        "✅ [Socket] Connected! ID:",
+        s.id,
+        "Transport:",
+        s.io.engine.transport.name
+      );
       setStatus("connected");
+      setReconnectCount(0);
+      setLastError(null);
+
+      // Log server instance info (if provided by backend)
+      s.emit("client:info", {
+        clientId: getOrCreateClientId(),
+        userAgent:
+          typeof navigator === "undefined" ? "Unknown" : navigator.userAgent,
+        timestamp: Date.now(),
+      });
     });
 
     s.on("disconnect", (reason) => {
       console.log("❌ [Socket] Disconnected. Reason:", reason);
-      setStatus("idle");
+
+      // Different handling based on disconnect reason
+      if (reason === "io server disconnect") {
+        // Server intentionally disconnected, need manual reconnect
+        console.log(
+          "⚠️ [Socket] Server disconnected, attempting manual reconnect..."
+        );
+        setStatus("reconnecting");
+        reconnectTimerRef.current = setTimeout(() => {
+          s.connect();
+        }, 2000);
+      } else if (reason === "transport close" || reason === "ping timeout") {
+        // Network issue or timeout, auto reconnect will handle
+        setStatus("reconnecting");
+      } else {
+        setStatus("idle");
+      }
+    });
+
+    // Transport upgrade (polling -> websocket)
+    s.io.engine.on("upgrade", (transport: any) => {
+      console.log("⬆️ [Socket] Transport upgraded to:", transport.name);
     });
 
     s.io.on("reconnect_attempt", (attempt) => {
       console.log(`🔄 [Socket] Reconnect attempt #${attempt}...`);
+      setStatus("reconnecting");
+      setReconnectCount(attempt);
     });
 
     s.io.on("reconnect", (attempt) => {
       console.log(`✅ [Socket] Reconnected after ${attempt} attempts`);
+      setStatus("connected");
+      setReconnectCount(0);
+      setLastError(null);
     });
 
     s.io.on("reconnect_error", (err) => {
       console.error("💥 [Socket] Reconnect error:", err.message);
+      setLastError(err.message);
     });
 
     s.io.on("reconnect_failed", () => {
       console.error("❌ [Socket] Reconnect failed after all attempts");
+      setStatus("error");
+      setLastError("Reconnection failed after all attempts");
     });
 
     s.on("connect_error", (err: any) => {
+      console.error("💥 [Socket] Connect error:", err.message);
+      setLastError(err.message);
+
       // Nếu server trả unauthorized, đừng spam reconnect vô nghĩa
       const msg = String(err?.message || "").toLowerCase();
       if (
@@ -121,6 +256,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         err?.code === 401
       ) {
         setStatus("error");
+        setLastError("Authentication failed. Please login again.");
         // Ngắt hẳn; user cần login lại để có token mới
         s.disconnect();
         return;
@@ -128,17 +264,39 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setStatus("error");
     });
 
+    // Handle server scaling events
+    s.on("server:scaling", (data: any) => {
+      console.log("📊 [Socket] Server scaling event:", data);
+      // Backend có thể emit event này khi scaling
+      // Client có thể prepare cho disconnect/reconnect
+    });
+
+    s.on("server:maintenance", (data: any) => {
+      console.log("🔧 [Socket] Server maintenance:", data);
+      // Graceful disconnect when server going to maintenance
+    });
+
     socketRef.current = s;
 
     return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
       s.disconnect();
       socketRef.current = null;
     };
-  }, [url, opts, token]);
+  }, [url, opts, token, forceReconnect]);
 
   const value = useMemo<SocketCtx>(
-    () => ({ socket: socketRef.current, status }),
-    [status]
+    () => ({
+      socket: socketRef.current,
+      status,
+      reconnectCount,
+      lastError,
+      forceReconnect,
+      disconnect,
+    }),
+    [status, reconnectCount, lastError, forceReconnect, disconnect]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

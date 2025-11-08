@@ -7,7 +7,7 @@ const useCounterStore = create<CounterState>()(
   persist(
     (set) => ({
       count: 0,
-      isToggled: false,
+      isToggled: true,
       setToggleState: (value: boolean) => set({ isToggled: value }),
       tab: "home",
       setTab: (tab: string) => set({ tab }),
