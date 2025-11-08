@@ -178,16 +178,15 @@ export const CompactFileGallery = ({
               {displayFiles.map((file, idx) => {
                 const originalIndex = files.indexOf(file);
                 return (
-                  <div key={file._id}>
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      transition={{ duration: 0.2, delay: idx * 0.05 }}
-                    >
-                      {renderCompactThumbnail(file, originalIndex)}
-                    </motion.div>
-                  </div>
+                  <motion.div
+                    key={`file-${file._id}-${idx}`}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.2, delay: idx * 0.05 }}
+                  >
+                    {renderCompactThumbnail(file, originalIndex)}
+                  </motion.div>
                 );
               })}
             </motion.div>
@@ -203,16 +202,15 @@ export const CompactFileGallery = ({
               {displayFiles.map((file, idx) => {
                 const originalIndex = files.indexOf(file);
                 return (
-                  <div key={file._id}>
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      transition={{ duration: 0.2, delay: idx * 0.05 }}
-                    >
-                      {renderCompactThumbnail(file, originalIndex)}
-                    </motion.div>
-                  </div>
+                  <motion.div
+                    key={`file-${file._id}-${idx}`}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.2, delay: idx * 0.05 }}
+                  >
+                    {renderCompactThumbnail(file, originalIndex)}
+                  </motion.div>
                 );
               })}
             </motion.div>
@@ -272,16 +270,15 @@ export const CompactFileGallery = ({
               {displayFiles.map((file, idx) => {
                 const originalIndex = files.indexOf(file);
                 return (
-                  <div key={file._id}>
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      transition={{ duration: 0.2, delay: idx * 0.05 }}
-                    >
-                      {renderCompactThumbnail(file, originalIndex)}
-                    </motion.div>
-                  </div>
+                  <motion.div
+                    key={`file-${file._id}-${idx}`}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.2, delay: idx * 0.05 }}
+                  >
+                    {renderCompactThumbnail(file, originalIndex)}
+                  </motion.div>
                 );
               })}
             </motion.div>
@@ -297,19 +294,18 @@ export const CompactFileGallery = ({
               {displayFiles.map((file, idx) => {
                 const originalIndex = files.indexOf(file);
                 return (
-                  <div key={file._id}>
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      transition={{
-                        duration: 0.2,
-                        delay: Math.min(idx * 0.03, 0.3),
-                      }}
-                    >
-                      {renderCompactThumbnail(file, originalIndex)}
-                    </motion.div>
-                  </div>
+                  <motion.div
+                    key={`file-${file._id}-${idx}`}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{
+                      duration: 0.2,
+                      delay: Math.min(idx * 0.03, 0.3),
+                    }}
+                  >
+                    {renderCompactThumbnail(file, originalIndex)}
+                  </motion.div>
                 );
               })}
             </motion.div>
@@ -605,8 +601,16 @@ export const CompactFileGallery = ({
   );
 };
 
-// Helper function
-function formatFileSize(bytes: number): string {
+// Helper function to handle both number and MongoDB Long format
+function formatFileSize(size: number | { low: number; high: number; unsigned: boolean }): string {
+  // Convert MongoDB Long to number if needed
+  let bytes: number;
+  if (typeof size === 'number') {
+    bytes = size;
+  } else {
+    bytes = size.low + size.high * 0x100000000;
+  }
+  
   if (bytes === 0) return "0 B";
   const k = 1024;
   const sizes = ["B", "KB", "MB", "GB"];

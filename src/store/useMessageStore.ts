@@ -1,3 +1,4 @@
+import { metadata } from './../app/layout';
 import { create } from "zustand";
 import { FilePreview, MessageState, MessageType } from "./types/message.state";
 import useRoomStore from "./useRoomStore";
@@ -208,14 +209,15 @@ const useMessageStore = create<MessageState>()(
               limit: 50,
               type: "new",
             },
-          })) as { data: { data: MessageType[] } };
+          })) as { data: { metadata: MessageType[] } };
+          console.log("🚀 ~ response:", response)
 
-          if (!response.data?.data || response.data.data.length === 0) {
+          if (!response.data?.metadata || response.data.metadata.length === 0) {
             set((state) => ({ ...state, isLoading: false }));
             return;
           }
 
-          const newMessages = response.data.data.map((msg: MessageType) => ({
+          const newMessages = response.data.metadata.map((msg: MessageType) => ({
             ...msg,
             roomId,
             isRead: true,

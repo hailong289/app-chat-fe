@@ -36,6 +36,17 @@ const fmt = (n: number) => {
   }
 };
 
+// Helper to convert FilePreview size to number (handles MongoDB Long format)
+const getFileSize = (
+  size: number | { low: number; high: number; unsigned: boolean }
+): number => {
+  if (typeof size === "number") {
+    return size;
+  }
+  // MongoDB Long to number conversion
+  return size.low + size.high * 0x100000000;
+};
+
 const isImage = (t: string | undefined) =>
   t && (t.startsWith("image/") || t === "image" || t === "photo");
 const isVideo = (t: string | undefined) =>
@@ -175,18 +186,27 @@ export default function FilePreviewGridModal({
               <div className="flex flex-col items-center justify-center h-24 text-sm px-2 text-center">
                 <div className="text-2xl mb-1">{iconByExt(ext)}</div>
                 <p className="truncate w-full">{item.name}</p>
-                <p className="text-[11px] text-gray-500">{fmt(item.size)}</p>
+                <p className="text-[11px] text-gray-500">
+                  {fmt(getFileSize(item.size))}
+                </p>
               </div>
             );
           }
 
           return (
-            <button
+            <div
               key={`${item.name}-${item.url}`}
-              type="button"
+              role="button"
+              tabIndex={0}
               className="h-25 w-25 relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-              title={`${item.name} (${fmt(item.size)})`}
+              title={`${item.name} (${fmt(getFileSize(item.size))})`}
               onClick={() => openPreview(i)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  openPreview(i);
+                }
+              }}
             >
               {previewContent}
 
@@ -203,7 +223,7 @@ export default function FilePreviewGridModal({
                   <XMarkIcon className="w-4 h-4" />
                 </button>
               )}
-            </button>
+            </div>
           );
         })}
       </div>
