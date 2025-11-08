@@ -20,7 +20,7 @@ jobs:
       - run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
       - run: |
           IMAGE="asia-southeast1-docker.pkg.dev/app-chat-2b616/microservices/appchat:latest"
-          docker build -t $IMAGE \ 
+          docker build -t $IMAGE \
             --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             --build-arg NEXT_PUBLIC_SOCKET_URL=${{ secrets.NEXT_PUBLIC_SOCKET_URL }} \
             --build-arg NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }} \
