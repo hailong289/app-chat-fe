@@ -4,14 +4,7 @@ export interface SendMessageArgs {
   roomId: string;
   content: string;
   attachments: FilePreview[];
-  type:
-  | 'text'
-  | 'image'
-  | 'file'
-  | 'system'
-  | 'video'
-  | 'audio'
-  | 'gif';
+  type: "text" | "image" | "file" | "system" | "video" | "audio" | "gif";
   replyTo?: string;
   socket?: any; // Socket instance
   userId?: string; // User ID
@@ -37,6 +30,33 @@ const sanitizeMessageForDB = (msg: MessageType): MessageType => {
       file: undefined, // Remove File object
     })),
   };
+};
+
+/**
+ * Sanitize attachments from API response
+ * Remove any non-serializable data that might come from server
+ */
+const sanitizeAttachmentsFromAPI = (
+  attachments?: FilePreview[]
+): FilePreview[] | undefined => {
+  if (!attachments) return undefined;
+
+  return attachments.map((att) => ({
+    _id: att._id,
+    kind: att.kind,
+    url: att.url,
+    name: att.name,
+    size: att.size,
+    mimeType: att.mimeType,
+    thumbUrl: att.thumbUrl,
+    width: att.width,
+    height: att.height,
+    duration: att.duration,
+    status: att.status,
+    uploadProgress: att.uploadProgress,
+    uploadedUrl: att.uploadedUrl,
+    // Explicitly exclude: file, and any other unknown properties
+  }));
 };
 
 const useMessageStore = create<MessageState>()(
@@ -255,12 +275,14 @@ const useMessageStore = create<MessageState>()(
             return;
           }
 
+          // Map và sanitize messages từ API
           const newMessages = response.data.metadata.map(
             (msg: MessageType) => ({
               ...msg,
               roomId,
               isRead: true,
               status: (msg.status || "delivered") as MessageType["status"],
+              attachments: sanitizeAttachmentsFromAPI(msg.attachments),
             })
           );
 
@@ -453,15 +475,17 @@ const useMessageStore = create<MessageState>()(
             return [];
           }
 
+          // Map và sanitize messages từ API
           const messages = response.data.metadata.map((msg: MessageType) => ({
             ...msg,
             roomId,
             status: (msg.status || "delivered") as MessageType["status"],
+            attachments: sanitizeAttachmentsFromAPI(msg.attachments),
           }));
 
           console.log(`✅ Fetched ${messages.length} messages from API`);
 
-          // Upsert từng tin nhắn vào IndexedDB
+          // Upsert từng tin nhắn vào IndexedDB (đã được sanitize)
           await Promise.all(
             messages.map((msg: MessageType) =>
               upsertOne(db.messages, sanitizeMessageForDB(msg))
@@ -767,9 +791,7 @@ const useMessageStore = create<MessageState>()(
             `🌐 Loading older messages before ID: ${oldestMessageId}`
           );
 
-          // TODO: Gọi API để lấy tin nhắn cũ hơn
-          // const response = await fetch(`/api/messages/${roomId}?before=${oldestMessageId}&limit=${limit}`);
-
+          // Gọi API để lấy tin nhắn cũ hơn
           const result: any = await MessageService.getMessages({
             roomId,
             queryParams: {
@@ -778,11 +800,15 @@ const useMessageStore = create<MessageState>()(
               type: "old",
             },
           });
-          const olderMessages = result.data.metadata;
-          // Mock data for now - bỏ sau khi có API thật
-          console.log("⚠️ API loadOlderMessages chưa được implement");
 
-          // Khi có API thật, uncomment code dưới:
+          const rawMessages = result.data.metadata;
+
+          // Sanitize messages từ API
+          const olderMessages =
+            rawMessages?.map((msg: MessageType) => ({
+              ...msg,
+              attachments: sanitizeAttachmentsFromAPI(msg.attachments),
+            })) || [];
 
           if (olderMessages && olderMessages.length > 0) {
             // Prepend messages cũ vào đầu array
