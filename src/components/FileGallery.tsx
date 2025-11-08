@@ -34,12 +34,14 @@ export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
     const isFailed = file.status === "failed";
 
     return (
-      <div
+      <button
+        type="button"
         key={file._id}
         className={`relative cursor-pointer rounded-lg overflow-hidden aspect-square ${
           isUploading ? "opacity-70" : ""
         }`}
         onClick={() => !isUploading && handleFileClick(file)}
+        aria-label={`Open file ${file.name}`}
       >
         {/* Thumbnail based on file type */}
         {file.kind === "photo" && (
@@ -47,6 +49,11 @@ export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
             src={file.url}
             alt={file.name}
             className="w-full h-full object-cover"
+            style={
+              file.width && file.height
+                ? { aspectRatio: `${file.width} / ${file.height}` }
+                : undefined
+            }
           />
         )}
 
@@ -56,7 +63,14 @@ export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
               src={file.url}
               className="w-full h-full object-cover"
               preload="metadata"
-            />
+              style={
+                file.width && file.height
+                  ? { aspectRatio: `${file.width} / ${file.height}` }
+                  : undefined
+              }
+            >
+              <track kind="captions" />
+            </video>
             <div className="absolute inset-0 flex items-center justify-center bg-black/30">
               <PlayCircleIcon className="w-12 h-12 text-white" />
             </div>
@@ -106,7 +120,7 @@ export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
         <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-2 py-1 rounded">
           {formatFileSize(file.size)}
         </div>
-      </div>
+      </button>
     );
   };
 
@@ -171,6 +185,13 @@ export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
                     src={selectedFile.url}
                     alt={selectedFile.name}
                     className="w-full h-auto rounded-lg"
+                    style={
+                      selectedFile.width && selectedFile.height
+                        ? {
+                            aspectRatio: `${selectedFile.width} / ${selectedFile.height}`,
+                          }
+                        : undefined
+                    }
                   />
                 )}
 
@@ -179,6 +200,13 @@ export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
                     src={selectedFile.url}
                     controls
                     className="w-full h-auto rounded-lg"
+                    style={
+                      selectedFile.width && selectedFile.height
+                        ? {
+                            aspectRatio: `${selectedFile.width} / ${selectedFile.height}`,
+                          }
+                        : undefined
+                    }
                   >
                     <track kind="captions" />
                   </video>
@@ -220,15 +248,17 @@ export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
 };
 
 // Helper function to handle both number and MongoDB Long format
-function formatFileSize(size: number | { low: number; high: number; unsigned: boolean }): string {
+function formatFileSize(
+  size: number | { low: number; high: number; unsigned: boolean }
+): string {
   // Convert MongoDB Long to number if needed
   let bytes: number;
-  if (typeof size === 'number') {
+  if (typeof size === "number") {
     bytes = size;
   } else {
     bytes = size.low + size.high * 0x100000000;
   }
-  
+
   if (bytes === 0) return "0 B";
   const k = 1024;
   const sizes = ["B", "KB", "MB", "GB"];

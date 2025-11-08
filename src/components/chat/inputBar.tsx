@@ -31,6 +31,7 @@ import { FilePreview } from "@/store/types/message.state";
 import useAuthStore from "@/store/useAuthStore";
 import { useSocket } from "../providers/SocketProvider";
 import EmojiPicker, { EmojiClickData, Categories } from "emoji-picker-react";
+import { ObjectId } from "bson";
 
 export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
   const emojiTab = [
@@ -219,10 +220,10 @@ export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
 
       // Tạo preview URL
       const previewUrl = URL.createObjectURL(blob);
-
+      const id = new ObjectId().toHexString();
       // Tạo FilePreview object giống như paste/drop file
       const filePreview: FilePreview = {
-        _id: `temp_${Date.now()}_${Math.random()}`,
+        _id: id,
         file: file,
         url: previewUrl,
         name: fileName,
@@ -234,11 +235,19 @@ export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
       };
 
       // Thêm vào attachments
-      setAttachments((prev) => [...prev, filePreview]);
+      // setAttachments((prev) => [...prev, filePreview]);
 
       // Không đóng picker - để user tiếp tục chọn GIF khác nếu muốn
-      //  gửi tin nhăn luôn
-      onSend();
+      useMessage.sendMessage({
+        roomId: chatId,
+        content: message,
+        attachments: [filePreview], // Tạm thời để rỗng, sẽ xử lý upload sau
+        type: "gif",
+        socket,
+        userId: authState.user?.id,
+        userFullname: authState.user?.fullname,
+        userAvatar: authState.user?.avatar,
+      });
       console.log("✅ GIF added as attachment:", fileName);
     } catch (error) {
       console.error("❌ Error downloading GIF:", error);

@@ -1,12 +1,17 @@
-import { metadata } from './../app/layout';
 import { create } from "zustand";
 import { FilePreview, MessageState, MessageType } from "./types/message.state";
-import useRoomStore from "./useRoomStore";
 export interface SendMessageArgs {
   roomId: string;
   content: string;
   attachments: FilePreview[];
-  type: "text" | "image" | "file" | "video";
+  type:
+  | 'text'
+  | 'image'
+  | 'file'
+  | 'system'
+  | 'video'
+  | 'audio'
+  | 'gif';
   replyTo?: string;
   socket?: any; // Socket instance
   userId?: string; // User ID
@@ -20,6 +25,20 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import UploadService from "@/service/uploadfile.service";
 import MessageService from "@/service/message.service";
 
+/**
+ * Sanitize message data before saving to IndexedDB
+ * Remove File objects and other non-serializable data
+ */
+const sanitizeMessageForDB = (msg: MessageType): MessageType => {
+  return {
+    ...msg,
+    attachments: msg.attachments?.map((att) => ({
+      ...att,
+      file: undefined, // Remove File object
+    })),
+  };
+};
+
 const useMessageStore = create<MessageState>()(
   persist(
     (set, get) => ({
@@ -31,7 +50,7 @@ const useMessageStore = create<MessageState>()(
         if (!msgData.roomId) return;
 
         // Lưu vào IndexedDB trước
-        msgData.status = "sent";
+        msgData.status = "delivered";
         // Lấy state hiện tại
         const prevRoom = get().messagesRoom[msgData.roomId] || {};
         const prevMessages = prevRoom.messages || [];
@@ -64,7 +83,7 @@ const useMessageStore = create<MessageState>()(
             },
           },
         });
-        await upsertOne(db.messages, msgData);
+        await upsertOne(db.messages, sanitizeMessageForDB(msgData));
       },
 
       sendMessage: async (args: SendMessageArgs) => {
@@ -201,6 +220,13 @@ const useMessageStore = create<MessageState>()(
             isLoading: true,
           }));
 
+          // Validate inputs
+          if (!roomId) {
+            console.warn("⚠️ fetchNewMessages: roomId is required");
+            set((state) => ({ ...state, isLoading: false }));
+            return;
+          }
+
           // Lấy tin nhắn mới từ API
           const response = (await MessageService.getMessages({
             roomId,
@@ -210,23 +236,39 @@ const useMessageStore = create<MessageState>()(
               type: "new",
             },
           })) as { data: { metadata: MessageType[] } };
-          console.log("🚀 ~ response:", response)
 
-          if (!response.data?.metadata || response.data.metadata.length === 0) {
+          console.log("🚀 ~ fetchNewMessages response:", response);
+
+          // Validate response structure
+          if (
+            !response?.data?.metadata ||
+            !Array.isArray(response.data.metadata)
+          ) {
+            console.warn("⚠️ Invalid response structure from API:", response);
             set((state) => ({ ...state, isLoading: false }));
             return;
           }
 
-          const newMessages = response.data.metadata.map((msg: MessageType) => ({
-            ...msg,
-            roomId,
-            isRead: true,
-            status: (msg.status || "delivered") as MessageType["status"],
-          }));
+          if (response.data.metadata.length === 0) {
+            console.log("📭 No new messages from API");
+            set((state) => ({ ...state, isLoading: false }));
+            return;
+          }
+
+          const newMessages = response.data.metadata.map(
+            (msg: MessageType) => ({
+              ...msg,
+              roomId,
+              isRead: true,
+              status: (msg.status || "delivered") as MessageType["status"],
+            })
+          );
 
           // Lưu từng tin nhắn vào IndexedDB
           await Promise.all(
-            newMessages.map((msg: MessageType) => upsertOne(db.messages, msg))
+            newMessages.map((msg: MessageType) =>
+              upsertOne(db.messages, sanitizeMessageForDB(msg))
+            )
           );
 
           // Cập nhật state
@@ -240,8 +282,7 @@ const useMessageStore = create<MessageState>()(
           );
 
           if (uniqueNewMessages.length > 0) {
-            const lastNewMessageId =
-              uniqueNewMessages[uniqueNewMessages.length - 1].id;
+            const lastNewMessageId = uniqueNewMessages.at(-1)!.id;
 
             // Cập nhật vào readedRooms nếu có tin nhắn mới
             set((state) => ({
@@ -267,16 +308,19 @@ const useMessageStore = create<MessageState>()(
               },
               isLoading: false,
             }));
+
+            console.log(`✅ Added ${uniqueNewMessages.length} new messages`);
           } else {
+            console.log("ℹ️ All messages already exist in state");
             set((state) => ({ ...state, isLoading: false }));
           }
         } catch (error) {
-          console.error("Error fetching new messages:", error);
+          console.error("❌ Error fetching new messages:", error);
           set((state) => ({
             ...state,
             isLoading: false,
           }));
-          throw error;
+          // Don't throw error to prevent UI from breaking
         }
       },
 
@@ -360,6 +404,116 @@ const useMessageStore = create<MessageState>()(
               },
             },
           });
+        }
+      },
+
+      /**
+       * Lấy danh sách tin nhắn từ API, upsert vào IndexedDB và state
+       * @param roomId - ID của room
+       * @param queryParams - Tham số query (msgId, limit, type)
+       * @returns Promise<MessageType[]> - Danh sách tin nhắn đã lấy
+       */
+      fetchMessagesFromAPI: async (
+        roomId: string,
+        queryParams?: {
+          limit?: number;
+        }
+      ): Promise<MessageType[]> => {
+        try {
+          // Validate roomId
+          if (!roomId) {
+            console.warn("⚠️ fetchMessagesFromAPI: roomId is required");
+            return [];
+          }
+
+          console.log(
+            `🌐 Fetching messages from API for room: ${roomId}`,
+            queryParams
+          );
+
+          // Gọi API lấy tin nhắn
+          const response = (await MessageService.getMessages({
+            roomId,
+            queryParams: {
+              limit: queryParams?.limit || 100,
+            },
+          })) as { data: { metadata: MessageType[] } };
+
+          // Validate response structure
+          if (
+            !response?.data?.metadata ||
+            !Array.isArray(response.data.metadata)
+          ) {
+            console.warn("⚠️ Invalid response structure from API:", response);
+            return [];
+          }
+
+          if (response.data.metadata.length === 0) {
+            console.log("📭 No messages returned from API");
+            return [];
+          }
+
+          const messages = response.data.metadata.map((msg: MessageType) => ({
+            ...msg,
+            roomId,
+            status: (msg.status || "delivered") as MessageType["status"],
+          }));
+
+          console.log(`✅ Fetched ${messages.length} messages from API`);
+
+          // Upsert từng tin nhắn vào IndexedDB
+          await Promise.all(
+            messages.map((msg: MessageType) =>
+              upsertOne(db.messages, sanitizeMessageForDB(msg))
+            )
+          );
+
+          console.log(`💾 Saved ${messages.length} messages to IndexedDB`);
+
+          // Lấy room hiện tại và merge messages
+          const currentRoom = get().messagesRoom[roomId] || {};
+          const currentMessages = currentRoom.messages || [];
+
+          // Merge messages: loại bỏ duplicate dựa trên ID
+          const mergedMessages = [...currentMessages];
+          for (const newMsg of messages) {
+            const existingIndex = mergedMessages.findIndex(
+              (m) => m.id === newMsg.id
+            );
+            if (existingIndex === -1) {
+              mergedMessages.push(newMsg);
+            } else {
+              // Cập nhật message nếu đã tồn tại
+              mergedMessages[existingIndex] = newMsg;
+            }
+          }
+
+          // Sort theo ID (ObjectId có timestamp embedded)
+          const sortedMessages = [...mergedMessages].sort((a, b) =>
+            a.id.localeCompare(b.id)
+          );
+
+          // Cập nhật state
+          set({
+            messagesRoom: {
+              ...get().messagesRoom,
+              [roomId]: {
+                ...currentRoom,
+                messages: sortedMessages,
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          });
+
+          console.log(
+            `🔄 Updated state with ${sortedMessages.length} total messages`
+          );
+
+          return messages;
+        } catch (error) {
+          console.error("❌ Error fetching messages from API:", error);
+          // Don't throw error, return empty array to prevent UI breaking
+          return [];
         }
       },
 
@@ -647,7 +801,7 @@ const useMessageStore = create<MessageState>()(
 
             // Lưu vào IndexedDB
             for (const msg of olderMessages) {
-              await upsertOne(db.messages, msg);
+              await upsertOne(db.messages, sanitizeMessageForDB(msg));
             }
 
             console.log(
@@ -732,11 +886,14 @@ const useMessageStore = create<MessageState>()(
             // Update IndexedDB
             const msg = currentRoom.messages.find((m) => m.id === messageId);
             if (msg) {
-              await upsertOne(db.messages, {
-                ...msg,
-                status: "recalled" as MessageType["status"],
-                content: "[Tin nhắn đã bị thu hồi]",
-              });
+              await upsertOne(
+                db.messages,
+                sanitizeMessageForDB({
+                  ...msg,
+                  status: "recalled" as MessageType["status"],
+                  content: "[Tin nhắn đã bị thu hồi]",
+                })
+              );
             }
             console.log("✅ Message recalled:", messageId);
           }

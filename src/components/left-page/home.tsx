@@ -111,7 +111,6 @@ export const Home = () => {
     (chat: any) => {
       console.log(`Selected chat with ${chat.name}`);
       roomState.getRoomById(chat.id);
-      socket?.emit("join", { roomId: chat.roomId });
       router.push(`/chat?chatId=${chat.id}`);
       setIsSearchVisible(false);
       setSearch("");
