@@ -267,16 +267,22 @@ export function toPreviews(files: File[]): FilePreview[] {
     const extensionPart = fileExtension ? `.${fileExtension}` : "";
     const newFileName = `file_${timestamp}_${randomStr}${extensionPart}`;
 
+    // 🔥 Tạo lại File object với tên mới
+    const renamedFile = new File([f], newFileName, {
+      type: f.type || mimeType,
+      lastModified: f.lastModified,
+    });
+
     return {
       _id: new ObjectId().toHexString(),
       kind,
       url, // Local blob URL
-      name: newFileName, // Tên mới thay vì f.name
+      name: newFileName, // Tên mới
       size: f.size,
       mimeType,
       status: "pending", // Trạng thái ban đầu
       uploadProgress: 0,
-      file: f, // 🔥 Lưu File gốc để upload sau
+      file: renamedFile, // 🔥 Lưu File với tên mới
     };
   });
 }

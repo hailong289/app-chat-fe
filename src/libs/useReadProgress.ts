@@ -56,6 +56,17 @@ export function useReadProgress(opts: {
 
     let ticking = false;
 
+    // Optimized: Check if container has scroll
+    const hasScroll = (): boolean => {
+      if (!container) {
+        const { scrollHeight, clientHeight } = document.documentElement;
+        return scrollHeight > clientHeight + 10; // 10px threshold
+      } else {
+        const { scrollHeight, clientHeight } = container;
+        return scrollHeight > clientHeight + 10;
+      }
+    };
+
     // Optimized: Check if scrolled to bottom
     const isAtBottom = (): boolean => {
       if (!container) {
@@ -89,6 +100,19 @@ export function useReadProgress(opts: {
         }
       }
       return null;
+    };
+
+    // 🔥 Mark all as read if no scroll (all messages visible)
+    const markAllAsReadIfNoScroll = () => {
+      if (!hasScroll()) {
+        const lastId = getLastReadableMessageId();
+        if (lastId) {
+          console.log("📭 No scroll detected - marking all messages as read");
+          updateLastRead(lastId);
+        }
+        return true;
+      }
+      return false;
     };
 
     const io = new IntersectionObserver(
@@ -163,21 +187,32 @@ export function useReadProgress(opts: {
       });
     };
 
-    // Add scroll listener
+    // Add scroll listener only if has scroll
     const scrollTarget = container ?? window;
-    scrollTarget.addEventListener("scroll", handleScroll, { passive: true });
-
-    // Initial check
-    if (isAtBottom()) {
-      const lastId = getLastReadableMessageId();
-      if (lastId) updateLastRead(lastId);
+    if (hasScroll()) {
+      scrollTarget.addEventListener("scroll", handleScroll, { passive: true });
     }
+
+    // Initial check - với delay để đảm bảo DOM đã render
+    const initialCheckTimer = setTimeout(() => {
+      // Check if no scroll - mark all as read
+      if (markAllAsReadIfNoScroll()) {
+        return; // Already marked all as read
+      }
+
+      // Otherwise check if at bottom
+      if (isAtBottom()) {
+        const lastId = getLastReadableMessageId();
+        if (lastId) updateLastRead(lastId);
+      }
+    }, 100); // Delay 100ms để DOM render xong
 
     return () => {
       io.disconnect();
       observedIds.current.clear();
       scrollTarget.removeEventListener("scroll", handleScroll);
       if (commitTimer.current) window.clearTimeout(commitTimer.current);
+      clearTimeout(initialCheckTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, container, stickyBottomPx, minVisibleRatio]);

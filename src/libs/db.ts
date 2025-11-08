@@ -60,7 +60,7 @@ export class AppDB extends Dexie {
       },
       messages: {
         type: ENCRYPT_LIST,
-        fields: ["content", "sender", "type"], // encrypt sensitive message fields
+        fields: ["content", "sender"], // encrypt sensitive message fields, exclude attachments
       },
     };
 

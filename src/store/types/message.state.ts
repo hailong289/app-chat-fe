@@ -98,6 +98,14 @@ export interface MessageState {
     socket?: any
   ) => Promise<void>;
   getMessageByRoomId: (roomId: string) => Promise<void>;
+  fetchMessagesFromAPI: (
+    roomId: string,
+    queryParams?: {
+      msgId?: string;
+      limit?: number;
+      type?: "new" | "old" | "all";
+    }
+  ) => Promise<MessageType[]>;
   loadOlderMessages: (roomId: string, limit?: number) => Promise<any[]>;
   deleteMessage: (roomId: string, messageId: string) => Promise<void>;
   recallMessage: (roomId: string, messageId: string) => Promise<void>;

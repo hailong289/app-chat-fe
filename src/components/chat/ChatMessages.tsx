@@ -58,26 +58,7 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(
     new Set()
   ); // Track expanded messages
-  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null); // Track hovered message for actions
 
-  // Debounced hover handlers để giảm INP
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const handleMouseEnter = useCallback((msgId: string) => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
-    hoverTimeoutRef.current = setTimeout(() => {
-      setHoveredMessageId(msgId);
-    }, 50); // Giảm từ 100ms xuống 50ms để responsive hơn
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
-    setHoveredMessageId(null);
-  }, []);
   const [replyingTo, setReplyingTo] = useState<any>(null); // Track message being replied to
 
   const [isBottomVisible, setIsBottomVisible] = useState(false);
@@ -163,8 +144,38 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
   // Tách logic kiểm tra tin nhắn mới thành useEffect riêng với loading state
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastFetchedServerMessageIdRef = useRef<string | null>(null);
-  // việc gọi tin nhắn mới từ api đùng để lấy dùng để khi vào phong tải những tin nhắn mới trong lúc offline
+  const hasInitialFetchRef = useRef(false); // Track initial fetch
+
+  // việc gọi tin nhắn mới từ api dùng để lấy dùng để khi vào phòng tải những tin nhắn mới trong lúc offline
   useEffect(() => {
+    // Nếu không có tin nhắn local, lấy 100 tin nhắn đầu tiên từ API
+    if (messages.length === 0 && !hasInitialFetchRef.current) {
+      console.log(
+        "📥 Không có tin nhắn local, lấy 100 tin nhắn đầu tiên từ API"
+      );
+      hasInitialFetchRef.current = true;
+      setIsFetchingNewMessages(true);
+
+      messageState
+        .fetchMessagesFromAPI(chatId, { limit: 100 })
+        .then((fetchedMessages) => {
+          console.log(`✅ Đã tải ${fetchedMessages.length} tin nhắn từ API`);
+        })
+        .catch((error) => {
+          console.error("❌ Lỗi khi tải tin nhắn từ API:", error);
+        })
+        .finally(() => {
+          setIsFetchingNewMessages(false);
+        });
+
+      return;
+    }
+
+    // Reset flag khi chuyển chat
+    if (prevChatIdRef.current !== chatId) {
+      hasInitialFetchRef.current = false;
+    }
+
     // Bỏ qua nếu chưa có room
     if (!roomState.room?.last_message?.id) {
       return;
@@ -206,8 +217,9 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
         try {
           // Fetch tin nhắn mới
           await messageState.fetchNewMessages(chatId, lastLocalMessageId);
+          console.log("✅ Đã tải tin nhắn mới thành công");
         } catch (error) {
-          console.error("Error fetching new messages:", error);
+          console.error("❌ Lỗi khi tải tin nhắn mới:", error);
         } finally {
           // Clear loading state
           setIsFetchingNewMessages(false);
@@ -221,7 +233,7 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
         clearTimeout(fetchTimeoutRef.current);
       }
     };
-  }, [chatId]);
+  }, [chatId, messages.length, roomState.room?.last_message?.id]);
 
   // Virtual scrolling: chỉ render một số messages gần nhất
   const visibleMessages = useMemo(() => {
@@ -899,10 +911,6 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
                             msg.isMine ? "justify-end" : "justify-start"
                           }`}
                           data-mid={msg.id}
-                          onMouseEnter={() => handleMouseEnter(msg.id)}
-                          onMouseLeave={handleMouseLeave}
-                          onFocus={() => setHoveredMessageId(msg.id)}
-                          onBlur={() => setHoveredMessageId(null)}
                         >
                           {/* Read avatars cho tin của mình (bên trái bubble) */}
                           {isLastInGroup &&
@@ -1326,11 +1334,18 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
             </Button>
 
             {/* Badge hiển thị số tin nhắn mới nếu có */}
-            {messages.length > displayedMessagesCount && (
+            {/* {messages.length > displayedMessagesCount && (
               <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
                 {messages.length - displayedMessagesCount > 99
                   ? "99+"
                   : messages.length - displayedMessagesCount}
+              </div>
+            )} */}
+            {!roomState?.room?.is_read && (
+              <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+                {(roomState?.room?.unread_count ?? 0) > 99
+                  ? "99+"
+                  : roomState?.room?.unread_count ?? 0}
               </div>
             )}
           </motion.div>

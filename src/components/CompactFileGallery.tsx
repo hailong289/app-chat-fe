@@ -88,6 +88,21 @@ export const CompactFileGallery = ({
     const isFailed = file.status === "failed";
     const fileKind = normalizeKind(file);
 
+    // Xác định tỷ lệ khung hình dựa trên width/height nếu có
+    const aspectRatio =
+      file.width && file.height ? file.width / file.height : 1;
+
+    // Xác định orientation và apply height phù hợp
+    const isLandscape = aspectRatio > 1.2;
+    const isPortrait = aspectRatio < 0.8;
+
+    let heightClass = "h-24 sm:h-28 md:h-32"; // default square
+    if (isPortrait) {
+      heightClass = "h-32 sm:h-36 md:h-40"; // taller for portrait
+    } else if (isLandscape) {
+      heightClass = "h-20 sm:h-24 md:h-28"; // shorter for landscape
+    }
+
     return (
       <button
         key={file._id}
@@ -101,7 +116,7 @@ export const CompactFileGallery = ({
               : "border border-gray-200 hover:border-blue-400"
           }
           ${isUploading ? "opacity-70" : "hover:shadow-lg hover:scale-105"}
-          w-full h-24 sm:h-28 md:h-32
+          w-full ${heightClass}
         `}
         onClick={() => handleFileClick(file, index)}
       >
@@ -112,6 +127,11 @@ export const CompactFileGallery = ({
             alt={file.name}
             removeWrapper
             className="w-full h-full object-cover"
+            style={
+              file.width && file.height
+                ? { aspectRatio: `${file.width} / ${file.height}` }
+                : undefined
+            }
           />
         )}
 
@@ -121,6 +141,11 @@ export const CompactFileGallery = ({
               src={file.url}
               className="w-full h-full object-cover"
               preload="metadata"
+              style={
+                file.width && file.height
+                  ? { aspectRatio: `${file.width} / ${file.height}` }
+                  : undefined
+              }
             >
               <track kind="captions" />
             </video>
@@ -412,10 +437,26 @@ export const CompactFileGallery = ({
                                 src={file.url}
                                 alt={file.name}
                                 className="w-full h-full object-cover"
+                                style={
+                                  file.width && file.height
+                                    ? {
+                                        aspectRatio: `${file.width} / ${file.height}`,
+                                      }
+                                    : undefined
+                                }
                               />
                             )}
                             {thumbKind === "video" && (
-                              <div className="w-full h-full bg-black flex items-center justify-center">
+                              <div
+                                className="w-full h-full bg-black flex items-center justify-center"
+                                style={
+                                  file.width && file.height
+                                    ? {
+                                        aspectRatio: `${file.width} / ${file.height}`,
+                                      }
+                                    : undefined
+                                }
+                              >
                                 <PlayCircleIcon className="w-6 h-6 text-white" />
                               </div>
                             )}
@@ -522,6 +563,13 @@ export const CompactFileGallery = ({
                             src={selectedFile.url}
                             alt={selectedFile.name}
                             className="max-w-full max-h-[calc(100vh-12rem)] object-contain rounded-lg shadow-2xl pointer-events-none"
+                            style={
+                              selectedFile.width && selectedFile.height
+                                ? {
+                                    aspectRatio: `${selectedFile.width} / ${selectedFile.height}`,
+                                  }
+                                : undefined
+                            }
                           />
                         </button>
                       )}
@@ -533,6 +581,13 @@ export const CompactFileGallery = ({
                             controls
                             autoPlay
                             className="max-w-full max-h-[calc(100vh-12rem)] rounded-lg shadow-2xl bg-black"
+                            style={
+                              selectedFile.width && selectedFile.height
+                                ? {
+                                    aspectRatio: `${selectedFile.width} / ${selectedFile.height}`,
+                                  }
+                                : undefined
+                            }
                           >
                             <track kind="captions" />
                           </video>
@@ -602,15 +657,17 @@ export const CompactFileGallery = ({
 };
 
 // Helper function to handle both number and MongoDB Long format
-function formatFileSize(size: number | { low: number; high: number; unsigned: boolean }): string {
+function formatFileSize(
+  size: number | { low: number; high: number; unsigned: boolean }
+): string {
   // Convert MongoDB Long to number if needed
   let bytes: number;
-  if (typeof size === 'number') {
+  if (typeof size === "number") {
     bytes = size;
   } else {
     bytes = size.low + size.high * 0x100000000;
   }
-  
+
   if (bytes === 0) return "0 B";
   const k = 1024;
   const sizes = ["B", "KB", "MB", "GB"];
