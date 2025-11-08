@@ -8,7 +8,7 @@ class ApiService {
   private constructor() {
     // Khởi tạo axios instance với cấu hình mặc định
     this.axiosInstance = axios.create({
-      baseURL: process.env.API_URL || "http://localhost:5000/api", // Thay đổi thành URL API thực tế
+      baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api", // Thay đổi thành URL API thực tế
     });
     this.axiosInstance.interceptors.request.use(async (config) => {
       if (config.data instanceof FormData) {

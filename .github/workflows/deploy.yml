@@ -35,7 +35,7 @@ jobs:
             --port=8080 \
             --timeout=60s \
             --set-env-vars NODE_ENV=${{ secrets.NODE_ENV }} \
-            --set-env-vars API_URL=${{ secrets.API_URL }} \
+            --set-env-vars NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             --set-env-vars NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }} \
             --set-env-vars NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }} \
             --set-env-vars NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }} \
