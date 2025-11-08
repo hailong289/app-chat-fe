@@ -37,8 +37,10 @@ const fmt = (n: number) => {
 };
 
 // Helper to convert FilePreview size to number (handles MongoDB Long format)
-const getFileSize = (size: number | { low: number; high: number; unsigned: boolean }): number => {
-  if (typeof size === 'number') {
+const getFileSize = (
+  size: number | { low: number; high: number; unsigned: boolean }
+): number => {
+  if (typeof size === "number") {
     return size;
   }
   // MongoDB Long to number conversion
@@ -184,7 +186,9 @@ export default function FilePreviewGridModal({
               <div className="flex flex-col items-center justify-center h-24 text-sm px-2 text-center">
                 <div className="text-2xl mb-1">{iconByExt(ext)}</div>
                 <p className="truncate w-full">{item.name}</p>
-                <p className="text-[11px] text-gray-500">{fmt(getFileSize(item.size))}</p>
+                <p className="text-[11px] text-gray-500">
+                  {fmt(getFileSize(item.size))}
+                </p>
               </div>
             );
           }
@@ -198,7 +202,7 @@ export default function FilePreviewGridModal({
               title={`${item.name} (${fmt(getFileSize(item.size))})`}
               onClick={() => openPreview(i)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
+                if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   openPreview(i);
                 }
