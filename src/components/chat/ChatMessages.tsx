@@ -1370,7 +1370,6 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
                       // console.log(msg);
                       // Deleted message
                       if (msg.hiddenByMe) {
-                        console.log("Deleted message:", msg);
                         return (
                           <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
                             <div
@@ -1387,7 +1386,6 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
                       }
                       // Recalled message
                       if (msg.isDeleted) {
-                        console.log("Recalled message:", msg);
                         return (
                           <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
                             <div
