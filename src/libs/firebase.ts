@@ -1,10 +1,4 @@
-import {
-  initializeApp,
-  getApps,
-  getApp,
-  setLogLevel,
-  FirebaseApp,
-} from "firebase/app";
+import { initializeApp, getApps, getApp, setLogLevel } from "firebase/app";
 import {
   getMessaging,
   getToken,
@@ -42,7 +36,7 @@ if (missingKeys.length > 0) {
 
   // Chỉ warn trong build time, không throw error
   if (
-    typeof globalThis.window === "undefined" &&
+    globalThis.window === undefined &&
     process.env.NODE_ENV === "production"
   ) {
     console.warn(
@@ -52,7 +46,7 @@ if (missingKeys.length > 0) {
     console.warn(
       "Firebase features will be disabled until environment variables are provided at runtime."
     );
-  } else if (typeof globalThis.window !== "undefined") {
+  } else if (globalThis.window !== undefined) {
     // Throw error ở client side khi thực sự cần dùng Firebase
     console.error("Firebase configuration error:", errorMessage);
     // Không throw ngay, để app vẫn render được
@@ -66,10 +60,30 @@ const initializeFirebase = () => {
     const firebaseApp = !getApps().length
       ? initializeApp(firebaseConfig)
       : getApp();
-    const firebaseMessaging =
-      typeof globalThis.window !== "undefined"
-        ? getMessaging(firebaseApp)
-        : null;
+
+    let firebaseMessaging: Messaging | null = null;
+
+    // Chỉ khởi tạo messaging ở client side và khi browser hỗ trợ
+    if (globalThis.window !== undefined) {
+      try {
+        // Kiểm tra browser có hỗ trợ notifications và service worker không
+        if (
+          "Notification" in globalThis &&
+          "serviceWorker" in globalThis.navigator
+        ) {
+          firebaseMessaging = getMessaging(firebaseApp);
+          console.log("✅ Firebase Messaging initialized");
+        } else {
+          console.warn(
+            "⚠️ Browser không hỗ trợ Firebase Messaging (thiếu Notification hoặc ServiceWorker)"
+          );
+        }
+      } catch (error) {
+        console.error("❌ Lỗi khi khởi tạo Firebase Messaging:", error);
+        // Không throw error, để app vẫn chạy được
+      }
+    }
+
     setLogLevel("debug");
     return { app: firebaseApp, messaging: firebaseMessaging };
   }

@@ -57,6 +57,49 @@ export const Home = () => {
     roomState.getRooms();
   }, []); // Only on mount
 
+  /**
+   * useEffect: Lắng nghe socket reconnect và fetch danh sách rooms mới nhất
+   * Xảy ra khi: Socket reconnect sau khi mất kết nối
+   */
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleReconnect = () => {
+      console.log(
+        "🔌 [SOCKET RECONNECT] Socket đã kết nối lại, đang fetch danh sách rooms mới nhất..."
+      );
+
+      // Đợi một chút để đảm bảo socket đã hoàn toàn kết nối
+      setTimeout(async () => {
+        try {
+          console.log(
+            "📥 [SOCKET RECONNECT] Fetching danh sách rooms mới nhất"
+          );
+
+          // Fetch lại danh sách rooms từ server với query hiện tại
+          await roomState.getRooms(queryRoom);
+
+          console.log(
+            "✅ [SOCKET RECONNECT] Đã tải danh sách rooms thành công"
+          );
+        } catch (error) {
+          console.error(
+            "❌ [SOCKET RECONNECT] Lỗi khi tải danh sách rooms:",
+            error
+          );
+        }
+      }, 500); // Đợi 500ms để socket ổn định
+    };
+
+    // Lắng nghe sự kiện reconnect
+    socket.on("connect", handleReconnect);
+
+    // Cleanup
+    return () => {
+      socket.off("connect", handleReconnect);
+    };
+  }, [socket, queryRoom, roomState]);
+
   // Debounce search và fetch khi query thay đổi
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -256,7 +299,7 @@ export const Home = () => {
       </Card>
       <div
         id="list-chat"
-        className="flex-1 overflow-y-auto scroll-smooth w-full"
+        className="flex-1 overflow-y-auto scroll-smooth w-full shadow-[4px_0_10px_-2px_rgba(0,0,0,0.1)]"
       >
         {/* Chat List */}
         <div className="divide-y divide-gray-200 w-full">

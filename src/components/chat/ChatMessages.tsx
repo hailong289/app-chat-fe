@@ -7,10 +7,6 @@ import {
   EllipsisVerticalIcon,
   ArrowUturnLeftIcon,
   FaceSmileIcon,
-  DocumentDuplicateIcon,
-  TrashIcon,
-  XMarkIcon,
-  HeartIcon,
 } from "@heroicons/react/16/solid";
 import {
   Avatar,
@@ -36,7 +32,86 @@ import useRoomStore from "@/store/useRoomStore";
 import { useSocket } from "../providers/SocketProvider";
 import { LinkPreview } from "./LinkPreview";
 import { extractFirstUrl } from "@/libs/url-helpers";
+import useToast from "@/hooks/useToast";
 import { motion, AnimatePresence } from "framer-motion";
+import { MessageType } from "@/store/types/message.state";
+
+// Small constants/helpers to reduce repetition and file length
+const EMOJIS = [
+  "👍",
+  "❤️",
+  "😂",
+  "😮",
+  "😢",
+  "😡",
+  "🎉",
+  "🔥",
+  "👏",
+  "💯",
+  "🙏",
+  "👀",
+];
+
+function ReplyPreview({
+  reply,
+  onJump,
+}: {
+  reply: any;
+  onJump: (id: string) => void;
+}) {
+  if (!reply) return null;
+
+  // Field mapping:
+  // - reply.isDeleted (or reply.status === 'recalled') => message was recalled (thu hồi)
+  // - reply.hiddenByMe => message was deleted by me (xoá)
+  const isRecalled = !!reply.isDeleted || reply.status === "recalled";
+  const isDeleted = !!reply.hiddenByMe;
+
+  const badge =
+    reply.type !== "text" && !isDeleted && !isRecalled ? (
+      <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
+        {reply.type === "image" && "📷 Ảnh"}
+        {reply.type === "video" && "🎥 Video"}
+        {reply.type === "file" && "📎 File"}
+        {reply.type === "gif" && "🎬 GIF"}
+      </span>
+    ) : null;
+
+  let previewText: string;
+  if (isDeleted) {
+    // Deleted by me
+    previewText = "Tin nhắn đã bị xoá";
+  } else if (isRecalled) {
+    // Recalled (thu hồi)
+    if (reply.isMine) {
+      previewText = "Bạn đã thu hồi tin nhắn này";
+    } else {
+      previewText = "Tin nhắn đã bị thu hồi";
+    }
+  } else if (reply.type === "text") {
+    previewText = reply.content;
+  } else {
+    previewText = reply.attachments?.[0]?.name || "File đính kèm";
+  }
+
+  return (
+    <button
+      onClick={() => onJump(reply._id)}
+      className={`mb-2 px-3 py-2 rounded-lg max-w-sm border-l-4 bg-gradient-to-r cursor-pointer transition-all duration-200 hover:scale-[1.02]`}
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <ArrowUturnLeftIcon className="h-3 w-3 text-teal-600 flex-shrink-0" />
+        <span className="text-xs font-semibold text-teal-600">
+          {reply.isMine ? "Bạn" : reply.sender?.name || "Unknown"}
+        </span>
+        {badge}
+      </div>
+      <p className="text-sm text-gray-700 line-clamp-2 text-left">
+        {previewText}
+      </p>
+    </button>
+  );
+}
 
 export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
   // Performance monitoring
@@ -46,13 +121,14 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
     const renderTime = performance.now() - startTime.current;
     if (renderTime > 100) {
       // Log slow renders
-      console.warn(`🐌 Slow ChatMessages render: ${renderTime.toFixed(2)}ms`);
+      // console.warn(`🐌 Slow ChatMessages render: ${renderTime.toFixed(2)}ms`);
     }
   });
 
   const { socket } = useSocket();
   const roomState = useRoomStore((state) => state);
   const messageState = useMessageStore((state) => state);
+  const toast = useToast();
   const messages = messageState.messagesRoom[chatId]?.messages || [];
   const lastMsgId = roomState.room?.last_read_id || "null";
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(
@@ -89,13 +165,6 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
     const isActuallySwitchingChat = prevChatIdRef.current !== chatId;
 
     if (isActuallySwitchingChat) {
-      console.log(
-        "🔄 Switching chat from",
-        prevChatIdRef.current,
-        "to",
-        chatId
-      );
-
       // Set loading state ngay khi bắt đầu chuyển chat
       setIsSwitchingChat(true);
 
@@ -115,12 +184,9 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
       setIsBottomVisible(false);
 
       // Load messages cho chat mới - QUAN TRỌNG: Đợi load xong rồi mới render
-      console.log("📥 Loading messages for chatId:", chatId);
       messageState
         .getMessageByRoomId(chatId)
         .then(() => {
-          console.log("✅ Messages loaded, enabling animations");
-
           // Delay ngắn để đảm bảo messages được load và render xong
           requestAnimationFrame(() => {
             setShouldAnimate(true);
@@ -132,8 +198,7 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
             });
           });
         })
-        .catch((error) => {
-          console.error("❌ Error loading messages:", error);
+        .catch(() => {
           setIsSwitchingChat(false);
           setShouldAnimate(true);
         });
@@ -146,12 +211,10 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
   useEffect(() => {
     // Chỉ chạy khi đang switching và messages đã có data
     if (isSwitchingChat && messages.length > 0) {
-      console.log("✅ Messages available, count:", messages.length);
       // Delay nhẹ để đảm bảo DOM được render
       const timer = setTimeout(() => {
         setIsSwitchingChat(false);
         setShouldAnimate(true);
-        console.log("🎨 Rendering complete, animations enabled");
       }, 100);
 
       return () => clearTimeout(timer);
@@ -168,35 +231,17 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
    * Xảy ra khi: User mới login, xóa cache, chuyển thiết bị
    */
   useEffect(() => {
-    console.log(
-      "🔍 [INITIAL LOAD] Check for chatId:",
-      chatId,
-      "messages.length:",
-      messages.length
-    );
-
     // TRƯỜNG HỢP 1: Không có tin nhắn local → Lấy 100 tin nhắn đầu tiên từ API
     if (messages.length === 0 && !hasInitialFetchRef.current[chatId]) {
-      console.log(
-        "📥 [INITIAL LOAD] Không có tin nhắn local, lấy 100 tin nhắn đầu tiên từ API cho chatId:",
-        chatId
-      );
       hasInitialFetchRef.current[chatId] = true;
       setIsFetchingNewMessages(true);
 
       messageState
         .fetchMessagesFromAPI(chatId, { limit: 100 })
-        .then((fetchedMessages) => {
-          console.log(
-            `✅ [INITIAL LOAD] Đã tải ${fetchedMessages.length} tin nhắn từ API`
-          );
+        .then(() => {
           setIsFetchingNewMessages(false);
         })
-        .catch((error) => {
-          console.error(
-            "❌ [INITIAL LOAD] Lỗi khi tải tin nhắn từ API:",
-            error
-          );
+        .catch(() => {
           setIsFetchingNewMessages(false);
           // Reset flag để có thể thử lại
           hasInitialFetchRef.current[chatId] = false;
@@ -211,7 +256,6 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
   useEffect(() => {
     // Bỏ qua nếu chưa có room info từ server
     if (!roomState.room?.last_message?.id) {
-      console.log("⏭️ [SYNC NEW] Skipping: No room info from server yet");
       return;
     }
 
@@ -220,27 +264,16 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
 
     // Bỏ qua nếu không có messages local
     if (!lastLocalMessageId) {
-      console.log("⏭️ [SYNC NEW] Skipping: No local messages yet");
       return;
     }
 
     // Bỏ qua nếu đã fetch server message này rồi
     if (lastFetchedServerMessageIdRef.current === lastServerMessageId) {
-      console.log(
-        "⏭️ [SYNC NEW] Skipping: Already fetched this server message"
-      );
       return;
     }
 
     // TRƯỜNG HỢP 2: Có tin nhắn mới từ server → Fetch tin nhắn bị missed
     if (lastServerMessageId !== lastLocalMessageId) {
-      console.log("🔄 [SYNC NEW] Phát hiện tin nhắn mới từ server:", {
-        serverLastId: lastServerMessageId,
-        localLastId: lastLocalMessageId,
-        messagesCount: messages.length,
-        chatId,
-      });
-
       // Clear timeout cũ nếu có
       if (fetchTimeoutRef.current) {
         clearTimeout(fetchTimeoutRef.current);
@@ -257,9 +290,7 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
         try {
           // Fetch tin nhắn mới từ lastLocalMessageId đến lastServerMessageId
           await messageState.fetchNewMessages(chatId, lastLocalMessageId);
-          console.log("✅ [SYNC NEW] Đã tải tin nhắn mới thành công");
-        } catch (error) {
-          console.error("❌ [SYNC NEW] Lỗi khi tải tin nhắn mới:", error);
+        } catch {
           // Reset để có thể thử lại
           lastFetchedServerMessageIdRef.current = null;
         } finally {
@@ -277,10 +308,55 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
     };
   }, [chatId, messages.length, roomState.room?.last_message?.id]); // Dependencies cố định: luôn là 3 items
 
+  /**
+   * useEffect #3: Lắng nghe socket reconnect và fetch tin nhắn mới
+   * Xảy ra khi: Socket reconnect sau khi mất kết nối
+   */
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleReconnect = () => {
+      // Đợi một chút để đảm bảo socket đã hoàn toàn kết nối
+      setTimeout(async () => {
+        try {
+          setIsFetchingNewMessages(true);
+
+          // Lấy tin nhắn mới nhất từ server (50 tin nhắn gần đây nhất)
+          await messageState.fetchMessagesFromAPI(chatId, { limit: 50 });
+
+          // Scroll xuống cuối để hiển thị tin nhắn mới nhất
+          requestAnimationFrame(() => {
+            if (containerRef.current) {
+              containerRef.current.scrollTop =
+                containerRef.current.scrollHeight;
+            } else if (bottomRef.current) {
+              bottomRef.current.scrollIntoView({ behavior: "smooth" });
+            }
+          });
+        } finally {
+          setIsFetchingNewMessages(false);
+        }
+      }, 500); // Đợi 500ms để socket ổn định
+    };
+
+    // Lắng nghe sự kiện reconnect
+    socket.on("connect", handleReconnect);
+
+    // Cleanup
+    return () => {
+      socket.off("connect", handleReconnect);
+    };
+  }, [socket, chatId, messageState]);
+
   // Virtual scrolling: chỉ render một số messages gần nhất
   const visibleMessages = useMemo(() => {
-    // Lấy tin nhắn mới nhất (từ cuối lên), giới hạn theo displayedMessagesCount
-    return messages.slice(-displayedMessagesCount);
+    // Lấy tin nhắn mới nhất (từ cuối lên), loại bỏ những tin đã ẩn bởi user (hiddenByMe)
+    // Previously we filtered out messages with hiddenByMe so deleted-by-me messages
+    // were hidden entirely. Keep them so we can render a deleted-placeholder
+    // (e.g. "Bạn đã xoá tin nhắn này"). Other UI logic already hides actions/attachments
+    // for such messages.
+    const visible = messages || [];
+    return visible.slice(-displayedMessagesCount);
   }, [messages, displayedMessagesCount]);
 
   // Group lại visible messages
@@ -314,12 +390,10 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
       // Chỉ update state khi có thay đổi
       if (isAtBottom !== isBottomVisible) {
         setIsBottomVisible(isAtBottom);
-        console.log("🎯 Bottom visible:", isAtBottom);
       }
 
       if (isAtTop !== isTopVisible) {
         setIsTopVisible(isAtTop);
-        console.log("🔝 Top visible:", isAtTop);
       }
 
       ticking = false;
@@ -341,7 +415,7 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
         scrollTimeout = setTimeout(() => {
           // Nếu còn messages trong local
           if (hasMoreLocalMessages && !isLoadingOlder) {
-            console.log("📥 Load more messages from local...");
+            // console.log("📥 Load more messages from local...");
             setIsLoadingOlder(true);
 
             // Lưu scroll position trước khi load
@@ -360,7 +434,7 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
                   const scrollHeightAfter = container.scrollHeight;
                   const scrollDiff = scrollHeightAfter - scrollHeightBefore;
                   container.scrollTop += scrollDiff;
-                  console.log("📍 Adjusted scroll by:", scrollDiff);
+                  // console.log("📍 Adjusted scroll by:", scrollDiff);
                 }
               });
             }, 200);
@@ -372,7 +446,7 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
             hasMoreOnServer &&
             !isLoadingOlder
           ) {
-            console.log("🌐 Load more messages from API...");
+            // console.log("🌐 Load more messages from API...");
             setIsLoadingOlder(true);
             setIsLoadingFromAPI(true);
             hasTriedLoadingFromServer.current = true;
@@ -465,13 +539,13 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
     if (hasNewMessages) {
       const newMessage = messages.at(-1);
 
-      console.log("📨 Có tin nhắn mới được thêm:", {
-        messageId: newMessage?.id,
-        sender: newMessage?.sender?.fullname,
-        isMine: newMessage?.isMine,
-        isAtBottom: isBottomVisible,
-        totalCount: currentMessageCount,
-      });
+      // console.log("📨 Có tin nhắn mới được thêm:", {
+      //   messageId: newMessage?.id,
+      //   sender: newMessage?.sender?.fullname,
+      //   isMine: newMessage?.isMine,
+      //   isAtBottom: isBottomVisible,
+      //   totalCount: currentMessageCount,
+      // });
 
       // PRIORITY: Cập nhật displayedMessages NGAY để tin nhắn hiện ngay lập tức
       if (displayedMessagesCount < currentMessageCount) {
@@ -480,23 +554,50 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
         );
       }
 
-      // Tự động cuộn xuống nếu đang ở gần đáy hoặc tin nhắn là của mình
-      if ((isBottomVisible || newMessage?.isMine) && bottomRef.current) {
-        // Tin nhắn của mình: scroll ngay lập tức, không delay
-        if (newMessage?.isMine) {
-          bottomRef.current.scrollIntoView({
-            behavior: "smooth",
-            block: "end",
-          });
-        } else {
-          // Tin nhắn người khác: 1 frame delay để đảm bảo DOM update
-          requestAnimationFrame(() => {
-            bottomRef.current?.scrollIntoView({
-              behavior: "auto", // auto thay vì smooth để nhanh hơn
+      // Tự động cuộn xuống - TIN NHẮN CỦA MÌNH LUÔN SCROLL
+      if (newMessage?.isMine) {
+        // Tin nhắn của mình: LUÔN LUÔN scroll xuống bottom
+        // console.log("📤 Tin nhắn của mình - Force scroll to bottom", {
+        //   hasBottomRef: !!bottomRef.current,
+        //   hasContainer: !!containerRef.current,
+        //   messageId: newMessage.id,
+        // });
+
+        // Đợi một chút để đảm bảo tin nhắn đã render xong
+        setTimeout(() => {
+          if (containerRef.current) {
+            // Scroll container xuống bottom hoàn toàn
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+            // console.log("✅ Scrolled container to bottom", {
+            //   scrollTop: containerRef.current.scrollTop,
+            //   scrollHeight: containerRef.current.scrollHeight,
+            // });
+          } else if (bottomRef.current) {
+            // Fallback: dùng scrollIntoView
+            bottomRef.current.scrollIntoView({
+              behavior: "smooth",
               block: "end",
             });
-          });
-        }
+            // console.log("✅ Scrolled to bottom using bottomRef");
+          } else {
+            // console.warn("⚠️ Both containerRef and bottomRef are null");
+          }
+        }, 150); // Tăng delay lên 150ms để đảm bảo DOM render xong
+      } else if (isBottomVisible && bottomRef.current) {
+        // Tin nhắn người khác: chỉ scroll nếu đang ở gần đáy
+        // console.log("📥 Tin nhắn người khác - Scroll vì đang ở bottom");
+        requestAnimationFrame(() => {
+          if (containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+          } else if (bottomRef.current) {
+            bottomRef.current.scrollIntoView({
+              behavior: "smooth",
+              block: "end",
+            });
+          }
+        });
+      } else {
+        // console.log("⏭️ Không scroll - Tin nhắn người khác và không ở bottom");
       }
 
       // Đã cập nhật displayedMessagesCount ở trên rồi, không cần lặp lại
@@ -517,13 +618,202 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
   }, []);
 
   const scrollToBottom = useCallback(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (containerRef.current) {
+      // Scroll container xuống bottom hoàn toàn
+      containerRef.current.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    } else if (bottomRef.current) {
+      // Fallback
+      bottomRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, []);
 
-  const scrollToMessage = useCallback((id: string) => {
-    const el = document.querySelector(`[data-mid="${id}"]`);
-    el?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, []);
+  const scrollToMessage = useCallback(
+    async (id: string) => {
+      // console.log("🎯 Scrolling to message:", id);
+
+      // Helper function để highlight message
+      const highlightMessage = (element: Element) => {
+        element.classList.add("message-highlight-flash");
+        setTimeout(() => {
+          element.classList.remove("message-highlight-flash");
+        }, 1000); // Remove after animation completes
+      };
+
+      // Kiểm tra element đã tồn tại chưa
+      const el = document.querySelector(`[data-mid="${id}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        // Add highlight after scroll
+        setTimeout(() => highlightMessage(el), 500);
+        return;
+      }
+
+      // Element chưa render - tìm index trong messages
+      let messageIndex = messages.findIndex((msg) => msg.id === id);
+
+      // CASE 1: Tin nhắn chưa có trong local → load từ server
+      if (messageIndex === -1) {
+        // console.warn(
+        //   "⚠️ Message not found in local, trying to load from server..."
+        // );
+
+        // Scroll to top để chuẩn bị load
+        if (containerRef.current) {
+          containerRef.current.scrollTop = 0;
+        }
+
+        // Show loading state
+        setIsLoadingOlder(true);
+
+        try {
+          // Load older messages cho đến khi tìm thấy hoặc hết
+          let attempts = 0;
+          const MAX_ATTEMPTS = 5; // Tối đa 5 lần load (5 * 100 = 500 messages)
+
+          while (attempts < MAX_ATTEMPTS) {
+            // console.log(
+            //   `🌐 Loading older messages... (attempt ${
+            //     attempts + 1
+            //   }/${MAX_ATTEMPTS})`
+            // );
+
+            const result = await messageState.loadOlderMessages(chatId, 100);
+
+            // Nếu không có tin nhắn nào trả về → đã hết
+            if (!result || (Array.isArray(result) && result.length === 0)) {
+              // console.warn(
+              //   "❌ Reached end of server messages, target not found"
+              // );
+              setIsLoadingOlder(false);
+              setHasMoreOnServer(false);
+              return;
+            }
+
+            // Kiểm tra tin nhắn đã có trong messages chưa
+            const currentMessages =
+              messageState.messagesRoom[chatId]?.messages || [];
+            messageIndex = currentMessages.findIndex((msg) => msg.id === id);
+
+            if (messageIndex !== -1) {
+              // console.log(
+              //   `✅ Message found after loading! Index: ${messageIndex}`
+              // );
+              break; // Tìm thấy rồi, thoát loop
+            }
+
+            attempts++;
+          }
+
+          setIsLoadingOlder(false);
+
+          // Nếu vẫn không tìm thấy sau MAX_ATTEMPTS
+          if (messageIndex === -1) {
+            // console.error("❌ Message not found after loading from server");
+            return;
+          }
+
+          // Tin nhắn đã có trong messages, tiếp tục xử lý render + scroll
+        } catch (error) {
+          // console.error("❌ Error loading messages from server:", error);
+          setIsLoadingOlder(false);
+          return;
+        }
+      }
+
+      // CASE 2: Tin nhắn có trong local nhưng chưa render
+      // console.log(
+      //   `📍 Message at index ${messageIndex}, current displayed: ${displayedMessagesCount}`
+      // );
+
+      // Lấy messages mới nhất từ store (có thể đã update từ loadOlderMessages)
+      const currentMessages =
+        messageState.messagesRoom[chatId]?.messages || messages;
+
+      // Tính số messages cần hiển thị để bao gồm message target
+      // +1 vì index bắt đầu từ 0, +MESSAGES_PER_GROUP để có context xung quanh
+      const requiredCount = messageIndex + 1 + MESSAGES_PER_GROUP;
+
+      if (requiredCount > displayedMessagesCount) {
+        // console.log(
+        //   `🔄 Expanding to ${requiredCount} messages to include target...`
+        // );
+
+        // Lưu scroll position hiện tại
+        const currentScrollTop = containerRef.current?.scrollTop || 0;
+        const currentScrollHeight = containerRef.current?.scrollHeight || 0;
+
+        // Tăng số messages hiển thị
+        setDisplayedMessagesCount(
+          Math.min(requiredCount, currentMessages.length)
+        );
+
+        // Đợi render xong rồi scroll - với retry mechanism
+        const waitForElementAndScroll = (retries = 5, delay = 100) => {
+          requestAnimationFrame(() => {
+            const newEl = document.querySelector(`[data-mid="${id}"]`);
+            if (newEl) {
+              // console.log("✅ Element rendered after expansion, scrolling...");
+
+              // Adjust scroll position để giữ vị trí tương đối
+              if (containerRef.current) {
+                const newScrollHeight = containerRef.current.scrollHeight || 0;
+                const scrollDiff = newScrollHeight - currentScrollHeight;
+                containerRef.current.scrollTop = currentScrollTop + scrollDiff;
+              }
+
+              // Scroll to target với delay nhỏ
+              setTimeout(() => {
+                newEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                // Add highlight after scroll
+                setTimeout(() => highlightMessage(newEl), 500);
+              }, 100);
+            } else if (retries > 0) {
+              // console.log(
+              //   `⏳ Waiting for element to render... (retries left: ${retries})`
+              // );
+              setTimeout(
+                () => waitForElementAndScroll(retries - 1, delay),
+                delay
+              );
+            } else {
+              // console.warn(
+              //   "⚠️ Element not found after expansion and retries. Message may not exist in view."
+              // );
+            }
+          });
+        };
+
+        waitForElementAndScroll();
+      } else {
+        // Tin nhắn đã render rồi, scroll luôn - với retry mechanism
+        const scrollToExisting = (retries = 3) => {
+          requestAnimationFrame(() => {
+            const targetEl = document.querySelector(`[data-mid="${id}"]`);
+            if (targetEl) {
+              targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+              // Add highlight after scroll
+              setTimeout(() => highlightMessage(targetEl), 500);
+            } else if (retries > 0) {
+              // console.log(
+              //   `⏳ Element should be rendered, retrying... (${retries} left)`
+              // );
+              setTimeout(() => scrollToExisting(retries - 1), 100);
+            } else {
+              // console.warn(
+              //   "⚠️ Element expected but not found in DOM. May need to expand display count."
+              // );
+            }
+          });
+        };
+
+        scrollToExisting();
+      }
+    },
+    [messages, displayedMessagesCount, MESSAGES_PER_GROUP, chatId, messageState]
+  );
 
   // Helper functions for message actions - Memoized for performance
   const canRecallMessage = useCallback((msg: any) => {
@@ -535,62 +825,234 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
     return diffMins < 30; // Có thể thu hồi trong 30 phút
   }, []);
 
-  const handleReply = useCallback((msg: any) => {
-    setReplyingTo(msg);
-    // TODO: Scroll to input and focus
-  }, []);
+  const handleReply = useCallback(
+    (msg: MessageType) => {
+      setReplyingTo(msg);
+      useMessageStore.getState().setReplyMessage(chatId, msg);
+      // TODO: Scroll to input and focus
+    },
+    [chatId]
+  );
 
-  const handleReact = useCallback((msg: any) => {
-    // TODO: Open emoji picker for reactions
-    console.log("React to message:", msg.id);
-  }, []);
+  const handleReact = useCallback(
+    (msg: MessageType, emoji: string) => {
+      if (!socket) {
+        return;
+      }
+
+      if (!socket.connected) {
+        return;
+      }
+
+      socket.emit(
+        "message:emoji",
+        {
+          roomId: chatId,
+          msgId: msg.id,
+          emoji: emoji,
+        },
+        () => {}
+      );
+    },
+    [chatId, socket]
+  );
+
+  // Helper to emit with ack and a timeout, returns a promise that resolves with ack or rejects
+  const emitWithAck = useCallback(
+    (event: string, payload: any, timeout = 5000) => {
+      return new Promise<any>((resolve, reject) => {
+        if (!socket) return reject(new Error("no-socket"));
+        if (!socket.connected) return reject(new Error("socket-not-connected"));
+
+        let done = false;
+        const timer = setTimeout(() => {
+          if (done) return;
+          done = true;
+          reject(new Error("ack-timeout"));
+        }, timeout);
+
+        try {
+          socket.emit(event, payload, (ack: any) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            resolve(ack);
+          });
+        } catch (err) {
+          if (!done) {
+            done = true;
+            clearTimeout(timer);
+            reject(err);
+          }
+        }
+      });
+    },
+    [socket]
+  );
 
   const handleCopy = useCallback((content: string) => {
     navigator.clipboard.writeText(content);
-    // TODO: Show toast notification
-    console.log("Copied!");
+  }, []);
+
+  // Toggle expanded state for long messages (extracted to avoid deep inline nesting)
+  const toggleExpanded = useCallback((id: string) => {
+    setExpandedMessages((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
   }, []);
 
   const handleDelete = useCallback(
     (msg: any) => {
-      // TODO: Show confirmation and delete
-      messageState.deleteMessage(chatId, msg.id);
-      console.log("Deleted message:", msg.id);
+      if (!socket || !socket.connected) return;
+
+      const original = { ...msg };
+
+      const updated = {
+        ...msg,
+        hiddenByMe: true,
+        roomId: msg.roomId || chatId,
+      };
+
+      // Optimistic update
+      messageState.upsetMsg(updated);
+
+      // Emit and reconcile on ack/error
+      emitWithAck(
+        "message:delete",
+        {
+          roomId: chatId,
+          msgId: msg.id,
+        },
+        5000
+      )
+        .then((ack) => {
+          console.debug("emit:message:delete ack:", ack, "msgId:", msg.id);
+          if (!ack || ack?.ok === false) {
+            // rollback
+            messageState.upsetMsg(original);
+            toast.error(ack?.reason || "Không thể xoá tin nhắn");
+          } else {
+            toast.success("Đã xoá tin nhắn");
+          }
+        })
+        .catch((err) => {
+          console.error("delete ack error", err);
+          // rollback optimistic change
+          messageState.upsetMsg(original);
+          toast.error("Không thể kết nối tới máy chủ. Xoá không thành công.");
+        });
     },
-    [messageState, chatId]
+    [chatId, socket, emitWithAck, messageState, toast]
   );
 
   const handleRecall = useCallback(
     (msg: any) => {
-      if (!canRecallMessage(msg)) {
-        console.log("Cannot recall message after 30 minutes");
-        return;
-      }
-      // TODO: Show confirmation and recall
+      if (!canRecallMessage(msg)) return;
+      if (!socket || !socket.connected) return;
+
+      const original = { ...msg };
+
+      // Optimistic local recall
       messageState.recallMessage(chatId, msg.id);
-      console.log("Recalled message:", msg.id);
+      const updated = {
+        ...msg,
+        isDeleted: true,
+        roomId: msg.roomId || chatId,
+      };
+      messageState.upsetMsg(updated);
+
+      emitWithAck(
+        "message:recall",
+        {
+          roomId: chatId,
+          msgId: msg.id,
+          placeholder: "tin nhắn đã được thu hồi",
+        },
+        5000
+      )
+        .then((ack) => {
+          console.debug("emit:message:recall ack:", ack, "msgId:", msg.id);
+          if (!ack || ack?.ok === false) {
+            // rollback
+            messageState.upsetMsg(original);
+            toast.error(ack?.reason || "Không thể thu hồi tin nhắn");
+          } else {
+            toast.success("Đã thu hồi tin nhắn");
+          }
+        })
+        .catch((err) => {
+          console.error("recall ack error", err);
+          messageState.upsetMsg(original);
+          toast.error(
+            "Không thể kết nối tới máy chủ. Thu hồi không thành công."
+          );
+        });
     },
-    [messageState, chatId, canRecallMessage]
+    [chatId, canRecallMessage, emitWithAck, messageState, toast]
   );
 
-  const { setMessageRef, lastReadId } = useReadProgress({
+  // Toggle pin/gim for a message (only for own messages)
+  const handleTogglePin = useCallback(
+    (msg: any) => {
+      try {
+        if (!socket || !socket.connected) return;
+
+        const original = { ...msg };
+        const updated = {
+          ...msg,
+          pinned: !msg.pinned,
+          roomId: msg.roomId || chatId,
+        };
+
+        // Optimistic
+        messageState.upsetMsg(updated);
+
+        emitWithAck(
+          "message:pin",
+          {
+            roomId: chatId,
+            msgId: msg.id,
+            pinned: !msg.pinned,
+          },
+          4000
+        )
+          .then((ack) => {
+            console.debug("emit:message:pin ack:", ack, "msgId:", msg.id);
+            if (!ack || ack?.ok === false) {
+              messageState.upsetMsg(original);
+              toast.error(ack?.reason || "Không thể thay đổi trạng thái gim");
+            }
+          })
+          .catch((err) => {
+            console.error("pin ack error", err);
+            messageState.upsetMsg(original);
+            toast.error(
+              "Không thể kết nối tới máy chủ. Thao tác không thành công."
+            );
+          });
+      } catch (err) {
+        console.error("❌ Error toggling pin:", err);
+      }
+    },
+    [chatId, emitWithAck, messageState, toast]
+  );
+
+  const { setMessageRef } = useReadProgress({
     messages, // ASC time
     container: containerRef.current, // nếu scroll trong div
     stickyBottomPx: 0, // chiều cao sticky dưới (nếu có)
     minVisibleRatio: 0.5, // thấy >=50% coi như đã đọc
     onCommit: (id: string) => {
-      console.log("🚀 ~ ChatMessages ~ id:", id);
-      if (id > lastMsgId) {
-        console.log("Đã đọc tới:", id);
-      }
+      roomState.markMessageAsRead(chatId, id, socket);
     }, // debounce 180ms
   });
-  useEffect(() => {
-    if (lastReadId > lastMsgId) {
-      console.log("🚀 ~ đã đọc tới:", lastReadId);
-      roomState.markMessageAsRead(chatId, lastReadId, socket);
-    }
-  }, [lastReadId]);
+
   return (
     <>
       {/* Loading overlay với Skeleton khi chuyển chat */}
@@ -868,6 +1330,170 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
                     // Chỉ animate messages mới
                     const shouldAnimateThis = shouldAnimate && isNewMessage;
 
+                    // Extract complex nested ternary and IIFE into explicit values/components
+                    const MAX_LENGTH = 300;
+                    const isExpanded = expandedMessages.has(msg.id);
+                    const isLongMessage =
+                      !!msg.content && msg.content.length > MAX_LENGTH;
+                    const displayContent =
+                      !!msg.content && isLongMessage && !isExpanded
+                        ? msg.content.slice(0, MAX_LENGTH) + "..."
+                        : msg.content;
+                    const previewUrl = msg.content
+                      ? extractFirstUrl(msg.content)
+                      : null;
+
+                    const renderContentBubble = (
+                      msg: any,
+                      isSameSenderAsPrev: boolean,
+                      isSameSenderAsNext: boolean
+                    ) => {
+                      const MAX_LENGTH = 300;
+                      const isExpanded = expandedMessages.has(msg.id);
+                      const isLongMessage =
+                        !!msg.content && msg.content.length > MAX_LENGTH;
+                      const displayContent =
+                        !!msg.content && isLongMessage && !isExpanded
+                          ? msg.content.slice(0, MAX_LENGTH) + "..."
+                          : msg.content;
+                      const previewUrl = msg.content
+                        ? extractFirstUrl(msg.content)
+                        : null;
+                      // console.log(msg);
+                      // Deleted message
+                      if (msg.hiddenByMe) {
+                        console.log("Deleted message:", msg);
+                        return (
+                          <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
+                            <div
+                              className={`
+                        relative px-4 py-2.5 rounded-2xl shadow-sm bg-gray-100 text-gray-500 italic text-sm border border-gray-200
+                      `}
+                            >
+                              {msg.isMine
+                                ? "Bạn đã xoá tin nhắn này"
+                                : "Tin nhắn đã bị xoá"}
+                            </div>
+                          </div>
+                        );
+                      }
+                      // Recalled message
+                      if (msg.isDeleted) {
+                        console.log("Recalled message:", msg);
+                        return (
+                          <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
+                            <div
+                              className={`
+                        relative px-4 py-2.5 rounded-2xl shadow-sm bg-gray-100 text-gray-500 italic text-sm border border-gray-200
+                      `}
+                            >
+                              {msg.isMine
+                                ? "Bạn đã thu hồi tin nhắn này"
+                                : "Tin nhắn đã bị thu hồi"}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Regular text content
+                      if (msg.content) {
+                        return (
+                          <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
+                            <div
+                              className={`
+                        relative px-4 py-2.5 rounded-2xl shadow-sm
+                        ${
+                          msg.isMine
+                            ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white"
+                            : "bg-white text-gray-800 border border-gray-200"
+                        }
+                        ${
+                          !isSameSenderAsPrev && msg.isMine
+                            ? "rounded-tr-md"
+                            : ""
+                        }
+                        ${
+                          !isSameSenderAsPrev && !msg.isMine
+                            ? "rounded-tl-md"
+                            : ""
+                        }
+                        ${
+                          !isSameSenderAsNext && msg.isMine
+                            ? "rounded-br-md"
+                            : ""
+                        }
+                        ${
+                          !isSameSenderAsNext && !msg.isMine
+                            ? "rounded-bl-md"
+                            : ""
+                        }
+                        ${
+                          msg.status === "pending" || msg.status === "uploading"
+                            ? "opacity-60"
+                            : ""
+                        }
+                        ${
+                          msg.status === "failed"
+                            ? "opacity-80 border-2 border-red-400"
+                            : ""
+                        }
+                      `}
+                            >
+                              <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                                {displayContent}
+                              </p>
+
+                              {/* Nút xem thêm/thu gọn */}
+                              {isLongMessage && (
+                                <button
+                                  onClick={() => toggleExpanded(msg.id)}
+                                  className={`text-xs mt-1 font-medium hover:underline ${
+                                    msg.isMine
+                                      ? "text-blue-100"
+                                      : "text-blue-600"
+                                  }`}
+                                >
+                                  {isExpanded ? "Thu gọn" : "Xem thêm"}
+                                </button>
+                              )}
+
+                              {/* Pinned icon */}
+                              {msg.pinned && (
+                                <div className="absolute -top-2 -right-2 bg-yellow-400 rounded-full p-1 shadow-md">
+                                  <EyeDropperIcon className="w-3 h-3 text-white" />
+                                </div>
+                              )}
+
+                              {/* Uploading indicator */}
+                              {msg.status === "uploading" && (
+                                <div className="absolute -top-2 -right-2 bg-blue-500 rounded-full p-1 shadow-md animate-pulse">
+                                  <span className="text-white text-xs">⏳</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Link Preview - hiển thị nếu có URL */}
+                            {previewUrl ? (
+                              <div className="mt-2">
+                                <LinkPreview
+                                  url={previewUrl}
+                                  isMine={msg.isMine}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      }
+
+                      return null;
+                    };
+
+                    const contentBubble = renderContentBubble(
+                      msg,
+                      isSameSenderAsPrev,
+                      isSameSenderAsNext
+                    );
+
                     return (
                       <motion.div
                         key={msg.id}
@@ -933,7 +1559,7 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
                                 }
                                 className="bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-lg"
                               >
-                                ✨ Tin nhắn mới
+                                ✨ Tin chưa đọc
                               </motion.span>
                               <motion.div
                                 initial={shouldAnimate ? { width: 0 } : false}
@@ -1011,87 +1637,148 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
 
                               <div
                                 className={` gap-3 flex justify-end items-center  ${
-                                  !msg.isMine ? "flex-row-reverse" : ""
+                                  msg.isMine ? "" : "flex-row-reverse"
                                 }`}
                               >
-                                <div className="flex items-center">
-                                  {/* <Button
-                                    isIconOnly
-                                    color="default"
-                                    variant="bordered"
-                                    className="w-3 h-3 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                                  >
-                                    <HeartIcon className="w-3 h-3" />
-                                  </Button> */}
-                                  <Popover placement="top">
-                                    <PopoverTrigger>
+                                <div
+                                  className={`flex gap-2 items-center  ${
+                                    msg.isMine ? "" : "flex-row-reverse"
+                                  }`}
+                                >
+                                  {/* Actions are hidden for deleted/hidden messages */}
+                                  {!msg.isDeleted && !msg.hiddenByMe && (
+                                    <>
+                                      <Dropdown backdrop="blur">
+                                        <DropdownTrigger>
+                                          <Button
+                                            className=" text-gray-400 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                            size="sm"
+                                            variant="flat"
+                                            isIconOnly
+                                          >
+                                            <EllipsisVerticalIcon className="h-3 w-3" />
+                                          </Button>
+                                        </DropdownTrigger>
+                                        <DropdownMenu
+                                          aria-label="Static Actions"
+                                          variant="faded"
+                                        >
+                                          {/* Pin / Gim */}
+                                          <DropdownItem
+                                            key="gim"
+                                            onPress={() => handleTogglePin(msg)}
+                                          >
+                                            {msg.pinned ? "Bỏ gim" : "Gim"}
+                                          </DropdownItem>
+                                          {msg.type === "text" && (
+                                            <DropdownItem
+                                              key="copy"
+                                              onPress={() =>
+                                                handleCopy(msg.content)
+                                              }
+                                            >
+                                              Sao chép
+                                            </DropdownItem>
+                                          )}
+                                          {/* Actions limited to messages created by me */}
+                                          {msg.isMine && (
+                                            <>
+                                              {/* Nếu trong 30 phút → cho thu hồi (recall), ngược lại cho xoá */}
+                                              {canRecallMessage(msg) ? (
+                                                <DropdownItem
+                                                  key="recall"
+                                                  onPress={() =>
+                                                    handleRecall(msg)
+                                                  }
+                                                >
+                                                  Thu hồi
+                                                </DropdownItem>
+                                              ) : null}
+                                            </>
+                                          )}
+                                          <DropdownItem
+                                            key="delete"
+                                            className="text-danger"
+                                            color="danger"
+                                            onPress={() => handleDelete(msg)}
+                                          >
+                                            Xoá
+                                          </DropdownItem>
+                                        </DropdownMenu>
+                                      </Dropdown>
+
                                       <Button
                                         className=" text-gray-400 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                                         size="sm"
                                         variant="flat"
                                         isIconOnly
-                                      >
-                                        <FaceSmileIcon className="h-3 w-3" />
-                                      </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent>dfsfs</PopoverContent>
-                                  </Popover>
-                                  <Button
-                                    className=" text-gray-400 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                                    size="sm"
-                                    variant="flat"
-                                    isIconOnly
-                                  >
-                                    <ArrowUturnLeftIcon className="h-3 w-3" />
-                                  </Button>
-                                  <Dropdown backdrop="blur">
-                                    <DropdownTrigger>
-                                      <Button
-                                        className=" text-gray-400 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                                        size="sm"
-                                        variant="flat"
-                                        isIconOnly
+                                        onPress={() => handleReply(msg)}
                                       >
                                         <ArrowUturnLeftIcon className="h-3 w-3" />
                                       </Button>
-                                    </DropdownTrigger>
-                                    <DropdownMenu
-                                      aria-label="Static Actions"
-                                      variant="faded"
-                                    >
-                                      <DropdownItem key="new">
-                                        New file
-                                      </DropdownItem>
-                                      <DropdownItem key="copy">
-                                        Copy link
-                                      </DropdownItem>
-                                      <DropdownItem key="edit">
-                                        Edit file
-                                      </DropdownItem>
-                                      <DropdownItem
-                                        key="delete"
-                                        className="text-danger"
-                                        color="danger"
+
+                                      <Popover
+                                        placement="top"
+                                        backdrop="opaque"
                                       >
-                                        Delete file
-                                      </DropdownItem>
-                                    </DropdownMenu>
-                                  </Dropdown>
+                                        <PopoverTrigger>
+                                          <Button
+                                            className=" text-gray-400 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                            size="sm"
+                                            variant="flat"
+                                            isIconOnly
+                                          >
+                                            <FaceSmileIcon className="h-3 w-3" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="p-2">
+                                          <div className="flex flex-col gap-2">
+                                            <div className="text-xs font-semibold text-gray-600 px-2">
+                                              Thả cảm xúc
+                                            </div>
+                                            <div className="grid grid-cols-6 gap-1">
+                                              {EMOJIS.map((emoji) => (
+                                                <button
+                                                  key={emoji}
+                                                  onClick={() =>
+                                                    handleReact(msg, emoji)
+                                                  }
+                                                  className="text-2xl hover:scale-125 transition-transform duration-200 p-2 rounded-lg hover:bg-gray-100"
+                                                >
+                                                  {emoji}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
+                                    </>
+                                  )}
                                 </div>
                                 <div
                                   className={`flex flex-col ${
                                     msg.isMine ? "items-end" : "items-start"
                                   }`}
                                 >
+                                  {/* Reply preview (hidden for deleted/recalled messages) */}
+                                  {!msg.isDeleted &&
+                                    msg.status !== "recalled" &&
+                                    msg.reply && (
+                                      <ReplyPreview
+                                        reply={msg.reply}
+                                        onJump={scrollToMessage}
+                                      />
+                                    )}
+
                                   {/* Tên người gửi (chỉ hiện cho tin đầu tiên trong nhóm và không phải tin của mình) */}
                                   {!msg.isMine && !isSameSenderAsPrev && (
                                     <span className="text-xs text-gray-500 mb-1 ml-3 font-medium">
                                       {msg.sender.fullname || "User"}
                                     </span>
                                   )}
-
-                                  {/* Attachments */}
-                                  {msg.attachments &&
+                                  {/* Attachments (hidden when message is deleted) */}
+                                  {!msg.isDeleted &&
+                                    msg.attachments &&
                                     msg.attachments.length > 0 && (
                                       <div className="mb-2">
                                         <CompactFileGallery
@@ -1102,136 +1789,54 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
                                       </div>
                                     )}
                                   {/* Message actions - hiển thị khi hover ở vị trí phù hợp */}
+                                  {/* Content bubble (handle deleted / recalled / regular content) */}
+                                  {contentBubble}
 
-                                  {/* Content bubble */}
-                                  {msg.content && (
-                                    <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
-                                      <div
-                                        className={`
-                        relative px-4 py-2.5 rounded-2xl shadow-sm
-                        ${
-                          msg.isMine
-                            ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white"
-                            : "bg-white text-gray-800 border border-gray-200"
-                        }
-                        ${
-                          !isSameSenderAsPrev && msg.isMine
-                            ? "rounded-tr-md"
-                            : ""
-                        }
-                        ${
-                          !isSameSenderAsPrev && !msg.isMine
-                            ? "rounded-tl-md"
-                            : ""
-                        }
-                        ${
-                          !isSameSenderAsNext && msg.isMine
-                            ? "rounded-br-md"
-                            : ""
-                        }
-                        ${
-                          !isSameSenderAsNext && !msg.isMine
-                            ? "rounded-bl-md"
-                            : ""
-                        }
-                        ${
-                          msg.status === "pending" || msg.status === "uploading"
-                            ? "opacity-60"
-                            : ""
-                        }
-                        ${
-                          msg.status === "failed"
-                            ? "opacity-80 border-2 border-red-400"
-                            : ""
-                        }
-                      `}
-                                      >
-                                        {(() => {
-                                          const MAX_LENGTH = 300;
-                                          const isExpanded =
-                                            expandedMessages.has(msg.id);
-                                          const isLongMessage =
-                                            msg.content.length > MAX_LENGTH;
-                                          const displayContent =
-                                            isLongMessage && !isExpanded
-                                              ? msg.content.slice(
-                                                  0,
-                                                  MAX_LENGTH
-                                                ) + "..."
-                                              : msg.content;
-
-                                          return (
-                                            <>
-                                              <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                                                {displayContent}
-                                              </p>
-
-                                              {/* Nút xem thêm/thu gọn */}
-                                              {isLongMessage && (
-                                                <button
-                                                  onClick={() => {
-                                                    setExpandedMessages(
-                                                      (prev) => {
-                                                        const newSet = new Set(
-                                                          prev
-                                                        );
-                                                        if (isExpanded) {
-                                                          newSet.delete(msg.id);
-                                                        } else {
-                                                          newSet.add(msg.id);
-                                                        }
-                                                        return newSet;
+                                  {/* Reactions display (hidden for deleted/recalled messages) */}
+                                  {!msg.isDeleted &&
+                                    msg.status !== "recalled" &&
+                                    msg.reactions &&
+                                    msg.reactions.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-2">
+                                        {msg.reactions.map(
+                                          (reaction: any, idx: number) => (
+                                            <Tooltip
+                                              key={`${reaction.emoji}-${idx}`}
+                                              content={
+                                                <div className="text-xs">
+                                                  {reaction.users
+                                                    ?.map(
+                                                      (u: any) =>
+                                                        u.usr_fullname || "User"
+                                                    )
+                                                    .join(", ")}
+                                                </div>
+                                              }
+                                              size="sm"
+                                            >
+                                              <button
+                                                className={`
+                                                      flex items-center gap-1 px-2 py-1 rounded-full
+                                                      text-xs font-medium transition-all duration-200
+                                                      ${
+                                                        reaction.hasReacted
+                                                          ? "bg-blue-100 border-2 border-blue-400"
+                                                          : "bg-gray-100 border border-gray-300 hover:bg-gray-200"
                                                       }
-                                                    );
-                                                  }}
-                                                  className={`text-xs mt-1 font-medium hover:underline ${
-                                                    msg.isMine
-                                                      ? "text-blue-100"
-                                                      : "text-blue-600"
-                                                  }`}
-                                                >
-                                                  {isExpanded
-                                                    ? "Thu gọn"
-                                                    : "Xem thêm"}
-                                                </button>
-                                              )}
-                                            </>
-                                          );
-                                        })()}
-
-                                        {/* Pinned icon */}
-                                        {msg.pinned && (
-                                          <div className="absolute -top-2 -right-2 bg-yellow-400 rounded-full p-1 shadow-md">
-                                            <EyeDropperIcon className="w-3 h-3 text-white" />
-                                          </div>
-                                        )}
-
-                                        {/* Uploading indicator */}
-                                        {msg.status === "uploading" && (
-                                          <div className="absolute -top-2 -right-2 bg-blue-500 rounded-full p-1 shadow-md animate-pulse">
-                                            <span className="text-white text-xs">
-                                              ⏳
-                                            </span>
-                                          </div>
+                                                    `}
+                                              >
+                                                <span className="text-sm">
+                                                  {reaction.emoji}
+                                                </span>
+                                                <span className="text-gray-600">
+                                                  {reaction.count}
+                                                </span>
+                                              </button>
+                                            </Tooltip>
+                                          )
                                         )}
                                       </div>
-
-                                      {/* Link Preview - hiển thị nếu có URL */}
-                                      {(() => {
-                                        const url = extractFirstUrl(
-                                          msg.content
-                                        );
-                                        return url ? (
-                                          <div className="mt-2">
-                                            <LinkPreview
-                                              url={url}
-                                              isMine={msg.isMine}
-                                            />
-                                          </div>
-                                        ) : null;
-                                      })()}
-                                    </div>
-                                  )}
+                                    )}
                                 </div>
                               </div>
 
@@ -1269,7 +1874,23 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
                                   </span>
                                   {msg.isMine && msg.status !== "failed" && (
                                     <span className="text-xs text-gray-400">
-                                      {msg.read_by_count > 0 ? "✓✓" : "✓"}
+                                      {msg.read_by_count > 0 ? (
+                                        <Tooltip
+                                          content="Đã xem"
+                                          size="sm"
+                                          placement="left-start"
+                                        >
+                                          ✓✓
+                                        </Tooltip>
+                                      ) : (
+                                        <Tooltip
+                                          content="Đã gửi"
+                                          size="sm"
+                                          placement="left-start"
+                                        >
+                                          ✓
+                                        </Tooltip>
+                                      )}
                                     </span>
                                   )}
                                 </div>
@@ -1375,14 +1996,7 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
               <ChevronDoubleDownIcon className="w-5 h-5" />
             </Button>
 
-            {/* Badge hiển thị số tin nhắn mới nếu có */}
-            {/* {messages.length > displayedMessagesCount && (
-              <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
-                {messages.length - displayedMessagesCount > 99
-                  ? "99+"
-                  : messages.length - displayedMessagesCount}
-              </div>
-            )} */}
+            {/* Badge hiển thị số tin nhắn chưa đọc */}
             {!roomState?.room?.is_read && (
               <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
                 {(roomState?.room?.unread_count ?? 0) > 99

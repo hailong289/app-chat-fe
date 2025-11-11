@@ -2,7 +2,6 @@ import { ContactType } from "@/store/types/contact.type";
 import { MessageType } from "@/store/types/message.state";
 import { roomType } from "@/store/types/room.state";
 import Dexie, { Table } from "dexie";
-import { applyEncryptionMiddleware, ENCRYPT_LIST } from "dexie-encrypted";
 
 /**
  * Helper function to clear IndexedDB completely
@@ -75,34 +74,39 @@ export class AppDB extends Dexie {
         console.log("🔄 Cleared encrypted messages, will reload from API");
       });
 
-    // Apply encryption AFTER schema is defined
-    const rawKey =
-      "1f0f48c72e7ba865b9cbc0a0b280b2d2af8d3f7f9befa7ecf34e318b3c9c12c7";
-    const encoded = new TextEncoder().encode(rawKey);
-    const keyBytes = new Uint8Array(32);
-    keyBytes.set(encoded.slice(0, 32));
+    // Version 5: Disable room name/content encryption to support emoji
+    this.version(5)
+      .stores({
+        rooms: "id, roomId, type, updatedAt",
+        contacts: "id, fullname, email, status, createdAt, updatedAt",
+        messages: "id, roomId, type, createdAt, pinned, [roomId+createdAt]",
+      })
+      .upgrade(async (trans) => {
+        // Clear rooms to remove encrypted data
+        await trans.table("rooms").clear();
+        console.log("🔄 Cleared encrypted rooms, will reload from API");
+      });
 
-    const encryptionSettings: any = {
-      rooms: {
-        type: ENCRYPT_LIST,
-        fields: ["name", "avatar"], // encrypt non-indexed string fields only, exclude complex objects like members
-      },
-      contacts: {
-        type: ENCRYPT_LIST,
-        fields: ["avatar", "phone", "gender", "dateOfBirth"], // encrypt sensitive contact fields
-      },
-      // Temporarily disable encryption for messages to debug UTF-8 issues
-      // messages: {
-      //   type: ENCRYPT_LIST,
-      //   fields: ["content"], // Only encrypt content (string), exclude sender (object) and attachments (array)
-      // },
-    };
+    // Version 6: DISABLE ALL ENCRYPTION - Support full emoji and special characters
+    this.version(6)
+      .stores({
+        rooms: "id, roomId, type, updatedAt",
+        contacts: "id, fullname, email, status, createdAt, updatedAt",
+        messages: "id, roomId, type, createdAt, pinned, [roomId+createdAt]",
+      })
+      .upgrade(async (trans) => {
+        // Clear all data to remove any remaining encrypted data
+        await trans.table("rooms").clear();
+        await trans.table("contacts").clear();
+        await trans.table("messages").clear();
+        console.log(
+          "🔄 Version 6: REMOVED ALL ENCRYPTION. Cleared all data. Full emoji support enabled! 🎉"
+        );
+      });
 
-    applyEncryptionMiddleware(
-      this,
-      keyBytes,
-      encryptionSettings,
-      async () => {}
+    // NO ENCRYPTION MIDDLEWARE - Store data directly for full emoji support
+    console.log(
+      "✅ IndexedDB initialized WITHOUT encryption - Full emoji support enabled! 😊🎉🔥"
     );
   }
 }

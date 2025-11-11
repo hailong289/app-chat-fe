@@ -51,11 +51,14 @@ export type MessageType = {
       _id: string;
       name: string;
     };
+    isMine: boolean;
+    hiddenByMe: boolean;
+    isDeleted: boolean;
   };
   isMine: boolean;
   isRead: boolean;
-  hiddenByMe?: boolean;
-  hiddenAt?: string | null;
+  hiddenByMe: boolean;
+  hiddenAt: string | null;
   read_by?: Array<{
     readAt: string;
     user: {
@@ -65,6 +68,7 @@ export type MessageType = {
       avatar: string;
     };
   }>;
+  isDeleted: boolean;
   read_by_count?: number;
   status?:
     | "sent"
@@ -81,14 +85,14 @@ export interface RoomData {
   messages: MessageType[];
   input: string | null;
   attachments: FilePreview[] | null;
-  ghim: string[] | null;
-  updatedAt: string | null;
+  // ghim: string[] | null;
+  // updatedAt: string | null;
+  reply: MessageType | null;
 }
 
 export interface MessageState {
   isLoading: boolean;
   messagesRoom: Record<string, RoomData>; // roomId -> room data
-  readedRooms: Record<string, string>; // roomId -> lastMessageId
 
   upsetMsg: (msgData: MessageType) => Promise<void>;
   sendMessage: (data: SendMessageArgs) => Promise<void>;
@@ -123,6 +127,9 @@ export interface MessageState {
     progress: number,
     status?: string
   ) => void;
+  setReplyMessage: (roomId: string, message: MessageType | null) => void;
+  setInput: (roomId: string, input: string | null) => void;
+  setAttachments: (roomId: string, attachments: FilePreview[] | null) => void;
 }
 export type msg = {
   input: string | null;
@@ -130,9 +137,5 @@ export type msg = {
   ghim: Array<string> | null;
   updatedAt: string | null;
   messages: Array<MessageType>;
-  reply?: {
-    _id: string;
-    type: string;
-    content: string;
-  };
+  reply: MessageType | null;
 };

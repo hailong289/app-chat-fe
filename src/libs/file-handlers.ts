@@ -300,7 +300,8 @@ export function revokePreviews(previews: FilePreview[]) {
 export async function addFiles(
   current: FilePreview[],
   incoming: File[],
-  cfg: FileAcceptConfig = defaultConfig
+  cfg: FileAcceptConfig = defaultConfig,
+  onMaxFilesExceeded?: (current: number, max: number) => void
 ): Promise<FilePreview[]> {
   const valid = await normalizeAndValidateFiles(incoming, cfg);
   if (!valid.length) return current;
@@ -308,6 +309,11 @@ export async function addFiles(
   const combined = [...current, ...toPreviews(valid)];
 
   if (combined.length > cfg.maxFiles) {
+    // Gọi callback để thông báo vượt quá giới hạn
+    if (onMaxFilesExceeded) {
+      onMaxFilesExceeded(combined.length, cfg.maxFiles);
+    }
+
     // phần thừa
     const overflow = combined.slice(cfg.maxFiles);
     revokePreviews(overflow);
@@ -342,7 +348,8 @@ export function handlePasteFactory(
   setAttachments: (
     updater: (prev: FilePreview[]) => FilePreview[] | Promise<FilePreview[]>
   ) => void,
-  cfg: FileAcceptConfig = defaultConfig
+  cfg: FileAcceptConfig = defaultConfig,
+  onMaxFilesExceeded?: (current: number, max: number) => void
 ) {
   return async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
@@ -367,7 +374,9 @@ export function handlePasteFactory(
     if (!files.length) return;
 
     e.preventDefault(); // chặn chèn binary vào input
-    setAttachments(async (prev) => await addFiles(prev, files, cfg));
+    setAttachments(
+      async (prev) => await addFiles(prev, files, cfg, onMaxFilesExceeded)
+    );
   };
 }
 
@@ -376,12 +385,15 @@ export function handleFilePickFactory(
   setAttachments: (
     updater: (prev: FilePreview[]) => FilePreview[] | Promise<FilePreview[]>
   ) => void,
-  cfg: FileAcceptConfig = defaultConfig
+  cfg: FileAcceptConfig = defaultConfig,
+  onMaxFilesExceeded?: (current: number, max: number) => void
 ) {
   return async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files ? Array.from(e.target.files) : [];
     if (list.length) {
-      setAttachments(async (prev) => await addFiles(prev, list, cfg));
+      setAttachments(
+        async (prev) => await addFiles(prev, list, cfg, onMaxFilesExceeded)
+      );
     }
     // reset để chọn lại cùng file vẫn trigger
     e.currentTarget.value = "";
@@ -408,13 +420,16 @@ export function handleDropFactory(
     updater: (prev: FilePreview[]) => FilePreview[] | Promise<FilePreview[]>
   ) => void,
   cfg: FileAcceptConfig = defaultConfig,
-  setIsDragging?: (v: boolean) => void
+  setIsDragging?: (v: boolean) => void,
+  onMaxFilesExceeded?: (current: number, max: number) => void
 ) {
   return async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging?.(false);
     const files = e.dataTransfer?.files ? Array.from(e.dataTransfer.files) : [];
     if (files.length)
-      setAttachments(async (prev) => await addFiles(prev, files, cfg));
+      setAttachments(
+        async (prev) => await addFiles(prev, files, cfg, onMaxFilesExceeded)
+      );
   };
 }

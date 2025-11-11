@@ -14,8 +14,8 @@ import { useEffect, useState, Suspense } from "react";
 import useRoomStore from "@/store/useRoomStore";
 import { useSearchParams } from "next/navigation";
 import ChatInputBar from "@/components/chat/inputBar";
+import useAuthStore from "@/store/useAuthStore";
 import { ChatMessages } from "@/components/chat/ChatMessages";
-// import { useRouter } from "next/router";
 
 function ChatPageContent() {
   const [widthClass, setWidthClass] = useState("w-full");
@@ -28,10 +28,8 @@ function ChatPageContent() {
   };
   const roomState = useRoomStore((state) => state);
   const searchParams = useSearchParams();
-  const [room, setRoom] = useState<any>(undefined);
   const [chatId, setChatId] = useState<string>("");
-  const isLoading = useRoomStore((s) => s.isLoading);
-  console.log("Chat ID:", chatId);
+
   useEffect(() => {
     if (!roomState.room?.id) {
       setChatId(searchParams.get("chatId") || "");
@@ -43,7 +41,7 @@ function ChatPageContent() {
   return (
     <div className={`bg-light h-screen ${widthClass}`}>
       <ChatHeader callback={callbackSetSize} />
-      <main className="w-full h-[calc(100vh-80px)] relative">
+      <main className="w-full h-[calc(100vh-80px)] relative overflow-hidden">
         {/* Chat messages would go here */}
         <ChatMessages chatId={chatId} />
         {/* Message input area */}

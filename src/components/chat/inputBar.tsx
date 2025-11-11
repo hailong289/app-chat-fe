@@ -14,6 +14,7 @@ import {
   PaperAirplaneIcon,
   PhotoIcon,
   GifIcon,
+  XMarkIcon,
 } from "@heroicons/react/16/solid";
 import {
   Button,
@@ -27,11 +28,12 @@ import {
 import { useEffect, useRef, useState } from "react";
 import FilePreviewGridModal from "../FilePreviewGridModal";
 import useMessageStore from "@/store/useMessageStore";
-import { FilePreview } from "@/store/types/message.state";
+import { FilePreview, MessageType } from "@/store/types/message.state";
 import useAuthStore from "@/store/useAuthStore";
 import { useSocket } from "../providers/SocketProvider";
 import EmojiPicker, { EmojiClickData, Categories } from "emoji-picker-react";
 import { ObjectId } from "bson";
+import { useToastStore } from "@/store/useToastStore";
 
 export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
   const emojiTab = [
@@ -81,17 +83,47 @@ export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
   const attRef = useRef<FilePreview[]>([]);
   attRef.current = attachments;
 
+  const useMessage = useMessageStore();
+  const authState = useAuthStore();
+  const { socket } = useSocket();
+  const addToast = useToastStore((state) => state.addToast);
+
+  // Get reply from store using selector
+  const replyingTo = useMessageStore(
+    (state) => state.messagesRoom[chatId]?.reply
+  );
+
+  defaultConfig.maxFiles = 10;
   const config: FileAcceptConfig = {
     ...defaultConfig,
     compressImages,
   };
 
+  // Callback khi vượt quá giới hạn files
+  const handleMaxFilesExceeded = (current: number, max: number) => {
+    console.log(
+      "🚨 Max files exceeded:",
+      current,
+      "files selected, max is",
+      max
+    );
+    addToast({
+      type: "warning",
+      message: `Chỉ được chọn tối đa ${max} files. Bạn đã chọn ${current} files, chỉ ${max} files đầu tiên được giữ lại.`,
+      duration: 4000,
+    });
+  };
+
   useEffect(() => {
     cleanupAll(attRef);
-    setAttachments([]);
+    setAttachments(useMessage.messagesRoom[chatId]?.attachments || []);
     setIsDragging(false);
+    setMessage(useMessage.messagesRoom[chatId]?.input || "");
   }, [chatId]);
-
+  useEffect(() => {
+    useMessage.setAttachments(chatId, attachments);
+    useMessage.setInput(chatId, message);
+  }, [attachments, message]);
   const setAttachmentsAsync = (
     updater: (prev: FilePreview[]) => Promise<FilePreview[]>
   ) => {
@@ -101,18 +133,23 @@ export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
     });
   };
 
-  const onPaste = handlePasteFactory(setAttachmentsAsync as any, config);
-  const onPick = handleFilePickFactory(setAttachmentsAsync as any, config);
+  const onPaste = handlePasteFactory(
+    setAttachmentsAsync as any,
+    config,
+    handleMaxFilesExceeded
+  );
+  const onPick = handleFilePickFactory(
+    setAttachmentsAsync as any,
+    config,
+    handleMaxFilesExceeded
+  );
   const onDrop = handleDropFactory(
     setAttachmentsAsync as any,
     config,
-    setIsDragging
+    setIsDragging,
+    handleMaxFilesExceeded
   );
 
-  const useMessage = useMessageStore((state) => state);
-  const authState = useAuthStore((state) => state);
-  const { socket } = useSocket();
-  const [type, setType] = useState<"text" | "image" | "file" | "video">("text");
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const [isGifPickerOpen, setIsGifPickerOpen] = useState(false);
   const [gifSearchQuery, setGifSearchQuery] = useState("");
@@ -167,20 +204,58 @@ export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
   const onSend = () => {
     if (!message.trim() && attachments.length === 0) return;
 
-    useMessage.sendMessage({
-      roomId: chatId,
-      content: message,
-      attachments: attachments, // Tạm thời để rỗng, sẽ xử lý upload sau
-      type: type,
-      socket,
-      userId: authState.user?.id,
-      userFullname: authState.user?.fullname,
-      userAvatar: authState.user?.avatar,
-    });
+    // Get replyTo ID if exists
+    const replyToId = replyingTo?.id;
 
-    setMessage("");
-    setAttachments([]);
-    setType("text");
+    // Gửi file message trước (nếu có)
+    if (attachments.length > 0) {
+      // Xác định type dựa vào loại file đầu tiên
+      const firstAttachment = attachments[0];
+      let messageType: "image" | "file" | "video" = "file";
+
+      if (firstAttachment.mimeType?.startsWith("image/")) {
+        messageType = "image";
+      } else if (firstAttachment.mimeType?.startsWith("video/")) {
+        messageType = "video";
+      }
+
+      // Gửi message chứa files (không có text)
+      useMessage.sendMessage({
+        roomId: chatId,
+        content: "",
+        attachments: attachments,
+        type: messageType,
+        replyTo: replyToId,
+        socket,
+        userId: authState.user?.id,
+        userFullname: authState.user?.fullname,
+        userAvatar: authState.user?.avatar,
+      });
+
+      setAttachments([]);
+    }
+
+    // Gửi text message riêng (nếu có)
+    if (message.trim()) {
+      useMessage.sendMessage({
+        roomId: chatId,
+        content: message,
+        attachments: [],
+        type: "text",
+        replyTo: replyToId,
+        socket,
+        userId: authState.user?.id,
+        userFullname: authState.user?.fullname,
+        userAvatar: authState.user?.avatar,
+      });
+
+      setMessage("");
+    }
+
+    // Clear reply after sending
+    if (replyToId) {
+      useMessageStore.getState().setReplyMessage(chatId, null);
+    }
   };
 
   const onEmojiClick = (emojiData: EmojiClickData) => {
@@ -261,7 +336,11 @@ export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
   return (
     <section
       aria-label="Chat input area"
-      className="absolute bottom-4 left-[5%] bg-white w-[90%] p-4 rounded-2xl"
+      className="absolute bottom-0 left-0 w-full px-4 py-4 mt-5 backdrop-blur-2xl bg-white/30 border-t border-white/30 shadow-[0_-8px_32px_-8px_rgba(0,0,0,0.1)]"
+      style={{
+        background:
+          "linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.2) 100%)",
+      }}
       onPaste={onPaste}
       onDrop={onDrop}
       onDragOver={(e) => {
@@ -303,7 +382,45 @@ export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
           />
         </div>
       )}
-
+      {/* Reply message preview */}
+      {replyingTo && (
+        <div className="mb-2 flex w-full items-start bg-gradient-to-r from-teal-50 to-blue-50 border-l-4 border-teal-500 p-3 rounded-lg gap-3 shadow-sm">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-semibold text-teal-600">
+                Trả lời{" "}
+                {replyingTo.isMine
+                  ? "chính tôi"
+                  : replyingTo.sender?.fullname || "Unknown"}
+              </span>
+              {replyingTo.type !== "text" && (
+                <Chip size="sm" variant="flat" color="primary" className="h-5">
+                  {replyingTo.type === "image" && "📷 Ảnh"}
+                  {replyingTo.type === "video" && "🎥 Video"}
+                  {replyingTo.type === "file" && "📎 File"}
+                  {replyingTo.type === "gif" && "🎬 GIF"}
+                </Chip>
+              )}
+            </div>
+            <p className="text-sm text-gray-700 line-clamp-2">
+              {replyingTo.type === "text"
+                ? replyingTo.content
+                : replyingTo.attachments?.[0]?.name || "File đính kèm"}
+            </p>
+          </div>
+          <Button
+            isIconOnly
+            size="sm"
+            variant="light"
+            onPress={() =>
+              useMessageStore.getState().setReplyMessage(chatId, null)
+            }
+            className="hover:bg-red-100 min-w-unit-8"
+          >
+            <XMarkIcon className="w-4 h-4 text-gray-500 hover:text-red-500" />
+          </Button>
+        </div>
+      )}
       <div className="flex items-center gap-3">
         {/* Left icons */}
         <div className="flex items-center gap-2">
@@ -333,7 +450,12 @@ export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
             shouldBlockScroll={false}
             backdrop="transparent"
             classNames={{
-              content: "p-0",
+              content:
+                "p-0 backdrop-blur-2xl bg-white/30 border border-white/30 shadow-xl",
+            }}
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.2) 100%)",
             }}
           >
             <PopoverTrigger>
@@ -346,7 +468,7 @@ export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
                 <FaceSmileIcon className="w-5 h-5" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="p-0 border-none shadow-xl">
+            <PopoverContent className="p-0 border-none shadow-xl backdrop-blur-2xl bg-white/20">
               <div className="h-[400px] w-[400px]">
                 <EmojiPicker
                   onEmojiClick={onEmojiClick}
@@ -372,7 +494,12 @@ export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
             shouldBlockScroll={false}
             backdrop="transparent"
             classNames={{
-              content: "p-0",
+              content:
+                "p-0 backdrop-blur-2xl bg-white/30 border border-white/30 shadow-xl w-[400px]",
+            }}
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.2) 100%)",
             }}
           >
             <PopoverTrigger>
@@ -385,7 +512,7 @@ export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
                 <GifIcon className="w-5 h-5" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="p-0 border-none shadow-xl w-[400px]">
+            <PopoverContent className="p-0 border-none shadow-xl backdrop-blur-2xl bg-white/20 w-[400px]">
               <div className="flex flex-col h-[400px]">
                 {/* Search header */}
                 <div className="p-3 border-b border-gray-200">
@@ -508,7 +635,7 @@ export default function ChatInputBar({ chatId }: Readonly<{ chatId: string }>) {
         hidden
         multiple
         onChange={onPick}
-        accept={defaultConfig.accept.join(",")}
+        accept={"image/*,video/*"}
       />
     </section>
   );
