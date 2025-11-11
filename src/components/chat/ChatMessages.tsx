@@ -860,15 +860,21 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
   // Helper to emit with ack and a timeout, returns a promise that resolves with ack or rejects
   const emitWithAck = useCallback(
     (event: string, payload: any, timeout = 5000) => {
-      return new Promise<any>((resolve, reject) => {
-        if (!socket) return reject(new Error("no-socket"));
-        if (!socket.connected) return reject(new Error("socket-not-connected"));
+      // This helper intentionally resolves with a standardized ack object
+      // instead of rejecting the promise. This avoids unhandled promise
+      // rejections in the UI and makes callers responsible for checking
+      // ack.ok.
+      return new Promise<any>((resolve) => {
+        if (!socket) return resolve({ ok: false, error: "no-socket" });
+        if (!socket.connected)
+          return resolve({ ok: false, error: "socket-not-connected" });
 
         let done = false;
         const timer = setTimeout(() => {
           if (done) return;
           done = true;
-          reject(new Error("ack-timeout"));
+          // Resolve with a timeout-shaped ack instead of rejecting
+          resolve({ ok: false, error: "ack-timeout" });
         }, timeout);
 
         try {
@@ -876,13 +882,15 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
             if (done) return;
             done = true;
             clearTimeout(timer);
-            resolve(ack);
+            // If server returns falsy ack, normalize it
+            if (!ack) return resolve({ ok: false, error: "no-ack-or-falsy" });
+            return resolve(ack);
           });
-        } catch (err) {
+        } catch (err: any) {
           if (!done) {
             done = true;
             clearTimeout(timer);
-            reject(err);
+            resolve({ ok: false, error: err?.message || String(err) });
           }
         }
       });
@@ -1014,7 +1022,7 @@ export const ChatMessages = memo(({ chatId }: { chatId: string }) => {
         messageState.upsetMsg(updated);
 
         emitWithAck(
-          "message:pin",
+          "message:pinned",
           {
             roomId: chatId,
             msgId: msg.id,
