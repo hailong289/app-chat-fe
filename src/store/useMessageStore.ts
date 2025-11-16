@@ -753,7 +753,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
               rawProps: Object.getOwnPropertyNames(e || {}).reduce((acc, k) => {
                 try {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  acc[k] = (e as any)[k];
+                  acc[k] = e[k];
                 } catch (errProp) {
                   acc[k] = "<unserializable>";
                 }
@@ -783,11 +783,26 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       if (fileIdx === -1) return att; // untouched
 
       const res = perFileResults.find((r) => r.id === att._id);
-      if (!res)
+      if (!res) {
         return { ...att, status: "failed", uploadProgress: 0 } as FilePreview;
+      }
 
       if (!res.success) {
-        return { ...att, status: "failed", uploadProgress: 0 } as FilePreview;
+        // Build a compact structured error for the attachment so caller can
+        // decide whether to retry and see server response details.
+        const errObj = res.error as any;
+        const uploadError = {
+          message: errObj?.message || String(errObj),
+          responseData: errObj?.response?.data,
+          responseStatus: errObj?.response?.status,
+        };
+
+        return {
+          ...att,
+          status: "failed",
+          uploadProgress: 0,
+          uploadError,
+        } as FilePreview;
       }
 
       const uploadResult = res.result;

@@ -1,12 +1,10 @@
+import useContactStore from "@/store/useContactStore";
 import useRoomStore from "@/store/useRoomStore";
-import {
-  MagnifyingGlassIcon,
-} from "@heroicons/react/16/solid";
+import { MagnifyingGlassIcon } from "@heroicons/react/16/solid";
 import {
   Button,
   Checkbox,
   CheckboxGroup,
-
   Input,
   Modal,
   ModalBody,
@@ -37,6 +35,7 @@ export const CreateRoomModal = ({ isOpen, onClose }: Props) => {
     (types[0].value as "group" | "channel") || "group"
   );
   const roomState = useRoomStore((state) => state);
+  const contactState = useContactStore((state) => state);
   const defaultMembers = [
     {
       id: "0199dbf6282a000000186f",
@@ -129,7 +128,7 @@ export const CreateRoomModal = ({ isOpen, onClose }: Props) => {
     console.log("Tạo phòng chat với tên:", name);
     console.log("Thành viên:", memberIds);
     console.log("kiểu:", type);
-    // roomState.createRoom(type, name, memberIds);
+    roomState.createRoom(type, name, memberIds);
     setName("");
     setMemberIds([]);
     setCheckValid(false);
@@ -142,7 +141,11 @@ export const CreateRoomModal = ({ isOpen, onClose }: Props) => {
           <>
             <ModalHeader className="flex items-center gap-2">
               <h4>Tạo</h4>
-              <Select className="w-32" defaultSelectedKeys={[types[0].value]}>
+              <Select
+                className="w-32"
+                defaultSelectedKeys={[types[0].value]}
+                onChange={(e) => setType(e.target.value as "group" | "channel")}
+              >
                 {types.map((t) => (
                   <SelectItem key={t.value}>{t.label}</SelectItem>
                 ))}
@@ -178,13 +181,13 @@ export const CreateRoomModal = ({ isOpen, onClose }: Props) => {
                 onValueChange={handleChange}
                 // hoặc onChange tùy phiên bản: onChange={(v) => handleChange(v)}
               >
-                {defaultMembers.map((m) => (
+                {contactState.friends.map((m) => (
                   <Checkbox className="flex w-full" key={m.id} value={m.id}>
                     <User
                       className="w-full"
-                      name={m.name}
+                      name={m.fullname}
                       avatarProps={{
-                        src: m.avatar,
+                        src: m.avatar ?? undefined,
                       }}
                     />
                   </Checkbox>

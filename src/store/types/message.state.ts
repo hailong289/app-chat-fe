@@ -20,6 +20,7 @@ export type FilePreview = {
   uploadProgress?: number; // 0-100 (%)
   uploadedUrl?: string; // URL sau khi upload thành công
   file?: File; // File gốc để upload
+  uploadError?: any; // optional structured error info when upload failed
 };
 export type MessageType = {
   id: string;

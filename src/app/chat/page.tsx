@@ -27,9 +27,10 @@ function ChatPageContent() {
     }
   };
   const roomState = useRoomStore((state) => state);
+  const authState = useAuthStore((state) => state);
   const searchParams = useSearchParams();
   const [chatId, setChatId] = useState<string>("");
-
+  const [noAction, setNoAction] = useState<boolean>(false);
   useEffect(() => {
     if (!roomState.room?.id) {
       setChatId(searchParams.get("chatId") || "");
@@ -37,16 +38,20 @@ function ChatPageContent() {
     } else {
       setChatId(roomState.room.id);
     }
+    const user = roomState.room?.members.find(
+      (m) => m.id == authState.user?.id
+    );
+    setNoAction(user?.role === "guest");
   }, [roomState.room]);
   return (
     <div className={`bg-light h-screen ${widthClass}`}>
-      <ChatHeader callback={callbackSetSize} />
+      <ChatHeader callback={callbackSetSize} noAction={noAction} />
       <main className="w-full h-[calc(100vh-80px)] relative overflow-hidden">
         {/* Chat messages would go here */}
-        <ChatMessages chatId={chatId} />
+        <ChatMessages chatId={chatId} noAction={noAction} />
         {/* Message input area */}
 
-        <ChatInputBar chatId={chatId} />
+        <ChatInputBar chatId={chatId} noAction={noAction} />
       </main>
     </div>
   );

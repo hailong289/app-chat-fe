@@ -26,11 +26,13 @@ interface ChatHeaderProps {
   isOnline?: boolean;
   // avatarUrl?: string;
   callback?: () => void;
+  noAction?: boolean;
 }
 
 const ChatHeader: React.FC<ChatHeaderProps> = ({
   // chatName = "Family Ties",
   // avatarUrl = "https://avatar.iran.liara.run/public",
+  noAction = false,
   isOnline = true,
   callback = () => {},
 }) => {
@@ -219,7 +221,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           </NavbarContent>
         )}
       </Navbar>
-      <ChatDrawer isOpen={isOpen} onClose={onOpenChange} />
+      <ChatDrawer isOpen={isOpen} onClose={onOpenChange} noAction={noAction} />
       <CallModal
         isOpen={formModalCall.isOpen}
         onClose={() => setFormModalCall((prev) => ({ ...prev, isOpen: false }))}

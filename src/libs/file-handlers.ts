@@ -169,7 +169,52 @@ export function dataUrlToFile(dataUrl: string, filename: string): File {
       : Buffer.from(base64, "base64").toString("binary");
   const u8 = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-  return new File([u8], filename, { type: mime });
+  // sanitize filename to avoid upload issues with special chars
+  const safeName = sanitizeFilename(filename || `file-${Date.now()}`);
+  return new File([u8], safeName, { type: mime });
+}
+
+/**
+ * Sanitize a filename by removing/normalizing special characters and diacritics.
+ * - keeps ascii letters, numbers, dot, dash and underscore
+ * - replaces other characters with the replacement (default `_`)
+ * - trims and collapses repeated replacement chars
+ * - limits the total basename length to maxLength
+ */
+export function sanitizeFilename(
+  name: string,
+  options: { replacement?: string; maxLength?: number } = {}
+) {
+  const replacement = options.replacement ?? "_";
+  const maxLength = options.maxLength ?? 80;
+
+  if (!name) return `file${replacement}${Date.now()}`;
+
+  // split extension
+  const parts = name.split(".");
+  const ext = parts.length > 1 ? `.${parts.pop()}` : "";
+  const base = parts.join(".") || "file";
+
+  // normalize unicode to NFKD and remove diacritics
+  const normalized = base.normalize("NFKD").replace(/\p{Diacritic}/gu, "");
+
+  // replace invalid chars with replacement
+  let safe = normalized.replace(/[^A-Za-z0-9._-]+/g, replacement);
+
+  // collapse multiple replacements
+  const repEsc = replacement.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+  safe = safe.replace(new RegExp(`${repEsc}{2,}`, "g"), replacement);
+
+  // trim replacements from ends
+  safe = safe.replace(new RegExp(`^(?:${repEsc})+|(?:${repEsc})+$`, "g"), "");
+
+  // truncate if too long
+  if (safe.length > maxLength) safe = safe.slice(0, maxLength);
+
+  // fallback
+  if (!safe) safe = `file${replacement}${Date.now()}`;
+
+  return `${safe}${ext}`;
 }
 
 /** Kiểm tra file có được chấp nhận theo accept list không */
@@ -260,14 +305,17 @@ export function toPreviews(files: File[]): FilePreview[] {
       ? "audio"
       : "file";
 
-    // Tạo tên file mới với timestamp và random string
+    // Tạo tên file mới dựa trên tên gốc nhưng đã được sanitize, kèm timestamp để tránh trùng
     const fileExtension = f.name.split(".").pop() || "";
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 8);
     const extensionPart = fileExtension ? `.${fileExtension}` : "";
-    const newFileName = `file_${timestamp}_${randomStr}${extensionPart}`;
 
-    // 🔥 Tạo lại File object với tên mới
+    const baseName = f.name.replace(new RegExp(`${extensionPart}$`), "");
+    const safeBase = sanitizeFilename(baseName, { maxLength: 48 });
+    const newFileName = `${safeBase}_${timestamp}_${randomStr}${extensionPart}`;
+
+    // 🔥 Tạo lại File object với tên mới (sanitized)
     const renamedFile = new File([f], newFileName, {
       type: f.type || mimeType,
       lastModified: f.lastModified,
@@ -310,6 +358,7 @@ export async function addFiles(
 
   if (combined.length > cfg.maxFiles) {
     // Gọi callback để thông báo vượt quá giới hạn
+    console.log("vượt quá số lượng");
     if (onMaxFilesExceeded) {
       onMaxFilesExceeded(combined.length, cfg.maxFiles);
     }

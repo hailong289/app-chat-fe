@@ -99,15 +99,7 @@ export class AppDB extends Dexie {
         await trans.table("rooms").clear();
         await trans.table("contacts").clear();
         await trans.table("messages").clear();
-        console.log(
-          "🔄 Version 6: REMOVED ALL ENCRYPTION. Cleared all data. Full emoji support enabled! 🎉"
-        );
       });
-
-    // NO ENCRYPTION MIDDLEWARE - Store data directly for full emoji support
-    console.log(
-      "✅ IndexedDB initialized WITHOUT encryption - Full emoji support enabled! 😊🎉🔥"
-    );
   }
 }
 

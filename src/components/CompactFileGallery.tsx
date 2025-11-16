@@ -7,6 +7,7 @@ import {
   Progress,
   Button,
   Image,
+  Tooltip,
 } from "@heroui/react";
 import { useState } from "react";
 import {
@@ -18,23 +19,27 @@ import {
   ChevronRightIcon,
 } from "@heroicons/react/24/solid";
 import { motion, AnimatePresence } from "framer-motion";
+import MiniAudioBubble from "./MiniAudioBubble";
+import { DocumentTextIcon } from "@heroicons/react/16/solid";
 
 // Helper: Normalize kind value (backend có thể trả "image" hoặc "photo")
 const normalizeKind = (file: FilePreview): string => {
   const kind = file.kind?.toLowerCase() || "";
   const mimeType = file.mimeType?.toLowerCase() || "";
 
-  // Check mimeType first (more reliable)
+  // Ưu tiên mimeType (độ chính xác cao nhất)
   if (mimeType.startsWith("image/")) return "photo";
   if (mimeType.startsWith("video/")) return "video";
   if (mimeType.startsWith("audio/")) return "audio";
+  if (mimeType === "application/pdf") return "pdf";
 
-  // Fallback to kind, normalize "image" → "photo"
+  // fallback theo kind
   if (kind === "image" || kind === "photo") return "photo";
   if (kind === "video") return "video";
   if (kind === "audio") return "audio";
+  if (kind === "pdf") return "pdf";
 
-  return "file";
+  return "file"; // cuối cùng là file thường
 };
 
 interface CompactFileGalleryProps {
@@ -104,21 +109,20 @@ export const CompactFileGallery = ({
     }
 
     return (
-      <button
+      <div
         key={file._id}
-        type="button"
         aria-label={`Open file ${file.name}`}
         className={`
           relative cursor-pointer rounded-xl overflow-hidden transition-all duration-200
           ${
             isFailed
               ? "border-2 border-red-500 shadow-red-500/50"
-              : "border border-gray-200 hover:border-blue-400"
+              : "border border-gray-200 "
           }
-          ${isUploading ? "opacity-70" : "hover:shadow-lg hover:scale-105"}
-          w-full ${heightClass}
+          
+          w-full  
         `}
-        onClick={() => handleFileClick(file, index)}
+        // onClick={() => handleFileClick(file, index)}
       >
         {/* Thumbnail */}
         {fileKind === "photo" && (
@@ -132,11 +136,14 @@ export const CompactFileGallery = ({
                 ? { aspectRatio: `${file.width} / ${file.height}` }
                 : undefined
             }
+            onClick={() => handleFileClick(file, index)}
           />
         )}
-
         {fileKind === "video" && (
-          <div className="relative w-full h-full bg-black">
+          <button
+            className="relative w-full h-full bg-black"
+            onClick={() => handleFileClick(file, index)}
+          >
             <video
               src={file.url}
               className="w-full h-full object-cover"
@@ -154,36 +161,58 @@ export const CompactFileGallery = ({
                 <PlayCircleIcon className="w-8 h-8 text-white drop-shadow-lg" />
               </div>
             </div>
-          </div>
+          </button>
         )}
-
         {fileKind === "audio" && (
-          <div className="w-full h-full bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 flex items-center justify-center">
-            <MusicalNoteIcon className="w-10 h-10 text-white drop-shadow-lg" />
+          <div className="w-full   flex items-center justify-center">
+            <MiniAudioBubble
+              src={file.url}
+              initialDuration={
+                typeof file.duration === "number"
+                  ? file.duration / 1000
+                  : undefined
+              }
+              onPlayChange={(playing) => {
+                // optional: nếu bạn muốn tắt các audio khác đang mở -> quản lý ở parent
+              }}
+              className="h-full"
+            />
           </div>
         )}
-
+        {fileKind === "pdf" && (
+          <Tooltip content={file.name} placement="top">
+            <button
+              onClick={() => handleFileClick(file, index)}
+              className="flex flex-col items-center justify-center gap-2"
+            >
+              <DocumentTextIcon className="w-10 h-10 text-red-500" />
+              <span className="text-xs font-semibold text-red-600">PDF</span>
+            </button>
+          </Tooltip>
+        )}
         {fileKind === "file" && (
-          <div className="w-full h-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+          <button
+            onClick={() => handleFileClick(file, index)}
+            className="w-full h-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center"
+          >
             <DocumentIcon className="w-10 h-10 text-white drop-shadow-lg" />
-          </div>
+          </button>
         )}
-
         {/* Upload Progress */}
         {isUploading && (
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center p-3">
+          <div className="flex gap-1 items-center">
             <Progress
               size="sm"
               value={file.uploadProgress || 0}
               color="primary"
               className="w-full mb-2"
             />
-            <p className="text-xs font-medium text-white">
+            <div className="text-xs font-medium text-primary-700">
               {file.uploadProgress || 0}%
-            </p>
+            </div>
           </div>
-        )}
-      </button>
+        )}{" "}
+      </div>
     );
   };
 
@@ -389,7 +418,7 @@ export const CompactFileGallery = ({
         scrollBehavior="inside"
         hideCloseButton
         classNames={{
-          base: "m-0 sm:m-4 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-hidden",
+          base: " overflow-hidden",
           wrapper: "items-center justify-center",
           backdrop: "bg-black/95 backdrop-blur-sm",
         }}
@@ -408,74 +437,7 @@ export const CompactFileGallery = ({
                     {currentIndex + 1} / {files.length}
                   </p>
                 </div>
-                {/* Thumbnail Gallery Navigation - Hiển thị tất cả file */}
-                {files.length > 1 && (
-                  <div className=" p-4 bg-gray-900/50 w-full max-w-lg">
-                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
-                      {files.map((file, idx) => {
-                        const isActive = idx === currentIndex;
-                        const thumbKind = normalizeKind(file);
-                        return (
-                          <button
-                            key={file._id}
-                            type="button"
-                            onClick={() => {
-                              setCurrentIndex(idx);
-                              setSelectedFile(file);
-                            }}
-                            className={`
-                                  flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden transition-all
-                                  ${
-                                    isActive
-                                      ? "ring-2 ring-blue-500 opacity-100 scale-105"
-                                      : "opacity-60 hover:opacity-100 hover:scale-105"
-                                  }
-                                `}
-                          >
-                            {thumbKind === "photo" && (
-                              <img
-                                src={file.url}
-                                alt={file.name}
-                                className="w-full h-full object-cover"
-                                style={
-                                  file.width && file.height
-                                    ? {
-                                        aspectRatio: `${file.width} / ${file.height}`,
-                                      }
-                                    : undefined
-                                }
-                              />
-                            )}
-                            {thumbKind === "video" && (
-                              <div
-                                className="w-full h-full bg-black flex items-center justify-center"
-                                style={
-                                  file.width && file.height
-                                    ? {
-                                        aspectRatio: `${file.width} / ${file.height}`,
-                                      }
-                                    : undefined
-                                }
-                              >
-                                <PlayCircleIcon className="w-6 h-6 text-white" />
-                              </div>
-                            )}
-                            {thumbKind === "audio" && (
-                              <div className="w-full h-full bg-gradient-to-br from-purple-500 to-red-500 flex items-center justify-center">
-                                <MusicalNoteIcon className="w-6 h-6 text-white" />
-                              </div>
-                            )}
-                            {thumbKind === "file" && (
-                              <div className="w-full h-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-                                <DocumentIcon className="w-6 h-6 text-white" />
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+
                 {/* Navigation Controls */}
                 <div className="flex items-center gap-2 ml-4">
                   <Button
@@ -543,7 +505,7 @@ export const CompactFileGallery = ({
                     )}
 
                     {/* File Content - Responsive & Full Display */}
-                    <div className="flex items-center justify-center p-6 min-h-full">
+                    <div className="flex items-center justify-center h-full overflow-hidden">
                       {normalizeKind(selectedFile) === "photo" && (
                         <button
                           type="button"
@@ -611,7 +573,13 @@ export const CompactFileGallery = ({
                           </div>
                         </div>
                       )}
-
+                      {normalizeKind(selectedFile) === "pdf" && (
+                        <iframe
+                          src={selectedFile.url}
+                          title={`PDF preview: ${selectedFile.name}`}
+                          className="w-full h-full bg-white rounded-md"
+                        />
+                      )}
                       {normalizeKind(selectedFile) === "file" && (
                         <div className="text-center py-16 px-8">
                           <div className="bg-gradient-to-br from-blue-600 to-cyan-600 w-32 h-32 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-2xl">
@@ -642,6 +610,74 @@ export const CompactFileGallery = ({
                               Tải xuống
                             </Button>
                           )}
+                        </div>
+                      )}
+                      {/* Thumbnail Gallery Navigation - Hiển thị tất cả file */}
+                      {files.length > 1 && (
+                        <div className=" p-4 bg-gray-900/50 ">
+                          <div className="flex flex-col h-[calc(100vh-5rem)] gap-3 overflow-hidden overflow-y-auto pb-2 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+                            {files.map((file, idx) => {
+                              const isActive = idx === currentIndex;
+                              const thumbKind = normalizeKind(file);
+                              return (
+                                <button
+                                  key={file._id}
+                                  type="button"
+                                  onClick={() => {
+                                    setCurrentIndex(idx);
+                                    setSelectedFile(file);
+                                  }}
+                                  className={`
+                                  flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden transition-all
+                                  ${
+                                    isActive
+                                      ? "ring-2 ring-blue-500 opacity-100 scale-105"
+                                      : "opacity-60 hover:opacity-100 hover:scale-105"
+                                  }
+                                `}
+                                >
+                                  {thumbKind === "photo" && (
+                                    <img
+                                      src={file.url}
+                                      alt={file.name}
+                                      className="w-full h-full object-cover"
+                                      style={
+                                        file.width && file.height
+                                          ? {
+                                              aspectRatio: `${file.width} / ${file.height}`,
+                                            }
+                                          : undefined
+                                      }
+                                    />
+                                  )}
+                                  {thumbKind === "video" && (
+                                    <div
+                                      className="w-full h-full bg-black flex items-center justify-center"
+                                      style={
+                                        file.width && file.height
+                                          ? {
+                                              aspectRatio: `${file.width} / ${file.height}`,
+                                            }
+                                          : undefined
+                                      }
+                                    >
+                                      <PlayCircleIcon className="w-6 h-6 text-white" />
+                                    </div>
+                                  )}
+                                  {thumbKind === "audio" && (
+                                    <div className="w-full h-full bg-gradient-to-br from-purple-500 to-red-500 flex items-center justify-center">
+                                      <MusicalNoteIcon className="w-6 h-6 text-white" />
+                                    </div>
+                                  )}
+                                  {thumbKind === "file" && (
+                                    <div className="w-full h-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+                                      <DocumentIcon className="w-6 h-6 text-white" />
+                                    </div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>

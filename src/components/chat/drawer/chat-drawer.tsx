@@ -45,15 +45,16 @@ import { ChangeNickNameModal } from "../modals/changeNickName.model";
 import UploadFileButton from "@/components/upload/UploadFileButton";
 import UploadService from "@/service/uploadfile.service";
 import { AddMemberModal } from "../modals/add-member.model";
-import { u } from "framer-motion/client";
 import { useRouter } from "next/navigation";
 
 export default function ChatDrawer({
   isOpen,
   onClose,
+  noAction,
 }: Readonly<{
   isOpen: boolean;
   onClose: () => void;
+  noAction: boolean;
 }>) {
   const files = [
     {
@@ -153,56 +154,60 @@ export default function ChatDrawer({
                     </h3>
                   </CardBody>
                 </Card>
+
                 <Accordion selectionMode="multiple">
-                  <AccordionItem
-                    key="1"
-                    aria-label="Accordion 1"
-                    title="Tuỳ chỉnh về đoạn chat"
-                  >
-                    <div className="w-full">
-                      {roomState.room?.type !== "private" && (
-                        <>
-                          <Button
-                            className="w-full justify-start"
-                            variant="light"
-                            onPress={() => setOpenChangeNameModal(true)}
-                            startContent={
-                              <PencilIcon className="w-4 h-4 text-gray-400" />
-                            }
-                          >
-                            Thay đổi trên đoạn chat
-                          </Button>
-                          <UploadFileButton
-                            service={(file, folder) =>
-                              UploadService.uploadSingle(
-                                Array.isArray(file) ? file[0] : file,
-                                folder
-                              )
-                            }
-                            icon={
-                              <PhotoIcon className="w-4 h-4 text-gray-400" />
-                            }
-                            onDone={(urls) => roomState.updateAvatar(urls[0])}
-                            accept="image/*"
-                            folder="avatar"
-                            label="Thay đổi ảnh"
-                            className="w-full justify-start"
-                            variant="light"
-                          />
-                        </>
-                      )}
-                      <Button
-                        className="w-full justify-start"
-                        variant="light"
-                        onPress={() => setOpenChangeNickNameModal(true)}
-                        startContent={
-                          <PencilIcon className="w-4 h-4 text-gray-400" />
-                        }
-                      >
-                        Chỉnh sửa biệt danh
-                      </Button>
-                    </div>
-                  </AccordionItem>
+                  {!noAction && (
+                    <AccordionItem
+                      key="1"
+                      aria-label="Accordion 1"
+                      title="Tuỳ chỉnh về đoạn chat"
+                    >
+                      <div className="w-full">
+                        {roomState.room?.type !== "private" && (
+                          <>
+                            <Button
+                              className="w-full justify-start"
+                              variant="light"
+                              onPress={() => setOpenChangeNameModal(true)}
+                              startContent={
+                                <PencilIcon className="w-4 h-4 text-gray-400" />
+                              }
+                            >
+                              Thay đổi trên đoạn chat
+                            </Button>
+                            <UploadFileButton
+                              service={(file, folder) =>
+                                UploadService.uploadSingle(
+                                  Array.isArray(file) ? file[0] : file,
+                                  folder
+                                )
+                              }
+                              icon={
+                                <PhotoIcon className="w-4 h-4 text-gray-400" />
+                              }
+                              onDone={(urls) => roomState.updateAvatar(urls[0])}
+                              accept="image/*"
+                              folder="avatar"
+                              label="Thay đổi ảnh"
+                              className="w-full justify-start"
+                              variant="light"
+                            />
+                          </>
+                        )}
+                        <Button
+                          className="w-full justify-start"
+                          variant="light"
+                          onPress={() => setOpenChangeNickNameModal(true)}
+                          startContent={
+                            <PencilIcon className="w-4 h-4 text-gray-400" />
+                          }
+                        >
+                          Chỉnh sửa biệt danh
+                        </Button>
+                      </div>
+                    </AccordionItem>
+                  )}
+
                   {roomState.room?.type === "group" ||
                   roomState.room?.type === "channel" ? (
                     <AccordionItem
@@ -287,16 +292,18 @@ export default function ChatDrawer({
                           )}
                         </div>
                       ))}
-                      <Button
-                        className="w-full justify-start"
-                        variant="light"
-                        onPress={() => setOpenAddMemberModal(true)}
-                        startContent={
-                          <UserPlusIcon className="w-4 h-4 text-gray-400" />
-                        }
-                      >
-                        Thêm thành viên
-                      </Button>
+                      {!noAction && (
+                        <Button
+                          className="w-full justify-start"
+                          variant="light"
+                          onPress={() => setOpenAddMemberModal(true)}
+                          startContent={
+                            <UserPlusIcon className="w-4 h-4 text-gray-400" />
+                          }
+                        >
+                          Thêm thành viên
+                        </Button>
+                      )}
                     </AccordionItem>
                   ) : null}
                   <AccordionItem

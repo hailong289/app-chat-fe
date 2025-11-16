@@ -44,8 +44,12 @@ export type roomType = {
     id: string | null;
     content: string | null;
     createdAt: string | null;
-    sender_fullname: string | null;
-    sender_id: string | null;
+    sender: {
+      id: string;
+      name: string | null;
+      avatar: string | null;
+    };
+    isMine: boolean;
   };
   is_read: boolean;
   unread_count: number;

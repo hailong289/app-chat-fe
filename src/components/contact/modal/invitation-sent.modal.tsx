@@ -1,3 +1,4 @@
+import useContactStore from "@/store/useContactStore";
 import {
   Button,
   Modal,
@@ -6,6 +7,8 @@ import {
   ModalFooter,
   ModalHeader,
 } from "@heroui/react";
+import ItemContact from "../itemContac";
+import { useRouter } from "next/navigation";
 
 interface InvaitationSentModalProps {
   // Define any props if needed
@@ -19,7 +22,12 @@ export default function InvaitationSentModal({
   onClose,
   onOpenChange,
 }: InvaitationSentModalProps) {
-  const length = 5;
+  const contactState = useContactStore((state) => state);
+  const router = useRouter();
+  const onPress = (id: string) => {
+    router.push(`/contacts?profileId=${id}`);
+    console.log("Pressed item");
+  };
   return (
     <Modal isOpen={isOpen} scrollBehavior="inside" onOpenChange={onOpenChange}>
       <ModalContent>
@@ -29,79 +37,15 @@ export default function InvaitationSentModal({
               Lời mời đã gửi
             </ModalHeader>
             <ModalBody>
-              <h3>Đã gửi {length} lời mời kết bạn</h3>
-              {/* <p>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam
-                pulvinar risus non risus hendrerit venenatis. Pellentesque sit
-                amet hendrerit risus, sed porttitor quam.
-              </p>
-              <p>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam
-                pulvinar risus non risus hendrerit venenatis. Pellentesque sit
-                amet hendrerit risus, sed porttitor quam.
-              </p>
-              <p>
-                Magna exercitation reprehenderit magna aute tempor cupidatat
-                consequat elit dolor adipisicing. Mollit dolor eiusmod sunt ex
-                incididunt cillum quis. Velit duis sit officia eiusmod Lorem
-                aliqua enim laboris do dolor eiusmod. Et mollit incididunt nisi
-                consectetur esse laborum eiusmod pariatur proident Lorem eiusmod
-                et. Culpa deserunt nostrud ad veniam.
-              </p>
-              <p>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam
-                pulvinar risus non risus hendrerit venenatis. Pellentesque sit
-                amet hendrerit risus, sed porttitor quam. Magna exercitation
-                reprehenderit magna aute tempor cupidatat consequat elit dolor
-                adipisicing. Mollit dolor eiusmod sunt ex incididunt cillum
-                quis. Velit duis sit officia eiusmod Lorem aliqua enim laboris
-                do dolor eiusmod. Et mollit incididunt nisi consectetur esse
-                laborum eiusmod pariatur proident Lorem eiusmod et. Culpa
-                deserunt nostrud ad veniam.
-              </p>
-              <p>
-                Mollit dolor eiusmod sunt ex incididunt cillum quis. Velit duis
-                sit officia eiusmod Lorem aliqua enim laboris do dolor eiusmod.
-                Et mollit incididunt nisi consectetur esse laborum eiusmod
-                pariatur proident Lorem eiusmod et. Culpa deserunt nostrud ad
-                veniam. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-                Nullam pulvinar risus non risus hendrerit venenatis.
-                Pellentesque sit amet hendrerit risus, sed porttitor quam. Magna
-                exercitation reprehenderit magna aute tempor cupidatat consequat
-                elit dolor adipisicing. Mollit dolor eiusmod sunt ex incididunt
-                cillum quis. Velit duis sit officia eiusmod Lorem aliqua enim
-                laboris do dolor eiusmod. Et mollit incididunt nisi consectetur
-                esse laborum eiusmod pariatur proident Lorem eiusmod et. Culpa
-                deserunt nostrud ad veniam.
-              </p>
-              <p>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam
-                pulvinar risus non risus hendrerit venenatis. Pellentesque sit
-                amet hendrerit risus, sed porttitor quam.
-              </p>
-              <p>
-                Magna exercitation reprehenderit magna aute tempor cupidatat
-                consequat elit dolor adipisicing. Mollit dolor eiusmod sunt ex
-                incididunt cillum quis. Velit duis sit officia eiusmod Lorem
-                aliqua enim laboris do dolor eiusmod. Et mollit incididunt nisi
-                consectetur esse laborum eiusmod pariatur proident Lorem eiusmod
-                et. Culpa deserunt nostrud ad veniam.
-              </p>
-              <p>
-                Mollit dolor eiusmod sunt ex incididunt cillum quis. Velit duis
-                sit officia eiusmod Lorem aliqua enim laboris do dolor eiusmod.
-                Et mollit incididunt nisi consectetur esse laborum eiusmod
-                pariatur proident Lorem eiusmod et. Culpa deserunt nostrud ad
-                veniam. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-                Nullam pulvinar risus non risus hendrerit venenatis.
-                Pellentesque sit amet hendrerit risus, sed porttitor quam. Magna
-                exercitation reprehenderit magna aute tempor cupidatat consequat
-                elit dolor adipisicing. Mollit dolor eiusmod sunt ex incididunt
-                cillum quis. Velit duis sit officia eiusmod Lorem aliqua enim
-                laboris do dolor eiusmod. Et mollit incididunt nisi consectetur
-                esse laborum eiusmod pariatur proident Lorem eiusmod et. Culpa
-                deserunt nostrud ad veniam.
-              </p> */}
+              <h3>Đã gửi {contactState.sent.length} lời mời kết bạn</h3>
+              {contactState.sent.map((item) => (
+                <ItemContact
+                  item={item}
+                  key={item.id}
+                  onPress={() => onPress(item.id)}
+                  type="sent"
+                />
+              ))}
             </ModalBody>
             <ModalFooter>
               {/* <Button color="danger" variant="light" onPress={onClose}>
