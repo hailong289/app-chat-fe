@@ -27,6 +27,7 @@ interface MessageActionsProps {
   onRecall: (msg: MessageType) => void;
   onTogglePin: (msg: MessageType) => void;
   onCopy: (content: string) => void;
+  noAction?: boolean;
 }
 
 export function MessageActions({
@@ -39,6 +40,7 @@ export function MessageActions({
   onRecall,
   onTogglePin,
   onCopy,
+  noAction = false,
 }: MessageActionsProps) {
   // Actions are hidden for deleted/hidden messages
   if (msg.isDeleted || msg.hiddenByMe) return null;
@@ -66,10 +68,11 @@ export function MessageActions({
             </Button>
           </DropdownTrigger>
           <DropdownMenu aria-label="Static Actions" variant="faded">
-            {/* Pin / Gim */}
-            <DropdownItem key="gim" onPress={() => onTogglePin(msg)}>
-              {msg.pinned ? "Bỏ gim" : "Gim"}
-            </DropdownItem>
+            {noAction ? null : (
+              <DropdownItem key="gim" onPress={() => onTogglePin(msg)}>
+                {msg.pinned ? "Bỏ gim" : "Gim"}
+              </DropdownItem>
+            )}
             {/* Copy - chỉ hiện với text messages */}
             {msg.type === "text" ? (
               <DropdownItem
@@ -100,16 +103,17 @@ export function MessageActions({
             </DropdownItem>
           </DropdownMenu>
         </Dropdown>
-
-        <Button
-          className="text-gray-400 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-          size="sm"
-          variant="flat"
-          isIconOnly
-          onPress={() => onReply(msg)}
-        >
-          <ArrowUturnLeftIcon className="h-3 w-3" />
-        </Button>
+        {noAction ? null : (
+          <Button
+            className="text-gray-400 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            size="sm"
+            variant="flat"
+            isIconOnly
+            onPress={() => onReply(msg)}
+          >
+            <ArrowUturnLeftIcon className="h-3 w-3" />
+          </Button>
+        )}
 
         <Popover placement="top" backdrop="opaque">
           <PopoverTrigger>
@@ -145,4 +149,3 @@ export function MessageActions({
     </div>
   );
 }
-

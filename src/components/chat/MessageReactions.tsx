@@ -3,15 +3,22 @@ import { Tooltip } from "@heroui/react";
 interface Reaction {
   emoji: string;
   count: number;
-  hasReacted: boolean;
-  users?: Array<{ usr_fullname?: string }>;
+  hasReacted?: boolean;
+  users: Array<{
+    _id: string;
+    usr_id: string;
+    usr_fullname: string;
+    usr_avatar: string;
+  }>;
 }
 
 interface MessageReactionsProps {
   reactions: Reaction[];
 }
 
-export function MessageReactions({ reactions }: MessageReactionsProps) {
+export function MessageReactions({
+  reactions,
+}: Readonly<MessageReactionsProps>) {
   if (!reactions || reactions.length === 0) return null;
 
   return (
@@ -21,9 +28,7 @@ export function MessageReactions({ reactions }: MessageReactionsProps) {
           key={`${reaction.emoji}-${idx}`}
           content={
             <div className="text-xs">
-              {reaction.users
-                ?.map((u) => u.usr_fullname || "User")
-                .join(", ")}
+              {reaction.users?.map((u) => u.usr_fullname || "User").join(", ")}
             </div>
           }
           size="sm"
@@ -47,4 +52,3 @@ export function MessageReactions({ reactions }: MessageReactionsProps) {
     </div>
   );
 }
-
