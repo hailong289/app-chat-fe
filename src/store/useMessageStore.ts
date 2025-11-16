@@ -231,15 +231,40 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           console.log("🚀 ~ uploadedAttachments:", uploadedAttachments);
           console.log("✅ Upload complete, updating message...");
 
-          // Sau khi upload xong, emit socket với URLs thật
-          socket?.emit("message:send", {
-            roomId,
-            type,
-            content,
-            replyTo,
-            id,
-            attachments: uploadedAttachments.map((att) => att._id),
-          });
+          // Only send attachments that were uploaded successfully.
+          const successful = (uploadedAttachments || []).filter(
+            (a) => a && a.status === "uploaded"
+          );
+
+          if (successful.length > 0) {
+            socket?.emit("message:send", {
+              roomId,
+              type,
+              content,
+              replyTo,
+              id,
+              attachments: successful.map((att) => att._id),
+            });
+          } else {
+            console.warn(
+              "⚠️ All attachments failed to upload — marking message failed",
+              id
+            );
+            // mark message as failed in UI
+            const currentRoom = get().messagesRoom[roomId];
+            const updatedMessages = (currentRoom?.messages || []).map((msg) =>
+              msg.id === id ? { ...msg, status: "failed" as const } : msg
+            );
+            set({
+              messagesRoom: {
+                ...get().messagesRoom,
+                [roomId]: {
+                  ...currentRoom,
+                  messages: updatedMessages,
+                },
+              },
+            });
+          }
         })
         .catch((error) => {
           console.error("❌ Upload failed:", error);
@@ -673,105 +698,146 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       );
     }
 
-    try {
-      // Upload song song với progress tracking - sử dụng _id có sẵn của FilePreview
-      const uploadedResults = await UploadService.uploadMultipleParallel(
-        filesToUpload.map((att) => att.file!),
-        {
+    // Upload files one-by-one to tolerate partial failures. If one file fails,
+    // we mark it failed but continue uploading the rest. This avoids the
+    // situation where the server has stored some files but the client treats
+    // the whole batch as failed because Promise.all rejected.
+    const perFileResults: Array<{
+      success: boolean;
+      result?: any;
+      error?: any;
+      index: number;
+      id: string;
+    }> = [];
+
+    for (let i = 0; i < filesToUpload.length; i++) {
+      const att = filesToUpload[i];
+      try {
+        const resp = await UploadService.uploadSingleWithProgress(att.file!, {
           roomId,
-          id: filesToUpload.map((att) => att._id), // Sử dụng _id có sẵn của FilePreview
-          onEachProgress: (index, progress) => {
-            const fileId = filesToUpload[index]._id;
-            console.log(
-              `📤 Upload progress [${index}]:`,
-              progress,
-              "%",
-              filesToUpload[index].name
-            );
+          id: att._id,
+          onProgress: (pct) => {
             get().updateAttachmentProgress(
               roomId,
               messageId,
-              fileId,
-              progress,
+              att._id,
+              pct,
               "uploading"
             );
           },
+        });
+
+        const data = resp.data;
+        console.log(`✅ Uploaded file ${i}:`, data);
+        perFileResults.push({
+          success: true,
+          result: data,
+          index: i,
+          id: att._id,
+        });
+      } catch (err) {
+        const e = err as any;
+        // Axios / network errors often have useful info under err.response.
+        // Log structured details to help debugging (message, response payload/status).
+        try {
+          console.error(
+            `⚠️ Upload error for file index ${i} (id=${att._id}):`,
+            {
+              message: e?.message || String(e),
+              name: e?.name,
+              stack: e?.stack,
+              responseData: e?.response?.data,
+              responseStatus: e?.response?.status,
+              request: e?.request,
+              // include own props (including non-enumerable) when possible
+              rawProps: Object.getOwnPropertyNames(e || {}).reduce((acc, k) => {
+                try {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  acc[k] = (e as any)[k];
+                } catch (errProp) {
+                  acc[k] = "<unserializable>";
+                }
+                return acc;
+              }, {} as Record<string, any>),
+            }
+          );
+        } catch (logErr) {
+          console.error("⚠️ Error serializing upload error:", logErr, err);
         }
-      );
 
-      console.log("✅ All files uploaded:", uploadedResults);
-      console.log("🔍 Verifying IDs match:");
-      for (let idx = 0; idx < uploadedResults.length; idx++) {
-        const result = uploadedResults[idx];
-        const originalId = filesToUpload[idx]._id;
-        const returnedId = result._id;
-        const match = originalId === returnedId;
-        console.log(
-          `  File ${idx}: ${match ? "✅" : "❌"} ${originalId} ${
-            match ? "===" : "!=="
-          } ${returnedId}`
-        );
-        console.log(
-          `    - Name: ${result.name}, Size: ${result.size} bytes, Type: ${result.mimeType}`
-        );
-      }
-
-      // Cập nhật attachments với URL đã upload
-      const updatedAttachments = attachments.map((att) => {
-        const uploadIndex = filesToUpload.findIndex((f) => f._id === att._id);
-        if (uploadIndex === -1) return att; // File đã upload trước đó
-
-        const uploadResult = uploadedResults[uploadIndex];
-        console.log("🚀 ~ uploadResult:", uploadResult);
-
-        // Revoke blob URL cũ
-        if (att.url.startsWith("blob:")) {
-          URL.revokeObjectURL(att.url);
-        }
-
-        return {
-          ...att,
-          // _id giữ nguyên (đã dùng att._id khi upload, server trả về cùng _id)
-          _id: uploadResult._id,
-          uploadedUrl: uploadResult.url,
-          url: uploadResult.url, // Update main URL từ server
-          kind: uploadResult.kind || att.kind, // Cập nhật kind từ server
-          name: uploadResult.name || att.name, // Cập nhật name từ server
-          size: uploadResult.size || att.size, // Cập nhật size từ server
-          mimeType: uploadResult.mimeType || att.mimeType, // Cập nhật mimeType từ server
-          status: "uploaded",
-          uploadProgress: 100,
-          file: undefined, // Xóa file gốc sau khi upload
-        } as FilePreview;
-      });
-
-      // Update attachments trong message
-      const currentRoom = get().messagesRoom[roomId];
-      const updatedMessages = (currentRoom?.messages || []).map((msg) =>
-        msg.id === messageId ? { ...msg, attachments: updatedAttachments } : msg
-      );
-
-      set({
-        messagesRoom: {
-          ...get().messagesRoom,
-          [roomId]: {
-            ...currentRoom,
-            messages: updatedMessages,
-          },
-        },
-      });
-
-      return updatedAttachments;
-    } catch (error) {
-      console.error("❌ Upload failed:", error);
-
-      // Đánh dấu tất cả là "failed"
-      for (const att of filesToUpload) {
+        // mark this file as failed in UI
         get().updateAttachmentProgress(roomId, messageId, att._id, 0, "failed");
+        perFileResults.push({
+          success: false,
+          error: err,
+          index: i,
+          id: att._id,
+        });
+        // continue with next file
+      }
+    }
+
+    // Build updated attachments array based on per-file results
+    const updatedAttachments = attachments.map((att) => {
+      const fileIdx = filesToUpload.findIndex((f) => f._id === att._id);
+      if (fileIdx === -1) return att; // untouched
+
+      const res = perFileResults.find((r) => r.id === att._id);
+      if (!res)
+        return { ...att, status: "failed", uploadProgress: 0 } as FilePreview;
+
+      if (!res.success) {
+        return { ...att, status: "failed", uploadProgress: 0 } as FilePreview;
       }
 
-      throw error;
-    }
+      const uploadResult = res.result;
+
+      // Revoke old blob URL
+      if (att.url && att.url.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(att.url);
+        } catch {}
+      }
+
+      return {
+        ...att,
+        _id: uploadResult._id || att._id,
+        uploadedUrl: uploadResult.url,
+        url: uploadResult.url,
+        kind: uploadResult.kind || att.kind,
+        name: uploadResult.name || att.name,
+        size: uploadResult.size || att.size,
+        mimeType: uploadResult.mimeType || att.mimeType,
+        status: "uploaded",
+        uploadProgress: 100,
+        file: undefined,
+      } as FilePreview;
+    });
+
+    // Update attachments trong message
+    const currentRoom = get().messagesRoom[roomId];
+    const updatedMessages = (currentRoom?.messages || []).map((msg) =>
+      msg.id === messageId ? { ...msg, attachments: updatedAttachments } : msg
+    );
+
+    set({
+      messagesRoom: {
+        ...get().messagesRoom,
+        [roomId]: {
+          ...currentRoom,
+          messages: updatedMessages,
+        },
+      },
+    });
+
+    // Log summary
+    const successCount = perFileResults.filter((r) => r.success).length;
+    const failCount = perFileResults.length - successCount;
+    console.log(
+      `✅ Upload summary: ${successCount} succeeded, ${failCount} failed`
+    );
+
+    return updatedAttachments;
   },
 
   /**
