@@ -145,18 +145,16 @@ export default function FilePreviewGridModal({
               size="sm"
               color="danger"
               variant="flat"
-              onClick={onRemoveAll}
+              onPress={onRemoveAll}
             >
-              Remove All
+              Xoá tất cả
             </Button>
           )}
         </div>
       )}
 
       {/* GRID */}
-      <div
-        className={`mb-3 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 ${className} bg-gray-50 `}
-      >
+      <div className={`flex gap-2 ${className} bg-gray-50 `}>
         {files.map((item, i) => {
           const ext = item.name.split(".").pop() || "";
           const t = item.mimeType;
@@ -169,14 +167,14 @@ export default function FilePreviewGridModal({
               <img
                 src={item.url}
                 alt={item.name}
-                className="w-25 h-full object-cover"
+                className="w-15 h-full object-cover"
               />
             );
           } else if (_isVideo) {
             previewContent = (
               <video
                 src={item.url}
-                className="w-25 h-full object-cover bg-black"
+                className="w-15 h-full object-cover bg-black"
               >
                 <track kind="captions" />
               </video>
@@ -196,9 +194,7 @@ export default function FilePreviewGridModal({
           return (
             <div
               key={`${item.name}-${item.url}`}
-              role="button"
-              tabIndex={0}
-              className="h-25 w-25 relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="h-15 w-15 relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
               title={`${item.name} (${fmt(getFileSize(item.size))})`}
               onClick={() => openPreview(i)}
               onKeyDown={(e) => {
@@ -207,6 +203,8 @@ export default function FilePreviewGridModal({
                   openPreview(i);
                 }
               }}
+              role="button"
+              tabIndex={0}
             >
               {previewContent}
 

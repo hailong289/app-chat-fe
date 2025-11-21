@@ -20,11 +20,12 @@ import {
   Tooltip,
   Image,
 } from "@heroui/react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { CreateRoomModal } from "../chat/modals/createRoom.modal";
 import { useSocket } from "../providers/SocketProvider";
-import useMessageStore from "@/store/useMessageStore";
+import useContactStore from "@/store/useContactStore";
+import useAuthStore from "@/store/useAuthStore";
 
 export const Home = () => {
   const { socket } = useSocket();
@@ -33,12 +34,15 @@ export const Home = () => {
   const pathname = usePathname();
 
   const roomState = useRoomStore((state) => state);
-  const messageState = useMessageStore((state) => state);
+  const contactState = useContactStore((state) => state);
+  const authState = useAuthStore((state) => state);
 
   const [limit, setLimit] = useState(20); // Fixed initial value
   const [search, setSearch] = useState("");
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [openModal, setOpenModal] = useState(false);
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<string>(searchParams.get("chatId") || "");
 
   const queryRoom = useMemo(
     () => ({
@@ -48,7 +52,6 @@ export const Home = () => {
     }),
     [search, limit, roomState.type]
   );
-
   // Load initial data once
   useEffect(() => {
     // Load từ IndexedDB vào state (nếu có cache)
@@ -57,12 +60,55 @@ export const Home = () => {
     roomState.getRooms();
   }, []); // Only on mount
 
+  /**
+   * useEffect: Lắng nghe socket reconnect và fetch danh sách rooms mới nhất
+   * Xảy ra khi: Socket reconnect sau khi mất kết nối
+   */
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleReconnect = () => {
+      console.log(
+        "🔌 [SOCKET RECONNECT] Socket đã kết nối lại, đang fetch danh sách rooms mới nhất..."
+      );
+
+      // Đợi một chút để đảm bảo socket đã hoàn toàn kết nối
+      setTimeout(async () => {
+        try {
+          console.log(
+            "📥 [SOCKET RECONNECT] Fetching danh sách rooms mới nhất"
+          );
+
+          // Fetch lại danh sách rooms từ server với query hiện tại
+          await roomState.getRooms(queryRoom);
+
+          console.log(
+            "✅ [SOCKET RECONNECT] Đã tải danh sách rooms thành công"
+          );
+        } catch (error) {
+          console.error(
+            "❌ [SOCKET RECONNECT] Lỗi khi tải danh sách rooms:",
+            error
+          );
+        }
+      }, 500); // Đợi 500ms để socket ổn định
+    };
+
+    // Lắng nghe sự kiện reconnect
+    socket.on("connect", handleReconnect);
+
+    // Cleanup
+    return () => {
+      socket.off("connect", handleReconnect);
+    };
+  }, [socket, queryRoom, roomState]);
+
   // Debounce search và fetch khi query thay đổi
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       roomState.getRooms(queryRoom);
     }, 300); // Debounce 300ms
-
+console.log('change query room');
     return () => clearTimeout(timeoutId);
   }, [queryRoom]);
 
@@ -114,6 +160,7 @@ export const Home = () => {
       router.push(`/chat?chatId=${chat.id}`);
       setIsSearchVisible(false);
       setSearch("");
+      setTab(chat.id);
     },
     [roomState, socket]
   );
@@ -172,8 +219,8 @@ export const Home = () => {
               <div className="flex flex-col items-center space-y-1 flex-shrink-0">
                 <Badge content=" " color="success" placement="bottom-right">
                   <Avatar
-                    src="https://avatar.iran.liara.run/public"
-                    name="My Status"
+                    src={authState.user?.avatar || undefined}
+                    name={authState.user?.fullname || "My Status"}
                     size="lg"
                     isBordered
                     color="success"
@@ -183,19 +230,19 @@ export const Home = () => {
                   Trạng thái của tôi
                 </p>
               </div>
-              {["Jesus", "Mari", "Kristin", "Lea"].map((name, index) => (
+              {contactState.online.map((contact, index) => (
                 <div
-                  key={index}
+                  key={contact.id}
                   className="flex flex-col items-center space-y-1 flex-shrink-0"
                 >
                   <Avatar
-                    src={`https://avatar.iran.liara.run/public?text=${name.charAt(
-                      0
-                    )}`}
-                    name={name}
+                    src={contact.avatar || undefined}
+                    name={contact.fullname}
                     size="lg"
                   />
-                  <p className="text-xs text-gray-600 text-center">{name}...</p>
+                  <p className="text-xs text-gray-600 text-center">
+                    {contact.fullname}...
+                  </p>
                 </div>
               ))}
             </div>
@@ -256,7 +303,7 @@ export const Home = () => {
       </Card>
       <div
         id="list-chat"
-        className="flex-1 overflow-y-auto scroll-smooth w-full"
+        className="flex-1 overflow-y-auto scroll-smooth w-full shadow-[4px_0_10px_-2px_rgba(0,0,0,0.1)]"
       >
         {/* Chat List */}
         <div className="divide-y divide-gray-200 w-full">
@@ -264,7 +311,9 @@ export const Home = () => {
             <Card
               key={chat.id}
               isPressable
-              className="w-full rounded-none shadow-none cursor-pointer hover:bg-gray-50 transition-colors"
+              className={`w-full rounded-none shadow-none cursor-pointer hover:bg-gray-100 transition-colors ${
+                tab === chat.id ? "bg-gray-100" : ""
+              }`}
               onPress={() => handleChatClick(chat)}
             >
               <CardBody className="w-full p-4 flex flex-row items-center justify-between gap-3">
@@ -282,11 +331,19 @@ export const Home = () => {
                     <p
                       className={`
     text-sm text-gray-700 truncate font-${chat.is_read ? "normal" : "semibold"}
-    block w-full max-w-[220px]
+    block w-full w-full
   `}
                       title={chat?.last_message?.content || ""}
                     >
-                      {chat?.last_message?.content || ""}
+                      {chat?.last_message?.isMine ? "Bạn: " : ""}
+                      {!chat?.last_message?.isMine &&
+                        chat?.last_message?.sender?.name &&
+                        `${chat?.last_message?.sender?.name}: `}
+
+                      {chat?.last_message?.content?.slice(0, 30) || ""}
+                      {chat?.last_message?.content &&
+                        chat?.last_message?.content.length > 30 &&
+                        "..."}
                     </p>
                   </div>
                 </div>

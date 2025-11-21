@@ -14,8 +14,8 @@ import { useEffect, useState, Suspense } from "react";
 import useRoomStore from "@/store/useRoomStore";
 import { useSearchParams } from "next/navigation";
 import ChatInputBar from "@/components/chat/inputBar";
+import useAuthStore from "@/store/useAuthStore";
 import { ChatMessages } from "@/components/chat/ChatMessages";
-// import { useRouter } from "next/router";
 
 function ChatPageContent() {
   const [widthClass, setWidthClass] = useState("w-full");
@@ -27,11 +27,11 @@ function ChatPageContent() {
     }
   };
   const roomState = useRoomStore((state) => state);
+  const authState = useAuthStore((state) => state);
   const searchParams = useSearchParams();
-  const [room, setRoom] = useState<any>(undefined);
   const [chatId, setChatId] = useState<string>("");
-  const isLoading = useRoomStore((s) => s.isLoading);
-  console.log("Chat ID:", chatId);
+  const [noAction, setNoAction] = useState<boolean>(false);
+  const [scrollto, setScrollto] = useState<string | null>(null);
   useEffect(() => {
     if (!roomState.room?.id) {
       setChatId(searchParams.get("chatId") || "");
@@ -39,16 +39,24 @@ function ChatPageContent() {
     } else {
       setChatId(roomState.room.id);
     }
+    const user = roomState.room?.members.find(
+      (m) => m.id == authState.user?.id
+    );
+    setNoAction(user?.role === "guest");
   }, [roomState.room]);
   return (
     <div className={`bg-light h-screen ${widthClass}`}>
-      <ChatHeader callback={callbackSetSize} />
-      <main className="w-full h-[calc(100vh-80px)] relative">
+      <ChatHeader
+        callback={callbackSetSize}
+        noAction={noAction}
+        setScrollto={setScrollto}
+      />
+      <main className="w-full h-[calc(100vh-80px)] relative overflow-hidden">
         {/* Chat messages would go here */}
-        <ChatMessages chatId={chatId} />
+        <ChatMessages chatId={chatId} noAction={noAction} scrollto={scrollto} />
         {/* Message input area */}
 
-        <ChatInputBar chatId={chatId} />
+        <ChatInputBar chatId={chatId} noAction={noAction} />
       </main>
     </div>
   );

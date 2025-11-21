@@ -45,15 +45,16 @@ import { ChangeNickNameModal } from "../modals/changeNickName.model";
 import UploadFileButton from "@/components/upload/UploadFileButton";
 import UploadService from "@/service/uploadfile.service";
 import { AddMemberModal } from "../modals/add-member.model";
-import { u } from "framer-motion/client";
 import { useRouter } from "next/navigation";
 
 export default function ChatDrawer({
   isOpen,
   onClose,
+  noAction,
 }: Readonly<{
   isOpen: boolean;
   onClose: () => void;
+  noAction: boolean;
 }>) {
   const files = [
     {
@@ -153,265 +154,280 @@ export default function ChatDrawer({
                     </h3>
                   </CardBody>
                 </Card>
+
                 <Accordion selectionMode="multiple">
-                  <AccordionItem
-                    key="1"
-                    aria-label="Accordion 1"
-                    title="Tuỳ chỉnh về đoạn chat"
-                  >
-                    <div className="w-full">
-                      {roomState.room?.type !== "private" && (
-                        <>
-                          <Button
-                            className="w-full justify-start"
-                            variant="light"
-                            onPress={() => setOpenChangeNameModal(true)}
-                            startContent={
-                              <PencilIcon className="w-4 h-4 text-gray-400" />
-                            }
-                          >
-                            Thay đổi trên đoạn chat
-                          </Button>
-                          <UploadFileButton
-                            service={(file, folder) =>
-                              UploadService.uploadSingle(
-                                Array.isArray(file) ? file[0] : file,
-                                folder
-                              )
-                            }
-                            icon={
-                              <PhotoIcon className="w-4 h-4 text-gray-400" />
-                            }
-                            onDone={(urls) => roomState.updateAvatar(urls[0])}
-                            accept="image/*"
-                            folder="avatar"
-                            label="Thay đổi ảnh"
-                            className="w-full justify-start"
-                            variant="light"
-                          />
-                        </>
-                      )}
-                      <Button
-                        className="w-full justify-start"
-                        variant="light"
-                        onPress={() => setOpenChangeNickNameModal(true)}
-                        startContent={
-                          <PencilIcon className="w-4 h-4 text-gray-400" />
-                        }
-                      >
-                        Chỉnh sửa biệt danh
-                      </Button>
-                    </div>
-                  </AccordionItem>
-                  {roomState.room?.type === "group" ||
-                  roomState.room?.type === "channel" ? (
-                    <AccordionItem
-                      key="2"
-                      aria-label="Accordion 2"
-                      title="Thành viên trong đoạn chat"
-                    >
-                      {roomState.room?.members?.map((member) => (
-                        <div
-                          key={member.id}
-                          className="flex p-2 justify-between items-center gap-4 border border-gray-100 rounded-lg mb-2 hover:bg-gray-50"
+                  {[
+                    !noAction
+                      ? (
+                        <AccordionItem
+                          key="1"
+                          aria-label="Accordion 1"
+                          title="Tuỳ chỉnh về đoạn chat"
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <Avatar
-                              size="md"
-                              src={member.avatar ?? undefined}
-                              name={member.name ?? undefined}
-                            />
-                            <div className="flex flex-col">
-                              <span className="font-medium text-gray-800">
-                                {member.name}
-                              </span>
-                              <span className="text-sm">
-                                {member.role ? role[member.role] : ""}
-                              </span>
-                            </div>
-                          </div>
-                          {user?.id != member.id && (
-                            <Dropdown>
-                              <DropdownTrigger>
+                          <div className="w-full">
+                            {roomState.room?.type !== "private" && (
+                              <>
                                 <Button
-                                  className=""
+                                  className="w-full justify-start"
                                   variant="light"
+                                  onPress={() => setOpenChangeNameModal(true)}
                                   startContent={
-                                    <EllipsisVerticalIcon className="w-5 h-5 text-gray-400" />
+                                    <PencilIcon className="w-4 h-4 text-gray-400" />
                                   }
-                                ></Button>
-                              </DropdownTrigger>
-                              <DropdownMenu aria-label="Member options">
-                                <DropdownItem key="1">
-                                  <Button
-                                    className="w-full justify-start"
-                                    variant="light"
-                                    onPress={() => handleChatPrivate(member.id)}
-                                    startContent={
-                                      <ChatBubbleLeftIcon className="w-5 h-5 text-gray-400" />
-                                    }
-                                  >
-                                    Gửi tin nhắn riêng tư
-                                  </Button>
-                                </DropdownItem>
-                                <DropdownItem key="2">
-                                  <Button
-                                    className="w-full justify-start"
-                                    variant="light"
-                                    startContent={
-                                      <UserIcon className="w-5 h-5 text-gray-400" />
-                                    }
-                                  >
-                                    Xem trang cá nhân
-                                  </Button>
-                                </DropdownItem>
-                                {isAdmin ? (
-                                  <DropdownItem key="3">
+                                >
+                                  Thay đổi trên đoạn chat
+                                </Button>
+                                <UploadFileButton
+                                  service={(file, folder) =>
+                                    UploadService.uploadSingle(
+                                      Array.isArray(file) ? file[0] : file,
+                                      folder
+                                    )
+                                  }
+                                  icon={
+                                    <PhotoIcon className="w-4 h-4 text-gray-400" />
+                                  }
+                                  onDone={(urls) => roomState.updateAvatar(urls[0])}
+                                  accept="image/*"
+                                  folder="avatar"
+                                  label="Thay đổi ảnh"
+                                  className="w-full justify-start"
+                                  variant="light"
+                                />
+                              </>
+                            )}
+                            <Button
+                              className="w-full justify-start"
+                              variant="light"
+                              onPress={() => setOpenChangeNickNameModal(true)}
+                              startContent={
+                                <PencilIcon className="w-4 h-4 text-gray-400" />
+                              }
+                            >
+                              Chỉnh sửa biệt danh
+                            </Button>
+                          </div>
+                        </AccordionItem>
+                      )
+                      : null,
+                    (roomState.room?.type === "group" ||
+                      roomState.room?.type === "channel")
+                      ? (
+                        <AccordionItem
+                          key="2"
+                          aria-label="Accordion 2"
+                          title="Thành viên trong đoạn chat"
+                        >
+                          {roomState.room?.members?.map((member) => (
+                            <div
+                              key={member.id}
+                              className="flex p-2 justify-between items-center gap-4 border border-gray-100 rounded-lg mb-2 hover:bg-gray-50"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <Avatar
+                                  size="md"
+                                  src={member.avatar ?? undefined}
+                                  name={member.name ?? undefined}
+                                />
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-gray-800">
+                                    {member.name}
+                                  </span>
+                                  <span className="text-sm">
+                                    {member.role ? role[member.role] : ""}
+                                  </span>
+                                </div>
+                              </div>
+                              {user?.id != member.id && (
+                                <Dropdown>
+                                  <DropdownTrigger>
                                     <Button
-                                      className="w-full justify-start text-red-500"
+                                      className=""
                                       variant="light"
                                       startContent={
-                                        <TrashIcon className="w-5 h-5 text-red-400" />
+                                        <EllipsisVerticalIcon className="w-5 h-5 text-gray-400" />
                                       }
-                                      onPress={() => {
-                                        setIsDeleteModalOpen(true);
-                                        setMemberIdToDelete(member.id);
-                                      }}
-                                    >
-                                      Xoá khỏi nhóm
-                                    </Button>
-                                  </DropdownItem>
-                                ) : null}
-                              </DropdownMenu>
-                            </Dropdown>
+                                    ></Button>
+                                  </DropdownTrigger>
+                                  <DropdownMenu aria-label="Member options">
+                                    <DropdownItem key="1">
+                                      <Button
+                                        className="w-full justify-start"
+                                        variant="light"
+                                        onPress={() => handleChatPrivate(member.id)}
+                                        startContent={
+                                          <ChatBubbleLeftIcon className="w-5 h-5 text-gray-400" />
+                                        }
+                                      >
+                                        Gửi tin nhắn riêng tư
+                                      </Button>
+                                    </DropdownItem>
+                                    <DropdownItem key="2">
+                                      <Button
+                                        className="w-full justify-start"
+                                        variant="light"
+                                        startContent={
+                                          <UserIcon className="w-5 h-5 text-gray-400" />
+                                        }
+                                      >
+                                        Xem trang cá nhân
+                                      </Button>
+                                    </DropdownItem>
+                                    {isAdmin ? (
+                                      <DropdownItem key="3">
+                                        <Button
+                                          className="w-full justify-start text-red-500"
+                                          variant="light"
+                                          startContent={
+                                            <TrashIcon className="w-5 h-5 text-red-400" />
+                                          }
+                                          onPress={() => {
+                                            setIsDeleteModalOpen(true);
+                                            setMemberIdToDelete(member.id);
+                                          }}
+                                        >
+                                          Xoá khỏi nhóm
+                                        </Button>
+                                      </DropdownItem>
+                                    ) : null}
+                                  </DropdownMenu>
+                                </Dropdown>
+                              )}
+                            </div>
+                          ))}
+                          {!noAction && (
+                            <Button
+                              className="w-full justify-start"
+                              variant="light"
+                              onPress={() => setOpenAddMemberModal(true)}
+                              startContent={
+                                <UserPlusIcon className="w-4 h-4 text-gray-400" />
+                              }
+                            >
+                              Thêm thành viên
+                            </Button>
                           )}
+                        </AccordionItem>
+                      )
+                      : null,
+                    (
+                      <AccordionItem
+                        key="3"
+                        aria-label="Accordion 3"
+                        title="file phương tiện file liên kết"
+                      >
+                        <div className="mb-6">
+                          <Tabs
+                            defaultSelectedKey="docs"
+                            color="primary"
+                            variant="solid"
+                            fullWidth
+                            classNames={{
+                              tabList:
+                                "gap-0 w-full relative rounded-lg bg-gray-100 p-1",
+                              cursor: "w-full bg-primary !rounded-md",
+                              tab: "w-full px-4 h-10 !bg-transparent data-[selected=true]:!bg-primary !rounded-md",
+                              tabContent:
+                                "group-data-[selected=true]:!text-white !font-medium !opacity-100",
+                            }}
+                          >
+                            <Tab key="media" title="Media" />
+                            <Tab key="link" title="Link" />
+                            <Tab key="docs" title="Docs" />
+                          </Tabs>
                         </div>
-                      ))}
-                      <Button
-                        className="w-full justify-start"
-                        variant="light"
-                        onPress={() => setOpenAddMemberModal(true)}
-                        startContent={
-                          <UserPlusIcon className="w-4 h-4 text-gray-400" />
-                        }
-                      >
-                        Thêm thành viên
-                      </Button>
-                    </AccordionItem>
-                  ) : null}
-                  <AccordionItem
-                    key="3"
-                    aria-label="Accordion 3"
-                    title="file phương tiện file liên kết"
-                  >
-                    <div className="mb-6">
-                      <Tabs
-                        defaultSelectedKey="docs"
-                        color="primary"
-                        variant="solid"
-                        fullWidth
-                        classNames={{
-                          tabList:
-                            "gap-0 w-full relative rounded-lg bg-gray-100 p-1",
-                          cursor: "w-full bg-primary !rounded-md",
-                          tab: "w-full px-4 h-10 !bg-transparent data-[selected=true]:!bg-primary !rounded-md",
-                          tabContent:
-                            "group-data-[selected=true]:!text-white !font-medium !opacity-100",
-                        }}
-                      >
-                        <Tab key="media" title="Media" />
-                        <Tab key="link" title="Link" />
-                        <Tab key="docs" title="Docs" />
-                      </Tabs>
-                    </div>
 
-                    <div className="space-y-4">
-                      {files.map((file) => (
-                        <Card
-                          key={file.id}
-                          className="shadow-none border border-gray-100"
-                        >
-                          <CardBody className="flex flex-row items-center justify-between p-4">
-                            <div className="flex items-center gap-4">
-                              <div
-                                className={`w-12 h-12 rounded-full flex items-center justify-center ${file.color}`}
-                              >
-                                <file.icon className="w-6 h-6" />
-                              </div>
-                              <div>
-                                <h3 className="font-semibold text-gray-800">
-                                  {file.name}
-                                </h3>
-                                <p className="text-sm text-gray-500">
-                                  {file.date}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                isIconOnly
-                                variant="light"
-                                size="sm"
-                                className="text-gray-400 hover:text-gray-600"
-                              >
-                                <ArrowDownTrayIcon className="w-5 h-5" />
-                              </Button>
-                            </div>
-                          </CardBody>
-                        </Card>
-                      ))}
-                    </div>
-                  </AccordionItem>
-                  <AccordionItem
-                    key="4"
-                    aria-label="Accordion 4"
-                    title="Quyền riêng tư và hỗ trợ"
-                  >
-                    <Button
-                      className="w-full justify-start"
-                      variant="light"
-                      startContent={
-                        <ShieldExclamationIcon className="w-5 h-5 text-red-400" />
-                      }
-                    >
-                      <div className="flex flex-col items-start justify-start">
-                        <h2 className="font-bold">Báo cáo</h2>
-                        <span className="text-gray-400">
-                          Đóng góp về cuộc trò truy
-                        </span>
-                      </div>
-                    </Button>
-                    {roomState.room?.type !== "private" && (
-                      <>
+                        <div className="space-y-4">
+                          {files.map((file) => (
+                            <Card
+                              key={file.id}
+                              className="shadow-none border border-gray-100"
+                            >
+                              <CardBody className="flex flex-row items-center justify-between p-4">
+                                <div className="flex items-center gap-4">
+                                  <div
+                                    className={`w-12 h-12 rounded-full flex items-center justify-center ${file.color}`}
+                                  >
+                                    <file.icon className="w-6 h-6" />
+                                  </div>
+                                  <div>
+                                    <h3 className="font-semibold text-gray-800">
+                                      {file.name}
+                                    </h3>
+                                    <p className="text-sm text-gray-500">
+                                      {file.date}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    isIconOnly
+                                    variant="light"
+                                    size="sm"
+                                    className="text-gray-400 hover:text-gray-600"
+                                  >
+                                    <ArrowDownTrayIcon className="w-5 h-5" />
+                                  </Button>
+                                </div>
+                              </CardBody>
+                            </Card>
+                          ))}
+                        </div>
+                      </AccordionItem>
+                    ),
+                    (
+                      <AccordionItem
+                        key="4"
+                        aria-label="Accordion 4"
+                        title="Quyền riêng tư và hỗ trợ"
+                      >
                         <Button
                           className="w-full justify-start"
                           variant="light"
                           startContent={
-                            <ArrowRightEndOnRectangleIcon className="w-5 h-5 text-gray-400" />
+                            <ShieldExclamationIcon className="w-5 h-5 text-red-400" />
                           }
-                          onPress={() => setOpenChangeLeavingModal(true)}
                         >
-                          Rời nhóm
+                          <div className="flex flex-col items-start justify-start">
+                            <h2 className="font-bold">Báo cáo</h2>
+                            <span className="text-gray-400">
+                              Đóng góp về cuộc trò truy
+                            </span>
+                          </div>
                         </Button>
-                        <ConfirmLeavingModal
-                          isOpen={openChangeLeavingModal}
-                          onClose={() => setOpenChangeLeavingModal(false)}
-                        />
-                      </>
-                    )}
+                        {roomState.room?.type !== "private" && (
+                          <>
+                            <Button
+                              className="w-full justify-start"
+                              variant="light"
+                              startContent={
+                                <ArrowRightEndOnRectangleIcon className="w-5 h-5 text-gray-400" />
+                              }
+                              onPress={() => setOpenChangeLeavingModal(true)}
+                            >
+                              Rời nhóm
+                            </Button>
+                            <ConfirmLeavingModal
+                              isOpen={openChangeLeavingModal}
+                              onClose={() => setOpenChangeLeavingModal(false)}
+                            />
+                          </>
+                        )}
 
-                    {roomState.room?.type === "private" && (
-                      <Button
-                        className="w-full justify-start"
-                        variant="light"
-                        startContent={
-                          <NoSymbolIcon className="w-5 h-5 text-gray-400" />
-                        }
-                      >
-                        Chặn
-                      </Button>
-                    )}
-                  </AccordionItem>
+                        {roomState.room?.type === "private" && (
+                          <Button
+                            className="w-full justify-start"
+                            variant="light"
+                            startContent={
+                              <NoSymbolIcon className="w-5 h-5 text-gray-400" />
+                            }
+                          >
+                            Chặn
+                          </Button>
+                        )}
+                      </AccordionItem>
+                    ),
+                  ].filter(Boolean)}
                 </Accordion>
 
                 {/* Floating action buttons

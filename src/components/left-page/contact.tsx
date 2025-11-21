@@ -23,50 +23,15 @@ import InvaitationSentModal from "../contact/modal/invitation-sent.modal";
 import ItemContact from "../contact/itemContac";
 import useContactStore from "@/store/useContactStore";
 
-interface StatusUpdate {
-  id: string;
-  name: string;
-  updatedAt: string;
-  avatar: string;
-}
-
 const Contacts: React.FC = () => {
   const [tab, setTab] = useState(0);
   const [showSearch, setShowSearch] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const contactState = useContactStore((state) => state);
-  const friendRequests: StatusUpdate[] = [
-    {
-      id: "1",
-      name: "Jony Lynetin",
-      updatedAt: "Today, 10:30am",
-      avatar: "https://avatar.iran.liara.run/public?text=J",
-    },
-    {
-      id: "2",
-      name: "Sufiya Elija",
-      updatedAt: "Today, 11:00am",
-      avatar: "https://avatar.iran.liara.run/public?text=S",
-    },
-  ];
 
-  const sentRequests: StatusUpdate[] = [
-    {
-      id: "3",
-      name: "Mukrani Pabelo",
-      updatedAt: "Today, 9:55am",
-      avatar: "https://avatar.iran.liara.run/public?text=M",
-    },
-    {
-      id: "4",
-      name: "Pabelo Mukrani",
-      updatedAt: "Today, 12:05am",
-      avatar: "https://avatar.iran.liara.run/public?text=P",
-    },
-  ];
   useEffect(() => {
     contactState.getAllContacts();
-    console.log("get contacts");
+    contactState.getFriends();
   }, []);
   useEffect(() => {
     if (searchValue == "") return; // tránh gọi khi rỗng
@@ -78,6 +43,12 @@ const Contacts: React.FC = () => {
   const { isOpen, onClose, onOpenChange } = useDisclosure();
   const handleClose = () => () => {
     router.push("/");
+  };
+  const onPressFriendRequestsInvite = () => {
+    contactState.friendRequessts({ type: "received" });
+  };
+  const onPressFriendRequestsent = () => {
+    contactState.friendRequessts({ type: "sent" });
   };
   const onPress = (id: string) => {
     router.push(`/contacts?profileId=${id}`);
@@ -161,32 +132,45 @@ const Contacts: React.FC = () => {
                 aria-label="Tabs for friend requests and sent requests"
                 fullWidth
               >
-                <Tab key="0" title="Danh sách bạn bè">
-                  {/* {friendRequests.map((update) => (
+                <Tab
+                  key="0"
+                  title="Danh sách bạn bè"
+                  onClick={() => contactState.getFriends()}
+                >
+                  {contactState.friends.map((update) => (
                     <ItemContact
                       key={update.id}
                       item={update}
                       onPress={() => onPress(update.id)}
+                      type="all"
                     />
-                  ))} */}
+                  ))}
                 </Tab>
 
-                <Tab key="1" title="Lời mời kết bạn">
+                <Tab
+                  key="1"
+                  title="Lời mời kết bạn"
+                  onClick={onPressFriendRequestsInvite}
+                >
                   <Button
                     className="text-blue-500"
                     variant="light"
                     fullWidth
-                    onPress={onOpenChange}
+                    onPress={() => {
+                      onOpenChange();
+                      onPressFriendRequestsent();
+                    }}
                   >
                     <h5>Xem lời mời đã gửi</h5>
                   </Button>
-                  {/* {sentRequests.map((item) => (
+                  {contactState.inviteds.map((item) => (
                     <ItemContact
                       item={item}
                       key={item.id}
                       onPress={() => onPress(item.id)}
+                      type="received"
                     />
-                  ))} */}
+                  ))}
                 </Tab>
               </Tabs>
             </div>
@@ -198,6 +182,7 @@ const Contacts: React.FC = () => {
                   item={item}
                   key={item.id}
                   onPress={() => onPress(item.id)}
+                  type="all"
                 />
               ))}
             </div>

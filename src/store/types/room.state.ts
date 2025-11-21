@@ -30,7 +30,6 @@ export interface RoomsState {
     roomId: string;
   }) => Promise<void>;
   markMessageAsRead: (roomId: string, messageId: string, socket: any) => void;
-
 }
 
 export type roomType = {
@@ -45,14 +44,27 @@ export type roomType = {
     id: string | null;
     content: string | null;
     createdAt: string | null;
-    sender_fullname: string | null;
-    sender_id: string | null;
+    sender: {
+      id: string;
+      name: string | null;
+      avatar: string | null;
+    };
+    isMine: boolean;
   };
   is_read: boolean;
   unread_count: number;
   pinned: boolean;
   muted: boolean;
   last_read_id: string | null;
+  pinned_messages: pinned_messagesType[];
+  pinned_count: number;
+  isBlocked: boolean;
+  blockByMine: boolean;
+};
+export type pinned_messagesType = {
+  id: string;
+  content: string;
+  type: string;
 };
 
 export type roomMembers = {

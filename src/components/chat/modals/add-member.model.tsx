@@ -1,3 +1,4 @@
+import useContactStore from "@/store/useContactStore";
 import {
   Button,
   Checkbox,
@@ -14,7 +15,7 @@ import {
   ModalHeader,
   User,
 } from "@heroui/react";
-import { useState } from "react";
+import { use, useState } from "react";
 
 interface Props {
   isOpen: boolean;
@@ -98,9 +99,9 @@ export const AddMemberModal = ({ isOpen, onClose }: Props) => {
         "https://avatar.iran.liara.run/public/username?username=huynhquocj",
     },
   ];
-
+  const contactState = useContactStore((state) => state);
   const handleChange = (newValues: string[]) => {
-    console.log("Selected values:", newValues.length);
+    // console.log("Selected values:", newValues.length);
     setMemberIds(newValues);
     console.log(memberIds);
     setCheckValid(newValues.length < 1);
@@ -112,7 +113,6 @@ export const AddMemberModal = ({ isOpen, onClose }: Props) => {
     if (checkValid) return;
     // Logic để tạo phòng chat mới
     console.log("Thành viên:", memberIds);
-    // roomState.createRoom(type, name, memberIds);
     setMemberIds([]);
     setCheckValid(false);
     onClose();
@@ -136,13 +136,13 @@ export const AddMemberModal = ({ isOpen, onClose }: Props) => {
                 onValueChange={handleChange}
                 // hoặc onChange tùy phiên bản: onChange={(v) => handleChange(v)}
               >
-                {defaultMembers.map((m) => (
+                {contactState.contacts.map((m) => (
                   <Checkbox className="flex w-full" key={m.id} value={m.id}>
                     <User
                       className="w-full"
-                      name={m.name}
+                      name={m.fullname}
                       avatarProps={{
-                        src: m.avatar,
+                        src: m.avatar || undefined,
                       }}
                     />
                   </Checkbox>

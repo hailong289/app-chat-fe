@@ -22,6 +22,9 @@ import {
 import { useRouter } from "next/navigation";
 import useRoomStore from "@/store/useRoomStore";
 import useAuthStore from "@/store/useAuthStore";
+import useCounterStore from "@/store/useCounterStore";
+import { PlusIcon } from "@heroicons/react/16/solid";
+import useContactStore from "@/store/useContactStore";
 
 interface ContactProfileProps {
   contact: ContactType;
@@ -30,6 +33,8 @@ interface ContactProfileProps {
 export default function ContactProfile({
   contact,
 }: Readonly<ContactProfileProps>) {
+  const contactState = useContactStore((state) => state);
+  const countSate = useCounterStore((state) => state);
   const router = useRouter();
   const authState = useAuthStore((state) => state);
   console.log("🚀 ~ ContactProfile ~ authState:", authState?.user?.id);
@@ -37,35 +42,7 @@ export default function ContactProfile({
   const handleChatPrivate = (id: string) => {
     roomState.createRoom("private", `Chat với ${id}`, [id]);
     router.push(`/chat?chatId=${id}`);
-  };
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "online":
-        return "success";
-      case "offline":
-        return "default";
-      case "busy":
-        return "danger";
-      case "away":
-        return "warning";
-      default:
-        return "default";
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "online":
-        return "Đang hoạt động";
-      case "offline":
-        return "Không hoạt động";
-      case "busy":
-        return "Bận";
-      case "away":
-        return "Vắng mặt";
-      default:
-        return "Không xác định";
-    }
+    countSate.setTab("home");
   };
 
   const formatDate = (dateString: string) => {
@@ -91,7 +68,13 @@ export default function ContactProfile({
         return "Chưa cập nhật";
     }
   };
-
+  const ButtonHandleAddFriend = () => {
+    console.log("🚀 ~ ButtonHandleAddFriend ~ contact:", contact);
+    contactState.sendInvitation({
+      userId: authState?.user?._id || "",
+      receiverId: contact.id,
+    });
+  };
   return (
     <div className="h-full bg-gray-50 overflow-y-auto">
       {/* Header */}
@@ -117,22 +100,58 @@ export default function ContactProfile({
             name={contact.fullname}
             className="w-32 h-32 text-large mb-4"
             isBordered
-            // color={getStatusColor(contact.status)}
+            color={contact.isOnline ? "success" : "default"}
           />
           <h1 className="text-2xl font-bold text-gray-800 mb-2">
             {contact.fullname}
           </h1>
-          <Chip
-            //    color={getStatusColor(contact.status)}
-            variant="flat"
-            size="sm"
-          >
-            {/* {getStatusText(contact.status)} */}
-          </Chip>
 
           {/* Action Buttons */}
           {authState?.user?.id && authState?.user?.id !== contact.id && (
             <div className="flex gap-3 mt-6">
+              {contact.friendship === "INVALID" && (
+                <Button
+                  color="default"
+                  variant="bordered"
+                  startContent={<PlusIcon className="w-5 h-5" />}
+                  onPress={ButtonHandleAddFriend}
+                >
+                  Thêm Bạn bè
+                </Button>
+              )}
+              {contact.friendship === "PENDING" && (
+                <>
+                  {contact.actionUserId === authState.user.id ? (
+                    <Button
+                      color="default"
+                      variant="bordered"
+                      startContent={<PlusIcon className="w-5 h-5" />}
+                      onPress={() => handleChatPrivate(contact.id)}
+                    >
+                      Đã gửi lời mời
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        color="default"
+                        variant="bordered"
+                        startContent={<PlusIcon className="w-5 h-5" />}
+                        onPress={() => handleChatPrivate(contact.id)}
+                      >
+                        Chấp nhận lời mời
+                      </Button>
+                      <Button
+                        color="default"
+                        variant="bordered"
+                        startContent={<PlusIcon className="w-5 h-5" />}
+                        onPress={() => handleChatPrivate(contact.id)}
+                      >
+                        Từ chối lời mời
+                      </Button>
+                    </>
+                  )}
+                </>
+              )}
               <Button
                 color="primary"
                 startContent={<ChatBubbleLeftIcon className="w-5 h-5" />}
@@ -140,19 +159,23 @@ export default function ContactProfile({
               >
                 Nhắn tin
               </Button>
-              <Button
-                color="default"
-                variant="bordered"
-                startContent={<VideoCameraIcon className="w-5 h-5" />}
-              >
-                Gọi video
-              </Button>
-              <Button
-                color="default"
-                variant="bordered"
-                isIconOnly
-                startContent={<PhoneIcon className="w-5 h-5" />}
-              />
+              {contact.friendship === "ACCEPTED" && (
+                <div>
+                  <Button
+                    color="default"
+                    variant="bordered"
+                    startContent={<VideoCameraIcon className="w-5 h-5" />}
+                  >
+                    Gọi video
+                  </Button>
+                  <Button
+                    color="default"
+                    variant="bordered"
+                    isIconOnly
+                    startContent={<PhoneIcon className="w-5 h-5" />}
+                  />
+                </div>
+              )}
             </div>
           )}
         </CardBody>
@@ -167,17 +190,32 @@ export default function ContactProfile({
         </CardHeader>
         <CardBody className="px-4 pb-4">
           {/* Phone */}
-          <div className="flex items-center gap-3 py-3">
-            <div className="bg-blue-100 p-2 rounded-full">
-              <PhoneIcon className="w-5 h-5 text-blue-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs text-gray-500">Số điện thoại</p>
-              <p className="text-sm font-medium text-gray-800">
-                {contact.phone || "Chưa cập nhật"}
-              </p>
-            </div>
-          </div>
+          {contact.friendship === "ACCEPTED" && (
+            <>
+              <div className="flex items-center gap-3 py-3">
+                <div className="bg-blue-100 p-2 rounded-full">
+                  <PhoneIcon className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500">Số điện thoại</p>
+                  <p className="text-sm font-medium text-gray-800">
+                    {contact.phone || "Chưa cập nhật"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 py-3">
+                <div className="bg-blue-100 p-2 rounded-full">
+                  <PhoneIcon className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-gray-500">Số điện thoại</p>
+                  <p className="text-sm font-medium text-gray-800">
+                    {contact.phone || "Chưa cập nhật"}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
 
           <Divider />
 
