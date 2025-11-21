@@ -30,44 +30,8 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     // API của bạn có thể trả về: { data: {...}, success: true } hoặc trực tiếp data
     const rooms = response.data.metadata || [];
 
-    console.log("✅ Fetched rooms:", rooms.length, "rooms");
-
-    // Normalize rooms data structure (không cần clean string nữa vì đã tắt encryption)
-    const sanitizedRooms = rooms
-      .map((room: roomType) => {
-        try {
-          return {
-            ...room,
-            // Đảm bảo last_message có structure đúng, giữ nguyên emoji
-            last_message: room.last_message
-              ? {
-                  id: room.last_message.id || null,
-                  content: room.last_message.content || null, // Giữ nguyên emoji và ký tự đặc biệt
-                  createdAt: room.last_message.createdAt || null,
-                  sender_fullname: room.last_message.sender_fullname || null,
-                  sender_id: room.last_message.sender_id || null,
-                }
-              : {
-                  id: null,
-                  content: null,
-                  createdAt: null,
-                  sender_fullname: null,
-                  sender_id: null,
-                },
-          };
-        } catch (e) {
-          console.error("Error sanitizing room:", room.id, e);
-          return null;
-        }
-      })
-      .filter(Boolean); // Loại bỏ rooms lỗi
-
-    console.log(
-      `✅ Prepared ${sanitizedRooms.length}/${rooms.length} rooms for IndexedDB`
-    );
-
     try {
-      await upsertMany(db.rooms, sanitizedRooms);
+      await upsertMany(db.rooms, rooms);
       console.log("✅ Saved rooms to IndexedDB with emoji support");
     } catch (error) {
       console.error("❌ Error saving rooms to IndexedDB:", error);
@@ -80,6 +44,7 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     set({
       isLoading: false,
       error: null,
+      rooms,
     });
 
     return rooms;
@@ -281,10 +246,14 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     set({ isLoading: false });
   },
   // handel socket
-  updateRoomSocket: async (data: roomType) => {
+  updateRoomSocket: (data: roomType) => {
     console.log("🚀 updateRoomSocket ~ data:", data);
+    // Nếu id của data bằng id của room hiện tại thì cập nhật luôn room
+    if (get().room?.id === data.id) {
+      set({ room: data });
+    }
     const currentType = get().type;
-        if (currentType === "all" || currentType === data.type) {
+    if (currentType === "all" || currentType === data.type) {
       set((state) => {
         const exists = state.rooms.some((r) => r.id === data.id);
         let rooms;

@@ -88,7 +88,14 @@ const maxFiles = 20;
 export default function ChatInputBar({
   chatId,
   noAction,
-}: Readonly<{ chatId: string; noAction: boolean }>) {
+  isBlocked = false,
+  blockByMine = false,
+}: Readonly<{
+  chatId: string;
+  noAction: boolean;
+  isBlocked?: boolean;
+  blockByMine?: boolean;
+}>) {
   const [message, setMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachments, setAttachments] = useState<FilePreview[]>([]);
@@ -442,7 +449,7 @@ export default function ChatInputBar({
     }
   };
   const onDragLeave = handleDragLeaveFactory(setIsDragging);
-  if (noAction) {
+  if (noAction || isBlocked) {
     return (
       <section
         aria-label="Chat input area"
@@ -452,16 +459,23 @@ export default function ChatInputBar({
             "linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.2) 100%)",
         }}
       >
-        <p className="text-gray-500">
-          Bạn không có quyền gửi tin nhắn trong cuộc trò chuyện này.
-        </p>
+        {!blockByMine && (
+          <p className="text-gray-500">
+            Bạn không có quyền gửi tin nhắn trong cuộc trò chuyện này.
+          </p>
+        )}
+        {blockByMine && (
+          <p className="text-gray-500">
+            Bạn đã chặn người này vui lòng bỏ chặn để gửi tin nhắn.
+          </p>
+        )}
       </section>
     );
   }
   return (
     <section
       aria-label="Chat input area"
-      className="absolute bottom-0 left-0 w-full px-4 py-4 mt-5 backdrop-blur-2xl bg-white/30 border-t border-white/30 shadow-[0_-8px_32px_-8px_rgba(0,0,0,0.1)]"
+      className="absolute bottom-0 left-0 w-full px-4 py-4 mt-5 backdrop-blur-2xl bg-white/30 border-t border-white/30 "
       style={{
         background:
           "linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.2) 100%)",

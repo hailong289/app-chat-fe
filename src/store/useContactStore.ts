@@ -5,8 +5,6 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import ContactService from "@/service/contact.service";
 import { getOne, upsertMany, upsertOne } from "@/libs/crud";
 import { db } from "@/libs/db";
-import { ppid } from "process";
-import { on } from "events";
 
 const useContactStore = create<ContactState>()(
   persist(
@@ -203,6 +201,9 @@ const useContactStore = create<ContactState>()(
           online: get().contacts.filter((c) => c.isOnline),
         });
       },
+      // checkOnlineStatus: async (ids: string[]) => {
+
+      // }
     }),
     {
       name: "contact-storage", // unique name

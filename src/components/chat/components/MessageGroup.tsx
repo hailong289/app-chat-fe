@@ -48,7 +48,7 @@ export function MessageGroup({
   onJumpToMessage,
   setMessageRef,
   messageState,
-}: MessageGroupProps) {
+}: Readonly<MessageGroupProps>) {
   return (
     <div
       key={`message-group-${group.dateLabel}-${groupIdx}`}

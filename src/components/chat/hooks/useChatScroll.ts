@@ -1,5 +1,6 @@
 import { useCallback, useRef } from "react";
 import { MESSAGES_PER_GROUP } from "../constants/messageConstants";
+import { MessageType } from "@/store/types/message.state";
 
 interface UseChatScrollProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -8,7 +9,9 @@ interface UseChatScrollProps {
   messages: any[];
   chatId: string;
   messageState: any;
-  setDisplayedMessagesCount: (count: number | ((prev: number) => number)) => void;
+  setDisplayedMessagesCount: (
+    count: number | ((prev: number) => number)
+  ) => void;
   setIsLoadingOlder: (loading: boolean) => void;
   setHasMoreOnServer: (hasMore: boolean) => void;
 }
@@ -83,7 +86,9 @@ export function useChatScroll({
 
             const currentMessages =
               messageState.messagesRoom[chatId]?.messages || [];
-            messageIndex = currentMessages.findIndex((msg) => msg.id === id);
+            messageIndex = currentMessages.findIndex(
+              (msg: MessageType) => msg.id === id
+            );
 
             if (messageIndex !== -1) {
               break;
@@ -179,4 +184,3 @@ export function useChatScroll({
     scrollToMessage,
   };
 }
-

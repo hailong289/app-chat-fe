@@ -8,6 +8,12 @@ import {
   Chip,
   Input,
   useDisclosure,
+  Badge,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
 } from "@heroui/react";
 import {
   PencilIcon,
@@ -20,6 +26,7 @@ import {
 import ChatDrawer from "./drawer/chat-drawer";
 import { CallModal } from "./modals/call.modal";
 import useRoomStore from "@/store/useRoomStore";
+import { EyeDropperIcon } from "@heroicons/react/16/solid";
 
 interface ChatHeaderProps {
   // chatName?: string;
@@ -27,17 +34,21 @@ interface ChatHeaderProps {
   // avatarUrl?: string;
   callback?: () => void;
   noAction?: boolean;
+  setScrollto?: (msgId: string | null) => void;
 }
 
 const ChatHeader: React.FC<ChatHeaderProps> = ({
-  // chatName = "Family Ties",
-  // avatarUrl = "https://avatar.iran.liara.run/public",
   noAction = false,
   isOnline = true,
   callback = () => {},
+  setScrollto = () => {},
 }) => {
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
-  const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
+  const {
+    isOpen: isOpenPinned,
+    onOpen: onOpenPinned,
+    onOpenChange: onOpenChangePinned,
+  } = useDisclosure();
   const [showSearch, setShowSearch] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState("");
   const [formModalCall, setFormModalCall] = React.useState({
@@ -47,19 +58,6 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     caller: { id: "", name: "", avatar: "" },
   });
   const roomState = useRoomStore((state) => state);
-  // const handleOpenDrawer = () => {
-  //   setIsDrawerOpen(true);
-  //   if (callback) {
-  //     callback();
-  //   }
-  // };
-
-  // const handleCloseDrawer = () => {
-  //   setIsDrawerOpen(false);
-  //   if (callback) {
-  //     callback();
-  //   }
-  // };
 
   const handleShowModalCall = (
     isVideo: boolean,
@@ -158,6 +156,28 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <PencilIcon className="w-5 h-5" />
               </Button>
             </NavbarItem> */}
+            {useRoomStore.getState().room?.pinned_messages &&
+              (useRoomStore.getState().room?.pinned_messages?.length ?? 0) > 0 && (
+                <NavbarItem>
+                  <Badge
+                    color="danger"
+                    content={useRoomStore.getState().room?.pinned_messages?.length || 0}
+                    size="sm"
+                    placement="top-left"
+                  >
+                    <Button
+                      isIconOnly
+                      variant="light"
+                      className="rounded-full hover:bg-cyan-100 text-white"
+                      size="sm"
+                      onPress={onOpenPinned}
+                    >
+                      <EyeDropperIcon className="w-5 h-5" />
+                    </Button>
+                  </Badge>
+                </NavbarItem>
+              )}
+
             <NavbarItem>
               <Button
                 isIconOnly
@@ -169,6 +189,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <MagnifyingGlassIcon className="w-5 h-5" />
               </Button>
             </NavbarItem>
+
             <NavbarItem>
               <Button
                 isIconOnly
@@ -207,6 +228,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <PhoneIcon className="w-5 h-5" />
               </Button>
             </NavbarItem>
+
             <NavbarItem>
               <Button
                 isIconOnly
@@ -221,6 +243,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           </NavbarContent>
         )}
       </Navbar>
+
       <ChatDrawer isOpen={isOpen} onClose={onOpenChange} noAction={noAction} />
       <CallModal
         isOpen={formModalCall.isOpen}
@@ -231,6 +254,54 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
         onDecline={() => {}}
         caller={formModalCall.caller}
       />
+
+      <Modal
+        isOpen={isOpenPinned}
+        placement="top"
+        scrollBehavior="inside"
+        onOpenChange={onOpenChangePinned}
+      >
+        <ModalContent>
+          {(onClosePPinned) => (
+            <>
+              <ModalHeader className="flex flex-col items-center gap-1">
+                Danh sách gim tin nhắn
+              </ModalHeader>
+              <ModalBody>
+                {useRoomStore.getState().room?.pinned_messages &&
+                (useRoomStore.getState().room?.pinned_messages?.length ?? 0) > 0 ? (
+                  <div className="flex flex-col gap-4">
+                    {useRoomStore.getState().room?.pinned_messages?.map?.((msg) => (
+                      <Button
+                        key={msg.id}
+                        variant="bordered"
+                        className="justify-start"
+                        onPress={() => {
+                          onClosePPinned();
+                          setScrollto(msg.id);
+                        }}
+                      >
+                        <p className="text-sm text-gray-700 line-clamp-2">
+                          {msg.type === "text" && msg.content}
+                          {msg.type === "image" && "📷 Ảnh"}
+                          {msg.type === "video" && "🎥 Video"}
+                          {msg.type === "file" && "📎 File"}
+                          {msg.type === "gif" && "🎬 GIF"}
+                        </p>
+                      </Button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-gray-500">
+                    Chưa có tin nhắn nào được gim.
+                  </p>
+                )}
+              </ModalBody>
+              <ModalFooter></ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 };

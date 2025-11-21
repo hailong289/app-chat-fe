@@ -31,6 +31,7 @@ function ChatPageContent() {
   const searchParams = useSearchParams();
   const [chatId, setChatId] = useState<string>("");
   const [noAction, setNoAction] = useState<boolean>(false);
+  const [scrollto, setScrollto] = useState<string | null>(null);
   useEffect(() => {
     if (!roomState.room?.id) {
       setChatId(searchParams.get("chatId") || "");
@@ -45,10 +46,14 @@ function ChatPageContent() {
   }, [roomState.room]);
   return (
     <div className={`bg-light h-screen ${widthClass}`}>
-      <ChatHeader callback={callbackSetSize} noAction={noAction} />
+      <ChatHeader
+        callback={callbackSetSize}
+        noAction={noAction}
+        setScrollto={setScrollto}
+      />
       <main className="w-full h-[calc(100vh-80px)] relative overflow-hidden">
         {/* Chat messages would go here */}
-        <ChatMessages chatId={chatId} noAction={noAction} />
+        <ChatMessages chatId={chatId} noAction={noAction} scrollto={scrollto} />
         {/* Message input area */}
 
         <ChatInputBar chatId={chatId} noAction={noAction} />

@@ -58,6 +58,8 @@ export type roomType = {
   last_read_id: string | null;
   pinned_messages: pinned_messagesType[];
   pinned_count: number;
+  isBlocked: boolean;
+  blockByMine: boolean;
 };
 export type pinned_messagesType = {
   id: string;

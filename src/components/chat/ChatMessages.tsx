@@ -2,7 +2,7 @@
 import { useReadProgress } from "@/libs/useReadProgress";
 import useMessageStore from "@/store/useMessageStore";
 import { ScrollShadow, Skeleton } from "@heroui/react";
-import { useEffect, useRef, useMemo, useCallback, memo } from "react";
+import { useEffect, useRef, useMemo, useCallback, memo, use } from "react";
 import useRoomStore from "@/store/useRoomStore";
 import { useSocket } from "../providers/SocketProvider";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,22 +20,30 @@ import { ScrollToBottomButton } from "./components/ScrollToBottomButton";
 import { MessageGroup } from "./components/MessageGroup";
 
 export const ChatMessages = memo(
-  ({ chatId, noAction }: { chatId: string; noAction: boolean }) => {
-  // Performance monitoring
-  const startTime = useRef(performance.now());
+  ({
+    chatId,
+    noAction,
+    scrollto,
+  }: {
+    chatId: string;
+    noAction: boolean;
+    scrollto?: string | null;
+  }) => {
+    // Performance monitoring
+    const startTime = useRef(performance.now());
 
-  useEffect(() => {
-    const renderTime = performance.now() - startTime.current;
-    if (renderTime > 100) {
-      // Log slow renders
-      // console.warn(`🐌 Slow ChatMessages render: ${renderTime.toFixed(2)}ms`);
-    }
-  });
+    useEffect(() => {
+      const renderTime = performance.now() - startTime.current;
+      if (renderTime > 100) {
+        // Log slow renders
+        // console.warn(`🐌 Slow ChatMessages render: ${renderTime.toFixed(2)}ms`);
+      }
+    });
 
-  const { socket } = useSocket();
-  const roomState = useRoomStore((state) => state);
-  const messageState = useMessageStore((state) => state);
-  const messages = messageState.messagesRoom[chatId]?.messages || [];
+    const { socket } = useSocket();
+    const roomState = useRoomStore((state) => state);
+    const messageState = useMessageStore((state) => state);
+    const messages = messageState.messagesRoom[chatId]?.messages || [];
 
     // Compute the most up-to-date message id to use for grouping/scrolling
     const lastMsgId =
@@ -60,6 +68,11 @@ export const ChatMessages = memo(
       setHasMoreOnServer: state.setHasMoreOnServer,
     });
 
+    useEffect(() => {
+      if (scrollto) {
+        scrollToMessage(scrollto);
+      }
+    }, [scrollto]);
     // Emit with ack helper
     const emitWithAckHelper = useCallback(
       (event: string, payload: any, timeout = 5000) => {
@@ -93,20 +106,18 @@ export const ChatMessages = memo(
     );
 
     // Load more handler
-    const hasMoreLocalMessages =
-      state.displayedMessagesCount < messages.length;
-    const hasLoadedAllLocal =
-      messages.length > 0 && !hasMoreLocalMessages;
+    const hasMoreLocalMessages = state.displayedMessagesCount < messages.length;
+    const hasLoadedAllLocal = messages.length > 0 && !hasMoreLocalMessages;
 
     const handleLoadMore = useCallback(
       (force = false) => {
         if (state.isLoadingOlder || state.isSwitchingChat) return;
 
         const container = state.containerRef.current;
-      if (!container) return;
+        if (!container) return;
 
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      const isAtTop = scrollTop <= 50;
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const isAtTop = scrollTop <= 50;
         const hasScroll = scrollHeight > clientHeight + 10;
 
         if (!isAtTop && !force) return;
@@ -120,15 +131,15 @@ export const ChatMessages = memo(
           try {
             if (hasMoreLocalMessages) {
               state.setIsLoadingOlder(true);
-            const scrollHeightBefore = container.scrollHeight;
+              const scrollHeightBefore = container.scrollHeight;
 
-            setTimeout(() => {
+              setTimeout(() => {
                 state.setDisplayedMessagesCount((prev) =>
-                Math.min(prev + MESSAGES_PER_GROUP, messages.length)
-              );
+                  Math.min(prev + MESSAGES_PER_GROUP, messages.length)
+                );
                 state.setIsLoadingOlder(false);
 
-              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
                   const scrollHeightAfter = container.scrollHeight;
                   const scrollDiff = scrollHeightAfter - scrollHeightBefore;
                   container.scrollTop += scrollDiff;
@@ -138,13 +149,19 @@ export const ChatMessages = memo(
               return;
             }
 
-            if (hasLoadedAllLocal && !state.isLoadingFromAPI && state.hasMoreOnServer) {
+            if (
+              hasLoadedAllLocal &&
+              !state.isLoadingFromAPI &&
+              state.hasMoreOnServer
+            ) {
               state.setIsLoadingOlder(true);
               state.setIsLoadingFromAPI(true);
               state.hasTriedLoadingFromServer.current = true;
 
               try {
-                const result: any = await messageState.loadOlderMessages(chatId);
+                const result: any = await messageState.loadOlderMessages(
+                  chatId
+                );
                 state.setIsLoadingOlder(false);
                 state.setIsLoadingFromAPI(false);
 
@@ -174,12 +191,12 @@ export const ChatMessages = memo(
         state.setDisplayedMessagesCount,
         state.setIsLoadingFromAPI,
         state.setHasMoreOnServer,
-    hasMoreLocalMessages,
-    hasLoadedAllLocal,
+        hasMoreLocalMessages,
+        hasLoadedAllLocal,
         state.isLoadingFromAPI,
         state.hasMoreOnServer,
         messages.length,
-    chatId,
+        chatId,
         messageState,
       ]
     );
@@ -187,7 +204,7 @@ export const ChatMessages = memo(
     // Effects hook
     const { visibleGroups } = useChatMessagesEffects({
       chatId,
-    messages,
+      messages,
       lastMsgId,
       displayedMessagesCount: state.displayedMessagesCount,
       isSwitchingChat: state.isSwitchingChat,
@@ -225,29 +242,27 @@ export const ChatMessages = memo(
     });
 
     // Read progress hook
-  const { setMessageRef } = useReadProgress({
+    const { setMessageRef } = useReadProgress({
       messages,
       container: state.containerRef.current,
       stickyBottomPx: 0,
       minVisibleRatio: 0.5,
-    onCommit: (id: string) => {
-      roomState.markMessageAsRead(chatId, id, socket);
+      onCommit: (id: string) => {
+        roomState.markMessageAsRead(chatId, id, socket);
       },
-  });
+    });
 
-  return (
-    <>
-      {/* Loading overlay với Skeleton khi chuyển chat */}
-      <AnimatePresence>
-          {state.isSwitchingChat && (
-            <ChatLoadingSkeleton chatId={chatId} />
-        )}
-      </AnimatePresence>
+    return (
+      <>
+        {/* Loading overlay với Skeleton khi chuyển chat */}
+        <AnimatePresence>
+          {state.isSwitchingChat && <ChatLoadingSkeleton chatId={chatId} />}
+        </AnimatePresence>
 
         {!state.isSwitchingChat && (
-        <ScrollShadow
+          <ScrollShadow
             ref={state.containerRef}
-          className={`p-4 overflow-y-auto w-full max-h-[calc(100vh-180px)] transition-all duration-200 ${
+            className={`p-4 overflow-y-auto w-full max-h-[calc(100vh-180px)] transition-all duration-200 ${
               state.isFetchingNewMessages ? "bg-blue-50/20" : ""
             }`}
           >
@@ -260,88 +275,88 @@ export const ChatMessages = memo(
                 isFetchingNewMessages={state.isFetchingNewMessages}
                 messageStateLoading={messageState.isLoading}
               />
-          </div>
+            </div>
 
-          {/* Info hiển thị trạng thái */}
-          {hasMoreLocalMessages && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-center py-2 mb-2"
-            >
-              <div className="text-xs text-gray-400">
-                  📜 Còn {messages.length - state.displayedMessagesCount} tin nhắn cũ
-                  hơn • Cuộn lên để tải{" "}
+            {/* Info hiển thị trạng thái */}
+            {hasMoreLocalMessages && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center py-2 mb-2"
+              >
+                <div className="text-xs text-gray-400">
+                  📜 Còn {messages.length - state.displayedMessagesCount} tin
+                  nhắn cũ hơn • Cuộn lên để tải{" "}
                   <button
                     className="text-blue-500 cursor-pointer"
                     onClick={() => handleLoadMore()}
                   >
                     thêm...
                   </button>
-              </div>
-            </motion.div>
-          )}
+                </div>
+              </motion.div>
+            )}
 
             {/* Messages container */}
-          <motion.div
-            animate={{
+            <motion.div
+              animate={{
                 opacity: state.isSwitchingChat ? 0 : 1,
                 y: state.isSwitchingChat ? 10 : 0,
-            }}
-            transition={{ duration: 0.2 }}
-          >
+              }}
+              transition={{ duration: 0.2 }}
+            >
               {/* Empty state */}
-            {visibleGroups.length === 0 &&
+              {visibleGroups.length === 0 &&
                 !state.isFetchingNewMessages &&
-              !messageState.isLoading &&
+                !messageState.isLoading &&
                 !state.isSwitchingChat && <ChatEmptyState />}
 
               {/* Loading skeleton */}
-            {visibleGroups.length === 0 &&
+              {visibleGroups.length === 0 &&
                 (state.isFetchingNewMessages || messageState.isLoading) &&
                 !state.isSwitchingChat && (
-                <div className="space-y-6 mt-6">
-                  <div className="flex items-center justify-center">
-                    <Skeleton className="h-6 w-24 rounded-full" />
-                  </div>
-                  {Array.from({ length: 3 }, (_, idx) => (
-                    <div
-                      key={`loading-skeleton-${chatId}-${idx}`}
-                      className={`flex gap-3 ${
-                        idx % 2 === 0 ? "justify-start" : "justify-end"
-                      }`}
-                    >
-                      {idx % 2 === 0 && (
-                        <Skeleton className="w-8 h-8 rounded-full flex-shrink-0" />
-                      )}
-                      <div className="flex flex-col max-w-xs">
-                        {idx % 2 === 0 && (
-                          <Skeleton className="h-3 w-16 rounded mb-1" />
-                        )}
-                        <Skeleton
-                          className={`h-10 rounded-2xl ${
-                            idx % 2 === 0 ? "rounded-tl-md" : "rounded-tr-md"
-                          }`}
-                          style={{ width: `${60 + Math.random() * 40}%` }}
-                        />
-                        <Skeleton className="h-3 w-12 rounded mt-1" />
-                      </div>
-                      {idx % 2 === 1 && (
-                        <Skeleton className="w-8 h-8 rounded-full flex-shrink-0" />
-                      )}
+                  <div className="space-y-6 mt-6">
+                    <div className="flex items-center justify-center">
+                      <Skeleton className="h-6 w-24 rounded-full" />
                     </div>
-                  ))}
-                  <div className="text-center mt-6">
-                    <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent mx-auto mb-3"></div>
-                    <Skeleton className="h-4 w-32 rounded mx-auto" />
+                    {Array.from({ length: 3 }, (_, idx) => (
+                      <div
+                        key={`loading-skeleton-${chatId}-${idx}`}
+                        className={`flex gap-3 ${
+                          idx % 2 === 0 ? "justify-start" : "justify-end"
+                        }`}
+                      >
+                        {idx % 2 === 0 && (
+                          <Skeleton className="w-8 h-8 rounded-full flex-shrink-0" />
+                        )}
+                        <div className="flex flex-col max-w-xs">
+                          {idx % 2 === 0 && (
+                            <Skeleton className="h-3 w-16 rounded mb-1" />
+                          )}
+                          <Skeleton
+                            className={`h-10 rounded-2xl ${
+                              idx % 2 === 0 ? "rounded-tl-md" : "rounded-tr-md"
+                            }`}
+                            style={{ width: `${60 + Math.random() * 40}%` }}
+                          />
+                          <Skeleton className="h-3 w-12 rounded mt-1" />
+                        </div>
+                        {idx % 2 === 1 && (
+                          <Skeleton className="w-8 h-8 rounded-full flex-shrink-0" />
+                        )}
+                      </div>
+                    ))}
+                    <div className="text-center mt-6">
+                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent mx-auto mb-3"></div>
+                      <Skeleton className="h-4 w-32 rounded mx-auto" />
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Message groups */}
-            {visibleGroups.map((group, groupIdx) => (
+              {visibleGroups.map((group, groupIdx) => (
                 <MessageGroup
-                key={`message-group-${group.dateLabel}-${groupIdx}`}
+                  key={`message-group-${group.dateLabel}-${groupIdx}`}
                   group={group}
                   groupIdx={groupIdx}
                   shouldAnimate={state.shouldAnimate}
@@ -363,7 +378,7 @@ export const ChatMessages = memo(
                   messageState={messageState}
                 />
               ))}
-                            </motion.div>
+            </motion.div>
 
             {/* Bottom marker */}
             <div ref={state.bottomRef} className="h-1 w-full" />

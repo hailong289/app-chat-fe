@@ -14,7 +14,7 @@ export function ScrollToBottomButton({
   unreadCount = 0,
   isRead = true,
   onScrollToBottom,
-}: ScrollToBottomButtonProps) {
+}: Readonly<ScrollToBottomButtonProps>) {
   return (
     <AnimatePresence>
       {isVisible && (

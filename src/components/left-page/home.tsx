@@ -108,7 +108,7 @@ export const Home = () => {
     const timeoutId = setTimeout(() => {
       roomState.getRooms(queryRoom);
     }, 300); // Debounce 300ms
-
+console.log('change query room');
     return () => clearTimeout(timeoutId);
   }, [queryRoom]);
 

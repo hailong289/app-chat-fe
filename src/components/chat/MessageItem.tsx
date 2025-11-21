@@ -62,7 +62,7 @@ export function MessageItem({
   onJumpToMessage,
   setMessageRef,
   messageState,
-}: MessageItemProps) {
+}: Readonly<MessageItemProps>) {
   const isSameSenderAsPrev = prevMsg?.sender._id === msg.sender._id;
   const isSameSenderAsNext = nextMsg?.sender._id === msg.sender._id;
   const shouldAnimateThis = shouldAnimate && isNewMessage;

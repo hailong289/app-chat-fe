@@ -87,7 +87,12 @@ export function MessageActions({
               <>
                 {/* Nếu trong 30 phút → cho thu hồi (recall) */}
                 {canRecallMessage(msg) ? (
-                  <DropdownItem key="recall" onPress={() => onRecall(msg)}>
+                  <DropdownItem
+                    className="text-danger"
+                    color="danger"
+                    key="recall"
+                    onPress={() => onRecall(msg)}
+                  >
                     Thu hồi
                   </DropdownItem>
                 ) : null}
@@ -99,7 +104,7 @@ export function MessageActions({
               color="danger"
               onPress={() => onDelete(msg)}
             >
-              Xoá
+              Xoá chỉ ở phía tôi
             </DropdownItem>
           </DropdownMenu>
         </Dropdown>
