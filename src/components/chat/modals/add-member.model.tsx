@@ -101,9 +101,7 @@ export const AddMemberModal = ({ isOpen, onClose }: Props) => {
   ];
   const contactState = useContactStore((state) => state);
   const handleChange = (newValues: string[]) => {
-    // console.log("Selected values:", newValues.length);
     setMemberIds(newValues);
-    console.log(memberIds);
     setCheckValid(newValues.length < 1);
 
     // ở đây bạn có thể cập nhật state khác, gọi API, etc

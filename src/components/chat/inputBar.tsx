@@ -344,7 +344,6 @@ export default function ChatInputBar({
         userFullname: authState.user?.fullname,
         userAvatar: authState.user?.avatar,
       });
-      console.log("✅ GIF added as attachment:", fileName);
     } catch (error) {
       console.error("❌ Error downloading GIF:", error);
       // Fallback: insert URL vào message (vẫn giữ picker mở)

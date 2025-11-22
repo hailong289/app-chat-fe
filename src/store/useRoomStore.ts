@@ -32,7 +32,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
 
     try {
       await upsertMany(db.rooms, rooms);
-      console.log("✅ Saved rooms to IndexedDB with emoji support");
     } catch (error) {
       console.error("❌ Error saving rooms to IndexedDB:", error);
       // Continue anyway, data is already in state
@@ -64,7 +63,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
   getRoomsByType: async (type: string) => {
     let rooms;
     if (type == "all") {
-      console.log("🚀 ~ type:", type);
       rooms = await db.rooms.toArray();
     } else {
       rooms = await db.rooms.where("type").equals(type).toArray();
@@ -247,7 +245,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
   },
   // handel socket
   updateRoomSocket: (data: roomType) => {
-    console.log("🚀 updateRoomSocket ~ data:", data);
     // Nếu id của data bằng id của room hiện tại thì cập nhật luôn room
     if (get().room?.id === data.id) {
       set({ room: data });
@@ -276,7 +273,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     // Luôn update vào IndexedDB và refresh lại state từ db
     upsertOne(db.rooms, data)
       .then(() => {
-        console.log("✅ Updated room in IndexedDB from socket:", data.id);
         get().getRoomsByType(currentType);
       })
       .catch((error) => {

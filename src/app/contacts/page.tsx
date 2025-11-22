@@ -9,7 +9,6 @@ function ContactPageContent() {
   const searchParams = useSearchParams();
   const profileId = searchParams.get("profileId");
   const contactState = useContactStore((state) => state);
-  console.log("🚀 ~ ContactPage ~ profileId:", profileId);
   useEffect(() => {
     if (profileId) {
       contactState.setContact(profileId);

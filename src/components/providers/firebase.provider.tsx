@@ -97,20 +97,20 @@ export const FirebaseProvider = ({
             setMessage(payload);
 
             // Hiển thị notification thủ công khi app đang mở
-            if (Notification.permission === "granted") {
-              const notificationTitle =
-                payload.notification?.title || "Tin nhắn mới";
-              const notificationOptions = {
-                body: payload.notification?.body || "",
-                icon: payload.notification?.icon || "/icons/icon-192x192.png",
-                badge: "/icons/badge-72x72.png",
-                tag: payload.data?.roomId || "default",
-                data: payload.data,
-                requireInteraction: false,
-              };
+            // if (Notification.permission === "granted") {
+            //   const notificationTitle =
+            //     payload.notification?.title || "Tin nhắn mới";
+            //   const notificationOptions = {
+            //     body: payload.notification?.body || "",
+            //     icon: payload.notification?.icon || "/icons/icon-192x192.png",
+            //     badge: "/icons/badge-72x72.png",
+            //     tag: payload.data?.roomId || "default",
+            //     data: payload.data,
+            //     requireInteraction: false,
+            //   };
 
-              new Notification(notificationTitle, notificationOptions);
-            }
+            //   new Notification(notificationTitle, notificationOptions);
+            // }
           })
         : () => {};
 
@@ -161,19 +161,6 @@ export const FirebaseProvider = ({
 
         // Lưu token vào localStorage để sử dụng sau
         localStorage.setItem("fcm-token", t);
-
-        // Gửi token lên server
-        try {
-          // Dynamic import để tránh SSR issues
-          const { NotificationService } = await import(
-            "@/service/notification.service"
-          );
-          await NotificationService.registerToken(t);
-          console.log("✅ Token registered with server");
-        } catch (error) {
-          console.error("❌ Failed to register token with server:", error);
-          // Không throw error để không ảnh hưởng đến flow chính
-        }
       } else {
         console.error("❌ No registration token available");
       }

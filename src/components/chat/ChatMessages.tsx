@@ -36,7 +36,7 @@ export const ChatMessages = memo(
       const renderTime = performance.now() - startTime.current;
       if (renderTime > 100) {
         // Log slow renders
-        // console.warn(`🐌 Slow ChatMessages render: ${renderTime.toFixed(2)}ms`);
+        // log removed
       }
     });
 
@@ -169,7 +169,7 @@ export const ChatMessages = memo(
                   state.setHasMoreOnServer(false);
                 }
               } catch (error: any) {
-                console.error("Failed to load older messages:", error);
+                // log removed
                 state.setIsLoadingOlder(false);
                 state.setIsLoadingFromAPI(false);
               }
