@@ -7,7 +7,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "build:tauri": "npx tauri dev"
+    "build:tauri": "npx tauri dev",
+    "build:tauri:release": "npx tauri build"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
