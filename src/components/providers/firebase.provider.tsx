@@ -3,7 +3,6 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { app, messaging, firebaseConfig } from "@/libs/firebase";
 import { getToken, onMessage, Messaging } from "firebase/messaging";
 import type { FirebaseApp } from "firebase/app";
-import { isTauri, isServiceWorkerSupported } from "@/utils/tauri";
 
 type FirebaseContextType = {
   app: FirebaseApp | null;
@@ -42,16 +41,6 @@ export const FirebaseProvider = ({
   }, []);
 
   useEffect(() => {
-    // Bỏ qua Firebase messaging nếu đang chạy trong Tauri hoặc không hỗ trợ service worker
-    if (isTauri() || !isServiceWorkerSupported()) {
-      console.log(
-        isTauri()
-          ? "⚠️ Đang chạy trong Tauri - Firebase push notifications không được hỗ trợ"
-          : "⚠️ Service Worker không được hỗ trợ - Firebase push notifications bị vô hiệu hóa"
-      );
-      return;
-    }
-
     if (!messaging || globalThis.window === undefined) return;
 
     async function init() {
@@ -136,25 +125,14 @@ export const FirebaseProvider = ({
   // Hàm xin quyền và lấy token
   async function requestPermission() {
     try {
-      // Kiểm tra Tauri - không hỗ trợ push notifications
-      if (isTauri()) {
-        console.warn(
-          "⚠️ Firebase push notifications không được hỗ trợ trong Tauri"
-        );
-        alert(
-          "Push notifications không được hỗ trợ trong ứng dụng desktop. Vui lòng sử dụng phiên bản web."
-        );
-        return;
-      }
-
       if (!messaging) {
         console.error("❌ Firebase messaging not initialized");
         return;
       }
 
       // Kiểm tra xem trình duyệt có hỗ trợ không
-      if (!isServiceWorkerSupported()) {
-        console.error("❌ Browser doesn't support notifications or service workers");
+      if (!("Notification" in globalThis)) {
+        console.error("❌ Browser doesn't support notifications");
         alert("Trình duyệt của bạn không hỗ trợ thông báo");
         return;
       }
@@ -200,23 +178,8 @@ export const FirebaseProvider = ({
         console.error("❌ No registration token available");
       }
     } catch (err) {
-      // Xử lý lỗi gracefully, đặc biệt là AbortError từ push service
-      if (err instanceof Error) {
-        if (err.name === "AbortError" || err.message.includes("push service")) {
-          console.warn(
-            "⚠️ Push service không khả dụng (có thể do môi trường không hỗ trợ):",
-            err.message
-          );
-          if (isTauri()) {
-            console.log("ℹ️ Đây là hành vi mong đợi trong Tauri");
-          }
-        } else {
-          console.error("❌ Error getting token:", err);
-          alert("Có lỗi khi xin quyền thông báo. Vui lòng thử lại.");
-        }
-      } else {
-        console.error("❌ Unknown error getting token:", err);
-      }
+      console.error("❌ Error getting token:", err);
+      alert("Có lỗi khi xin quyền thông báo. Vui lòng thử lại.");
     }
   }
 
