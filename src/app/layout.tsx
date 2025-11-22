@@ -13,6 +13,7 @@ import { SocketEventGlobal } from "@/components/socketEventGlobal";
 import SocketStatusIndicator from "@/components/socket/SocketStatusIndicator";
 import NotificationPermission from "@/components/notifications/NotificationPermission";
 import { InitApp } from "@/components/providers/initApp.provider";
+import { RouteGuard } from "@/components/RouteGuard";
 
 export const metadata: Metadata = {
   title: "ChatApp",
@@ -28,15 +29,17 @@ export default function RootLayout({
     <html lang="vi" suppressHydrationWarning>
       <body suppressHydrationWarning>
         <Providers>
-          <FirebaseProvider>
-            <SocketProvider>
-              <SocketEventGlobal />
-              <SocketStatusIndicator />
-              <NotificationPermission />
-              <InitApp />
-              <ClientLayout>{children}</ClientLayout>
-            </SocketProvider>
-          </FirebaseProvider>
+          <RouteGuard>
+            <FirebaseProvider>
+              <SocketProvider>
+                <SocketEventGlobal />
+                <SocketStatusIndicator />
+                <NotificationPermission />
+                <InitApp />
+                <ClientLayout>{children}</ClientLayout>
+              </SocketProvider>
+            </FirebaseProvider>
+          </RouteGuard>
         </Providers>
       </body>
     </html>

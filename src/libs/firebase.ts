@@ -6,6 +6,18 @@ import {
   Messaging,
 } from "firebase/messaging";
 
+// Utility để kiểm tra Tauri (tránh circular dependency)
+const isTauriEnv = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return (
+    typeof (window as any).__TAURI__ !== "undefined" ||
+    typeof (window as any).__TAURI_INTERNALS__ !== "undefined" ||
+    navigator.userAgent.includes("Tauri") ||
+    window.location.protocol === "tauri:" ||
+    window.location.protocol === "file:"
+  );
+};
+
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -66,8 +78,12 @@ const initializeFirebase = () => {
     // Chỉ khởi tạo messaging ở client side và khi browser hỗ trợ
     if (globalThis.window !== undefined) {
       try {
-        // Kiểm tra browser có hỗ trợ notifications và service worker không
-        if (
+        // Bỏ qua messaging nếu đang chạy trong Tauri
+        if (isTauriEnv()) {
+          console.log(
+            "ℹ️ Đang chạy trong Tauri - Firebase Messaging bị vô hiệu hóa (không hỗ trợ service workers)"
+          );
+        } else if (
           "Notification" in globalThis &&
           "serviceWorker" in globalThis.navigator
         ) {

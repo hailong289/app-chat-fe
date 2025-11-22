@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+// Bỏ qua middleware khi build cho Tauri (static export không hỗ trợ middleware)
+const isTauriBuild = process.env.TAURI_BUILD === "true";
+
 // Public paths: không cần authentication
 const publicPaths = ["/auth", "/auth/login", "/auth/register", "/dashboard"];
 
 export function middleware(request: NextRequest) {
+  // Skip middleware khi build cho Tauri - sẽ dùng RouteGuard component thay thế
+  if (isTauriBuild) {
+    return NextResponse.next();
+  }
+
   console.log("Middleware is running");
   const tokens = request.cookies.get("tokens")?.value;
   const { pathname } = request.nextUrl;

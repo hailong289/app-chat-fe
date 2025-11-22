@@ -7,7 +7,9 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "build:tauri": "npx tauri dev"
+    "build:tauri:prepare": "cross-env TAURI_BUILD=true next build",
+    "build:tauri": "cross-env TAURI_BUILD=true next build && npx tauri dev",
+    "build:tauri:release": "cross-env TAURI_BUILD=true next build && npx tauri build"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -44,6 +46,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
