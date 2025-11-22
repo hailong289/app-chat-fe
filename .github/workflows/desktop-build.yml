@@ -2,9 +2,8 @@ name: Build Tauri Desktop
 
 on:
   push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
+    branches:
+      - developer
 
 jobs:
   build-desktop:
