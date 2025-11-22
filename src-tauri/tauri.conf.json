@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "cd ../ && npm run dev",
     "frontendDist": "dummy_dist",
-    "devUrl": "http://localhost:3000"
+    "devUrl": "https://app-chat-fe-service-6nsanbplrq-as.a.run.app"
   },
   "app": {
     "windows": [
@@ -16,7 +16,7 @@
         "height": 600,
         "resizable": true,
         "fullscreen": false,
-        "url": "http://localhost:3000"
+        "url": "https://app-chat-fe-service-6nsanbplrq-as.a.run.app"
       }
     ],
     "security": {
