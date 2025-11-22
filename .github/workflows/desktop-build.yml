@@ -54,7 +54,7 @@ jobs:
       #   working-directory: .
 
       - name: Build Tauri app
-        run: npm run tauri build
+        run: npm run build:tauri:release
         working-directory: .
 
       - name: Upload Tauri artifacts
