@@ -113,7 +113,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     console.log("🚀 ~ msgData:", msgData);
 
     // Lưu vào IndexedDB trước
-    msgData.status = "delivered";
+    msgData.status = "sent";
     // Lấy state hiện tại
     const prevRoom = get().messagesRoom[msgData.roomId] || {
       messages: [],
@@ -577,7 +577,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
       return messages;
     } catch (error) {
-      console.error("❌ Error fetching messages from API:", error);
+      // console.error("❌ Error fetching messages from API:", error);
       // Don't throw error, return empty array to prevent UI breaking
       return [];
     }
@@ -1076,6 +1076,102 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       },
     });
+  },
+  upsetMsgError: async (payload: {
+    message: string;
+    error: string;
+    data: {
+      userId?: string;
+      roomId: string;
+      type: string;
+      content: string;
+      attachments?: Array<string>;
+      replyTo: string;
+      id?: string;
+    };
+  }) => {
+    const { roomId, id } = payload.data;
+
+    if (!roomId || !id) return false;
+
+    const state = get();
+    const prevRoom = state.messagesRoom[roomId] || {
+      messages: [] as MessageType[],
+      reply: null,
+    };
+
+    const prevMessages = prevRoom.messages || [];
+    const existingIndex = prevMessages.findIndex((m) => m.id === id);
+
+    // Nếu không tìm thấy message → không làm gì
+    if (existingIndex === -1) {
+      console.warn(
+        "[upsetMsgError] message not found for id:",
+        id,
+        "room:",
+        roomId
+      );
+      return false;
+    }
+
+    const prevMsg = prevMessages[existingIndex];
+
+    // Cập nhật attachments bị lỗi (nếu có truyền lên)
+    let nextAttachments = prevMsg.attachments;
+    if (
+      payload.data.attachments &&
+      payload.data.attachments.length > 0 &&
+      prevMsg.attachments
+    ) {
+      const errorIds = new Set(payload.data.attachments);
+
+      nextAttachments = prevMsg.attachments.map((file) => {
+        // so sánh theo _id (hoặc nếu bạn dùng field khác thì sửa lại)
+        const key = file._id || file.name;
+        if (key && errorIds.has(key)) {
+          return {
+            ...file,
+            status: "failed",
+            uploadError: "Upload failed", // có thể truyền msgError thật từ BE
+          };
+        }
+        return file;
+      });
+    }
+
+    const updatedMsg: MessageType = {
+      ...prevMsg,
+      // nếu BE sửa content/type, thì ưu tiên cái mới
+      content: payload.data.content ?? prevMsg.content,
+      type: (payload.data.type as MessageType["type"]) ?? prevMsg.type,
+      status: "failed",
+      attachments: nextAttachments,
+      // optional: nếu muốn lưu thời gian fail riêng thì thêm field khác
+    };
+
+    const updatedMessages = prevMessages.map((m, idx) =>
+      idx === existingIndex ? updatedMsg : m
+    );
+
+    // update state
+    set({
+      messagesRoom: {
+        ...state.messagesRoom,
+        [roomId]: {
+          ...prevRoom,
+          messages: updatedMessages,
+        },
+      },
+    });
+
+    // update IndexedDB
+    try {
+      await upsertOne(db.messages, sanitizeMessageForDB(updatedMsg));
+      return true;
+    } catch (error) {
+      console.error("[upsetMsgError] IndexedDB upsert error:", error);
+      return false;
+    }
   },
 }));
 

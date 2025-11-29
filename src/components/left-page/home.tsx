@@ -108,7 +108,7 @@ export const Home = () => {
     const timeoutId = setTimeout(() => {
       roomState.getRooms(queryRoom);
     }, 300); // Debounce 300ms
-console.log('change query room');
+    console.log("change query room");
     return () => clearTimeout(timeoutId);
   }, [queryRoom]);
 
@@ -164,7 +164,20 @@ console.log('change query room');
     },
     [roomState, socket]
   );
-
+  const handleClickAction = useCallback(
+    (chat: any) => {
+      console.log(`Selected chat with ${chat.name}`);
+      roomState.getRoomById(chat.id);
+      if (!roomState.rooms.some((r) => r.id === chat.id)) {
+        roomState.createRoom("private", `Chat với ${chat.id}`, [chat.id]);
+      }
+      router.push(`/chat?chatId=${chat.id}`);
+      setIsSearchVisible(false);
+      setSearch("");
+      setTab(chat.id);
+    },
+    [roomState, socket]
+  );
   // Optimize search handlers
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -230,21 +243,24 @@ console.log('change query room');
                   Trạng thái của tôi
                 </p>
               </div>
-              {contactState.online.map((contact, index) => (
-                <div
-                  key={contact.id}
-                  className="flex flex-col items-center space-y-1 flex-shrink-0"
-                >
-                  <Avatar
-                    src={contact.avatar || undefined}
-                    name={contact.fullname}
-                    size="lg"
-                  />
-                  <p className="text-xs text-gray-600 text-center">
-                    {contact.fullname}...
-                  </p>
-                </div>
-              ))}
+              {contactState.online
+                .filter((contact) => contact.id !== authState.user?.id)
+                .map((contact, index) => (
+                  <button
+                    key={contact.id}
+                    className="flex flex-col items-center space-y-1 flex-shrink-0"
+                    onClick={() => handleClickAction(contact)}
+                  >
+                    <Avatar
+                      src={contact.avatar || undefined}
+                      name={contact.fullname}
+                      size="lg"
+                    />
+                    <p className="text-xs text-gray-600 text-center">
+                      {contact.fullname}...
+                    </p>
+                  </button>
+                ))}
             </div>
           </CardBody>
         </Card>

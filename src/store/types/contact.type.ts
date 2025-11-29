@@ -50,4 +50,5 @@ export interface ContactState {
     isOnline: boolean;
     onlineAt: string | null;
   }) => void;
+  checkOnlineStatus: (socket: any) => void;
 }

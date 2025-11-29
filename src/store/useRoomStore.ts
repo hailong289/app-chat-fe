@@ -4,6 +4,7 @@ import RoomService from "@/service/room.service";
 import { QueryRooms } from "@/types/room.type";
 import { db } from "@/libs/db";
 import {
+  deleteMany,
   deleteOne,
   getOne,
   updateOne,
@@ -323,6 +324,22 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       lastMessageId: messageId,
       roomId: roomId,
     });
+  },
+  roomDeleteSocket: (data: { roomId: string }) => {
+    set((state) => ({
+      rooms: state.rooms.filter((r) => r.id !== data.roomId),
+      room: state.room?.id === data.roomId ? null : state.room,
+    }));
+    // Delete room from IndexedDB
+    deleteOne(db.rooms, data.roomId).catch(() => {});
+    // Delete room messages from IndexedDB
+    if (db.messages?.where && typeof db.messages.where === "function") {
+      db.messages
+        .where("roomId")
+        .equals(data.roomId)
+        .delete()
+        .catch(() => {});
+    }
   },
 }));
 

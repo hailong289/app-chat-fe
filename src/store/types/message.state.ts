@@ -131,6 +131,19 @@ export interface MessageState {
   setReplyMessage: (roomId: string, message: MessageType | null) => void;
   setInput: (roomId: string, input: string | null) => void;
   setAttachments: (roomId: string, attachments: FilePreview[] | null) => void;
+  upsetMsgError: (payload: {
+    message: string;
+    error: string;
+    data: {
+      userId?: string;
+      roomId: string;
+      type: string;
+      content: string;
+      attachments?: Array<string>;
+      replyTo: string;
+      id?: string;
+    };
+  }) => void;
 }
 export type msg = {
   input: string | null;

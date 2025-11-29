@@ -1,4 +1,4 @@
-import { Avatar, Button, Tooltip } from "@heroui/react";
+import { Avatar, Button, Spinner, Tooltip } from "@heroui/react";
 import { motion } from "framer-motion";
 import { formatMessageTime } from "@/libs/timeline-helpers";
 import { CompactFileGallery } from "../CompactFileGallery";
@@ -7,6 +7,7 @@ import { MessageActions } from "./MessageActions";
 import { MessageReactions } from "./MessageReactions";
 import { ReplyPreview } from "./ReplyPreview";
 import { MessageType } from "@/store/types/message.state";
+import { ArrowPathIcon } from "@heroicons/react/16/solid";
 
 interface MessageItemProps {
   msg: MessageType;
@@ -181,7 +182,7 @@ export function MessageItem({
             size="sm"
             color="danger"
             variant="flat"
-            startContent={<span className="text-xs">⚠️</span>}
+            startContent={<ArrowPathIcon className="w-4 h-4" />}
             onPress={() => {
               messageState.resendMessage(chatId, msg.id, socket);
             }}
@@ -194,7 +195,7 @@ export function MessageItem({
         <span className="text-xs text-gray-400">
           {formatMessageTime(msg.createdAt)}
         </span>
-        {msg.isMine && msg.status !== "failed" && (
+        {msg.isMine && msg.status === "sent" && (
           <span className="text-xs text-gray-400">
             {(msg.read_by_count ?? 0) > 0 ? (
               <Tooltip content="Đã xem" size="sm" placement="left-start">
@@ -207,6 +208,14 @@ export function MessageItem({
             )}
           </span>
         )}
+        {msg.isMine &&
+          (msg.status === "pending" || msg.status === "uploading") && (
+            <span className="text-xs text-gray-400">
+              <Tooltip content="Đang gửi..." size="sm" placement="left-start">
+                <Spinner size="sm" color="default" />
+              </Tooltip>
+            </span>
+          )}
       </div>
     );
   };

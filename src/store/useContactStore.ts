@@ -189,21 +189,25 @@ const useContactStore = create<ContactState>()(
       socketHandleOnline: (data: {
         id: string;
         isOnline: boolean;
-        onlineAt: string | null;
+        onlineAt?: string | null;
       }) => {
+        console.log("🚀 ~ data:", data);
         const contact = get().contacts.find((c) => c.id === data.id);
         if (!contact) return;
         contact.isOnline = data.isOnline;
-        contact.onlineAt = data.onlineAt;
+        contact.onlineAt = data.onlineAt ?? null;
         upsertOne(db.contacts, contact);
         get().getAllContacts();
         set({
           online: get().contacts.filter((c) => c.isOnline),
         });
       },
-      // checkOnlineStatus: async (ids: string[]) => {
-
-      // }
+      checkOnlineStatus: (socket: any) => {
+        console.log("checkOOnline");
+        const ids = get().contacts.map((c) => c.id);
+        console.log("🚀 ~ ids:", ids);
+        socket.emit("check-online-status", ids);
+      },
     }),
     {
       name: "contact-storage", // unique name

@@ -157,11 +157,14 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               </Button>
             </NavbarItem> */}
             {useRoomStore.getState().room?.pinned_messages &&
-              (useRoomStore.getState().room?.pinned_messages?.length ?? 0) > 0 && (
+              (useRoomStore.getState().room?.pinned_messages?.length ?? 0) >
+                0 && (
                 <NavbarItem>
                   <Badge
                     color="danger"
-                    content={useRoomStore.getState().room?.pinned_messages?.length || 0}
+                    content={
+                      useRoomStore.getState().room?.pinned_messages?.length || 0
+                    }
                     size="sm"
                     placement="top-left"
                   >
@@ -269,27 +272,30 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               </ModalHeader>
               <ModalBody>
                 {useRoomStore.getState().room?.pinned_messages &&
-                (useRoomStore.getState().room?.pinned_messages?.length ?? 0) > 0 ? (
+                (useRoomStore.getState().room?.pinned_messages?.length ?? 0) >
+                  0 ? (
                   <div className="flex flex-col gap-4">
-                    {useRoomStore.getState().room?.pinned_messages?.map?.((msg) => (
-                      <Button
-                        key={msg.id}
-                        variant="bordered"
-                        className="justify-start"
-                        onPress={() => {
-                          onClosePPinned();
-                          setScrollto(msg.id);
-                        }}
-                      >
-                        <p className="text-sm text-gray-700 line-clamp-2">
-                          {msg.type === "text" && msg.content}
-                          {msg.type === "image" && "📷 Ảnh"}
-                          {msg.type === "video" && "🎥 Video"}
-                          {msg.type === "file" && "📎 File"}
-                          {msg.type === "gif" && "🎬 GIF"}
-                        </p>
-                      </Button>
-                    ))}
+                    {useRoomStore
+                      .getState()
+                      .room?.pinned_messages?.map?.((msg) => (
+                        <Button
+                          key={msg.id}
+                          variant="bordered"
+                          className="justify-start"
+                          onPress={() => {
+                            onClosePPinned();
+                            setScrollto(msg.id);
+                          }}
+                        >
+                          <p className="text-sm text-gray-700 line-clamp-2">
+                            {msg.type === "text" && msg.content}
+                            {msg.type === "image" && "📷 Ảnh"}
+                            {msg.type === "video" && "🎥 Video"}
+                            {msg.type === "file" && "📎 File"}
+                            {msg.type === "gif" && "🎬 GIF"}
+                          </p>
+                        </Button>
+                      ))}
                   </div>
                 ) : (
                   <p className="text-center text-gray-500">

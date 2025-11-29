@@ -30,6 +30,7 @@ export interface RoomsState {
     roomId: string;
   }) => Promise<void>;
   markMessageAsRead: (roomId: string, messageId: string, socket: any) => void;
+  roomDeleteSocket: (data: { roomId: string }) => void;
 }
 
 export type roomType = {

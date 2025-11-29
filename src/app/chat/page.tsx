@@ -32,6 +32,7 @@ function ChatPageContent() {
   const [chatId, setChatId] = useState<string>("");
   const [noAction, setNoAction] = useState<boolean>(false);
   const [scrollto, setScrollto] = useState<string | null>(null);
+  const [toggleInput, setToggleInput] = useState<boolean>(false);
   useEffect(() => {
     if (!roomState.room?.id) {
       setChatId(searchParams.get("chatId") || "");
@@ -53,10 +54,20 @@ function ChatPageContent() {
       />
       <main className="w-full h-[calc(100vh-80px)] relative overflow-hidden">
         {/* Chat messages would go here */}
-        <ChatMessages chatId={chatId} noAction={noAction} scrollto={scrollto} />
+        <ChatMessages
+          chatId={chatId}
+          noAction={noAction}
+          scrollto={scrollto}
+          toggleInput={toggleInput}
+        />
         {/* Message input area */}
 
-        <ChatInputBar chatId={chatId} noAction={noAction} />
+        <ChatInputBar
+          chatId={chatId}
+          noAction={noAction}
+          setToggleInput={setToggleInput}
+          toggleInput={toggleInput}
+        />
       </main>
     </div>
   );

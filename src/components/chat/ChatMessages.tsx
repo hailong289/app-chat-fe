@@ -24,10 +24,12 @@ export const ChatMessages = memo(
     chatId,
     noAction,
     scrollto,
+    toggleInput,
   }: {
     chatId: string;
     noAction: boolean;
     scrollto?: string | null;
+    toggleInput: boolean;
   }) => {
     // Performance monitoring
     const startTime = useRef(performance.now());
@@ -67,7 +69,11 @@ export const ChatMessages = memo(
       setIsLoadingOlder: state.setIsLoadingOlder,
       setHasMoreOnServer: state.setHasMoreOnServer,
     });
-
+    useEffect(() => {
+      if (toggleInput) {
+        scrollToBottom();
+      }
+    }, [toggleInput]);
     useEffect(() => {
       if (scrollto) {
         scrollToMessage(scrollto);

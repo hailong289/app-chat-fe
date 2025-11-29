@@ -46,6 +46,7 @@ import {
   PlayIcon,
   StopCircleIcon,
 } from "@heroicons/react/24/outline";
+import useRoomStore from "@/store/useRoomStore";
 const emojiTab = [
   {
     name: "Gần đây",
@@ -90,11 +91,15 @@ export default function ChatInputBar({
   noAction,
   isBlocked = false,
   blockByMine = false,
+  setToggleInput,
+  toggleInput,
 }: Readonly<{
   chatId: string;
   noAction: boolean;
   isBlocked?: boolean;
   blockByMine?: boolean;
+  setToggleInput: (val: boolean) => void;
+  toggleInput: boolean;
 }>) {
   const [message, setMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -107,6 +112,8 @@ export default function ChatInputBar({
 
   const useMessage = useMessageStore();
   const authState = useAuthStore();
+
+  const roomState = useRoomStore((state) => state);
   const { socket } = useSocket();
 
   // Get reply from store using selector
@@ -274,6 +281,7 @@ export default function ChatInputBar({
     }
 
     // Clear reply after sending
+    setToggleInput(!toggleInput);
     if (replyToId) {
       useMessageStore.getState().setReplyMessage(chatId, null);
     }
@@ -344,6 +352,7 @@ export default function ChatInputBar({
         userFullname: authState.user?.fullname,
         userAvatar: authState.user?.avatar,
       });
+      setToggleInput(!toggleInput);
     } catch (error) {
       console.error("❌ Error downloading GIF:", error);
       // Fallback: insert URL vào message (vẫn giữ picker mở)
@@ -445,10 +454,11 @@ export default function ChatInputBar({
       // await new Promise(r => setTimeout(r, 150));
     } finally {
       sendingRef.current = false;
+      setToggleInput(!toggleInput);
     }
   };
   const onDragLeave = handleDragLeaveFactory(setIsDragging);
-  if (noAction || isBlocked) {
+  if (noAction || isBlocked || !roomState.room?.id) {
     return (
       <section
         aria-label="Chat input area"
