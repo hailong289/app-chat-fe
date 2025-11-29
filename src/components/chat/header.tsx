@@ -27,10 +27,11 @@ import ChatDrawer from "./drawer/chat-drawer";
 import { CallModal } from "./modals/call.modal";
 import useRoomStore from "@/store/useRoomStore";
 import { EyeDropperIcon } from "@heroicons/react/16/solid";
+import useContactStore from "@/store/useContactStore";
 
 interface ChatHeaderProps {
   // chatName?: string;
-  isOnline?: boolean;
+  // isOnline?: boolean;
   // avatarUrl?: string;
   callback?: () => void;
   noAction?: boolean;
@@ -39,7 +40,7 @@ interface ChatHeaderProps {
 
 const ChatHeader: React.FC<ChatHeaderProps> = ({
   noAction = false,
-  isOnline = true,
+
   callback = () => {},
   setScrollto = () => {},
 }) => {
@@ -50,6 +51,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     onOpenChange: onOpenChangePinned,
   } = useDisclosure();
   const [showSearch, setShowSearch] = React.useState(false);
+  const [isOnline, setIsOnline] = React.useState(true);
   const [searchValue, setSearchValue] = React.useState("");
   const [formModalCall, setFormModalCall] = React.useState({
     isOpen: false,
@@ -58,6 +60,12 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     caller: { id: "", name: "", avatar: "" },
   });
   const roomState = useRoomStore((state) => state);
+  const contactState = useContactStore((state) => state);
+  const onlineMembers = React.useMemo(() => {
+    return contactState.online.filter((contact) =>
+      roomState.room?.members.some((member) => member.id === contact.id)
+    );
+  }, [contactState.online, roomState.room?.members]);
 
   const handleShowModalCall = (
     isVideo: boolean,
@@ -73,10 +81,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   };
 
   return (
-    <div className="w-full h-[80px]">
+    <div className="w-full h-[80px] dark:bg-slate-900 bg-white shadow-md z-10">
       <Navbar
         isBordered
-        className="bg-primary border-b border-cyan-200 h-[70px]"
+        className="bg-primary border-b border-cyan-200 h-full"
         maxWidth="full"
       >
         <NavbarContent justify="start" className="flex-grow">
@@ -97,11 +105,11 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                     <Chip
                       size="sm"
                       variant="dot"
-                      color={isOnline ? "success" : "default"}
+                      color={onlineMembers.length > 0 ? "success" : "default"}
                       className="p-0 border-none bg-transparent"
                     >
                       <span className="text-xs text-white">
-                        {isOnline ? "Online" : "Offline"}
+                        {onlineMembers.length > 0 ? "Online" : "Offline"}
                       </span>
                     </Chip>
                   </div>

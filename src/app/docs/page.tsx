@@ -1,4 +1,4 @@
-import { DynamicEditor } from "@/components/DynamicEditor";
+import { DynamicEditor } from "@/components/docs/DynamicEditor";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 
 export default function DocsPage() {

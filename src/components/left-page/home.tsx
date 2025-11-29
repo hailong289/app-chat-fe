@@ -21,8 +21,7 @@ import { CreateRoomModal } from "../chat/modals/createRoom.modal";
 import { useSocket } from "../providers/SocketProvider";
 import useContactStore from "@/store/useContactStore";
 import useAuthStore from "@/store/useAuthStore";
-import TypingIndicator from "../chat/TypingIndicator";
-import { User } from "@/store/types/room.state";
+import TypingIndicator from "../chat/input/TypingIndicator";
 
 export const Home = () => {
   const { socket } = useSocket();
@@ -188,14 +187,14 @@ export const Home = () => {
     <>
       {/* Top actions */}
       {!isSearchVisible && (
-        <div className="flex items-center justify-end p-1 border-b border-default bg-content1">
+        <div className="flex items-center justify-end p-1 border-b border-default dark:bg-slate-900">
           {btnNewMsg}
         </div>
       )}
 
       {/* Status Section */}
       {!isSearchVisible && (
-        <Card className="rounded-none shadow-none border-b border-default bg-content1">
+        <Card className="rounded-none shadow-none border-b border-default dark:bg-slate-900">
           <CardBody className="p-4">
             <div className="flex justify-between items-center mb-4">
               <h2 className="font-semibold text-foreground">Hoạt động</h2>
@@ -251,7 +250,7 @@ export const Home = () => {
       )}
 
       {/* Search + Tabs */}
-      <Card className="rounded-none shadow-none border-b border-default bg-content1">
+      <Card className="rounded-none shadow-none border-b border-default dark:bg-slate-900">
         <CardBody className="p-4">
           <div className="flex justify-between items-center mb-3 gap-2">
             <Input
@@ -320,6 +319,8 @@ export const Home = () => {
               isPressable
               className={`w-full rounded-none shadow-none cursor-pointer transition-colors bg-background hover:bg-default-100 ${
                 tab === chat.id ? "bg-default-100" : ""
+              }dark:bg-slate-900 dark:hover:bg-slate-800 dark:${
+                tab === chat.id ? "bg-slate-800" : ""
               }`}
               onPress={() => handleChatClick(chat)}
             >

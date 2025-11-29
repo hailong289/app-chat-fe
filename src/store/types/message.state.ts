@@ -116,11 +116,11 @@ export interface MessageState {
   recallMessage: (roomId: string, messageId: string) => Promise<void>;
   fetchNewMessages: (roomId: string, lastMessageId?: string) => Promise<void>;
 
-  uploadAttachments: (
-    roomId: string,
-    messageId: string,
-    attachments: FilePreview[]
-  ) => Promise<FilePreview[]>;
+  uploadAttachments: (data: {
+    roomId: string;
+    messageId: string;
+    attachments: FilePreview[];
+  }) => Promise<FilePreview[]>;
   updateAttachmentProgress: (
     roomId: string,
     messageId: string,
@@ -144,6 +144,11 @@ export interface MessageState {
       id?: string;
     };
   }) => void;
+  autoMarkMessageSent: (
+    roomId: string,
+    messageId: string,
+    delayMs?: number
+  ) => void;
 }
 export type msg = {
   input: string | null;

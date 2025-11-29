@@ -117,7 +117,7 @@ export default function YearlyTimeline({
                               {/* Card nội dung */}
                               <Card
                                 shadow="sm"
-                                className="w-full hover:scale-[1.01] transition-transform bg-content2/50 dark:bg-content1"
+                                className="w-full hover:scale-[1.01] transition-transform bg-content2/50 dark:dark:bg-slate-900"
                               >
                                 <CardBody className="p-3 flex flex-row justify-between gap-2 items-center">
                                   <div>

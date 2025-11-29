@@ -3,6 +3,7 @@ import useAuthStore from "@/store/useAuthStore";
 import useContactStore from "@/store/useContactStore";
 import { useEffect } from "react";
 import { useSocket } from "./SocketProvider";
+import { deleteOldMessagesKeepLatest } from "@/utils/localStorage";
 
 export const InitApp = () => {
   const contactState = useContactStore((state) => state);
@@ -15,5 +16,10 @@ export const InitApp = () => {
     if (!socket) return;
     contactState.checkOnlineStatus(socket);
   }, [authState.isAuthenticated, socket]);
+  // chạy 1 lần khi mount
+  useEffect(() => {
+    // Xoá tin nhắn cũ, chỉ giữ lại limit mới nhất
+    deleteOldMessagesKeepLatest();
+  }, []);
   return <></>;
 };

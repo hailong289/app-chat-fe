@@ -7,7 +7,7 @@ import {
   StopCircleIcon,
   MicrophoneIcon,
 } from "@heroicons/react/24/solid";
-import WaveformCanvas from "./WaveformCanvas"; // bản có prop height
+import WaveformCanvas from "../message/WaveformCanvas"; // bản có prop height
 import { useVoiceRecorder } from "@/libs/useVoiceRecorder";
 
 function formatMMSS(ms: number) {

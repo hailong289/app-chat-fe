@@ -1,3 +1,5 @@
+import { db } from "@/libs/db";
+
 /**
  * Clear all localStorage data when user logs out
  * Bao gồm:
@@ -40,4 +42,23 @@ export function clearLocalStorageKeys(keys: string[]) {
     localStorage.removeItem(key);
   });
   console.log(`🧹 [Cleanup] Cleared keys: ${keys.join(", ")}`);
+}
+
+export async function deleteOldMessagesKeepLatest(limit = 2000) {
+  // Đếm tổng trước
+  const total = await db.messages.count();
+  if (total <= limit) return;
+
+  const toDelete = total - limit;
+
+  // Lấy danh sách id cần xoá (cũ nhất)
+  const oldIds = await db.messages
+    .orderBy("createdAt")
+    .limit(toDelete)
+    .primaryKeys();
+
+  if (oldIds.length > 0) {
+    await db.messages.bulkDelete(oldIds);
+    console.log(`🧹 Deleted ${oldIds.length} old messages`);
+  }
 }

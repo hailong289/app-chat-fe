@@ -11,7 +11,7 @@ export interface SendMessageArgs {
   userFullname?: string; // User fullname
   userAvatar?: string; // User avatar
 }
-import { upsertOne, deleteOne } from "@/libs/crud";
+import { upsertOne, deleteOne, upsertMany } from "@/libs/crud";
 import { db } from "@/libs/db";
 import { ObjectId } from "bson";
 import UploadService from "@/service/uploadfile.service";
@@ -172,7 +172,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       userFullname,
       userAvatar,
     } = args;
-    console.log("🚀 ~ args:", args);
 
     // Lưu dữ liệu tạm trước khi gửi
     const prevRoom = get().messagesRoom[roomId] || {
@@ -200,6 +199,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           isDeleted: false,
         }
       : undefined;
+
     const data: MessageType = {
       id,
       roomId,
@@ -233,22 +233,17 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       },
     });
-
     // Upload attachments nếu có (background task)
     if (attachments && attachments.length > 0) {
       get()
-        .uploadAttachments(roomId, id, attachments)
+        .uploadAttachments({ roomId, messageId: id, attachments })
         .then((uploadedAttachments) => {
-          console.log("🚀 ~ uploadedAttachments:", uploadedAttachments);
-          console.log("🚀 ~ uploadedAttachments:", uploadedAttachments);
-          console.log("✅ Upload complete, updating message...");
-
           // Only send attachments that were uploaded successfully.
           const successful = (uploadedAttachments || []).filter(
-            (a) => a && a.status === "uploaded"
+            (a) => a?.status === "uploaded"
           );
 
-          if (successful.length > 0) {
+          if (successful.length === uploadedAttachments.length) {
             socket?.emit("message:send", {
               roomId,
               type,
@@ -257,6 +252,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
               id,
               attachments: uploadedAttachments.map((att) => att._id),
             });
+            get().autoMarkMessageSent(roomId, id, 3000);
           } else {
             console.warn(
               "⚠️ All attachments failed to upload — marking message failed",
@@ -304,6 +300,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         replyTo,
         id,
       });
+      get().autoMarkMessageSent(roomId, id, 3000);
     }
   },
 
@@ -407,7 +404,8 @@ const useMessageStore = create<MessageState>()((set, get) => ({
   },
 
   resendMessage: async (roomId: string, messageId: string, socket?: any) => {
-    const currentRoom = get().messagesRoom[roomId];
+    const state = get();
+    const currentRoom = state.messagesRoom[roomId];
     if (!currentRoom?.messages) return;
 
     // Tìm message cần gửi lại
@@ -424,7 +422,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
     set({
       messagesRoom: {
-        ...get().messagesRoom,
+        ...state.messagesRoom,
         [roomId]: {
           ...currentRoom,
           messages: updatedMessages,
@@ -433,40 +431,100 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     });
 
     try {
-      // Nếu có attachments, upload lại
-      if (message.attachments && message.attachments.length > 0) {
-        const uploadedAttachments = await get().uploadAttachments(
+      // ====== KHÔNG CÓ ATTACHMENTS -> GỬI LẠI LUÔN (giống sendMessage) ======
+      if (!message.attachments || message.attachments.length === 0) {
+        socket?.emit("message:send", {
           roomId,
-          messageId,
-          message.attachments
-        );
+          type: message.type,
+          content: message.content,
+          replyTo: message.reply?._id,
+          id: messageId,
+        });
 
-        // Emit socket với attachments đã upload
-        socket?.emit("message:send", {
-          roomId,
-          type: message.type,
-          content: message.content,
-          replyTo: message.reply?._id,
-          id: messageId,
-          attachments: uploadedAttachments.map((att) => att._id),
-        });
-      } else {
-        // Không có attachments, gửi ngay
-        socket?.emit("message:send", {
-          roomId,
-          type: message.type,
-          content: message.content,
-          replyTo: message.reply?._id,
-          id: messageId,
-        });
+        get().autoMarkMessageSent(roomId, messageId, 3000);
+        console.log("✅ Message resent (no attachments):", messageId);
+        return;
       }
 
-      console.log("✅ Message resent:", messageId);
+      // ====== CÓ ATTACHMENTS ======
+      const allAttachments = message.attachments;
+
+      // Attach đã FAILED -> cần upload lại
+      const hasFailed = allAttachments.some((att) => att.status === "failed");
+
+      let finalAttachments = allAttachments;
+
+      if (hasFailed) {
+        // Chỉ re-upload những cái failed:
+        // uploadAttachments vốn chỉ upload những cái có `file`,
+        // nên để chắc kèo ta clear `file` cho những cái không failed.
+        const uploadInput = allAttachments.map((att) =>
+          att.status === "failed" ? att : { ...att, file: undefined }
+        );
+
+        const uploadedAttachments = await get().uploadAttachments({
+          roomId,
+          messageId,
+          attachments: uploadInput,
+        });
+
+        finalAttachments = uploadedAttachments;
+      } else {
+        // Không còn cái nào failed -> dùng lại attachments hiện tại trong state (refresh)
+        const refreshedRoom = get().messagesRoom[roomId];
+        const refreshedMsg = refreshedRoom?.messages.find(
+          (m) => m.id === messageId
+        );
+        finalAttachments = refreshedMsg?.attachments || allAttachments;
+      }
+
+      // Lấy các attachments đã upload thành công
+      const successful = (finalAttachments || []).filter(
+        (a) => a?.status === "uploaded"
+      );
+
+      // 🔥 GIỐNG LOGIC sendMessage:
+      // Nếu tất cả đều uploaded -> emit
+      // Nếu không -> mark message failed
+      if (successful.length === finalAttachments.length) {
+        socket?.emit("message:send", {
+          roomId,
+          type: message.type,
+          content: message.content,
+          replyTo: message.reply?._id,
+          id: messageId,
+          attachments: successful.map((att) => att._id),
+        });
+
+        get().autoMarkMessageSent(roomId, messageId, 3000);
+
+        console.log("✅ Message resent:", messageId);
+      } else {
+        console.warn(
+          "⚠️ Some or all attachments failed to upload on resend — marking message failed",
+          messageId
+        );
+
+        const failedMessages = get().messagesRoom[roomId]?.messages.map((msg) =>
+          msg.id === messageId ? { ...msg, status: "failed" as const } : msg
+        );
+
+        set({
+          messagesRoom: {
+            ...get().messagesRoom,
+            [roomId]: {
+              ...get().messagesRoom[roomId],
+              messages: failedMessages || [],
+            },
+          },
+        });
+      }
     } catch (error) {
       console.error("❌ Resend failed:", error);
 
       // Cập nhật lại status về failed
-      const failedMessages = get().messagesRoom[roomId]?.messages.map((msg) =>
+      const current = get().messagesRoom[roomId];
+      const failedMessages = current?.messages.map((msg) =>
         msg.id === messageId ? { ...msg, status: "failed" as const } : msg
       );
 
@@ -474,7 +532,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         messagesRoom: {
           ...get().messagesRoom,
           [roomId]: {
-            ...get().messagesRoom[roomId],
+            ...current,
             messages: failedMessages || [],
           },
         },
@@ -675,11 +733,15 @@ const useMessageStore = create<MessageState>()((set, get) => ({
    * @param messageId ID của message chứa attachments
    * @param attachments Danh sách FilePreview cần upload
    */
-  uploadAttachments: async (
-    roomId: string,
-    messageId: string,
-    attachments: FilePreview[]
-  ) => {
+  uploadAttachments: async ({
+    roomId,
+    messageId,
+    attachments,
+  }: {
+    roomId: string;
+    messageId: string;
+    attachments: FilePreview[];
+  }) => {
     // Lọc chỉ những file chưa upload (có file property)
     const filesToUpload = attachments.filter((att) => att.file);
 
@@ -699,89 +761,90 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       );
     }
 
-    // Upload files one-by-one to tolerate partial failures. If one file fails,
-    // we mark it failed but continue uploading the rest. This avoids the
-    // situation where the server has stored some files but the client treats
-    // the whole batch as failed because Promise.all rejected.
-    const perFileResults: Array<{
-      success: boolean;
-      result?: any;
-      error?: any;
-      index: number;
-      id: string;
-    }> = [];
-
-    for (let i = 0; i < filesToUpload.length; i++) {
-      const att = filesToUpload[i];
-      try {
-        const resp = await UploadService.uploadSingleWithProgress(att.file!, {
-          roomId,
-          id: att._id,
-          onProgress: (pct) => {
-            get().updateAttachmentProgress(
-              roomId,
-              messageId,
-              att._id,
-              pct,
-              "uploading"
-            );
-          },
-        });
-
-        const data = resp.data;
-        console.log(`✅ Uploaded file ${i}:`, data);
-        perFileResults.push({
-          success: true,
-          result: data,
-          index: i,
-          id: att._id,
-        });
-      } catch (err) {
-        const e = err as any;
-        // Axios / network errors often have useful info under err.response.
-        // Log structured details to help debugging (message, response payload/status).
-        try {
-          console.error(
-            `⚠️ Upload error for file index ${i} (id=${att._id}):`,
-            {
-              message: e?.message || String(e),
-              name: e?.name,
-              stack: e?.stack,
-              responseData: e?.response?.data,
-              responseStatus: e?.response?.status,
-              request: e?.request,
-              // include own props (including non-enumerable) when possible
-              rawProps: Object.getOwnPropertyNames(e || {}).reduce((acc, k) => {
-                try {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  acc[k] = e[k];
-                } catch (errProp) {
-                  acc[k] = "<unserializable>";
-                }
-                return acc;
-              }, {} as Record<string, any>),
-            }
+    // === PHẦN DÙNG Promise.all ĐỂ UPLOAD SONG SONG ===
+    const uploadPromises = filesToUpload.map((att, index) =>
+      UploadService.uploadSingleWithProgress(att.file!, {
+        roomId,
+        id: att._id,
+        messageId,
+        onProgress: (pct) => {
+          get().updateAttachmentProgress(
+            roomId,
+            messageId,
+            att._id,
+            pct,
+            "uploading"
           );
-        } catch (logErr) {
-          console.error("⚠️ Error serializing upload error:", logErr, err);
-        }
+        },
+      })
+        .then((resp) => {
+          const data = resp.data;
+          console.log(`✅ Uploaded file ${index}:`, data);
+          return {
+            success: true as const,
+            result: data,
+            index,
+            id: att._id,
+          };
+        })
+        .catch((err) => {
+          const e = err as any;
 
-        // mark this file as failed in UI
-        get().updateAttachmentProgress(roomId, messageId, att._id, 0, "failed");
-        perFileResults.push({
-          success: false,
-          error: err,
-          index: i,
-          id: att._id,
-        });
-        // continue with next file
-      }
-    }
+          // Log chi tiết lỗi
+          try {
+            console.error(
+              `⚠️ Upload error for file index ${index} (id=${att._id}):`,
+              {
+                message: e?.message || String(e),
+                name: e?.name,
+                stack: e?.stack,
+                responseData: e?.response?.data,
+                responseStatus: e?.response?.status,
+                request: e?.request,
+                rawProps: Object.getOwnPropertyNames(e || {}).reduce(
+                  (acc, k) => {
+                    try {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      acc[k] = e[k];
+                    } catch {
+                      acc[k] = "<unserializable>";
+                    }
+                    return acc;
+                  },
+                  {} as Record<string, any>
+                ),
+              }
+            );
+          } catch (logErr) {
+            console.error("⚠️ Error serializing upload error:", logErr, err);
+          }
 
-    // Build updated attachments array based on per-file results
+          // Mark failed
+          get().updateAttachmentProgress(
+            roomId,
+            messageId,
+            att._id,
+            0,
+            "failed"
+          );
+
+          // Quan trọng: luôn resolve, không throw -> Promise.all sẽ không reject
+          return {
+            success: false as const,
+            error: err,
+            index,
+            id: att._id,
+          };
+        })
+    );
+
+    // Promise.all luôn resolve vì từng promise đã catch rồi
+    const perFileResults = await Promise.all(uploadPromises);
+
+    // Build updated attachments array dựa theo perFileResults
     const updatedAttachments = attachments.map((att) => {
       const fileIdx = filesToUpload.findIndex((f) => f._id === att._id);
-      if (fileIdx === -1) return att; // untouched
+      if (fileIdx === -1) return att; // attachment không upload (ví dụ: đã uploaded từ trước)
 
       const res = perFileResults.find((r) => r.id === att._id);
       if (!res) {
@@ -789,9 +852,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       }
 
       if (!res.success) {
-        // Build a compact structured error for the attachment so caller can
-        // decide whether to retry and see server response details.
-        const errObj = res.error as any;
+        const errObj = res.error;
         const uploadError = {
           message: errObj?.message || String(errObj),
           responseData: errObj?.response?.data,
@@ -809,10 +870,12 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       const uploadResult = res.result;
 
       // Revoke old blob URL
-      if (att.url && att.url.startsWith("blob:")) {
+      if (att.url?.startsWith("blob:")) {
         try {
           URL.revokeObjectURL(att.url);
-        } catch {}
+        } catch {
+          // ignore
+        }
       }
 
       return {
@@ -826,7 +889,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         mimeType: uploadResult.mimeType || att.mimeType,
         status: "uploaded",
         uploadProgress: 100,
-        file: undefined,
       } as FilePreview;
     });
 
@@ -1173,6 +1235,41 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       console.error("[upsetMsgError] IndexedDB upsert error:", error);
       return false;
     }
+  },
+  autoMarkMessageSent: (roomId: string, messageId: string, delayMs = 3000) => {
+    setTimeout(() => {
+      const state = get();
+      const currentRoom = state.messagesRoom[roomId];
+      if (!currentRoom) return;
+
+      const updatedMessages = (currentRoom.messages || []).map((msg) => {
+        if (msg.id !== messageId) return msg;
+
+        // Nếu đã failed thì giữ nguyên
+        if (msg.status === "failed") return msg;
+
+        // Chỉ auto-set sent nếu vẫn pending / uploading / undefined
+        if (
+          msg.status === "pending" ||
+          msg.status === "uploading" ||
+          !msg.status
+        ) {
+          return { ...msg, status: "sent" as const };
+        }
+        upsertOne(db.messages, msg);
+        return msg;
+      });
+
+      set({
+        messagesRoom: {
+          ...state.messagesRoom,
+          [roomId]: {
+            ...currentRoom,
+            messages: updatedMessages,
+          },
+        },
+      });
+    }, delayMs);
   },
 }));
 

@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { MessageType } from "@/store/types/message.state";
 import useMessageStore from "@/store/useMessageStore";
 import useToast from "@/hooks/useToast";
-import { emitWithAck, canRecallMessage } from "../utils/messageHelpers";
+import { emitWithAck, canRecallMessage } from "../../../utils/messageHelpers";
 import { socketEvent } from "@/types/socketEvent.type";
 
 interface UseMessageHandlersProps {

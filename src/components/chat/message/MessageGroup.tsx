@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageItem } from "../MessageItem";
+import { MessageItem } from "./MessageItem";
 import { MessageType } from "@/store/types/message.state";
 
 interface MessageGroupProps {
@@ -61,7 +61,13 @@ export function MessageGroup({
         transition={{ duration: shouldAnimate ? 0.3 : 0 }}
         className="flex items-center justify-center my-4"
       >
-        <div className="bg-gray-200 text-gray-600 text-xs font-medium px-3 py-1 rounded-full">
+        <div
+          className="
+            bg-gray-200 text-gray-600 
+            dark:bg-gray-700 dark:text-gray-200 
+            text-xs font-medium px-3 py-1 rounded-full
+          "
+        >
           {group.dateLabel}
         </div>
       </motion.div>
@@ -77,17 +83,12 @@ export function MessageGroup({
               ? group.messages[msgIdx + 1]
               : null;
 
-          // Kiểm tra có phải tin liên tiếp từ cùng người không
           const isSameSenderAsPrev = prevMsg?.sender._id === msg.sender._id;
           const isSameSenderAsNext = nextMsg?.sender._id === msg.sender._id;
 
-          // Quyết định có hiện avatar không
           const showAvatar = !isSameSenderAsNext || isLastInGroup;
-
-          // Quyết định margin
           const messageSpacing = isSameSenderAsPrev ? "mt-1" : "mt-4";
 
-          // Check if message is new (chưa render)
           const isNewMessage = !renderedMessageIds.current.has(msg.id);
           if (!renderedMessageIds.current.has(msg.id)) {
             renderedMessageIds.current.add(msg.id);
@@ -132,4 +133,3 @@ export function MessageGroup({
     </div>
   );
 }
-

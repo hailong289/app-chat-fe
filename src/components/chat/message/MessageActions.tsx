@@ -14,8 +14,8 @@ import {
   PopoverContent,
 } from "@heroui/react";
 import { MessageType } from "@/store/types/message.state";
-import { EMOJIS } from "./constants/messageConstants";
-import { canRecallMessage } from "./utils/messageHelpers";
+import { EMOJIS } from "../constants/messageConstants";
+import { canRecallMessage } from "../../../utils/messageHelpers";
 
 interface MessageActionsProps {
   msg: MessageType;
@@ -59,7 +59,13 @@ export function MessageActions({
         <Dropdown backdrop="blur">
           <DropdownTrigger>
             <Button
-              className="text-gray-400 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+              className="
+                p-0 rounded-full 
+                text-gray-400 dark:text-gray-300
+                opacity-0 group-hover:opacity-100 
+                transition-opacity duration-200
+                hover:bg-gray-100 dark:hover:bg-gray-800
+              "
               size="sm"
               variant="flat"
               isIconOnly
@@ -108,9 +114,16 @@ export function MessageActions({
             </DropdownItem>
           </DropdownMenu>
         </Dropdown>
+
         {noAction ? null : (
           <Button
-            className="text-gray-400 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            className="
+              p-0 rounded-full 
+              text-gray-400 dark:text-gray-300
+              opacity-0 group-hover:opacity-100 
+              transition-opacity duration-200
+              hover:bg-gray-100 dark:hover:bg-gray-800
+            "
             size="sm"
             variant="flat"
             isIconOnly
@@ -123,7 +136,13 @@ export function MessageActions({
         <Popover placement="top" backdrop="opaque">
           <PopoverTrigger>
             <Button
-              className="text-gray-400 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+              className="
+                p-0 rounded-full 
+                text-gray-400 dark:text-gray-300
+                opacity-0 group-hover:opacity-100 
+                transition-opacity duration-200
+                hover:bg-gray-100 dark:hover:bg-gray-800
+              "
               size="sm"
               variant="flat"
               isIconOnly
@@ -131,9 +150,15 @@ export function MessageActions({
               <FaceSmileIcon className="h-3 w-3" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="p-2">
+          <PopoverContent
+            className="
+              p-2 
+              bg-white dark:bg-gray-900
+              border border-gray-200 dark:border-gray-700
+            "
+          >
             <div className="flex flex-col gap-2">
-              <div className="text-xs font-semibold text-gray-600 px-2">
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 px-2">
                 Thả cảm xúc
               </div>
               <div className="grid grid-cols-6 gap-1">
@@ -141,7 +166,13 @@ export function MessageActions({
                   <button
                     key={emoji}
                     onClick={() => onReact(msg, emoji)}
-                    className="text-2xl hover:scale-125 transition-transform duration-200 p-2 rounded-lg hover:bg-gray-100"
+                    className="
+                      text-2xl 
+                      p-2 rounded-lg
+                      hover:scale-125 
+                      transition-transform duration-200
+                      hover:bg-gray-100 dark:hover:bg-gray-700
+                    "
                   >
                     {emoji}
                   </button>

@@ -26,7 +26,7 @@ export function ChatLoadingIndicator({
               exit={{ opacity: 0, y: -10 }}
               className="flex justify-center py-2"
             >
-              <div className="flex items-center gap-2 text-xs text-gray-500">
+              <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
                 <span>
                   {isLoadingFromAPI
@@ -50,7 +50,14 @@ export function ChatLoadingIndicator({
           >
             {/* Loading banner */}
             <div className="flex justify-center">
-              <div className="flex items-center gap-2 text-xs text-blue-600 bg-blue-50 px-4 py-2 rounded-full shadow-sm border border-blue-200">
+              <div
+                className="
+                  flex items-center gap-2 text-xs 
+                  text-blue-600 bg-blue-50 border-blue-200
+                  dark:text-blue-200 dark:bg-blue-500/10 dark:border-blue-500/40
+                  px-4 py-2 rounded-full shadow-sm border
+                "
+              >
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
                 <span className="font-medium">Đang tải tin nhắn mới...</span>
               </div>
@@ -78,7 +85,14 @@ export function ChatLoadingIndicator({
             transition={{ duration: 0.2 }}
             className="fixed bottom-20 right-6 z-50"
           >
-            <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm text-xs text-blue-600 px-3 py-2 rounded-full shadow-lg border border-blue-200">
+            <div
+              className="
+                flex items-center gap-2 
+                bg-white/90 text-blue-600 border-blue-200
+                dark:bg-gray-900/90 dark:text-blue-200 dark:border-blue-500/40
+                backdrop-blur-sm text-xs px-3 py-2 rounded-full shadow-lg border
+              "
+            >
               <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-600 border-t-transparent"></div>
               <span className="font-medium whitespace-nowrap">
                 {isFetchingNewMessages
@@ -92,4 +106,3 @@ export function ChatLoadingIndicator({
     </>
   );
 }
-

@@ -1,7 +1,7 @@
 "use client";
+
 import { useSearchParams } from "next/navigation";
 import ContactProfile from "@/components/contact/contact-profile";
-import { ContactType } from "@/store/types/contact.type";
 import { useEffect, Suspense } from "react";
 import useContactStore from "@/store/useContactStore";
 
@@ -9,17 +9,20 @@ function ContactPageContent() {
   const searchParams = useSearchParams();
   const profileId = searchParams.get("profileId");
   const contactState = useContactStore((state) => state);
+
   useEffect(() => {
     if (profileId) {
       contactState.setContact(profileId);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileId]);
-  // Mock data - sau này thay bằng fetch từ API hoặc store
 
   if (!profileId || !contactState.contact) {
     return (
-      <div className="flex items-center justify-center h-full bg-gray-50">
-        <p className="text-gray-500">Chọn một liên hệ để xem thông tin</p>
+      <div className="flex items-center justify-center h-full bg-slate-900">
+        <p className="text-gray-500 dark:text-gray-400">
+          Chọn một liên hệ để xem thông tin
+        </p>
       </div>
     );
   }
@@ -31,8 +34,8 @@ export default function ContactPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center h-full bg-gray-50">
-          <p className="text-gray-500">Đang tải...</p>
+        <div className="flex items-center justify-center h-full bg-slate-900">
+          <p className="text-gray-500 dark:text-gray-400">Đang tải...</p>
         </div>
       }
     >

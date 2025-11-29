@@ -78,7 +78,7 @@ export default function ContactProfile({
   return (
     <div className="h-full bg-background text-foreground overflow-y-auto">
       {/* Header */}
-      <Card className="rounded-none shadow-sm bg-content1 border-b border-default">
+      <Card className="rounded-none shadow-sm dark:bg-slate-900 border-b border-default">
         <CardHeader className="flex justify-between items-center p-4">
           <h2 className="text-lg font-semibold">Thông tin liên hệ</h2>
           <Button
@@ -94,7 +94,7 @@ export default function ContactProfile({
       </Card>
 
       {/* Profile Avatar & Name */}
-      <Card className="rounded-none shadow-none border-b border-default bg-content1/80">
+      <Card className="rounded-none shadow-none border-b border-default dark:bg-slate-900/80">
         <CardBody className="flex flex-col items-center py-8">
           <Avatar
             src={contact.avatar || undefined}
@@ -191,7 +191,7 @@ export default function ContactProfile({
       </Card>
 
       {/* Contact Information */}
-      <Card className="rounded-none shadow-none mt-2 bg-content1 border-b border-default">
+      <Card className="rounded-none shadow-none mt-2 dark:bg-slate-900 border-b border-default">
         <CardHeader className="px-4 pt-4 pb-2">
           <h3 className="text-sm font-semibold text-default-500 uppercase">
             Thông tin cá nhân
@@ -263,7 +263,7 @@ export default function ContactProfile({
       </Card>
 
       {/* Additional Info */}
-      <Card className="rounded-none shadow-none mt-2 mb-4 bg-content1 border-b border-default">
+      <Card className="rounded-none shadow-none mt-2 mb-4 dark:bg-slate-900 border-b border-default">
         <CardHeader className="px-4 pt-4 pb-2">
           <h3 className="text-sm font-semibold text-default-500 uppercase">
             Thông tin khác

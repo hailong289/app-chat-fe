@@ -120,22 +120,19 @@ export const LinkPreview = ({
           const statusText = response.statusText;
           const contentType = response.headers.get("content-type") || "";
 
-          // Đọc body nhưng cắt ngắn + tránh spam HTML
           let bodySnippet = "";
           try {
             const rawBody = await response.text();
             if (contentType.includes("text/html")) {
-              // Không in nguyên cái HTML 404 ra console nữa
               bodySnippet = "[HTML response truncated]";
             } else {
-              bodySnippet = rawBody.slice(0, 300); // cắt còn ~300 ký tự
+              bodySnippet = rawBody.slice(0, 300);
             }
           } catch (e) {
             console.debug("Failed to read error body for link preview:", e);
           }
 
           if (status === 404) {
-            // Trường hợp API không có/không hỗ trợ -> coi như "không có preview"
             console.warn(
               "Link preview API returned 404 for url:",
               url,
@@ -177,7 +174,14 @@ export const LinkPreview = ({
   /* ---------------------- Common skeleton ---------------------- */
   const LoadingCard = (
     <Card
-      className={`max-w-sm mt-2 ${isMine ? "bg-blue-400/20" : "bg-gray-100"}`}
+      className={`
+        max-w-sm mt-2 
+        ${
+          isMine
+            ? "bg-blue-400/20"
+            : "bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+        }
+      `}
       shadow="sm"
     >
       <CardBody className={`p-0 ${roundedClass}`}>
@@ -201,7 +205,6 @@ export const LinkPreview = ({
       autoplay: autoPlay ? "1" : "0",
       mute: autoPlay ? "1" : "0",
       controls: "1",
-      // start time nếu có
       ...(ytInfo.start ? { start: String(ytInfo.start) } : {}),
     }).toString();
 
@@ -280,7 +283,10 @@ export const LinkPreview = ({
           ${
             isMine
               ? "bg-blue-400/20 border-blue-400/30 text-white hover:bg-blue-400/30"
-              : "bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200"
+              : `
+                bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200
+                dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700
+              `
           }
           transition-colors duration-200 max-w-sm
         `}
@@ -304,7 +310,7 @@ export const LinkPreview = ({
           ${
             isMine
               ? "bg-blue-400/10 border-blue-400/30"
-              : "bg-white border-gray-200"
+              : "bg-white border-gray-200 dark:bg-gray-900 dark:border-gray-700"
           }
           ${roundedClass}
         `}
@@ -314,7 +320,7 @@ export const LinkPreview = ({
         <CardBody className="p-0">
           {/* Preview Image */}
           {preview.image && (
-            <div className="relative w-full h-40 bg-gray-100 overflow-hidden">
+            <div className="relative w-full h-40 bg-gray-100 dark:bg-gray-800 overflow-hidden">
               <Image
                 src={preview.image}
                 alt={preview.title || "Link preview"}
@@ -340,9 +346,14 @@ export const LinkPreview = ({
                 )}
                 {preview.siteName && (
                   <span
-                    className={`text-xs font-medium ${
-                      isMine ? "text-blue-100" : "text-gray-500"
-                    }`}
+                    className={`
+                      text-xs font-medium 
+                      ${
+                        isMine
+                          ? "text-blue-100"
+                          : "text-gray-500 dark:text-gray-400"
+                      }
+                    `}
                   >
                     {preview.siteName}
                   </span>
@@ -352,9 +363,10 @@ export const LinkPreview = ({
 
             {preview.title && (
               <h4
-                className={`font-semibold text-sm line-clamp-2 ${
-                  isMine ? "text-white" : "text-gray-900"
-                }`}
+                className={`
+                  font-semibold text-sm line-clamp-2
+                  ${isMine ? "text-white" : "text-gray-900 dark:text-gray-100"}
+                `}
               >
                 {preview.title}
               </h4>
@@ -362,18 +374,24 @@ export const LinkPreview = ({
 
             {preview.description && (
               <p
-                className={`text-xs line-clamp-2 ${
-                  isMine ? "text-blue-100" : "text-gray-600"
-                }`}
+                className={`
+                  text-xs line-clamp-2
+                  ${
+                    isMine
+                      ? "text-blue-100"
+                      : "text-gray-600 dark:text-gray-400"
+                  }
+                `}
               >
                 {preview.description}
               </p>
             )}
 
             <p
-              className={`text-xs truncate ${
-                isMine ? "text-blue-200" : "text-gray-400"
-              }`}
+              className={`
+                text-xs truncate
+                ${isMine ? "text-blue-200" : "text-gray-400 dark:text-gray-500"}
+              `}
             >
               {(() => {
                 try {

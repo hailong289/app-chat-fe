@@ -34,17 +34,17 @@ import {
   Tooltip,
 } from "@heroui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import FilePreviewGridModal from "../FilePreviewGridModal";
+import FilePreviewGridModal from "../../FilePreviewGridModal";
 import useMessageStore from "@/store/useMessageStore";
 import { FilePreview } from "@/store/types/message.state";
 import useAuthStore from "@/store/useAuthStore";
-import { useSocket } from "../providers/SocketProvider";
+import { useSocket } from "../../providers/SocketProvider";
 import EmojiPicker, { EmojiClickData, Categories } from "emoji-picker-react";
 import { ObjectId } from "bson";
 import { toast } from "@/store/useToastStore";
 import { useVoiceRecorder } from "@/libs/useVoiceRecorder";
 import { PermissionService } from "@/service/permisson.service";
-import WaveformCanvas from "./WaveformCanvas";
+import WaveformCanvas from "../message/WaveformCanvas";
 import {
   PauseCircleIcon,
   PlayIcon,
@@ -141,7 +141,6 @@ export default function ChatInputBar({
 
   // ====== SYNC LOCAL STATE VỚI STORE KHI ĐỔI CHAT ======
   useEffect(() => {
-    // clean URL cũ
     cleanupAll(attRef);
 
     const snapshot = useMessageStore.getState().messagesRoom[chatId];
@@ -427,7 +426,6 @@ export default function ChatInputBar({
     previewRef.current = preview;
   }, [preview]);
 
-  // Move waitForPreview to module scope
   async function waitForPreview(
     getPreview: () => any,
     timeoutMs = 1200
@@ -494,19 +492,22 @@ export default function ChatInputBar({
     return (
       <section
         aria-label="Chat input area"
-        className="absolute bottom-0 left-0 w-full px-4 py-4 mt-5 backdrop-blur-2xl bg-white/30 border-t border-white/30 shadow-[0_-8px_32px_-8px_rgba(0,0,0,0.1)] flex items-center justify-center"
+        className="
+          absolute bottom-0 left-0 w-full px-4 py-4 mt-5 
+          backdrop-blur-2xl bg-white/30 border-t border-white/30          
+        "
         style={{
           background:
             "linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.2) 100%)",
         }}
       >
         {!blockByMine && (
-          <p className="text-gray-500">
+          <p className="text-gray-500 dark:text-gray-300">
             Bạn không có quyền gửi tin nhắn trong cuộc trò chuyện này.
           </p>
         )}
         {blockByMine && (
-          <p className="text-gray-500">
+          <p className="text-gray-500 dark:text-gray-300">
             Bạn đã chặn người này vui lòng bỏ chặn để gửi tin nhắn.
           </p>
         )}
@@ -522,7 +523,11 @@ export default function ChatInputBar({
       </div>
       <section
         aria-label="Chat input area"
-        className="absolute bottom-0 left-0 w-full px-4 py-4 mt-5 backdrop-blur-2xl bg-white/30 border-t border-white/30 "
+        className="
+          absolute bottom-0 left-0 w-full px-4 py-4 mt-5 
+          backdrop-blur-2xl bg-white/30 border-t border-white/30
+          dark:bg-gray-950/80 dark:border-gray-800
+        "
         style={{
           background:
             "linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.2) 100%)",
@@ -555,7 +560,7 @@ export default function ChatInputBar({
         />
 
         {attachments.some((att) => att.kind === "photo") && (
-          <div className="mb-2 flex items-center justify-end bg-gray-50 p-2 rounded-lg gap-2">
+          <div className="mb-2 flex items-center justify-end bg-gray-50 dark:bg-gray-800 p-2 rounded-lg gap-2">
             <Chip color="warning" variant="bordered">
               HD
             </Chip>
@@ -569,15 +574,21 @@ export default function ChatInputBar({
 
         {replyingTo && (
           <button
-            className="mb-2 flex w-full items-start bg-gradient-to-r from-teal-50 to-blue-50 border-l-4 border-teal-500 p-3 rounded-lg gap-3 shadow-sm"
+            className="
+              mb-2 flex w-full items-start
+              bg-gradient-to-r from-teal-50 to-blue-50 
+              dark:from-teal-900/40 dark:to-blue-900/40
+              border-l-4 border-teal-500 dark:border-teal-400
+              p-3 rounded-lg gap-3 shadow-sm
+            "
             onClick={() => {
               setScrollto(replyingTo.id);
             }}
           >
-            <div className="flex-1  justify-start min-w-0">
+            <div className="flex-1 justify-start min-w-0">
               <div className="flex flex-col items-start gap-2 mb-1">
                 <div>
-                  <span className="text-xs font-semibold text-teal-600">
+                  <span className="text-xs font-semibold text-teal-600 dark:text-teal-300">
                     Trả lời{" "}
                     {replyingTo.isMine
                       ? "chính tôi"
@@ -598,7 +609,7 @@ export default function ChatInputBar({
                     </Chip>
                   )}
                 </div>
-                <p className="text-sm text-center text-gray-700 line-clamp-2">
+                <p className="text-sm text-center text-gray-700 dark:text-gray-200 line-clamp-2">
                   {replyingTo.type === "text" && replyingTo.content}
                   {replyingTo.type === "image" && "📷 Ảnh"}
                   {replyingTo.type === "video" && "🎥 Video"}
@@ -612,9 +623,9 @@ export default function ChatInputBar({
               size="sm"
               variant="light"
               onPress={() => setReplyMessage(chatId, null)}
-              className="hover:bg-red-100 min-w-unit-8"
+              className="hover:bg-red-100 dark:hover:bg-red-900/40 min-w-unit-8"
             >
-              <XMarkIcon className="w-4 h-4 text-gray-500 hover:text-red-500" />
+              <XMarkIcon className="w-4 h-4 text-gray-500 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400" />
             </Button>
           </button>
         )}
@@ -662,6 +673,7 @@ export default function ChatInputBar({
                 </Button>
               </Tooltip>
 
+              {/* Emoji Picker */}
               <Popover
                 isOpen={isEmojiPickerOpen}
                 onOpenChange={setIsEmojiPickerOpen}
@@ -671,7 +683,7 @@ export default function ChatInputBar({
                 backdrop="transparent"
                 classNames={{
                   content:
-                    "p-0 backdrop-blur-2xl bg-white/30 border border-white/30 shadow-xl",
+                    "p-0 backdrop-blur-2xl bg-white/30 border border-white/30 shadow-xl dark:bg-gray-900/80 dark:border-gray-700",
                 }}
                 style={{
                   background:
@@ -688,7 +700,7 @@ export default function ChatInputBar({
                     <FaceSmileIcon className="w-5 h-5" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="p-0 border-none shadow-xl backdrop-blur-2xl bg-white/20">
+                <PopoverContent className="p-0 border-none shadow-xl backdrop-blur-2xl bg-white/20 dark:bg-gray-900/90">
                   <div className="h-[400px] w-[400px]">
                     <EmojiPicker
                       onEmojiClick={onEmojiClick}
@@ -706,6 +718,7 @@ export default function ChatInputBar({
                 </PopoverContent>
               </Popover>
 
+              {/* GIF Picker */}
               <Popover
                 isOpen={isGifPickerOpen}
                 onOpenChange={setIsGifPickerOpen}
@@ -715,7 +728,7 @@ export default function ChatInputBar({
                 backdrop="transparent"
                 classNames={{
                   content:
-                    "p-0 backdrop-blur-2xl bg-white/30 border border-white/30 shadow-xl w-[400px]",
+                    "p-0 backdrop-blur-2xl bg-white/30 border border-white/30 shadow-xl w-[400px] dark:bg-gray-900/80 dark:border-gray-700",
                 }}
                 style={{
                   background:
@@ -732,9 +745,9 @@ export default function ChatInputBar({
                     <GifIcon className="w-5 h-5" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="p-0 border-none shadow-xl backdrop-blur-2xl bg-white/20 w-[400px]">
+                <PopoverContent className="p-0 border-none shadow-xl backdrop-blur-2xl bg-white/20 dark:bg-gray-900/90 w-[400px]">
                   <div className="flex flex-col h-[400px]">
-                    <div className="p-3 border-b border-gray-200">
+                    <div className="p-3 border-b border-gray-200 dark:border-gray-800">
                       <Input
                         placeholder="Tìm GIF..."
                         value={gifSearchQuery}
@@ -768,7 +781,11 @@ export default function ChatInputBar({
                                       gif.content_description || gif.id
                                     )
                                   }
-                                  className="relative aspect-square rounded-lg overflow-hidden hover:opacity-80 transition-opacity cursor-pointer bg-gray-100"
+                                  className="
+                                    relative aspect-square rounded-lg overflow-hidden 
+                                    hover:opacity-80 transition-opacity cursor-pointer
+                                    bg-gray-100 dark:bg-gray-800
+                                  "
                                 >
                                   <img
                                     src={gif.media_formats.tinygif.url}
@@ -782,7 +799,7 @@ export default function ChatInputBar({
                           );
                         }
                         return (
-                          <div className="flex items-center justify-center h-40 text-gray-400 text-sm">
+                          <div className="flex items-center justify-center h-40 text-gray-400 dark:text-gray-500 text-sm">
                             {gifSearchQuery
                               ? "Không tìm thấy GIF"
                               : "Nhập để tìm GIF..."}
@@ -791,8 +808,8 @@ export default function ChatInputBar({
                       })()}
                     </div>
 
-                    <div className="p-2 border-t border-gray-200 text-center">
-                      <span className="text-xs text-gray-400">
+                    <div className="p-2 border-t border-gray-200 dark:border-gray-800 text-center">
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
                         Powered by Tenor
                       </span>
                     </div>
@@ -809,9 +826,9 @@ export default function ChatInputBar({
                 ref={inputRef}
                 placeholder="Aa"
                 classNames={{
-                  input: "bg-white",
+                  input: "bg-white dark:bg-gray-900 dark:text-gray-100",
                   inputWrapper:
-                    "bg-white border-gray-200 hover:border-teal-500 focus-within:border-teal-500",
+                    "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:border-teal-500 dark:hover:border-teal-400 focus-within:border-teal-500 dark:focus-within:border-teal-400",
                 }}
                 size="lg"
                 value={message}
@@ -889,7 +906,7 @@ export default function ChatInputBar({
                   />
                 </div>
                 <div>
-                  <span className="text-sm tabular-nums">
+                  <span className="text-sm tabular-nums dark:text-gray-200">
                     {new Date(durationMs).toISOString().slice(14, 19)}
                   </span>
                 </div>
