@@ -23,13 +23,35 @@ export const defaultConfig: FileAcceptConfig = {
   compressImages: false, // Mặc định không nén, để user chọn
   compressQuality: 0.8, // Chất lượng nén 80%
 };
+export const documentOnlyConfig: FileAcceptConfig = {
+  accept: [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+
+    "text/plain",
+    "text/csv",
+    "application/json",
+  ],
+  maxFiles: 10,
+  maxSizeMB: 50,
+  compressImages: false, // tài liệu thì khỏi nén
+  compressQuality: 0.8,
+};
 /** Build regex từ accept pattern ("image/*" -> /^image\/.*$/i) */
 export function buildAcceptRegex(accept: string[]) {
   const parts = accept.map((a) => a.replace("*", ".*").replace("/", "\\/"));
   return new RegExp(`^(${parts.join("|")})$`, "i");
 }
-
+export function buildInputAccept(accept: string[]): string {
+  return accept.join(",");
+}
 /** MIME fallback theo extension (khi file.type rỗng – clipboard/drag có thể gặp) */
 export function guessMimeByExt(name: string): string | null {
   const ext = name.split(".").pop()?.toLowerCase() || "";

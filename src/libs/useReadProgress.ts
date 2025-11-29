@@ -85,7 +85,6 @@ export function useReadProgress(opts: {
       const newIdx = indexOf.get(id) ?? -1;
 
       if (newIdx > currentIdx) {
-        console.log("📖 Mark as read:", id);
         setLastReadId(id);
         debouncedCommit(id);
       }

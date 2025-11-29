@@ -46,6 +46,8 @@ import UploadFileButton from "@/components/upload/UploadFileButton";
 import UploadService from "@/service/uploadfile.service";
 import { AddMemberModal } from "../modals/add-member.model";
 import { useRouter } from "next/navigation";
+import Timeline from "@/components/ui/timeline";
+import me from "@/app/me/page";
 
 export default function ChatDrawer({
   isOpen,
@@ -56,6 +58,7 @@ export default function ChatDrawer({
   onClose: () => void;
   noAction: boolean;
 }>) {
+  const [selectedKeys, setSelectedKeys] = useState(new Set(["1"]));
   const files = [
     {
       id: 1,
@@ -129,7 +132,7 @@ export default function ChatDrawer({
         isOpen={isOpen}
         onOpenChange={onClose}
         backdrop="transparent"
-        className="w-[400px]"
+        className=""
       >
         <DrawerContent>
           {(onClose) => (
@@ -140,7 +143,7 @@ export default function ChatDrawer({
               </div>
             </DrawerHeader> */}
               <DrawerBody className="p-6 pt-0">
-                <Card className="py-4 flex flex-col items-center justify-center mb-6 shadow-none border border-none">
+                <Card className="mt-20 flex flex-col items-center justify-center mb-6 shadow-none border border-none">
                   <CardHeader className="pb-0 pt-2 px-4 flex justify-center items-center flex-col gap-1 text-center">
                     <Avatar
                       size="lg"
@@ -154,11 +157,21 @@ export default function ChatDrawer({
                     </h3>
                   </CardBody>
                 </Card>
-
-                <Accordion selectionMode="multiple">
-                  {[
-                    !noAction
-                      ? (
+                <div className="h-[calc(100vh-200px)] overflow-hidden overflow-y-auto">
+                  <Accordion
+                    selectedKeys={selectedKeys}
+                    onSelectionChange={(keys) =>
+                      setSelectedKeys(
+                        new Set(
+                          typeof keys === "string"
+                            ? [keys]
+                            : Array.from(keys, String)
+                        )
+                      )
+                    }
+                  >
+                    {[
+                      noAction ? null : (
                         <AccordionItem
                           key="1"
                           aria-label="Accordion 1"
@@ -187,7 +200,9 @@ export default function ChatDrawer({
                                   icon={
                                     <PhotoIcon className="w-4 h-4 text-gray-400" />
                                   }
-                                  onDone={(urls) => roomState.updateAvatar(urls[0])}
+                                  onDone={(urls) =>
+                                    roomState.updateAvatar(urls[0])
+                                  }
                                   accept="image/*"
                                   folder="avatar"
                                   label="Thay đổi ảnh"
@@ -208,11 +223,9 @@ export default function ChatDrawer({
                             </Button>
                           </div>
                         </AccordionItem>
-                      )
-                      : null,
-                    (roomState.room?.type === "group" ||
-                      roomState.room?.type === "channel")
-                      ? (
+                      ),
+                      roomState.room?.type === "group" ||
+                      roomState.room?.type === "channel" ? (
                         <AccordionItem
                           key="2"
                           aria-label="Accordion 2"
@@ -220,7 +233,7 @@ export default function ChatDrawer({
                         >
                           {roomState.room?.members?.map((member) => (
                             <div
-                              key={member.id}
+                              key={member.id + member.role}
                               className="flex p-2 justify-between items-center gap-4 border border-gray-100 rounded-lg mb-2 hover:bg-gray-50"
                             >
                               <div className="flex items-center justify-between gap-2">
@@ -254,7 +267,9 @@ export default function ChatDrawer({
                                       <Button
                                         className="w-full justify-start"
                                         variant="light"
-                                        onPress={() => handleChatPrivate(member.id)}
+                                        onPress={() =>
+                                          handleChatPrivate(member.id)
+                                        }
                                         startContent={
                                           <ChatBubbleLeftIcon className="w-5 h-5 text-gray-400" />
                                         }
@@ -308,9 +323,7 @@ export default function ChatDrawer({
                             </Button>
                           )}
                         </AccordionItem>
-                      )
-                      : null,
-                    (
+                      ) : null,
                       <AccordionItem
                         key="3"
                         aria-label="Accordion 3"
@@ -373,9 +386,7 @@ export default function ChatDrawer({
                             </Card>
                           ))}
                         </div>
-                      </AccordionItem>
-                    ),
-                    (
+                      </AccordionItem>,
                       <AccordionItem
                         key="4"
                         aria-label="Accordion 4"
@@ -422,31 +433,38 @@ export default function ChatDrawer({
                               <NoSymbolIcon className="w-5 h-5 text-gray-400" />
                             }
                           >
-                            Chặn
+                            {roomState.room?.isBlocked ? "Bỏ chặn" : "Chặn"}
                           </Button>
                         )}
-                      </AccordionItem>
-                    ),
-                  ].filter(Boolean)}
-                </Accordion>
-
-                {/* Floating action buttons
-                            <div className="fixed bottom-6 right-6 flex flex-col gap-3">
-                                <Button 
-                                    isIconOnly 
-                                    color="success" 
-                                    className="rounded-full w-12 h-12 shadow-lg"
-                                >
-                                    <ShareIcon className="w-6 h-6" />
-                                </Button>
-                                <Button 
-                                    isIconOnly 
-                                    color="primary" 
-                                    className="rounded-full w-12 h-12 shadow-lg"
-                                >
-                                    <ArrowDownTrayIcon className="w-6 h-6" />
-                                </Button>
-                            </div> */}
+                      </AccordionItem>,
+                      <AccordionItem
+                        key="5"
+                        aria-label="Accordion 5"
+                        title="Lịch sử hoạt động"
+                      >
+                        <Timeline
+                          events={roomState.room?.roomEvents?.map((event) => ({
+                            ...event,
+                            status: ([
+                              "danger",
+                              "default",
+                              "primary",
+                              "success",
+                              "warning",
+                            ].includes(event.status)
+                              ? event.status
+                              : "default") as
+                              | "danger"
+                              | "default"
+                              | "primary"
+                              | "success"
+                              | "warning",
+                          }))}
+                        />
+                      </AccordionItem>,
+                    ].filter(Boolean)}
+                  </Accordion>
+                </div>
               </DrawerBody>
             </>
           )}

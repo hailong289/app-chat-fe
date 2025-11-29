@@ -51,4 +51,6 @@ export interface ContactState {
     onlineAt: string | null;
   }) => void;
   checkOnlineStatus: (socket: any) => void;
+  BlockUser: (requestId: string) => Promise<void>;
+  UnlockBlockedUser: (requestId: string) => Promise<void>;
 }

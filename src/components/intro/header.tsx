@@ -23,6 +23,7 @@ import {
 } from "@heroui/react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
+import { ThemeSwitcher } from "../ThemeSwitcher";
 
 export const Header = () => {
   const router = useRouter();
@@ -83,7 +84,7 @@ export const Header = () => {
         return;
       }
       toast.success("Đăng xuất thành công!", "Thành công");
-      
+
       router.push("/dashboard");
     });
   }, [handleLogout, router, disconnectSocket]);
@@ -183,6 +184,7 @@ export const Header = () => {
               <XCircleIcon className="w-6 h-6" />
             )}
           </Button>
+          <ThemeSwitcher />
         </div>
       </nav>
     </div>

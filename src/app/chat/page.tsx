@@ -16,6 +16,7 @@ import { useSearchParams } from "next/navigation";
 import ChatInputBar from "@/components/chat/inputBar";
 import useAuthStore from "@/store/useAuthStore";
 import { ChatMessages } from "@/components/chat/ChatMessages";
+import TypingIndicator from "@/components/chat/TypingIndicator";
 
 function ChatPageContent() {
   const [widthClass, setWidthClass] = useState("w-full");
@@ -44,6 +45,11 @@ function ChatPageContent() {
       (m) => m.id == authState.user?.id
     );
     setNoAction(user?.role === "guest");
+    if (roomState.room?.name) {
+      document.title = `${roomState.room.name} - Nhắn tin - Ichat`;
+    } else {
+      document.title = "Nhắn tin - Ichat";
+    }
   }, [roomState.room]);
   return (
     <div className={`bg-light h-screen ${widthClass}`}>
@@ -67,6 +73,7 @@ function ChatPageContent() {
           noAction={noAction}
           setToggleInput={setToggleInput}
           toggleInput={toggleInput}
+          setScrollto={setScrollto}
         />
       </main>
     </div>

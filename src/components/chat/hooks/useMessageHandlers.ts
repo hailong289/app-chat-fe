@@ -3,12 +3,17 @@ import { MessageType } from "@/store/types/message.state";
 import useMessageStore from "@/store/useMessageStore";
 import useToast from "@/hooks/useToast";
 import { emitWithAck, canRecallMessage } from "../utils/messageHelpers";
+import { socketEvent } from "@/types/socketEvent.type";
 
 interface UseMessageHandlersProps {
   chatId: string;
   socket: any;
   messageState: any;
-  emitWithAckHelper: (event: string, payload: any, timeout?: number) => Promise<any>;
+  emitWithAckHelper: (
+    event: string,
+    payload: any,
+    timeout?: number
+  ) => Promise<any>;
 }
 
 export function useMessageHandlers({
@@ -32,7 +37,7 @@ export function useMessageHandlers({
       if (!socket || !socket.connected) return;
 
       socket.emit(
-        "message:emoji",
+        socketEvent.MSGREACT,
         {
           roomId: chatId,
           msgId: msg.id,
@@ -63,7 +68,11 @@ export function useMessageHandlers({
       messageState.upsetMsg(updated);
 
       // Emit and reconcile on ack/error
-      emitWithAckHelper("message:delete", { roomId: chatId, msgId: msg.id }, 5000)
+      emitWithAckHelper(
+        socketEvent.MSGDELETE,
+        { roomId: chatId, msgId: msg.id },
+        5000
+      )
         .then((ack) => {
           console.debug("emit:message:delete ack:", ack, "msgId:", msg.id);
           if (!ack || ack?.ok === false) {
@@ -101,7 +110,7 @@ export function useMessageHandlers({
       messageState.upsetMsg(updated);
 
       emitWithAckHelper(
-        "message:recall",
+        socketEvent.MSGRECALL,
         {
           roomId: chatId,
           msgId: msg.id,
@@ -146,7 +155,7 @@ export function useMessageHandlers({
         messageState.upsetMsg(updated);
 
         emitWithAckHelper(
-          "message:pinned",
+          socketEvent.MSGPINNED,
           {
             roomId: chatId,
             msgId: msg.id,
@@ -159,6 +168,10 @@ export function useMessageHandlers({
             if (!ack || ack?.ok === false) {
               messageState.upsetMsg(original);
               toast.error(ack?.reason || "Không thể thay đổi trạng thái gim");
+            } else {
+              toast.success(
+                !msg.pinned ? "Đã gim tin nhắn" : "Đã bỏ gim tin nhắn"
+              );
             }
           })
           .catch((err) => {
@@ -184,4 +197,3 @@ export function useMessageHandlers({
     handleTogglePin,
   };
 }
-

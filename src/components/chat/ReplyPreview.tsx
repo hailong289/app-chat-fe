@@ -21,6 +21,7 @@ export function ReplyPreview({ reply, onJump }: ReplyPreviewProps) {
         {reply.type === "video" && "🎥 Video"}
         {reply.type === "file" && "📎 File"}
         {reply.type === "gif" && "🎬 GIF"}
+        {reply.type === "audio" && "🎵 Audio"}
       </span>
     ) : null;
 
@@ -59,4 +60,3 @@ export function ReplyPreview({ reply, onJump }: ReplyPreviewProps) {
     </button>
   );
 }
-

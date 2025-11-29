@@ -26,9 +26,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
     handleRequestPermission();
   }, [firebase]);
-  useEffect(() => {
-    // addToast(getToastElements(status));
-  }, [socket, status]);
+
   // Define valid routes
   const validRoutes = ["/", "/chat", "/settings", "/contacts"];
   const isValidRoute =

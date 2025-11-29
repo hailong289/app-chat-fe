@@ -56,9 +56,9 @@ const Contacts: React.FC = () => {
   };
   return (
     <>
-      <Card className="bg-white w-full shadow-none border-none rounded-none">
+      <Card className="h-full w-full shadow-none border-none rounded-none">
         <CardBody>
-          <div className="flex flex-col items-center justify-between p-2 border-b border-gray-200 w-full">
+          <div className="flex flex-col items-center justify-between p-2 border-b  w-full">
             <div className="w-full flex items-center justify-between mb-2">
               <h2 className="text-xl font-semibold ">Bạn bè</h2>
               <div className="flex items-center justify-end ">

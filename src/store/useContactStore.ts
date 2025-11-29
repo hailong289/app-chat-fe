@@ -5,6 +5,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import ContactService from "@/service/contact.service";
 import { getOne, upsertMany, upsertOne } from "@/libs/crud";
 import { db } from "@/libs/db";
+import { socketEvent } from "@/types/socketEvent.type";
 
 const useContactStore = create<ContactState>()(
   persist(
@@ -67,7 +68,6 @@ const useContactStore = create<ContactState>()(
           actionUserId: contact.friendship?.actionUserId || null,
           isOnline: false,
         }));
-        console.log("🚀 ~ friends:", friendsMapped);
         await upsertMany(db.contacts, friendsMapped);
         set({ friends: friendsMapped, isLoading: false });
         return friendsMapped;
@@ -90,6 +90,7 @@ const useContactStore = create<ContactState>()(
           await upsertOne(db.contacts, contact);
           await get().getAllContacts();
           set({ contact });
+          console.log("🚀 ~ contact:", contact);
         } catch (error: any) {
           set({
             error: error?.message || "An error occurred",
@@ -186,12 +187,67 @@ const useContactStore = create<ContactState>()(
           });
         }
       },
+      BlockUser: async (requestId: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          await ContactService.blockFriend(requestId);
+          const contact = await getOne(db.contacts, requestId);
+          const room = await getOne(db.rooms, requestId);
+          if (contact) {
+            contact.friendship = "BLOCKED";
+            await upsertOne(db.contacts, contact);
+            await get().getAllContacts();
+            set({
+              contact,
+              inviteds: get().inviteds.filter((c) => c.id !== requestId),
+              sent: get().sent.filter((c) => c.id !== requestId),
+            });
+          }
+          if (room) {
+            room.isBlocked = true;
+            room.blockByMine = true;
+            await upsertOne(db.rooms, room);
+          }
+        } catch (error: any) {
+          set({
+            error: error?.message || "An error occurred",
+            isLoading: false,
+          });
+        }
+      },
+      UnlockBlockedUser: async (requestId: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          await ContactService.unBlockFriend(requestId);
+          const contact = await getOne(db.contacts, requestId);
+          const room = await getOne(db.rooms, requestId);
+          if (contact) {
+            contact.friendship = "INVALID";
+            await upsertOne(db.contacts, contact);
+            await get().getAllContacts();
+            set({
+              contact,
+              inviteds: get().inviteds.filter((c) => c.id !== requestId),
+              sent: get().sent.filter((c) => c.id !== requestId),
+            });
+          }
+          if (room) {
+            room.isBlocked = false;
+            room.blockByMine = false;
+            await upsertOne(db.rooms, room);
+          }
+        } catch (error: any) {
+          set({
+            error: error?.message || "An error occurred",
+            isLoading: false,
+          });
+        }
+      },
       socketHandleOnline: (data: {
         id: string;
         isOnline: boolean;
         onlineAt?: string | null;
       }) => {
-        console.log("🚀 ~ data:", data);
         const contact = get().contacts.find((c) => c.id === data.id);
         if (!contact) return;
         contact.isOnline = data.isOnline;
@@ -205,8 +261,7 @@ const useContactStore = create<ContactState>()(
       checkOnlineStatus: (socket: any) => {
         console.log("checkOOnline");
         const ids = get().contacts.map((c) => c.id);
-        console.log("🚀 ~ ids:", ids);
-        socket.emit("check-online-status", ids);
+        socket.emit(socketEvent.USERSATUS, ids);
       },
     }),
     {

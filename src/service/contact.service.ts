@@ -33,4 +33,10 @@ export default class ContactService {
   static getListFrineds() {
     return apiService.get("/social/users/friends");
   }
+  static blockFriend(userId: string) {
+    return apiService.patch(`/social/friends/${userId}/block`);
+  }
+  static unBlockFriend(userId: string) {
+    return apiService.patch(`/social/friends/${userId}/open-blocked`);
+  }
 }

@@ -7,7 +7,7 @@ import { MessageActions } from "./MessageActions";
 import { MessageReactions } from "./MessageReactions";
 import { ReplyPreview } from "./ReplyPreview";
 import { MessageType } from "@/store/types/message.state";
-import { ArrowPathIcon } from "@heroicons/react/16/solid";
+import { ArrowPathIcon, EyeDropperIcon } from "@heroicons/react/16/solid";
 
 interface MessageItemProps {
   msg: MessageType;
@@ -67,7 +67,20 @@ export function MessageItem({
   const isSameSenderAsPrev = prevMsg?.sender._id === msg.sender._id;
   const isSameSenderAsNext = nextMsg?.sender._id === msg.sender._id;
   const shouldAnimateThis = shouldAnimate && isNewMessage;
-
+  const PinnedIcon = () => {
+    return (
+      <button
+        className={`absolute top-2 ${
+          msg.isMine ? "right-4" : "left-4"
+        } bg-blue-500 rounded-full p-1 shadow-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 z-10`}
+        onDoubleClick={() => onTogglePin(msg)}
+      >
+        <Tooltip content="Đã gim tin nhắn" size="sm">
+          <EyeDropperIcon className="w-3 h-3 text-white" />
+        </Tooltip>
+      </button>
+    );
+  };
   // Small helper that renders the "Tin chưa đọc" divider
   const UnreadDivider = () => {
     if (!(isUnreadDivider && !msg.isRead && !msg.isMine)) return null;
@@ -244,16 +257,17 @@ export function MessageItem({
 
       <fieldset
         ref={setMessageRef(msg.id)}
-        className={`flex items-end gap-2 group ${
+        className={`relative flex items-end gap-2 group ${
           msg.isMine ? "justify-end" : "justify-start"
         }`}
         data-mid={msg.id}
       >
+        {/* Pinned icon */}
+        {msg.pinned && <PinnedIcon />}
         {/* Read avatars cho tin của mình (bên trái bubble) */}
         {isLastInGroup && msg.isMine && (
           <ReadAvatars reads={msg.read_by} count={msg.read_by_count} />
         )}
-
         <div
           className={`flex w-full items-end gap-2 group ${
             msg.isMine ? "justify-end" : "justify-start"
@@ -348,7 +362,6 @@ export function MessageItem({
           {/* Avatar bên phải (tin của mình) */}
           <AvatarSlot side="right" />
         </div>
-
         {/* Read avatars for other people's last message */}
         {!msg.isMine && msg.id === lastMsgId && (
           <ReadAvatars reads={msg.read_by} count={msg.read_by_count} />

@@ -45,7 +45,9 @@ export const ChatMessages = memo(
     const { socket } = useSocket();
     const roomState = useRoomStore((state) => state);
     const messageState = useMessageStore((state) => state);
-    const messages = messageState.messagesRoom[chatId]?.messages || [];
+    const messages =
+      useMessageStore.getState().messagesRoom[chatId]?.messages || [];
+    // console.log("🚀 ~ messages:", messages);
 
     // Compute the most up-to-date message id to use for grouping/scrolling
     const lastMsgId =
@@ -268,7 +270,7 @@ export const ChatMessages = memo(
         {!state.isSwitchingChat && (
           <ScrollShadow
             ref={state.containerRef}
-            className={`p-4 overflow-y-auto w-full max-h-[calc(100vh-180px)] transition-all duration-200 ${
+            className={`p-4 overflow-y-auto w-full max-h-[calc(100vh-200px)] transition-all duration-200 ${
               state.isFetchingNewMessages ? "bg-blue-50/20" : ""
             }`}
           >

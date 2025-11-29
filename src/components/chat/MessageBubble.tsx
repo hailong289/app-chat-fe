@@ -34,9 +34,7 @@ function RecalledMessageBubble({ isMine }: { isMine: boolean }) {
           relative px-4 py-2.5 rounded-2xl shadow-sm bg-gray-100 text-gray-500 italic text-sm border border-gray-200
         `}
       >
-        {isMine
-          ? "Bạn đã thu hồi tin nhắn này"
-          : "Tin nhắn đã bị thu hồi"}
+        {isMine ? "Bạn đã thu hồi tin nhắn này" : "Tin nhắn đã bị thu hồi"}
       </div>
     </div>
   );
@@ -54,38 +52,18 @@ function getBubbleClasses(
         ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white"
         : "bg-white text-gray-800 border border-gray-200"
     }
+    ${!isSameSenderAsPrev && msg.isMine ? "rounded-tr-md" : ""}
+    ${!isSameSenderAsPrev && !msg.isMine ? "rounded-tl-md" : ""}
+    ${!isSameSenderAsNext && msg.isMine ? "rounded-br-md" : ""}
+    ${!isSameSenderAsNext && !msg.isMine ? "rounded-bl-md" : ""}
     ${
-      !isSameSenderAsPrev && msg.isMine ? "rounded-tr-md" : ""
+      msg.status === "pending" || msg.status === "uploading" ? "opacity-60" : ""
     }
-    ${
-      !isSameSenderAsPrev && !msg.isMine ? "rounded-tl-md" : ""
-    }
-    ${
-      !isSameSenderAsNext && msg.isMine ? "rounded-br-md" : ""
-    }
-    ${
-      !isSameSenderAsNext && !msg.isMine ? "rounded-bl-md" : ""
-    }
-    ${
-      msg.status === "pending" || msg.status === "uploading"
-        ? "opacity-60"
-        : ""
-    }
-    ${
-      msg.status === "failed"
-        ? "opacity-80 border-2 border-red-400"
-        : ""
-    }
+    ${msg.status === "failed" ? "opacity-80 border-2 border-red-400" : ""}
   `;
 }
 
-function PinnedIcon() {
-  return (
-    <div className="absolute -top-2 -right-2 bg-yellow-400 rounded-full p-1 shadow-md">
-      <EyeDropperIcon className="w-3 h-3 text-white" />
-    </div>
-  );
-}
+
 
 function UploadingIndicator() {
   return (
@@ -117,7 +95,13 @@ function RegularMessageBubble({
 
   return (
     <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
-      <div className={getBubbleClasses(msg, isSameSenderAsPrev, isSameSenderAsNext)}>
+      <div
+        className={getBubbleClasses(
+          msg,
+          isSameSenderAsPrev,
+          isSameSenderAsNext
+        )}
+      >
         <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
           {displayContent}
         </p>
@@ -133,9 +117,6 @@ function RegularMessageBubble({
             {isExpanded ? "Thu gọn" : "Xem thêm"}
           </button>
         )}
-
-        {/* Pinned icon */}
-        {msg.pinned && <PinnedIcon />}
 
         {/* Uploading indicator */}
         {msg.status === "uploading" && <UploadingIndicator />}
@@ -180,4 +161,3 @@ export function MessageBubble({
 
   return null;
 }
-

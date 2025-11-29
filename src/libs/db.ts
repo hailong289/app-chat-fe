@@ -1,6 +1,7 @@
 import { ContactType } from "@/store/types/contact.type";
 import { MessageType } from "@/store/types/message.state";
 import { roomType } from "@/store/types/room.state";
+import { User } from "@/types/auth.type";
 import Dexie, { Table } from "dexie";
 
 /**
@@ -47,6 +48,7 @@ export class AppDB extends Dexie {
         contacts: "id, fullname, email, status, createdAt, updatedAt", // indexed fields only
         messages: "id, roomId, type, createdAt, pinned", // indexed fields only
       })
+
       .upgrade(async (trans) => {
         // Clear all old data on upgrade to avoid encryption conflicts
         await trans.table("rooms").clear();

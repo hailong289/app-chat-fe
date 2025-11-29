@@ -110,7 +110,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
   upsetMsg: async (msgData: MessageType) => {
     if (!msgData.roomId) return;
-    console.log("🚀 ~ msgData:", msgData);
 
     // Lưu vào IndexedDB trước
     msgData.status = "sent";
@@ -130,6 +129,19 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       updatedMessages = [...prevMessages, msgData];
     } else {
       // ID đã tồn tại → cập nhật tại chỗ
+      if (
+        Array.isArray(msgData.attachments) &&
+        msgData.attachments.length > 0
+      ) {
+        // Cập nhật các trường mới cho attachment, giữ nguyên attachment cũ nếu không có _id trùng
+        const prevAttachments = prevMessages[existingIndex].attachments || [];
+        msgData.attachments = msgData.attachments.map((newAtt) => {
+          const oldAtt = prevAttachments.find((att) => att._id === newAtt._id);
+          return oldAtt
+            ? { ...oldAtt, ...newAtt } // merge, ưu tiên trường mới
+            : newAtt; // nếu không có thì giữ nguyên newAtt
+        });
+      }
       updatedMessages = prevMessages.map((msg, idx) =>
         idx === existingIndex ? msgData : msg
       );
@@ -145,7 +157,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       },
     });
-    await upsertOne(db.messages, sanitizeMessageForDB(msgData));
+    await upsertOne(db.messages, msgData);
   },
 
   sendMessage: async (args: SendMessageArgs) => {
@@ -243,7 +255,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
               content,
               replyTo,
               id,
-              attachments: successful.map((att) => att._id),
+              attachments: uploadedAttachments.map((att) => att._id),
             });
           } else {
             console.warn(
@@ -668,8 +680,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     messageId: string,
     attachments: FilePreview[]
   ) => {
-    console.log("🚀 Starting upload for", attachments.length, "files");
-
     // Lọc chỉ những file chưa upload (có file property)
     const filesToUpload = attachments.filter((att) => att.file);
 
@@ -677,15 +687,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       console.log("✅ No files to upload");
       return attachments;
     }
-
-    // Log IDs để verify
-    console.log(
-      "📋 File IDs to upload:",
-      filesToUpload.map((att) => ({
-        name: att.name,
-        _id: att._id,
-      }))
-    );
 
     // Đánh dấu tất cả là "uploading"
     for (const att of filesToUpload) {
