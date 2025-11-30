@@ -91,7 +91,8 @@ function useAccessToken(): string | null {
 
 export function SocketProvider({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
+  url,
+}: Readonly<{ children: React.ReactNode; url?: string }>) {
   const token = useAccessToken();
   const [status, setStatus] = useState<SocketStatus>("idle");
   const [reconnectCount, setReconnectCount] = useState(0);
@@ -99,7 +100,7 @@ export function SocketProvider({
   const socketRef = useRef<Socket | null>(null);
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const url = process.env.NEXT_PUBLIC_SOCKET_URL!;
+  url = url || process.env.NEXT_PUBLIC_SOCKET_URL!;
 
   // Enhanced socket options for Auto Scaling environments
   const opts = useMemo(

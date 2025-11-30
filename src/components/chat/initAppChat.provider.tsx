@@ -2,10 +2,10 @@
 import useAuthStore from "@/store/useAuthStore";
 import useContactStore from "@/store/useContactStore";
 import { useEffect } from "react";
-import { useSocket } from "./SocketProvider";
+import { useSocket } from "../providers/SocketProvider";
 import { deleteOldMessagesKeepLatest } from "@/utils/localStorage";
 
-export const InitApp = () => {
+export const InitAppChat = () => {
   const contactState = useContactStore((state) => state);
   const authState = useAuthStore((state) => state);
   const { socket } = useSocket();

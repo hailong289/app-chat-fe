@@ -1,12 +1,13 @@
 "use client";
-
 import { useEffect, Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { Header } from "@/components/intro/header";
 import { LeftSide } from "@/components/intro/left-side";
 import { useFirebase } from "@/components/providers/firebase.provider";
-import { SocketEventGlobal } from "@/components/socketEventGlobal";
+import { SocketEventChatGlobal } from "@/components/chat/socketChatEventGlobal";
 import useCounterStore from "@/store/useCounterStore";
+import { SocketProvider } from "@/components/providers/SocketProvider";
+import { InitAppChat } from "@/components/chat/initAppChat.provider";
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const firebase = useFirebase();
@@ -47,23 +48,26 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   // Layout chính của app chat
   return (
-    <div className="flex h-screen w-full bg-slate-900 text-foreground">
-      <nav className="relative h-full">
-        <Suspense fallback={<div className="w-[60px] h-full" />}>
-          <Header />
-        </Suspense>
-      </nav>
+    <SocketProvider url={process.env.NEXT_PUBLIC_SOCKET_URL}>
+      <InitAppChat />
+      <div className="flex h-screen w-full bg-slate-900 text-foreground">
+        <nav className="relative h-full">
+          <Suspense fallback={<div className="w-[60px] h-full" />}>
+            <Header />
+          </Suspense>
+        </nav>
 
-      <main className="flex-1 h-screen flex overflow-hidden">
-        {/* Global socket listener / toasts / events */}
-        <SocketEventGlobal />
+        <main className="flex-1 h-screen flex overflow-hidden">
+          {/* Global socket listener / toasts / events */}
+          <SocketEventChatGlobal />
 
-        <Suspense fallback={<div className={`h-full`} />}>
-          <LeftSide />
-        </Suspense>
+          <Suspense fallback={<div className={`h-full`} />}>
+            <LeftSide />
+          </Suspense>
 
-        <div className="flex-1 overflow-y-auto">{children}</div>
-      </main>
-    </div>
+          <div className="flex-1 overflow-y-auto">{children}</div>
+        </main>
+      </div>
+    </SocketProvider>
   );
 }

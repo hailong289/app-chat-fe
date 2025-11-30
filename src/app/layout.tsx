@@ -9,10 +9,7 @@ import "@/styles/main.scss";
 import { ClientLayout } from "./client-layout";
 import { FirebaseProvider } from "@/components/providers/firebase.provider";
 import { SocketProvider } from "@/components/providers/SocketProvider";
-import { SocketEventGlobal } from "@/components/socketEventGlobal";
-import SocketStatusIndicator from "@/components/socket/SocketStatusIndicator";
 import NotificationPermission from "@/components/notifications/NotificationPermission";
-import { InitApp } from "@/components/providers/initApp.provider";
 // import { ThemeProvider } from "next-themes";
 export const metadata: Metadata = {
   title: "ChatApp",
@@ -29,13 +26,8 @@ export default function RootLayout({
       <body suppressHydrationWarning>
         <Providers>
           <FirebaseProvider>
-            <SocketProvider>
-              <SocketEventGlobal />
-              <SocketStatusIndicator />
-              <NotificationPermission />
-              <InitApp />
-              <ClientLayout>{children}</ClientLayout>
-            </SocketProvider>
+            <NotificationPermission />
+            <ClientLayout>{children}</ClientLayout>
           </FirebaseProvider>
         </Providers>
       </body>

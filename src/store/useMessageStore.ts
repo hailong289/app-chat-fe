@@ -221,6 +221,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       hiddenByMe: false,
       hiddenAt: null,
       isDeleted: false,
+      read_by: [], // Add this property to satisfy MessageType
     };
 
     // Thêm dữ liệu tạm vào messages để hiển thị ngay

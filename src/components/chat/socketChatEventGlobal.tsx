@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import { useSocket } from "./providers/SocketProvider";
+import { useSocket } from "../providers/SocketProvider";
 import useRoomStore from "@/store/useRoomStore";
 import useMessageStore from "@/store/useMessageStore";
 import useContactStore from "@/store/useContactStore";
 import { socketEvent } from "@/types/socketEvent.type";
 
-export const SocketEventGlobal = () => {
+export const SocketEventChatGlobal = () => {
   const { socket } = useSocket();
   const roomState = useRoomStore((state) => state);
   const contactState = useContactStore((state) => state);
