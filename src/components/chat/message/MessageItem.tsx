@@ -235,15 +235,6 @@ export function MessageItem({
               >
                 <span className="inline-flex items-center gap-1">
                   <Spinner size="sm" color="default" />
-                  {msg.status === "uploading" && (
-                    <span className="ml-1">
-                      Đang tải{" "}
-                      {msg.attachments?.filter(
-                        (att) => att.status === "uploading"
-                      ).length || 0}
-                      /{msg.attachments?.length || 0} tệp
-                    </span>
-                  )}
                 </span>
               </Tooltip>
             </span>

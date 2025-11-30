@@ -1084,7 +1084,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
   },
 
   setReplyMessage: (roomId: string, message: MessageType | null) => {
-    console.log("🚀 ~ message:", message);
     const currentRoom = get().messagesRoom[roomId] || {
       messages: [],
       input: null,
