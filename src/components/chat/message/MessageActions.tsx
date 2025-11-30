@@ -18,16 +18,16 @@ import { EMOJIS } from "../constants/messageConstants";
 import { canRecallMessage } from "../../../utils/messageHelpers";
 
 interface MessageActionsProps {
-  msg: MessageType;
-  socket: any;
-  chatId: string;
-  onReply: (msg: MessageType) => void;
-  onReact: (msg: MessageType, emoji: string) => void;
-  onDelete: (msg: MessageType) => void;
-  onRecall: (msg: MessageType) => void;
-  onTogglePin: (msg: MessageType) => void;
-  onCopy: (content: string) => void;
-  noAction?: boolean;
+  readonly msg: MessageType;
+  readonly socket: any;
+  readonly chatId: string;
+  readonly onReply: (msg: MessageType) => void;
+  readonly onReact: (msg: MessageType, emoji: string) => void;
+  readonly onDelete: (msg: MessageType) => void;
+  readonly onRecall: (msg: MessageType) => void;
+  readonly onTogglePin: (msg: MessageType) => void;
+  readonly onCopy: (content: string) => void;
+  readonly noAction?: boolean;
 }
 
 export function MessageActions({

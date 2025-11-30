@@ -153,32 +153,40 @@ export default function DashboardPage() {
   const featureColorStyles = useMemo(
     () =>
       ({
-        primary: "bg-primary/15 text-primary",
-        secondary: "bg-secondary/15 text-secondary",
-        success: "bg-success/15 text-success",
-        warning: "bg-warning/15 text-warning",
-        danger: "bg-danger/15 text-danger",
-        default: "bg-default/15 text-default-700",
+        primary:
+          "bg-primary/10 text-primary-700 dark:text-primary-300 dark:bg-primary/15",
+        secondary:
+          "bg-secondary/10 text-secondary-700 dark:text-secondary-300 dark:bg-secondary/15",
+        success:
+          "bg-success/10 text-success-700 dark:text-success-300 dark:bg-success/15",
+        warning:
+          "bg-warning/10 text-warning-700 dark:text-warning-300 dark:bg-warning/15",
+        danger:
+          "bg-danger/10 text-danger-700 dark:text-danger-300 dark:bg-danger/15",
+        default:
+          "bg-slate-100 text-slate-700 dark:bg-default/15 dark:text-default-300",
       } as Record<string, string>),
     []
   );
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
       {/* Navigation Bar */}
-      <nav className="sticky top-0 z-50 backdrop-blur-lg bg-slate-900/90 border-b border-slate-800">
+      <nav className="sticky top-0 z-50 backdrop-blur-lg bg-white/80 border-b border-slate-200 dark:bg-slate-900/90 dark:border-slate-800">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Image src="/logo.png" alt="Logo" width={40} height={40} />
-            <span className="text-xl font-bold text-slate-50">
-              EduChat <span className="text-primary-400">·</span>{" "}
-              <span className="text-slate-300">Học tập thông minh</span>
+            <span className="text-xl font-bold text-slate-900 dark:text-slate-50">
+              EduChat <span className="text-primary-500">·</span>{" "}
+              <span className="text-slate-500 dark:text-slate-300">
+                Học tập thông minh
+              </span>
             </span>
           </div>
           <div className="flex gap-3">
             <Button
               variant="bordered"
-              className="border-slate-600 text-slate-200 hover:bg-slate-800"
+              className="border-slate-300 text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
               onPress={() => router.push("/auth")}
             >
               Đăng nhập
@@ -199,7 +207,7 @@ export default function DashboardPage() {
         <section className="text-center">
           <div className="flex justify-center mb-8">
             <div className="relative">
-              <div className="absolute inset-0 bg-primary/30 rounded-full blur-3xl" />
+              <div className="absolute inset-0 bg-primary/20 rounded-full blur-3xl dark:bg-primary/30" />
               <Image
                 src="/logo.png"
                 alt="Chat App Logo"
@@ -210,11 +218,11 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <h1 className="text-4xl md:text-6xl font-extrabold mb-4 bg-gradient-to-r from-primary-400 via-sky-400 to-secondary-400 bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-6xl font-extrabold mb-4 bg-gradient-to-r from-primary-500 via-sky-500 to-secondary-500 bg-clip-text text-transparent">
             Học tập và cộng tác với AI
           </h1>
 
-          <p className="text-lg md:text-xl text-slate-300 mb-8 max-w-3xl mx-auto">
+          <p className="text-lg md:text-xl text-slate-600 dark:text-slate-300 mb-8 max-w-3xl mx-auto">
             Nền tảng chat đa nền tảng tích hợp AI, Docs và ToDoList — thiết kế
             cho sinh viên, nhóm học tập và giảng viên trên kiến trúc
             Microservices hiện đại.
@@ -223,22 +231,30 @@ export default function DashboardPage() {
           {/* Stats Banner */}
           <div className="flex justify-center gap-8 mb-10 flex-wrap">
             <div className="text-center">
-              <div className="text-3xl font-bold text-primary-400">1000+</div>
-              <div className="text-sm text-slate-400">Kết nối đồng thời</div>
+              <div className="text-3xl font-bold text-primary-500">1000+</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                Kết nối đồng thời
+              </div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-secondary-400">
+              <div className="text-3xl font-bold text-secondary-500">
                 &lt; 1s
               </div>
-              <div className="text-sm text-slate-400">Độ trễ tin nhắn</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                Độ trễ tin nhắn
+              </div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-emerald-400">8+ AI</div>
-              <div className="text-sm text-slate-400">Tính năng AI</div>
+              <div className="text-3xl font-bold text-emerald-500">8+ AI</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                Tính năng AI
+              </div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-amber-400">99.9%</div>
-              <div className="text-sm text-slate-400">Uptime hệ thống</div>
+              <div className="text-3xl font-bold text-amber-500">99.9%</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                Uptime hệ thống
+              </div>
             </div>
           </div>
 
@@ -256,7 +272,7 @@ export default function DashboardPage() {
             <Button
               variant="bordered"
               size="lg"
-              className="font-semibold border-slate-600 text-slate-100 hover:bg-slate-800"
+              className="font-semibold border-slate-300 text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800"
               onPress={() => {
                 document
                   .getElementById("features")
@@ -271,10 +287,10 @@ export default function DashboardPage() {
         {/* Features Grid */}
         <section id="features" className="space-y-6">
           <div className="text-center space-y-3">
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-50">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-slate-50">
               Tính năng toàn diện
             </h2>
-            <p className="text-slate-400 max-w-2xl mx-auto">
+            <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
               Chat · Docs · Tasks · AI — tất cả trong một nền tảng duy nhất cho
               học tập và cộng tác.
             </p>
@@ -284,7 +300,7 @@ export default function DashboardPage() {
             {features.map((feature, index) => (
               <Card
                 key={index}
-                className="border border-slate-800 bg-slate-900/70 backdrop-blur-sm hover:border-primary/60 hover:shadow-lg hover:shadow-primary/20 transition-all"
+                className="border border-slate-200 bg-white shadow-sm hover:border-primary/60 hover:shadow-lg hover:shadow-primary/10 transition-all dark:border-slate-800 dark:bg-slate-900/70"
                 shadow="none"
               >
                 <CardHeader className="flex gap-3">
@@ -297,13 +313,13 @@ export default function DashboardPage() {
                     <feature.icon className="w-6 h-6" />
                   </div>
                   <div className="flex flex-col">
-                    <p className="text-lg font-semibold text-slate-50">
+                    <p className="text-lg font-semibold text-slate-900 dark:text-slate-50">
                       {feature.title}
                     </p>
                   </div>
                 </CardHeader>
                 <CardBody>
-                  <p className="text-slate-300 text-sm">
+                  <p className="text-slate-600 dark:text-slate-300 text-sm">
                     {feature.description}
                   </p>
                 </CardBody>
@@ -314,13 +330,13 @@ export default function DashboardPage() {
 
         {/* AI Features Section */}
         <section>
-          <Card className="bg-gradient-to-br from-purple-900/40 via-pink-900/30 to-blue-900/40 border border-purple-700/40">
+          <Card className="bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 border border-purple-200 dark:from-purple-900/40 dark:via-pink-900/30 dark:to-blue-900/40 dark:border-purple-700/40">
             <CardHeader className="flex flex-col items-center pb-0 pt-8">
-              <SparklesIcon className="w-12 h-12 text-purple-300 mb-4" />
-              <h2 className="text-3xl font-bold text-center mb-2 text-slate-50">
+              <SparklesIcon className="w-12 h-12 text-purple-500 dark:text-purple-300 mb-4" />
+              <h2 className="text-3xl font-bold text-center mb-2 text-slate-900 dark:text-slate-50">
                 Trí tuệ nhân tạo hỗ trợ học tập
               </h2>
-              <p className="text-slate-300 text-center max-w-2xl">
+              <p className="text-slate-600 dark:text-slate-300 text-center max-w-2xl">
                 Hơn 8 tính năng AI giúp tối ưu hóa quá trình học tập và cộng tác
                 cho cả sinh viên và giảng viên.
               </p>
@@ -330,14 +346,14 @@ export default function DashboardPage() {
                 {aiFeatures.map((feature, index) => (
                   <div key={index} className="text-center">
                     <div className="flex justify-center mb-3">
-                      <div className="p-4 rounded-full bg-slate-900/70 border border-purple-500/40">
-                        <feature.icon className="w-8 h-8 text-purple-300" />
+                      <div className="p-4 rounded-full bg-white shadow-sm border border-purple-100 dark:bg-slate-900/70 dark:border-purple-500/40">
+                        <feature.icon className="w-8 h-8 text-purple-500 dark:text-purple-300" />
                       </div>
                     </div>
-                    <h3 className="font-semibold mb-2 text-slate-100">
+                    <h3 className="font-semibold mb-2 text-slate-900 dark:text-slate-100">
                       {feature.title}
                     </h3>
-                    <p className="text-sm text-slate-300">
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
                       {feature.description}
                     </p>
                   </div>
@@ -350,10 +366,10 @@ export default function DashboardPage() {
         {/* Testimonials */}
         <section className="space-y-6">
           <div className="text-center space-y-3">
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-50">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-slate-50">
               Đánh giá từ cộng đồng
             </h2>
-            <p className="text-slate-400 max-w-2xl mx-auto">
+            <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
               Sinh viên, giảng viên và các nhóm học tập đang sử dụng EduChat mỗi
               ngày.
             </p>
@@ -362,7 +378,7 @@ export default function DashboardPage() {
             {testimonials.map((testimonial, index) => (
               <Card
                 key={index}
-                className="border border-slate-800 bg-slate-900/80"
+                className="border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80"
                 shadow="none"
               >
                 <CardBody>
@@ -370,15 +386,15 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-3">
                       <div className="text-4xl">{testimonial.avatar}</div>
                       <div>
-                        <p className="font-semibold text-slate-100">
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">
                           {testimonial.name}
                         </p>
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                           {testimonial.role}
                         </p>
                       </div>
                     </div>
-                    <p className="text-slate-300 text-sm italic">
+                    <p className="text-slate-600 dark:text-slate-300 text-sm italic">
                       &quot;{testimonial.content}&quot;
                     </p>
                   </div>
@@ -390,17 +406,17 @@ export default function DashboardPage() {
 
         {/* Use Cases Section */}
         <section className="space-y-6">
-          <h2 className="text-3xl md:text-4xl font-bold text-center text-slate-50">
+          <h2 className="text-3xl md:text-4xl font-bold text-center text-slate-900 dark:text-slate-50">
             Dành cho ai?
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-            <Card className="bg-gradient-to-br from-blue-900/60 to-cyan-900/60 border border-blue-700/40">
+            <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-100 dark:from-blue-900/60 dark:to-cyan-900/60 dark:border-blue-700/40">
               <CardBody className="p-6">
                 <div className="text-4xl mb-4">👨‍🎓</div>
-                <h3 className="text-xl font-semibold mb-2 text-slate-50">
+                <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-slate-50">
                   Sinh viên & Nhóm học tập
                 </h3>
-                <ul className="text-sm text-slate-200 space-y-2">
+                <ul className="text-sm text-slate-700 dark:text-slate-200 space-y-2">
                   <li>✅ Chat nhóm, chia sẻ tài liệu học tập</li>
                   <li>✅ Tóm tắt bài giảng bằng AI</li>
                   <li>✅ Quản lý deadline bài tập</li>
@@ -409,13 +425,13 @@ export default function DashboardPage() {
               </CardBody>
             </Card>
 
-            <Card className="bg-gradient-to-br from-emerald-900/60 to-teal-900/60 border border-emerald-700/40">
+            <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 dark:from-green-900/60 dark:to-emerald-900/60 dark:border-emerald-700/40">
               <CardBody className="p-6">
                 <div className="text-4xl mb-4">👨‍🏫</div>
-                <h3 className="text-xl font-semibold mb-2 text-slate-50">
+                <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-slate-50">
                   Giảng viên
                 </h3>
-                <ul className="text-sm text-slate-200 space-y-2">
+                <ul className="text-sm text-slate-700 dark:text-slate-200 space-y-2">
                   <li>✅ Tương tác với sinh viên realtime</li>
                   <li>✅ Chia sẻ tài liệu giảng dạy</li>
                   <li>✅ Tạo Quiz kiểm tra nhanh</li>
@@ -424,13 +440,13 @@ export default function DashboardPage() {
               </CardBody>
             </Card>
 
-            <Card className="bg-gradient-to-br from-purple-900/60 to-pink-900/60 border border-purple-700/40">
+            <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-100 dark:from-purple-900/60 dark:to-pink-900/60 dark:border-purple-700/40">
               <CardBody className="p-6">
                 <div className="text-4xl mb-4">👨‍💼</div>
-                <h3 className="text-xl font-semibold mb-2 text-slate-50">
+                <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-slate-50">
                   Doanh nghiệp nhỏ
                 </h3>
-                <ul className="text-sm text-slate-200 space-y-2">
+                <ul className="text-sm text-slate-700 dark:text-slate-200 space-y-2">
                   <li>✅ Quản lý dự án với Tasks</li>
                   <li>✅ Lưu trữ tài liệu với Docs</li>
                   <li>✅ Cộng tác nhóm hiệu quả</li>
@@ -443,13 +459,13 @@ export default function DashboardPage() {
 
         {/* Tech Stack Section */}
         <section>
-          <Card className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-700/60">
+          <Card className="bg-gradient-to-br from-slate-100 to-slate-50 border border-slate-200 dark:from-slate-900 dark:to-slate-950 dark:border-slate-700/60">
             <CardHeader className="flex flex-col items-center pb-0 pt-8">
-              <ShieldCheckIcon className="w-12 h-12 text-primary-300 mb-4" />
-              <h2 className="text-3xl font-bold text-center mb-2 text-slate-50">
+              <ShieldCheckIcon className="w-12 h-12 text-primary-500 dark:text-primary-300 mb-4" />
+              <h2 className="text-3xl font-bold text-center mb-2 text-slate-900 dark:text-slate-50">
                 Kiến trúc Microservices hiện đại
               </h2>
-              <p className="text-slate-300 text-center max-w-2xl">
+              <p className="text-slate-600 dark:text-slate-300 text-center max-w-2xl">
                 Xây dựng trên nền tảng Node.js / NestJS, tối ưu cho realtime, mở
                 rộng ngang với Kafka & Docker.
               </p>
@@ -477,7 +493,7 @@ export default function DashboardPage() {
                     key={index}
                     color={tech.color as any}
                     variant="flat"
-                    className="w-full justify-center py-4 font-semibold bg-slate-900/70 text-slate-100 border border-slate-700/60"
+                    className="w-full justify-center py-4 font-semibold bg-white text-slate-800 border border-slate-200 dark:bg-slate-900/70 dark:text-slate-100 dark:border-slate-700/60"
                   >
                     {tech.name}
                   </Chip>
@@ -487,36 +503,36 @@ export default function DashboardPage() {
               {/* Architecture Highlight */}
               <div className="mt-8 max-w-4xl mx-auto">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                  <div className="p-4 bg-slate-900/80 rounded-lg border border-slate-700">
-                    <div className="text-2xl font-bold text-primary-300 mb-1">
+                  <div className="p-4 bg-white rounded-lg border border-slate-200 dark:bg-slate-900/80 dark:border-slate-700">
+                    <div className="text-2xl font-bold text-primary-500 dark:text-primary-300 mb-1">
                       8+
                     </div>
-                    <div className="text-sm text-slate-300">
+                    <div className="text-sm text-slate-700 dark:text-slate-300">
                       Microservices độc lập
                     </div>
-                    <div className="text-xs text-slate-500 mt-1">
+                    <div className="text-xs text-slate-500 dark:text-slate-500 mt-1">
                       User, Message, Docs, Tasks, AI...
                     </div>
                   </div>
-                  <div className="p-4 bg-slate-900/80 rounded-lg border border-slate-700">
-                    <div className="text-2xl font-bold text-secondary-300 mb-1">
+                  <div className="p-4 bg-white rounded-lg border border-slate-200 dark:bg-slate-900/80 dark:border-slate-700">
+                    <div className="text-2xl font-bold text-secondary-500 dark:text-secondary-300 mb-1">
                       1000+
                     </div>
-                    <div className="text-sm text-slate-300">
+                    <div className="text-sm text-slate-700 dark:text-slate-300">
                       Concurrent connections
                     </div>
-                    <div className="text-xs text-slate-500 mt-1">
+                    <div className="text-xs text-slate-500 dark:text-slate-500 mt-1">
                       Horizontal scaling với Kafka
                     </div>
                   </div>
-                  <div className="p-4 bg-slate-900/80 rounded-lg border border-slate-700">
-                    <div className="text-2xl font-bold text-emerald-300 mb-1">
+                  <div className="p-4 bg-white rounded-lg border border-slate-200 dark:bg-slate-900/80 dark:border-slate-700">
+                    <div className="text-2xl font-bold text-emerald-500 dark:text-emerald-300 mb-1">
                       &lt; 1s
                     </div>
-                    <div className="text-sm text-slate-300">
+                    <div className="text-sm text-slate-700 dark:text-slate-300">
                       Message latency trung bình
                     </div>
-                    <div className="text-xs text-slate-500 mt-1">
+                    <div className="text-xs text-slate-500 dark:text-slate-500 mt-1">
                       Realtime với Socket.IO
                     </div>
                   </div>
@@ -561,13 +577,13 @@ export default function DashboardPage() {
         </section>
 
         {/* Footer */}
-        <footer className="text-center pt-4 pb-8 text-slate-500 text-sm space-y-1">
+        <footer className="text-center pt-4 pb-8 text-slate-500 dark:text-slate-500 text-sm space-y-1">
           <p>🎓 EduChat — Nền tảng học tập thông minh với AI</p>
           <p>
             Kiến trúc Microservices · 1000+ Concurrent Users · &lt;1s Latency ·
             8+ AI Features
           </p>
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-slate-500 dark:text-slate-600">
             © 2025 EduChat. Đề tài nghiên cứu ứng dụng chat đa nền tảng tích hợp
             AI phục vụ học tập.
           </p>

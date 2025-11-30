@@ -6,11 +6,11 @@ import { Header } from "@/components/intro/header";
 import { LeftSide } from "@/components/intro/left-side";
 import { useFirebase } from "@/components/providers/firebase.provider";
 import { SocketEventGlobal } from "@/components/socketEventGlobal";
+import useCounterStore from "@/store/useCounterStore";
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const firebase = useFirebase();
   const path = usePathname();
-
   // Trang auth: /auth, /auth/login, /auth/register, ...
   const isAuthPage = path.startsWith("/auth");
 
@@ -58,7 +58,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         {/* Global socket listener / toasts / events */}
         <SocketEventGlobal />
 
-        <Suspense fallback={<div className="w-80 h-full" />}>
+        <Suspense fallback={<div className={`h-full`} />}>
           <LeftSide />
         </Suspense>
 

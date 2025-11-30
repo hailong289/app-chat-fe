@@ -60,7 +60,7 @@ export type MessageType = {
   isRead: boolean;
   hiddenByMe: boolean;
   hiddenAt: string | null;
-  read_by?: Array<{
+  read_by: Array<{
     readAt: string;
     user: {
       _id: string;

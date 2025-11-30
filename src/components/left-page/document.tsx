@@ -75,21 +75,23 @@ const Document: React.FC = () => {
   }, [documents, searchValue]);
 
   return (
-    <Card className="w-full h-full rounded-none shadow-none border-none bg-slate-900 text-gray-100">
+    <Card className="w-full h-full rounded-none shadow-none border-none bg-background text-foreground">
       <CardBody className="p-0 flex flex-col h-full">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-900">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-default-200 bg-background">
           <div className="flex items-center">
             <div className="ml-1">
-              <h2 className="text-lg font-semibold text-gray-100">Tài liệu</h2>
-              <p className="text-sm text-gray-400">Tìm kiếm tài liệu của bạn</p>
+              <h2 className="text-lg font-semibold">Tài liệu</h2>
+              <p className="text-sm text-foreground-500">
+                Tìm kiếm tài liệu của bạn
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Button
               isIconOnly
               variant="light"
-              className="text-gray-300 hover:text-white hover:bg-slate-800"
+              className="text-foreground-500 hover:text-foreground hover:bg-default-100"
               onPress={() => setShowSearch((v) => !v)}
             >
               <MagnifyingGlassIcon className="w-5 h-5" />
@@ -97,7 +99,7 @@ const Document: React.FC = () => {
             <Button
               isIconOnly
               variant="light"
-              className="text-gray-300 hover:text-white hover:bg-slate-800"
+              className="text-foreground-500 hover:text-foreground hover:bg-default-100"
               onPress={handleClose}
             >
               <XMarkIcon className="w-5 h-5" />
@@ -108,7 +110,7 @@ const Document: React.FC = () => {
         {/* Search */}
         {showSearch && (
           <form
-            className="px-4 py-3 flex items-center gap-2 border-b border-slate-800 bg-slate-900"
+            className="px-4 py-3 flex items-center gap-2 border-b border-default-200 bg-background"
             onSubmit={(e) => e.preventDefault()}
           >
             <Input
@@ -120,21 +122,21 @@ const Document: React.FC = () => {
               variant="bordered"
               classNames={{
                 inputWrapper:
-                  "bg-slate-800 border-slate-700 text-gray-100 focus-within:border-teal-500",
-                input: "text-gray-100 placeholder:text-gray-400",
+                  "bg-default-100 border-default-200 focus-within:border-primary",
+                input: "text-foreground placeholder:text-foreground-400",
               }}
               startContent={
-                <MagnifyingGlassIcon className="w-4 h-4 text-gray-400" />
+                <MagnifyingGlassIcon className="w-4 h-4 text-foreground-400" />
               }
             />
           </form>
         )}
 
         {/* List */}
-        <div className="flex-1 overflow-y-auto bg-slate-900">
+        <div className="flex-1 overflow-y-auto bg-background">
           {filteredDocuments.length === 0 ? (
             <div className="flex items-center justify-center h-full py-10">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-foreground-500">
                 Không tìm thấy tài liệu nào phù hợp.
               </p>
             </div>
@@ -142,7 +144,7 @@ const Document: React.FC = () => {
             filteredDocuments.map((item) => (
               <Card
                 key={item.id}
-                className="mb-0 rounded-none shadow-none border-b border-slate-800 bg-slate-900"
+                className="mb-0 rounded-none shadow-none border-b border-default-200 bg-background"
               >
                 <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
                   <div className="flex items-start gap-4 w-full">
@@ -151,7 +153,7 @@ const Document: React.FC = () => {
                       <Button
                         isIconOnly
                         variant="light"
-                        className="text-teal-400 bg-slate-800 hover:bg-slate-700 rounded-full p-5 w-15 h-15"
+                        className="bg-primary/10 text-primary rounded-full p-5 w-15 h-15 hover:bg-primary/20"
                       >
                         <DocumentArrowDownIcon className="w-8 h-8" />
                       </Button>
@@ -159,13 +161,13 @@ const Document: React.FC = () => {
 
                     {/* Info */}
                     <div className="w-8/12 flex flex-col">
-                      <span className="font-medium leading-tight text-gray-100 truncate">
+                      <span className="font-medium leading-tight truncate">
                         {item.name}
                       </span>
-                      <div className="text-sm text-gray-400 font-semibold leading-tight">
+                      <div className="text-sm text-foreground-500 font-semibold leading-tight">
                         {item.size}
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">
+                      <div className="text-xs text-foreground-400 mt-1">
                         {item.date}
                       </div>
                     </div>
@@ -175,14 +177,14 @@ const Document: React.FC = () => {
                       <Button
                         isIconOnly
                         variant="light"
-                        className="text-gray-300 hover:text-white hover:bg-slate-800"
+                        className="text-foreground-500 hover:text-foreground hover:bg-default-100"
                       >
                         <ShareIcon className="w-5 h-5" />
                       </Button>
                       <Button
                         isIconOnly
                         variant="light"
-                        className="text-gray-300 hover:text-white hover:bg-slate-800"
+                        className="text-foreground-500 hover:text-foreground hover:bg-default-100"
                       >
                         <ArrowDownCircleIcon className="w-5 h-5" />
                       </Button>

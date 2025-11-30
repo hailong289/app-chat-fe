@@ -8,9 +8,12 @@ const useCounterStore = create<CounterState>()(
     (set) => ({
       count: 0,
       isToggled: true,
+      collapsedSidebar: false,
       setToggleState: (value: boolean) => set({ isToggled: value }),
       tab: "home",
       setTab: (tab: string) => set({ tab }),
+      togoleSidebar: () =>
+        set((state) => ({ collapsedSidebar: !state.collapsedSidebar })),
     }),
 
     {

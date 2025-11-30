@@ -34,7 +34,7 @@ import {
   Tooltip,
 } from "@heroui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import FilePreviewGridModal from "../../FilePreviewGridModal";
+import FilePreviewGridModal from "../file/FilePreviewGridModal";
 import useMessageStore from "@/store/useMessageStore";
 import { FilePreview } from "@/store/types/message.state";
 import useAuthStore from "@/store/useAuthStore";

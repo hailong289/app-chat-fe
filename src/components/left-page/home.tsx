@@ -1,8 +1,20 @@
 "use client";
+
+import React, {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+} from "react";
 import formatTimeAgo from "@/libs/forrmattime";
 import useRoomStore from "@/store/useRoomStore";
 import { MagnifyingGlassIcon, XCircleIcon } from "@heroicons/react/16/solid";
-import { PencilSquareIcon } from "@heroicons/react/24/outline";
+import {
+  PencilSquareIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
+} from "@heroicons/react/24/outline";
 import {
   Button,
   Card,
@@ -16,19 +28,19 @@ import {
   Tooltip,
 } from "@heroui/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { CreateRoomModal } from "../chat/modals/createRoom.modal";
 import { useSocket } from "../providers/SocketProvider";
 import useContactStore from "@/store/useContactStore";
 import useAuthStore from "@/store/useAuthStore";
 import TypingIndicator from "../chat/input/TypingIndicator";
+import useCounterStore from "@/store/useCounterStore";
 
 export const Home = () => {
   const { socket } = useSocket();
 
   const router = useRouter();
   const pathname = usePathname();
-
+  const countState = useCounterStore((state) => state);
   const roomState = useRoomStore((state) => state);
   const contactState = useContactStore((state) => state);
   const authState = useAuthStore((state) => state);
@@ -54,6 +66,7 @@ export const Home = () => {
   useEffect(() => {
     roomState.getRoomsByType("all");
     roomState.getRooms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Re-fetch rooms on socket reconnect
@@ -90,22 +103,33 @@ export const Home = () => {
 
     return () => clearTimeout(timeoutId);
   }, [queryRoom, getRooms]);
+
   // Infinite scroll
   const bottomRef = useRef<HTMLDivElement>(null);
   const isLoadingMore = useRef(false);
+
+  const roomsLength = roomState.rooms.length;
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
-        if (entry.isIntersecting && !isLoadingMore.current) {
-          isLoadingMore.current = true;
-          setLimit((prev) => prev + 20);
 
-          setTimeout(() => {
-            isLoadingMore.current = false;
-          }, 500);
+        if (!entry.isIntersecting) return;
+        if (isLoadingMore.current) return;
+
+        // ✅ Nếu số room hiện tại < limit => backend đã trả ít hơn số yêu cầu -> coi như hết data, không load nữa
+        if (roomsLength < limit) {
+          return;
         }
+
+        isLoadingMore.current = true;
+        setLimit((prev) => prev + 20);
+
+        // cho nó "cooldown" chút để tránh bị bắn liên tục do layout reflow
+        setTimeout(() => {
+          isLoadingMore.current = false;
+        }, 500);
       },
       {
         threshold: 0.5,
@@ -115,7 +139,7 @@ export const Home = () => {
 
     if (bottomRef.current) observer.observe(bottomRef.current);
     return () => observer.disconnect();
-  }, []);
+  }, [roomsLength, limit]);
 
   const btnNewMsg = useMemo(
     () => (
@@ -125,12 +149,41 @@ export const Home = () => {
           size="sm"
           onPress={() => setOpenModal(true)}
           className="text-primary"
+          isIconOnly
         >
           <PencilSquareIcon className="w-5 h-5" />
         </Button>
       </Tooltip>
     ),
     []
+  );
+
+  const btnCollapse = useMemo(
+    () => (
+      <Tooltip
+        content={
+          countState.collapsedSidebar
+            ? "Mở rộng danh sách"
+            : "Thu gọn danh sách"
+        }
+        placement="bottom"
+      >
+        <Button
+          isIconOnly
+          variant="light"
+          size="sm"
+          className="text-foreground"
+          onPress={() => countState.togoleSidebar()}
+        >
+          {countState.collapsedSidebar ? (
+            <ChevronDoubleRightIcon className="w-5 h-5" />
+          ) : (
+            <ChevronDoubleLeftIcon className="w-5 h-5" />
+          )}
+        </Button>
+      </Tooltip>
+    ),
+    [countState.collapsedSidebar]
   );
 
   const handleChatClick = useCallback(
@@ -168,8 +221,10 @@ export const Home = () => {
   );
 
   const handleSearchFocus = useCallback(() => {
-    setIsSearchVisible(true);
-  }, []);
+    if (!countState.collapsedSidebar) {
+      setIsSearchVisible(true);
+    }
+  }, [countState.collapsedSidebar]);
 
   const handleSearchClear = useCallback(() => {
     setIsSearchVisible(false);
@@ -189,11 +244,12 @@ export const Home = () => {
       {!isSearchVisible && (
         <div className="flex items-center justify-end p-1 border-b border-default dark:bg-slate-900">
           {btnNewMsg}
+          {btnCollapse}
         </div>
       )}
 
       {/* Status Section */}
-      {!isSearchVisible && (
+      {!isSearchVisible && !countState.collapsedSidebar && (
         <Card className="rounded-none shadow-none border-b border-default dark:bg-slate-900">
           <CardBody className="p-4">
             <div className="flex justify-between items-center mb-4">
@@ -250,62 +306,64 @@ export const Home = () => {
       )}
 
       {/* Search + Tabs */}
-      <Card className="rounded-none shadow-none border-b border-default dark:bg-slate-900">
-        <CardBody className="p-4">
-          <div className="flex justify-between items-center mb-3 gap-2">
-            <Input
-              placeholder="Tìm kiếm"
-              size="sm"
-              type="text"
-              variant="bordered"
-              value={search}
-              onChange={handleSearchChange}
-              onFocus={handleSearchFocus}
-              classNames={{
-                inputWrapper: "bg-content2",
-              }}
-              endContent={
-                isSearchVisible ? (
-                  <Button
-                    isIconOnly
-                    variant="light"
-                    size="sm"
-                    color="primary"
-                    onPress={handleSearchClear}
-                  >
-                    <XCircleIcon className="w-5 h-5" />
-                  </Button>
-                ) : (
-                  <MagnifyingGlassIcon className="w-5 h-5 text-default-500" />
-                )
-              }
-            />
-            {isSearchVisible && btnNewMsg}
-          </div>
-
-          {!isSearchVisible && (
-            <div className="mb-3 w-full">
-              <Tabs
-                aria-label="Message options"
-                variant="solid"
-                color="primary"
-                fullWidth
-                selectedKey={roomState.type}
-                onSelectionChange={(key) =>
-                  roomState.setType(
-                    key as "all" | "group" | "private" | "channel"
+      {!countState.collapsedSidebar && (
+        <Card className="rounded-none shadow-none border-b border-default dark:bg-slate-900">
+          <CardBody className="p-4">
+            <div className="flex justify-between items-center mb-3 gap-2">
+              <Input
+                placeholder="Tìm kiếm"
+                size="sm"
+                type="text"
+                variant="bordered"
+                value={search}
+                onChange={handleSearchChange}
+                onFocus={handleSearchFocus}
+                classNames={{
+                  inputWrapper: "bg-content2",
+                }}
+                endContent={
+                  isSearchVisible ? (
+                    <Button
+                      isIconOnly
+                      variant="light"
+                      size="sm"
+                      color="primary"
+                      onPress={handleSearchClear}
+                    >
+                      <XCircleIcon className="w-5 h-5" />
+                    </Button>
+                  ) : (
+                    <MagnifyingGlassIcon className="w-5 h-5 text-default-500" />
                   )
                 }
-                className="bg-content2 rounded-xl"
-              >
-                <Tab key="all" title="Tất cả" />
-                <Tab key="group" title="Nhóm" />
-                <Tab key="channel" title="Kênh" />
-              </Tabs>
+              />
+              {isSearchVisible && btnNewMsg}
             </div>
-          )}
-        </CardBody>
-      </Card>
+
+            {!isSearchVisible && (
+              <div className="mb-3 w-full">
+                <Tabs
+                  aria-label="Message options"
+                  variant="solid"
+                  color="primary"
+                  fullWidth
+                  selectedKey={roomState.type}
+                  onSelectionChange={(key) =>
+                    roomState.setType(
+                      key as "all" | "group" | "private" | "channel"
+                    )
+                  }
+                  className="bg-content2 rounded-xl"
+                >
+                  <Tab key="all" title="Tất cả" />
+                  <Tab key="group" title="Nhóm" />
+                  <Tab key="channel" title="Kênh" />
+                </Tabs>
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      )}
 
       {/* Chat list */}
       <div
@@ -319,60 +377,106 @@ export const Home = () => {
               isPressable
               className={`w-full rounded-none shadow-none cursor-pointer transition-colors bg-background hover:bg-default-100 ${
                 tab === chat.id ? "bg-default-100" : ""
-              }dark:bg-slate-900 dark:hover:bg-slate-800 dark:${
-                tab === chat.id ? "bg-slate-800" : ""
+              } dark:bg-slate-900 dark:hover:bg-slate-800 ${
+                tab === chat.id ? "dark:bg-slate-800" : ""
               }`}
               onPress={() => handleChatClick(chat)}
             >
-              <CardBody className="w-full p-4 flex flex-row items-center justify-between gap-3">
-                <div className="flex items-center space-x-3 flex-1 min-w-0">
-                  <Avatar
-                    src={chat.avatar ?? undefined}
-                    name={chat.name ?? undefined}
-                    size="md"
-                    className="flex-shrink-0"
-                  />
+              <CardBody
+                className={`w-full ${
+                  countState.collapsedSidebar
+                    ? "p-2 flex items-center justify-center"
+                    : "p-4 flex flex-row items-center justify-between gap-3"
+                }`}
+              >
+                <div
+                  className={`flex items-center ${
+                    countState.collapsedSidebar
+                      ? ""
+                      : "space-x-3 flex-1 min-w-0"
+                  }`}
+                >
+                  {countState.collapsedSidebar &&
+                    (() => {
+                      let badgeContent: string | number | undefined;
+                      if (chat.unread_count > 0) {
+                        badgeContent =
+                          chat.unread_count > 99 ? "99+" : chat.unread_count;
+                      } else {
+                        badgeContent = undefined;
+                      }
+                      return (
+                        <Badge
+                          content={badgeContent}
+                          color={chat.unread_count > 0 ? "danger" : undefined}
+                          placement="top-right"
+                        >
+                          <Avatar
+                            src={chat.avatar ?? undefined}
+                            name={chat.name ?? undefined}
+                            size="md"
+                            className={
+                              countState.collapsedSidebar ? "" : "flex-shrink-0"
+                            }
+                          />
+                        </Badge>
+                      );
+                    })()}
 
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-foreground truncate">
-                      {chat.name}
-                    </h3>
+                  {!countState.collapsedSidebar && (
+                    <>
+                      <Avatar
+                        src={chat.avatar ?? undefined}
+                        name={chat.name ?? undefined}
+                        size="md"
+                        className={
+                          countState.collapsedSidebar ? "" : "flex-shrink-0"
+                        }
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-foreground truncate">
+                          {chat.name}
+                        </h3>
 
-                    <p
-                      className={`text-sm text-default-600 truncate ${
-                        chat.is_read ? "" : "font-semibold"
-                      }`}
-                      title={chat?.last_message?.content || ""}
-                    >
-                      {chat?.last_message?.isMine ? "Bạn: " : ""}
-                      {!chat?.last_message?.isMine &&
-                        chat?.last_message?.sender?.name &&
-                        `${chat?.last_message?.sender?.name}: `}
+                        <p
+                          className={`text-sm text-default-600 truncate ${
+                            chat.is_read ? "" : "font-semibold"
+                          }`}
+                          title={chat?.last_message?.content || ""}
+                        >
+                          {chat?.last_message?.isMine ? "Bạn: " : ""}
+                          {!chat?.last_message?.isMine &&
+                            chat?.last_message?.sender?.name &&
+                            `${chat?.last_message?.sender?.name}: `}
 
-                      {chat?.last_message?.content?.slice(0, 30) || ""}
-                      {chat?.last_message?.content &&
-                        chat?.last_message?.content.length > 30 &&
-                        "..."}
-                    </p>
-                  </div>
+                          {chat?.last_message?.content?.slice(0, 30) || ""}
+                          {chat?.last_message?.content &&
+                            chat?.last_message?.content.length > 30 &&
+                            "..."}
+                        </p>
+                      </div>
 
-                  <TypingIndicator
-                    users={roomState.roomTypingUsers[chat.roomId] || []}
-                  />
-                </div>
-
-                <div className="text-right flex-shrink-0 ml-2">
-                  <p className="text-xs text-default-400 whitespace-nowrap">
-                    {chat.updatedAt ? formatTimeAgo(chat.updatedAt) : ""}
-                  </p>
-                  {chat.unread_count > 0 && (
-                    <div className="flex justify-end mt-1">
-                      <Chip size="sm" color="danger" variant="solid">
-                        {chat.unread_count > 99 ? "99+" : chat.unread_count}
-                      </Chip>
-                    </div>
+                      <TypingIndicator
+                        users={roomState.roomTypingUsers[chat.roomId] || []}
+                      />
+                    </>
                   )}
                 </div>
+
+                {!countState.collapsedSidebar && (
+                  <div className="text-right flex-shrink-0 ml-2">
+                    <p className="text-xs text-default-400 whitespace-nowrap">
+                      {chat.updatedAt ? formatTimeAgo(chat.updatedAt) : ""}
+                    </p>
+                    {chat.unread_count > 0 && (
+                      <div className="flex justify-end mt-1">
+                        <Chip size="sm" color="danger" variant="solid">
+                          {chat.unread_count > 99 ? "99+" : chat.unread_count}
+                        </Chip>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardBody>
             </Card>
           ))}

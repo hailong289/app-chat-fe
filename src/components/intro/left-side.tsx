@@ -17,17 +17,8 @@ export const LeftSide = () => {
   const tab =
     searchParams.get("tab") || (path === "/" ? "home" : countState.tab);
 
-
-
-
-
-
-
-
-
-    
   return (
-    <div className="bg-white h-screen flex flex-col min-w-3/10">
+    <div className="bg-white h-screen flex flex-col border-r border-default dark:bg-slate-900 dark:border-slate-700overflow-y-auto">
       {/* Render different components based on the tab */}
       {path.includes("/settings") && !searchParams.get("tab") ? (
         <Settings />

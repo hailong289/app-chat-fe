@@ -27,12 +27,12 @@ function ChatPageContent() {
   const [toggleInput, setToggleInput] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!roomState.room?.id) {
+    if (roomState.room?.id) {
+      setChatId(roomState.room.id);
+    } else {
       const id = searchParams.get("chatId") || "";
       setChatId(id);
       roomState.getRoomById(id);
-    } else {
-      setChatId(roomState.room.id);
     }
 
     const user = roomState.room?.members.find(

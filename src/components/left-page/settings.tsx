@@ -14,14 +14,14 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <Card className="bg-slate-900 w-full h-full shadow-none border-none rounded-none text-gray-100">
+    <Card className="w-full h-full shadow-none border-none rounded-none bg-background text-foreground">
       <CardBody className="p-0 flex flex-col h-full">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-slate-800">
+        <div className="flex items-center justify-between px-4 py-4 border-b border-default-200 bg-background">
           <div className="flex items-center">
             <div className="ml-1">
-              <h2 className="text-lg font-semibold text-gray-100">Cài đặt</h2>
-              <p className="text-sm text-gray-400">
+              <h2 className="text-lg font-semibold">Cài đặt</h2>
+              <p className="text-sm text-foreground-500">
                 Quản lý tài khoản và trải nghiệm chat của bạn
               </p>
             </div>
@@ -30,7 +30,7 @@ const Settings: React.FC = () => {
             <Button
               isIconOnly
               variant="light"
-              className="text-gray-300 hover:text-white hover:bg-slate-800"
+              className="text-foreground-500 hover:text-foreground hover:bg-default-100"
               onPress={handleClose}
             >
               <XMarkIcon className="w-5 h-5" />
@@ -39,16 +39,16 @@ const Settings: React.FC = () => {
         </div>
 
         {/* List */}
-        <div className="flex-1 bg-slate-900">
+        <div className="flex-1 bg-background">
           {/* Cài đặt tài khoản */}
-          <Card className="mb-0 shadow-none border-b border-slate-800 rounded-none bg-slate-900">
+          <Card className="mb-0 shadow-none border-b border-default-200 rounded-none bg-background">
             <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
               <div className="flex items-start gap-4 w-full">
                 <div className="w-10/12 flex flex-col">
-                  <span className="font-medium leading-tight text-gray-100">
+                  <span className="font-medium leading-tight">
                     Cài đặt tài khoản
                   </span>
-                  <span className="text-sm text-gray-400 leading-tight mt-1">
+                  <span className="text-sm text-foreground-500 leading-tight mt-1">
                     Cập nhật thông tin cá nhân và bảo mật
                   </span>
                 </div>
@@ -56,7 +56,7 @@ const Settings: React.FC = () => {
                   <Button
                     isIconOnly
                     variant="light"
-                    className="text-gray-300 hover:text-white hover:bg-slate-800"
+                    className="text-foreground-500 hover:text-foreground hover:bg-default-100"
                     onPress={() => router.push("/settings/account")}
                   >
                     <ArrowRightCircleIcon className="w-5 h-5" />
@@ -67,14 +67,14 @@ const Settings: React.FC = () => {
           </Card>
 
           {/* Cài đặt tin nhắn */}
-          <Card className="mb-0 shadow-none border-b border-slate-800 rounded-none bg-slate-900">
+          <Card className="mb-0 shadow-none border-b border-default-200 rounded-none bg-background">
             <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
               <div className="flex items-start gap-4 w-full">
                 <div className="w-10/12 flex flex-col">
-                  <span className="font-medium leading-tight text-gray-100">
+                  <span className="font-medium leading-tight">
                     Cài đặt tin nhắn
                   </span>
-                  <span className="text-sm text-gray-400 leading-tight mt-1">
+                  <span className="text-sm text-foreground-500 leading-tight mt-1">
                     Thiết lập thông báo, âm thanh, quyền riêng tư
                   </span>
                 </div>
@@ -82,7 +82,7 @@ const Settings: React.FC = () => {
                   <Button
                     isIconOnly
                     variant="light"
-                    className="text-gray-300 hover:text-white hover:bg-slate-800"
+                    className="text-foreground-500 hover:text-foreground hover:bg-default-100"
                     onPress={() => router.push("/settings/chat")}
                   >
                     <ArrowRightCircleIcon className="w-5 h-5" />
@@ -93,14 +93,12 @@ const Settings: React.FC = () => {
           </Card>
 
           {/* Tích hợp */}
-          <Card className="mb-0 shadow-none border-b border-slate-800 rounded-none bg-slate-900">
+          <Card className="mb-0 shadow-none border-b border-default-200 rounded-none bg-background">
             <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
               <div className="flex items-start gap-4 w-full">
                 <div className="w-10/12 flex flex-col">
-                  <span className="font-medium leading-tight text-gray-100">
-                    Tích hợp
-                  </span>
-                  <span className="text-sm text-gray-400 leading-tight mt-1">
+                  <span className="font-medium leading-tight">Tích hợp</span>
+                  <span className="text-sm text-foreground-500 leading-tight mt-1">
                     Quản lý các dịch vụ và ứng dụng được kết nối
                   </span>
                 </div>
@@ -108,7 +106,7 @@ const Settings: React.FC = () => {
                   <Button
                     isIconOnly
                     variant="light"
-                    className="text-gray-300 hover:text-white hover:bg-slate-800"
+                    className="text-foreground-500 hover:text-foreground hover:bg-default-100"
                     onPress={() => router.push("/settings/intergation")}
                   >
                     <ArrowRightCircleIcon className="w-5 h-5" />
@@ -119,14 +117,12 @@ const Settings: React.FC = () => {
           </Card>
 
           {/* Hỗ trợ */}
-          <Card className="mb-0 shadow-none border-b border-slate-800 rounded-none bg-slate-900">
+          <Card className="mb-0 shadow-none border-b border-default-200 rounded-none bg-background">
             <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
               <div className="flex items-start gap-4 w-full">
                 <div className="w-10/12 flex flex-col">
-                  <span className="font-medium leading-tight text-gray-100">
-                    Hỗ trợ
-                  </span>
-                  <span className="text-sm text-gray-400 leading-tight mt-1">
+                  <span className="font-medium leading-tight">Hỗ trợ</span>
+                  <span className="text-sm text-foreground-500 leading-tight mt-1">
                     Gửi phản hồi, báo lỗi hoặc cần trợ giúp
                   </span>
                 </div>
@@ -134,7 +130,7 @@ const Settings: React.FC = () => {
                   <Button
                     isIconOnly
                     variant="light"
-                    className="text-gray-300 hover:text-white hover:bg-slate-800"
+                    className="text-foreground-500 hover:text-foreground hover:bg-default-100"
                     onPress={() => router.push("/settings/support")}
                   >
                     <ArrowRightCircleIcon className="w-5 h-5" />

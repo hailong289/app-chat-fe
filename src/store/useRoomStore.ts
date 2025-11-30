@@ -59,7 +59,8 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
   setRooms: (rooms) => set({ rooms }),
   // get room by id
   getRoomById: async (id: string) => {
-    const room = await getOne(db.rooms, id);
+    let room = get().rooms.find((r) => r.id === id);
+    room ??= await getOne(db.rooms, id);
     set({ room });
     return room;
   },

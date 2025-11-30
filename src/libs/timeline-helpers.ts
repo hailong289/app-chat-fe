@@ -74,36 +74,37 @@ export function groupMessagesByDate<
   // Convert to array and sort by date (oldest first)
   const result: MessageGroup[] = [];
 
-  Object.keys(groups)
-    .sort((a, b) => {
-      const [yearA, monthA, dayA] = a.split("-").map(Number);
-      const [yearB, monthB, dayB] = b.split("-").map(Number);
-      const dateA = new Date(yearA, monthA, dayA);
-      const dateB = new Date(yearB, monthB, dayB);
-      return dateA.getTime() - dateB.getTime();
-    })
-    .forEach((dateKey) => {
-      const [year, month, day] = dateKey.split("-").map(Number);
-      const date = new Date(year, month, day);
-      const groupMessages = groups[dateKey];
+  const sortedDateKeys = Object.keys(groups).sort((a, b) => {
+    const [yearA, monthA, dayA] = a.split("-").map(Number);
+    const [yearB, monthB, dayB] = b.split("-").map(Number);
+    const dateA = new Date(yearA, monthA, dayA);
+    const dateB = new Date(yearB, monthB, dayB);
+    return dateA.getTime() - dateB.getTime();
+  });
 
-      // Kiểm tra xem group này có tin nhắn mới không
-      let newMessageIndex = -1;
-      if (lastReadIndex >= 0) {
-        groupMessages.forEach((msg, idx) => {
-          const msgIndex = messages.findIndex((m) => m.id === msg.id);
-          if (msgIndex > lastReadIndex && newMessageIndex === -1) {
-            newMessageIndex = idx;
-          }
-        });
+  for (const dateKey of sortedDateKeys) {
+    const [year, month, day] = dateKey.split("-").map(Number);
+    const date = new Date(year, month, day);
+    const groupMessages = groups[dateKey];
+
+    // Kiểm tra xem group này có tin nhắn mới không
+    let newMessageIndex = -1;
+    if (lastReadIndex >= 0) {
+      for (let idx = 0; idx < groupMessages.length; idx++) {
+        const msg = groupMessages[idx];
+        const msgIndex = messages.findIndex((m) => m.id === msg.id);
+        if (msgIndex > lastReadIndex && newMessageIndex === -1) {
+          newMessageIndex = idx;
+        }
       }
+    }
 
-      result.push({
-        dateLabel: formatDateLabel(date),
-        messages: groupMessages,
-        newMessageIndex: newMessageIndex >= 0 ? newMessageIndex : undefined,
-      });
+    result.push({
+      dateLabel: formatDateLabel(date),
+      messages: groupMessages,
+      newMessageIndex: newMessageIndex >= 0 ? newMessageIndex : undefined,
     });
+  }
 
   return result;
 }

@@ -3,6 +3,9 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { app, messaging } from "@/libs/firebase";
 import { getToken, onMessage, Messaging } from "firebase/messaging";
 import type { FirebaseApp } from "firebase/app";
+import { notifyType } from "@/types/socketEvent.type";
+import useRoomStore from "@/store/useRoomStore";
+import useMessageStore from "@/store/useMessageStore";
 
 type FirebaseContextType = {
   app: FirebaseApp | null;
@@ -29,7 +32,8 @@ export const FirebaseProvider = ({
   const [message, setMessage] = useState<any>(null);
 
   const isBrowser = typeof window !== "undefined";
-
+  const roomState = useRoomStore((state) => state);
+  const messageState = useMessageStore((state) => state);
   // Load token từ localStorage khi mount
   useEffect(() => {
     if (!isBrowser) return;
@@ -74,17 +78,79 @@ export const FirebaseProvider = ({
               payload.notification?.title ||
               payload.data?.title ||
               "Tin nhắn mới";
-
+            let chatId: string | undefined;
+            const room = payload.data?.room;
+            if (typeof room === "object" && room !== null && "id" in room) {
+              chatId = (room as { id?: string }).id;
+            } else {
+              chatId = room;
+            }
+            const url =
+              payload.data?.type === notifyType.noify_new_message
+                ? `/chat?chatId=${chatId}`
+                : "/";
+            if (payload.data?.type === notifyType.noify_new_message) {
+              const roomData = payload.data?.room;
+              if (typeof roomData === "object" && roomData !== null) {
+                roomState.updateRoomSocket(roomData);
+                // Ensure message is of type MessageType before calling upsetMsg
+                const msgData = payload.data?.message;
+                if (msgData && typeof msgData === "string") {
+                  try {
+                    const parsedMsg = JSON.parse(msgData);
+                    messageState.upsetMsg(parsedMsg);
+                  } catch (e) {
+                    console.warn(
+                      "Failed to parse message string to MessageType:",
+                      msgData,
+                      e
+                    );
+                  }
+                } else if (msgData) {
+                  // If msgData is not a string, but not MessageType, try to parse if possible
+                  if (typeof msgData === "string") {
+                    try {
+                      const parsedMsg = JSON.parse(msgData);
+                      messageState.upsetMsg(parsedMsg);
+                    } catch (e) {
+                      console.warn(
+                        "Failed to parse message string to MessageType:",
+                        msgData,
+                        e
+                      );
+                    }
+                  } else {
+                    messageState.upsetMsg(msgData);
+                  }
+                }
+              } else {
+                // If roomData is a string, you need to fetch or construct a roomType object here.
+                // Example: fetchRoomById(roomData).then(room => roomState.updateRoomSocket(room));
+                console.warn(
+                  "roomState.updateRoomSocket expects a roomType object, but got:",
+                  roomData
+                );
+              }
+            }
             const notificationOptions: NotificationOptions = {
               body: payload.notification?.body || payload.data?.body || "",
               icon: payload.notification?.icon || "/icons/icon-192x192.png",
               badge: "/icons/badge-72x72.png",
               tag: payload.data?.roomId || "default",
-              data: payload.data,
+              data: { ...payload.data, url },
               requireInteraction: false,
             };
 
-            new Notification(notificationTitle, notificationOptions);
+            const notification = new Notification(
+              notificationTitle,
+              notificationOptions
+            );
+            notification.onclick = () => {
+              const d = notification.data as any;
+              const url = d?.url || "/";
+              window.focus();
+              window.location.href = url;
+            };
           }
         });
       } catch (err) {

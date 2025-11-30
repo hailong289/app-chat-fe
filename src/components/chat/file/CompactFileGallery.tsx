@@ -21,8 +21,8 @@ import {
   ChevronRightIcon,
 } from "@heroicons/react/24/solid";
 import { motion, AnimatePresence } from "framer-motion";
-import MiniAudioBubble from "./MiniAudioBubble";
 import { DocumentTextIcon } from "@heroicons/react/16/solid";
+import MiniAudioBubble from "./MiniAudioBubble";
 
 // Helper: Normalize kind value (backend có thể trả "image" hoặc "photo")
 const normalizeKind = (file: FilePreview): string => {
@@ -33,13 +33,13 @@ const normalizeKind = (file: FilePreview): string => {
   if (mimeType.startsWith("image/")) return "photo";
   if (mimeType.startsWith("video/")) return "video";
   if (mimeType.startsWith("audio/")) return "audio";
-  if (mimeType === "application/pdf") return "pdf";
+  // if (mimeType === "application/pdf") return "pdf";
 
   // fallback theo kind
   if (kind === "image" || kind === "photo") return "photo";
   if (kind === "video") return "video";
   if (kind === "audio") return "audio";
-  if (kind === "pdf") return "pdf";
+  // if (kind === "pdf") return "pdf";
 
   return "file"; // cuối cùng là file thường
 };
@@ -106,7 +106,7 @@ export const CompactFileGallery = ({
     let heightClass = "h-24 sm:h-28 md:h-32"; // default square
     if (isPortrait) {
       heightClass = "h-32 sm:h-36 md:h-40"; // taller for portrait
-    } else if (isLandscape) {
+    } else if (isLandscape || fileKind === "file") {
       heightClass = "h-20 sm:h-24 md:h-28"; // shorter for landscape
     }
 
@@ -183,23 +183,22 @@ export const CompactFileGallery = ({
         )}
 
         {fileKind === "pdf" && (
-          <Tooltip content={file.name} placement="top">
-            <button
-              onClick={() => handleFileClick(file, index)}
-              className="flex flex-col items-center justify-center gap-2 w-full h-full bg-default-100 dark:bg-default-50"
-            >
-              <DocumentTextIcon className="w-10 h-10 text-red-500" />
-              <span className="text-xs font-semibold text-red-600">PDF</span>
-            </button>
-          </Tooltip>
+          <button
+            onClick={() => handleFileClick(file, index)}
+            className="px-4 flex items-center justify-center gap-2 w-full h-full w-max-80 bg-default-100 dark:bg-default-50"
+          >
+            <DocumentTextIcon className="w-10 h-10 text-red-500" />
+            {file.name}
+          </button>
         )}
 
         {fileKind === "file" && (
           <button
             onClick={() => handleFileClick(file, index)}
-            className="w-full h-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center"
+            className="w-max-80 h-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center text-truncate px-4 gap-2"
           >
             <DocumentIcon className="w-10 h-10 text-white drop-shadow-lg" />
+            {file.name}
           </button>
         )}
 
@@ -431,7 +430,7 @@ export const CompactFileGallery = ({
         classNames={{
           base: "overflow-hidden",
           wrapper: "items-center justify-center",
-          backdrop: "bg-black/95 backdrop-blur-sm",
+          backdrop: "backdrop-blur-sm",
         }}
       >
         <ModalContent className="bg-gray-900/98 backdrop-blur-xl border border-white/10 shadow-2xl flex flex-col">

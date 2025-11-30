@@ -19,8 +19,8 @@ function ContactPageContent() {
 
   if (!profileId || !contactState.contact) {
     return (
-      <div className="flex items-center justify-center h-full bg-slate-900">
-        <p className="text-gray-500 dark:text-gray-400">
+      <div className="flex items-center justify-center h-full bg-background">
+        <p className="text-foreground-500 dark:text-foreground-400">
           Chọn một liên hệ để xem thông tin
         </p>
       </div>
@@ -34,8 +34,10 @@ export default function ContactPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center h-full bg-slate-900">
-          <p className="text-gray-500 dark:text-gray-400">Đang tải...</p>
+        <div className="flex items-center justify-center h-full bg-background">
+          <p className="text-foreground-500 dark:text-foreground-400">
+            Đang tải...
+          </p>
         </div>
       }
     >

@@ -1,7 +1,7 @@
 import { Avatar, Button, Spinner, Tooltip } from "@heroui/react";
 import { motion } from "framer-motion";
 import { formatMessageTime } from "@/libs/timeline-helpers";
-import { CompactFileGallery } from "../../CompactFileGallery";
+import { CompactFileGallery } from "../file/CompactFileGallery";
 import { MessageBubble } from "./MessageBubble";
 import { MessageActions } from "./MessageActions";
 import { MessageReactions } from "./MessageReactions";

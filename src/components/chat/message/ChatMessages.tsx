@@ -137,25 +137,49 @@ export const ChatMessages = memo(
           clearTimeout(state.loadingTimeoutRef.current);
         }
 
+        // Extracted inner logic to reduce nesting
+        function handleLocalMessages(container: HTMLDivElement) {
+          state.setIsLoadingOlder(true);
+          const scrollHeightBefore = container.scrollHeight;
+
+          setTimeout(() => {
+            state.setDisplayedMessagesCount((prev) =>
+              Math.min(prev + MESSAGES_PER_GROUP, messages.length)
+            );
+            state.setIsLoadingOlder(false);
+
+            requestAnimationFrame(() => {
+              const scrollHeightAfter = container.scrollHeight;
+              const scrollDiff = scrollHeightAfter - scrollHeightBefore;
+              container.scrollTop += scrollDiff;
+            });
+          }, 120);
+        }
+
+        async function handleServerMessages() {
+          state.setIsLoadingOlder(true);
+          state.setIsLoadingFromAPI(true);
+          state.hasTriedLoadingFromServer.current = true;
+
+          try {
+            const result: any = await messageState.loadOlderMessages(chatId);
+            state.setIsLoadingOlder(false);
+            state.setIsLoadingFromAPI(false);
+
+            if (!result || (Array.isArray(result) && result.length === 0)) {
+              state.setHasMoreOnServer(false);
+            }
+          } catch (error: any) {
+            console.error("Failed to load older messages:", error);
+            state.setIsLoadingOlder(false);
+            state.setIsLoadingFromAPI(false);
+          }
+        }
+
         state.loadingTimeoutRef.current = setTimeout(async () => {
           try {
             if (hasMoreLocalMessages) {
-              state.setIsLoadingOlder(true);
-              const scrollHeightBefore = container.scrollHeight;
-
-              setTimeout(() => {
-                state.setDisplayedMessagesCount((prev) =>
-                  Math.min(prev + MESSAGES_PER_GROUP, messages.length)
-                );
-                state.setIsLoadingOlder(false);
-
-                requestAnimationFrame(() => {
-                  const scrollHeightAfter = container.scrollHeight;
-                  const scrollDiff = scrollHeightAfter - scrollHeightBefore;
-                  container.scrollTop += scrollDiff;
-                });
-              }, 120);
-
+              handleLocalMessages(container);
               return;
             }
 
@@ -164,25 +188,7 @@ export const ChatMessages = memo(
               !state.isLoadingFromAPI &&
               state.hasMoreOnServer
             ) {
-              state.setIsLoadingOlder(true);
-              state.setIsLoadingFromAPI(true);
-              state.hasTriedLoadingFromServer.current = true;
-
-              try {
-                const result: any = await messageState.loadOlderMessages(
-                  chatId
-                );
-                state.setIsLoadingOlder(false);
-                state.setIsLoadingFromAPI(false);
-
-                if (!result || (Array.isArray(result) && result.length === 0)) {
-                  state.setHasMoreOnServer(false);
-                }
-              } catch (error: any) {
-                // log removed
-                state.setIsLoadingOlder(false);
-                state.setIsLoadingFromAPI(false);
-              }
+              await handleServerMessages();
             }
           } finally {
             if (state.loadingTimeoutRef.current) {
