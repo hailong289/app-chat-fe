@@ -125,12 +125,25 @@ const useCallStore = create<CallState>()(
                 case "candidate":
                     if (window.opener) { // window open khác với window location
                         console.log("candidate", candidate);
-                        const pendingCandidates = get().pendingCandidates;
                         const iceCandidate = new RTCIceCandidate(candidate);
-                        if (!pendingCandidates.has(room)) {
-                          pendingCandidates.set(roomId, []);
+                        const pc = get().peerConnection;
+                        if (pc && pc.remoteDescription) {
+                            try {
+                                await pc.addIceCandidate(iceCandidate);
+                                console.log("✅ Added Late ICE Candidate directly");
+                            } catch (err) {
+                                console.error("❌ Error adding late candidate:", err);
+                            }
+                        } 
+                        // Nếu chưa có Remote Description thì mới đem đi xếp hàng
+                        else {
+                            console.log("⏳ Queuing ICE candidate (waiting for remoteDescription)...");
+                            const pendingCandidates = get().pendingCandidates;
+                            if (!pendingCandidates.has(roomId)) {
+                                pendingCandidates.set(roomId, []);
+                            }
+                            pendingCandidates.get(roomId)!.push(iceCandidate);
                         }
-                        pendingCandidates.get(roomId)!.push(iceCandidate);
                     }
                     break;
             }
