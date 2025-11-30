@@ -47,7 +47,6 @@ import UploadService from "@/service/uploadfile.service";
 import { AddMemberModal } from "../modals/add-member.model";
 import { useRouter } from "next/navigation";
 import Timeline from "@/components/ui/timeline";
-import me from "@/app/me/page";
 
 export default function ChatDrawer({
   isOpen,
