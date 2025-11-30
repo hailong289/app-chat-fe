@@ -26,16 +26,6 @@ const useCallStore = create<CallState>()(
             window.open(`/call?roomId=${roomId}&userInfo=${encodedUserInfo}&callType=${mode}&status=calling`, '', 'width=800,height=600');
             set({ roomId, status: 'calling', mode, userInfo: userCallee });
         },
-        endCall: (payload) => {
-            const { roomId, callerId, calleeId, callType } = payload;
-            set({ roomId, status: 'ended', mode: callType, userInfo: null });
-            payload.callback({
-                roomId,
-                callerId,
-                calleeId,
-                callType,
-            });
-        },
         acceptCall: async (payload) => {
             const { roomId, callerId, calleeId, callType, socket } = payload;
             await get().handleCreatePeerConnection(roomId, socket);
@@ -57,21 +47,16 @@ const useCallStore = create<CallState>()(
             Helpers.updateURLParams('status', 'accepted');
         },
         eventCall: async (event: string, payload: any) => {
-            console.log("eventCall", event, payload);
             const authStore = useAuthStore.getState();
             const currentUser = authStore.user;
-            const isWindowOpen = get().isWindowOpen;
-            
             if (!currentUser) {
                 console.warn("User not authenticated, cannot handle call event");
                 return;
             }
-
-            const { actionUserId, callType, callee, caller, room, offer, answer, candidate } = payload;
-            console.log("actionUserId", actionUserId, currentUser.id);
+            const { actionUserId, callType, callee, caller, room, offer, answer, candidate, roomId } = payload;
             switch (event) {
                 case "start":
-                    if (actionUserId !== currentUser.id) {
+                    if (actionUserId !== currentUser.id && !window.opener) {
                         const encodedUserInfo = Helpers.enCryptUserInfo(caller);
                         const encodedOffer = Helpers.enCryptUserInfo(offer);
                         window.open(`/call?roomId=${room.room_id}&userInfo=${encodedUserInfo}&callType=${callType}&status=incoming&offer=${encodedOffer}`, '', 'width=500,height=600');
@@ -79,14 +64,14 @@ const useCallStore = create<CallState>()(
                     }
                     break;
                 case "answer":
-                    if (actionUserId !== currentUser.id && isWindowOpen) { // window open khác với window location
+                    if (actionUserId !== currentUser.id && window.opener) { // window open khác với window location
                         const pc = get().peerConnection;
                         if (!pc) {
                             console.error("Peer connection chưa được tạo");
                             return;
                         }
-                        const answerDescription = new RTCSessionDescription(Helpers.decryptUserInfo(answer));
-                        pc.setRemoteDescription(answerDescription);
+                        const answerDescription = Helpers.decryptUserInfo(answer);
+                        pc.setRemoteDescription(new RTCSessionDescription(answerDescription));
                         console.log("answer", answerDescription);
                         set({ status: 'accepted', mode: callType, userInfo: callee });
                         Helpers.updateURLParams('status', 'accepted');
@@ -94,16 +79,58 @@ const useCallStore = create<CallState>()(
                     }
                     break;
                 case "end":
-                    set({ roomId: null, status: 'ended', mode: callType, userInfo: null });
+                    const currentState = get();
+                    
+                    // Dừng tất cả tracks trong localStream
+                    if (currentState.stream.localStream) {
+                        currentState.stream.localStream.getTracks().forEach(track => {
+                            track.stop();
+                        });
+                    }
+                    
+                    // Dừng tất cả tracks trong remoteStream
+                    if (currentState.stream.remoteStream) {
+                        currentState.stream.remoteStream.getTracks().forEach(track => {
+                            track.stop();
+                        });
+                    }
+                    
+                    // Dừng tất cả tracks trong instanceStream
+                    if (currentState.stream.instanceStream) {
+                        currentState.stream.instanceStream.getTracks().forEach(track => {
+                            track.stop();
+                        });
+                    }
+                    
+                    // Đóng peerConnection
+                    if (currentState.peerConnection) {
+                        currentState.peerConnection.close();
+                    }
+                    
+                    set({ 
+                        roomId: null, 
+                        status: 'ended', 
+                        mode: callType, 
+                        userInfo: null,
+                        peerConnection: null,
+                        stream: {
+                            localStream: null,
+                            remoteStream: null,
+                            instanceStream: null,
+                        },
+                        pendingCandidates: new Map<string, RTCIceCandidate[]>(),
+                    });
+                    window.close();
                     break;
                 case "candidate":
-                    if (isWindowOpen) {
+                    if (window.opener) { // window open khác với window location
+                        console.log("candidate", candidate);
                         const pendingCandidates = get().pendingCandidates;
                         const iceCandidate = new RTCIceCandidate(candidate);
-                        if (!pendingCandidates.has(room.room_id)) {
-                          pendingCandidates.set(room.room_id, []);
+                        if (!pendingCandidates.has(room)) {
+                          pendingCandidates.set(roomId, []);
                         }
-                        pendingCandidates.get(room.room_id)!.push(iceCandidate);
+                        pendingCandidates.get(roomId)!.push(iceCandidate);
                     }
                     break;
             }
@@ -123,6 +150,7 @@ const useCallStore = create<CallState>()(
         },
         handleCreateOffer: async (payload: any) => {
             const { callerId, calleeId, roomId, callType, callee, socket } = payload;
+            set({ mode: callType });
             await get().handleCreateLocalStream();
             const stream = get().stream.localStream;
             if (!stream) {
@@ -147,7 +175,9 @@ const useCallStore = create<CallState>()(
             });
             set({ stream: { ...get().stream, localStream: stream  } });
         },
-        handleReceiveOffer: async (offer: string, roomId: string, socket: Socket) => {
+        handleReceiveOffer: async (payload: any) => {
+            const { offer, roomId, socket, callType } = payload;
+            set({ mode: callType });
             await get().handleCreateLocalStream();
             await get().handleCreatePeerConnection(roomId, socket);
             const pc = get().peerConnection;
@@ -155,16 +185,10 @@ const useCallStore = create<CallState>()(
                 console.error("Peer connection chưa được tạo");
                 return;
             }
-            pc.setRemoteDescription(new RTCSessionDescription(Helpers.decryptUserInfo(offer)));
+            const offerDescription = Helpers.decryptUserInfo(offer);
+            console.log("offerDescription", offerDescription);
+            pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
             await get().flushPendingCandidates(roomId);
-            // await pc.setLocalDescription(await pc.createAnswer({}));
-            // const answer = pc.localDescription;
-            // socket?.emit('call:answer', {
-            //     callerId: callerId,
-            //     calleeId: calleeId,
-            //     roomId: roomId,
-            //     answer: answer,
-            // });
         },
         handleCreatePeerConnection: async (roomId: string, socket: Socket) => {
             if (get().peerConnection) {
@@ -202,6 +226,9 @@ const useCallStore = create<CallState>()(
             set({ status: status });
         },
         flushPendingCandidates: async (roomId: string) => {
+            if (!window.opener) {
+                return;
+            }
             const pendingCandidates = get().pendingCandidates;
             const pc = get().peerConnection;
             if (!pc) {

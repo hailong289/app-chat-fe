@@ -24,17 +24,13 @@ function CallPageContent() {
   const currentUser = useAuthStore((state) => state.user);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const connectionRef = useRef<RTCPeerConnection | null>(null);
   const { 
-    endCall, 
     acceptCall,
     status: callStatus, 
-    openWindowCall,
-    closeWindowCall,
-    isWindowOpen,
     handleCreateOffer,
     handleReceiveOffer,
     updateStatus,
+    eventCall,
     stream: { localStream, remoteStream },
   } = useCallStore();
 
@@ -66,48 +62,68 @@ function CallPageContent() {
     },
   });
 
-  // Update video streams
+  
   useEffect(() => {
-    if (isWindowOpen) {
-      if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
-      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
+    socket?.on("call:candidate", (payload: any) => eventCall("candidate", payload));
+    socket?.on("call:answer", (payload: any) => eventCall("answer", payload));
+
+    return () => {
+      socket?.off("call:candidate", (payload: any) => eventCall("candidate", payload));
+      socket?.off("call:answer", (payload: any) => eventCall("answer", payload));
     }
-  }, [localStream, remoteStream, isWindowOpen]);
+  }, [socket]);
+
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      console.log("localStream", localStream, localVideoRef.current);
+      localVideoRef.current.srcObject = localStream;
+    }
+    if (remoteVideoRef.current && remoteStream) {
+      console.log("remoteStream", remoteStream, remoteVideoRef.current);
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [localStream, remoteStream]);
 
   // Update status
   useEffect(() => {
     updateStatus(searchParams.get("status") as 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined');
   }, [searchParams]);
 
+  // update duration
   useEffect(() => {
-    console.log("callStatus", callStatus, isWindowOpen);
-    if (!isWindowOpen || !socket) return;
-    if (callStatus === 'ended') {
-      window.close();
-    } else if (callStatus === 'accepted') {
-      // khi cuộc gọi đã được chấp nhận, tăng thời gian gọi lên 1 giây
-      setForm((prev) => ({ ...prev, isActive: true }));
-    } else if (callStatus === 'incoming') {
-      handleReceiveOffer(searchParams.get("offer") || "", form.roomId, socket);
-    } else if (callStatus === 'calling') {
-      console.log("calling", currentUser?.id, form.userInfo?.id, form.roomId, form.isVideo ? 'video' : 'audio', form.userInfo, socket);
-      handleCreateOffer({
-        callerId: currentUser?.id,
-        calleeId: form.userInfo?.id,
-        roomId: form.roomId,
-        callType: form.isVideo ? 'video' : 'audio',
-        callee: form.userInfo,
-        socket,
-      });
+    if (form.isActive) {
+      const interval = setInterval(() => {
+        setForm((prev) => ({ ...prev, duration: prev.duration + 1 }));
+      }, 1000);
+      return () => clearInterval(interval);
     }
-  }, [callStatus, socket]);
+  }, [form.isActive]);
 
   useEffect(() => {
-    openWindowCall();
-    return () => {
-      closeWindowCall();
-    };
-  }, []);
+    const handle = async () => {
+      if (!socket) return;
+      if (callStatus === 'accepted') {
+        setForm((prev) => ({ ...prev, isActive: true }));
+      } else if (callStatus === 'incoming' && form.roomId && searchParams.get("offer")) {
+        await handleReceiveOffer({
+          offer: searchParams.get("offer"),
+          roomId: form.roomId,
+          socket,
+          callType: form.isVideo ? 'video' : 'audio',
+        });
+      } else if (callStatus === 'calling') {
+        await handleCreateOffer({
+          callerId: currentUser?.id,
+          calleeId: form.userInfo?.id,
+          roomId: form.roomId,
+          callType: form.isVideo ? 'video' : 'audio',
+          callee: form.userInfo,
+          socket,
+        });
+      }
+    }
+    handle();
+  }, [callStatus, socket]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -120,18 +136,20 @@ function CallPageContent() {
     const callerId = form.isIncoming ? form.userInfo?.id : currentUser?.id;
     const calleeId = form.isIncoming ? currentUser?.id : form.userInfo?.id;
     console.log("form", form, callerId, calleeId);
-    endCall({
+    
+    // Clear video srcObject trước khi end call
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
+    
+    socket?.emit('call:end', {
       roomId: form.roomId,
       callerId: callerId,
       calleeId: calleeId,
-      callback: () => {
-        socket?.emit('call:end', {
-          roomId: form.roomId,
-          callerId: callerId,
-          calleeId: calleeId,
-          status: 'ended',
-        });
-      },
+      status: 'ended',
     });
   };
 
@@ -160,9 +178,6 @@ function CallPageContent() {
   };
 
   const toggleSpeaker = () => {
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.muted = form.action.isSpeakerEnabled;
-    }
     setForm((prev) => ({ ...prev, action: { ...prev.action, isSpeakerEnabled: !prev.action.isSpeakerEnabled } }));
   };
 
@@ -186,7 +201,7 @@ function CallPageContent() {
     <div className="bg-dark h-screen w-full relative overflow-hidden">
       {/* Remote video (main view) */}
       <div className="absolute inset-0 bg-black">
-        {form.isVideo && (
+        {form.isVideo && remoteStream && (
           <video
             ref={remoteVideoRef}
             className="w-full h-full object-cover"
@@ -207,7 +222,7 @@ function CallPageContent() {
       </div>
 
       {/* Local video (picture-in-picture) */}
-      {form.isVideo && form.isActive && localStream && (
+      {form.isVideo && localStream && (
         <div className="absolute bottom-24 right-4 w-48 h-36 rounded-lg overflow-hidden border-2 border-white shadow-lg">
           <video
             ref={localVideoRef}

@@ -19,13 +19,12 @@ export interface CallState {
   pendingCandidates: Map<string, RTCIceCandidate[]>;
   startCall: (data: any) => void;
   eventCall: (event: string, payload: any) => Promise<void>;
-  endCall: (data: any) => void;
   acceptCall: (data: any) => void;
   openWindowCall: () => void;
   closeWindowCall: () => void;
   handleCreateLocalStream: () => void;
   handleCreateOffer: (data: any) => void;
-  handleReceiveOffer: (offer: string, roomId: string, socket: Socket) => Promise<void>;
+  handleReceiveOffer: (data: any) => Promise<void>;
   handleCreatePeerConnection: (roomId: string, socket: Socket) => Promise<RTCPeerConnection>;
   updateStatus: (status: 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined') => void;
   flushPendingCandidates: (roomId: string) => Promise<void>;

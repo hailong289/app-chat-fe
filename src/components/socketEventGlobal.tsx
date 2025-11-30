@@ -22,8 +22,6 @@ export const SocketEventGlobal = () => {
     socket.on("status:online", contactState.socketHandleOnline);
     socket.on("call:start", (payload: any) => callState.eventCall("start", payload));
     socket.on("call:end", (payload: any) => callState.eventCall("end", payload));
-    socket.on("call:candidate", (payload: any) => callState.eventCall("candidate", payload));
-    socket.on("call:answer", (payload: any) => callState.eventCall("answer", payload));
     return () => {
       socket.off("room:upset", roomState.updateRoomSocket);
       socket.off("message:upset", messageState.upsetMsg);
