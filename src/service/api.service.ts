@@ -1,5 +1,6 @@
 import axios from "axios";
-import { getCookie } from "cookies-next";
+import { deleteCookie, getCookie } from "cookies-next";
+import { redirect } from "next/navigation";
 
 class ApiService {
   private static instance: ApiService;
@@ -46,6 +47,9 @@ class ApiService {
         const reasonStatusCode =
           error.response?.statusText || "Internal Server Error";
         const responseData = error.response?.data;
+        if (statusCode === 401) {
+          deleteCookie("tokens", { path: "/" });
+        }
         return Promise.reject({
           success: false,
           statusCode,

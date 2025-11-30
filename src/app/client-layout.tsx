@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Header } from "@/components/intro/header";
 import { LeftSide } from "@/components/intro/left-side";
 import { useFirebase } from "@/components/providers/firebase.provider";
@@ -34,8 +34,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const isValidRoute =
     !validRoutes.some(
       (route) => path === route || path.startsWith(route + "/")
-    ) || isAuthPage;
-
+    ) || isAuthPage || path.startsWith("/call");
+    
   if (isValidRoute) {
     // layout cho trang login/register/404
     return <main className="w-full h-screen">{children}</main>;
