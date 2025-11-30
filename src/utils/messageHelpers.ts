@@ -1,5 +1,5 @@
 import { MessageType } from "@/store/types/message.state";
-import { RECALL_TIME_LIMIT_MINUTES } from "../constants/messageConstants";
+import { RECALL_TIME_LIMIT_MINUTES } from "../components/chat/constants/messageConstants";
 
 export const canRecallMessage = (msg: MessageType): boolean => {
   if (!msg.isMine) return false;
@@ -51,4 +51,3 @@ export const emitWithAck = (
     }
   });
 };
-

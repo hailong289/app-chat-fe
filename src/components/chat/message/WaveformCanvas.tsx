@@ -23,7 +23,6 @@ export default function WaveformCanvas({
     // ensure canvas fits container width exactly (account for DPR)
     const applySize = () => {
       const dpr = window.devicePixelRatio || 1;
-      // lấy bề rộng thật của container (đÃ trừ padding nhờ clientWidth)
       const cssW = Math.max(0, wrap.clientWidth);
       const cssH = height;
       canvas.width = Math.floor(cssW * dpr);
@@ -34,11 +33,9 @@ export default function WaveformCanvas({
 
     applySize();
 
-    // quan sát thay đổi kích thước container
     const ro = new ResizeObserver(applySize);
     ro.observe(wrap);
 
-    // gắn cho hook vẽ
     const detach = attach(canvas);
 
     return () => {
@@ -51,18 +48,15 @@ export default function WaveformCanvas({
   return (
     <div
       ref={containerRef}
-      className={
-        // min-w-0 là chìa khóa khi đặt trong flex để KHÔNG tràn ngang
-        `min-w-0 w-full overflow-hidden rounded-xl 
-          ${className}`
-      }
+      className={`
+        min-w-0 w-full overflow-hidden rounded-xl
+        bg-gray-100 border border-gray-200
+        dark:bg-gray-800 dark:border-gray-700
+        ${className}
+      `}
       style={{ height }}
     >
-      <canvas
-        ref={canvasRef}
-        // block + w-full + h-full để không sinh scrollbar
-        className="block w-full h-full"
-      />
+      <canvas ref={canvasRef} className="block w-full h-full" />
     </div>
   );
 }

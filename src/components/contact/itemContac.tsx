@@ -15,11 +15,7 @@ export default function ItemContact({
 }: InvaitationSentModalProps) {
   const contactState = useContactStore((state) => state);
   return (
-    <Card
-      key={item.id}
-      className="mb-2 shadow-none border border-teal-100 cursor-pointer"
-      onPress={onPress}
-    >
+    <Card key={item.id} className="mb-2 cursor-pointer" onPress={onPress}>
       <CardBody className="flex items-center py-3 flex-row" onClick={onPress}>
         <Badge
           content=" "

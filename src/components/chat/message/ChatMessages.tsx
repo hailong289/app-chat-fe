@@ -4,30 +4,32 @@ import useMessageStore from "@/store/useMessageStore";
 import { ScrollShadow, Skeleton } from "@heroui/react";
 import { useEffect, useRef, useMemo, useCallback, memo, use } from "react";
 import useRoomStore from "@/store/useRoomStore";
-import { useSocket } from "../providers/SocketProvider";
+import { useSocket } from "../../providers/SocketProvider";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageType } from "@/store/types/message.state";
-import { emitWithAck } from "./utils/messageHelpers";
-import { MESSAGES_PER_GROUP } from "./constants/messageConstants";
-import { useChatMessagesState } from "./hooks/useChatMessagesState";
-import { useMessageHandlers } from "./hooks/useMessageHandlers";
-import { useChatScroll } from "./hooks/useChatScroll";
-import { useChatMessagesEffects } from "./hooks/useChatMessagesEffects";
-import { ChatLoadingSkeleton } from "./components/ChatLoadingSkeleton";
-import { ChatEmptyState } from "./components/ChatEmptyState";
-import { ChatLoadingIndicator } from "./components/ChatLoadingIndicator";
-import { ScrollToBottomButton } from "./components/ScrollToBottomButton";
-import { MessageGroup } from "./components/MessageGroup";
+import { emitWithAck } from "../../../utils/messageHelpers";
+import { MESSAGES_PER_GROUP } from "../constants/messageConstants";
+import { useChatMessagesState } from "../hooks/useChatMessagesState";
+import { useMessageHandlers } from "../hooks/useMessageHandlers";
+import { useChatScroll } from "../hooks/useChatScroll";
+import { useChatMessagesEffects } from "../hooks/useChatMessagesEffects";
+import { ChatLoadingSkeleton } from "./ChatLoadingSkeleton";
+import { ChatEmptyState } from "./ChatEmptyState";
+import { ChatLoadingIndicator } from "./ChatLoadingIndicator";
+import { ScrollToBottomButton } from "./ScrollToBottomButton";
+import { MessageGroup } from "./MessageGroup";
 
 export const ChatMessages = memo(
   ({
     chatId,
     noAction,
     scrollto,
+    toggleInput,
   }: {
     chatId: string;
     noAction: boolean;
     scrollto?: string | null;
+    toggleInput: boolean;
   }) => {
     // Performance monitoring
     const startTime = useRef(performance.now());
@@ -36,14 +38,15 @@ export const ChatMessages = memo(
       const renderTime = performance.now() - startTime.current;
       if (renderTime > 100) {
         // Log slow renders
-        // console.warn(`🐌 Slow ChatMessages render: ${renderTime.toFixed(2)}ms`);
+        // log removed
       }
     });
 
     const { socket } = useSocket();
     const roomState = useRoomStore((state) => state);
     const messageState = useMessageStore((state) => state);
-    const messages = messageState.messagesRoom[chatId]?.messages || [];
+    const messages =
+      useMessageStore.getState().messagesRoom[chatId]?.messages || [];
 
     // Compute the most up-to-date message id to use for grouping/scrolling
     const lastMsgId =
@@ -69,10 +72,17 @@ export const ChatMessages = memo(
     });
 
     useEffect(() => {
+      if (toggleInput) {
+        scrollToBottom();
+      }
+    }, [toggleInput, scrollToBottom]);
+
+    useEffect(() => {
       if (scrollto) {
         scrollToMessage(scrollto);
       }
-    }, [scrollto]);
+    }, [scrollto, scrollToMessage]);
+
     // Emit with ack helper
     const emitWithAckHelper = useCallback(
       (event: string, payload: any, timeout = 5000) => {
@@ -169,7 +179,7 @@ export const ChatMessages = memo(
                   state.setHasMoreOnServer(false);
                 }
               } catch (error: any) {
-                console.error("Failed to load older messages:", error);
+                // log removed
                 state.setIsLoadingOlder(false);
                 state.setIsLoadingFromAPI(false);
               }
@@ -262,9 +272,15 @@ export const ChatMessages = memo(
         {!state.isSwitchingChat && (
           <ScrollShadow
             ref={state.containerRef}
-            className={`p-4 overflow-y-auto w-full max-h-[calc(100vh-180px)] transition-all duration-200 ${
-              state.isFetchingNewMessages ? "bg-blue-50/20" : ""
-            }`}
+            className={`
+              p-4 overflow-y-auto w-full max-h-[calc(100vh-200px)]
+              transition-all duration-200 
+              ${
+                state.isFetchingNewMessages
+                  ? "bg-blue-50/20 dark:bg-blue-950/30"
+                  : ""
+              }
+            `}
           >
             {/* Top marker */}
             <div ref={state.topRef} className="relative">
@@ -284,11 +300,11 @@ export const ChatMessages = memo(
                 animate={{ opacity: 1 }}
                 className="text-center py-2 mb-2"
               >
-                <div className="text-xs text-gray-400">
+                <div className="text-xs text-gray-400 dark:text-gray-500">
                   📜 Còn {messages.length - state.displayedMessagesCount} tin
                   nhắn cũ hơn • Cuộn lên để tải{" "}
                   <button
-                    className="text-blue-500 cursor-pointer"
+                    className="text-blue-500 dark:text-blue-400 cursor-pointer"
                     onClick={() => handleLoadMore()}
                   >
                     thêm...
@@ -337,7 +353,9 @@ export const ChatMessages = memo(
                             className={`h-10 rounded-2xl ${
                               idx % 2 === 0 ? "rounded-tl-md" : "rounded-tr-md"
                             }`}
-                            style={{ width: `${60 + Math.random() * 40}%` }}
+                            style={{
+                              width: `${60 + Math.random() * 40}%`,
+                            }}
                           />
                           <Skeleton className="h-3 w-12 rounded mt-1" />
                         </div>
@@ -347,7 +365,7 @@ export const ChatMessages = memo(
                       </div>
                     ))}
                     <div className="text-center mt-6">
-                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent mx-auto mb-3"></div>
+                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 dark:border-blue-400 border-t-transparent mx-auto mb-3"></div>
                       <Skeleton className="h-4 w-32 rounded mx-auto" />
                     </div>
                   </div>

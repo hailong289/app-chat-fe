@@ -12,7 +12,7 @@ import {
   Tab,
   DatePicker,
   Select,
-  SelectItem
+  SelectItem,
 } from "@heroui/react";
 import Image from "next/image";
 import { CalendarDate } from "@internationalized/date";
@@ -25,19 +25,19 @@ import Joi from "joi";
 import { useFirebase } from "@/components/providers/firebase.provider";
 
 const registerSchema = Joi.object({
-  type: Joi.string().valid('email', 'phone').required().messages({
-    'any.required': 'Loại đăng ký không được để trống',
-    'string.empty': 'Loại đăng ký không được để trống',
-    'any.only': 'Loại đăng ký không hợp lệ',
+  type: Joi.string().valid("email", "phone").required().messages({
+    "any.required": "Loại đăng ký không được để trống",
+    "string.empty": "Loại đăng ký không được để trống",
+    "any.only": "Loại đăng ký không hợp lệ",
   }),
   fullname: Joi.string().required().messages({
-    'any.required': 'Họ và tên không được để trống',
-    'string.empty': 'Họ và tên không được để trống',
+    "any.required": "Họ và tên không được để trống",
+    "string.empty": "Họ và tên không được để trống",
   }),
   username: Joi.string()
     .required()
     .custom((value, helpers) => {
-      const type  = helpers.prefs.context?.type; // lấy type từ object cha
+      const type = helpers.prefs.context?.type; // lấy type từ object cha
 
       if (type === "email") {
         const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -62,9 +62,9 @@ const registerSchema = Joi.object({
       "string.pattern.base": "Vui lòng nhập số điện thoại hợp lệ",
     }),
   password: Joi.string().min(6).required().messages({
-    'any.required': 'Mật khẩu không được để trống',
-    'string.empty': 'Mật khẩu không được để trống',
-    'string.min': 'Mật khẩu phải có ít nhất 6 ký tự',
+    "any.required": "Mật khẩu không được để trống",
+    "string.empty": "Mật khẩu không được để trống",
+    "string.min": "Mật khẩu phải có ít nhất 6 ký tự",
   }),
   confirm: Joi.string()
     .required()
@@ -89,15 +89,13 @@ const registerSchema = Joi.object({
       "any.only": "Mật khẩu xác nhận không khớp",
     }),
   dateOfBirth: Joi.any(),
-  gender: Joi.string().valid('male', 'female', 'other').required().messages({
-    'any.required': 'Giới tính không được để trống',
-    'string.empty': 'Giới tính không được để trống',
-    'any.only': 'Giới tính không hợp lệ',
+  gender: Joi.string().valid("male", "female", "other").required().messages({
+    "any.required": "Giới tính không được để trống",
+    "string.empty": "Giới tính không được để trống",
+    "any.only": "Giới tính không hợp lệ",
   }),
   fcmToken: Joi.string().optional().allow(null),
 });
-
-
 
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -116,25 +114,26 @@ export default function RegisterPage() {
   const router = useRouter();
   const firebase = useFirebase();
 
-   useEffect(() => {
-      if (firebase.token) {
-        setForm((prev) => ({ ...prev, fcmToken: firebase.token }));
-      }
-    }, [firebase.token]);
+  useEffect(() => {
+    if (firebase.token) {
+      setForm((prev) => ({ ...prev, fcmToken: firebase.token }));
+    }
+  }, [firebase.token]);
 
   const validateField = (field: keyof PayloadRegister, value: string) => {
     const fieldSchema = registerSchema.extract(field);
-    const { error } = fieldSchema.validate(value, { context: { type: form.type, password: form.password } });
+    const { error } = fieldSchema.validate(value, {
+      context: { type: form.type, password: form.password },
+    });
     setFieldErrors((prev) => ({
       ...prev,
-      [field]: error ? error.details[0].message : '',
+      [field]: error ? error.details[0].message : "",
     }));
   };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const { error, value: parsedData } = registerSchema.validate(form);
-    console.log({ parsedData, error });
     if (error) {
       const errors: Record<string, string> = {};
       error.details.forEach((detail) => {
@@ -161,7 +160,7 @@ export default function RegisterPage() {
           success("Đăng ký thành công!");
           router.push("/"); // Redirect to home page after successful registration
         }
-      }
+      },
     });
   }
 
@@ -183,7 +182,9 @@ export default function RegisterPage() {
             fullWidth
             selectedKey={form.type}
             size="md"
-            onSelectionChange={(key) => setForm({ ...form, type: key as 'email' | 'phone', username: '' })}
+            onSelectionChange={(key) =>
+              setForm({ ...form, type: key as "email" | "phone", username: "" })
+            }
             color="primary"
           >
             <Tab key="email" title="Email">
@@ -193,8 +194,10 @@ export default function RegisterPage() {
                   label="Họ và tên"
                   placeholder="Nguyễn Văn A"
                   value={form.fullname}
-                  onChange={(e) => setForm({ ...form, fullname: e.target.value })}
-                  onBlur={(e) => validateField('fullname', e.target.value)}
+                  onChange={(e) =>
+                    setForm({ ...form, fullname: e.target.value })
+                  }
+                  onBlur={(e) => validateField("fullname", e.target.value)}
                   isRequired
                   errorMessage={fieldErrors.fullname}
                   isInvalid={!!fieldErrors.fullname}
@@ -205,21 +208,24 @@ export default function RegisterPage() {
                   label="Email"
                   placeholder="you@example.com"
                   value={form.username}
-                  onChange={(e) => setForm({ ...form, username: e.target.value })}
-                  onBlur={(e) => validateField('username', e.target.value)}
+                  onChange={(e) =>
+                    setForm({ ...form, username: e.target.value })
+                  }
+                  onBlur={(e) => validateField("username", e.target.value)}
                   isRequired
                   errorMessage={fieldErrors.username}
                   isInvalid={!!fieldErrors.username}
                 />
-
 
                 <Input
                   type="password"
                   label="Mật khẩu"
                   placeholder="Tối thiểu 8 ký tự"
                   value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  onBlur={(e) => validateField('password', e.target.value)}
+                  onChange={(e) =>
+                    setForm({ ...form, password: e.target.value })
+                  }
+                  onBlur={(e) => validateField("password", e.target.value)}
                   isRequired
                   isInvalid={!!fieldErrors.password}
                   errorMessage={fieldErrors.password}
@@ -229,8 +235,10 @@ export default function RegisterPage() {
                   label="Xác nhận mật khẩu"
                   placeholder="Nhập lại mật khẩu"
                   value={form.confirm}
-                  onChange={(e) => setForm({ ...form, confirm: e.target.value })}
-                  onBlur={(e) => validateField('confirm', e.target.value)}
+                  onChange={(e) =>
+                    setForm({ ...form, confirm: e.target.value })
+                  }
+                  onBlur={(e) => validateField("confirm", e.target.value)}
                   isRequired
                   isInvalid={!!fieldErrors.confirm}
                   errorMessage={fieldErrors.confirm}
@@ -251,22 +259,35 @@ export default function RegisterPage() {
                   defaultSelectedKeys={new Set([form.gender])}
                   errorMessage={fieldErrors.gender}
                   isInvalid={!!fieldErrors.gender}
-                  onSelectionChange={(key) => setForm({ ...form, gender: key.currentKey as "male" | "female" | "other" })}
+                  onSelectionChange={(key) =>
+                    setForm({
+                      ...form,
+                      gender: key.currentKey as "male" | "female" | "other",
+                    })
+                  }
                 >
                   <SelectItem key="male">Nam</SelectItem>
                   <SelectItem key="female">Nữ</SelectItem>
                 </Select>
 
-
                 <div className="text-center my-3">
-                  <Button type="submit" className="btn-primary" fullWidth disabled={isLoading} isLoading={isLoading}>
+                  <Button
+                    type="submit"
+                    className="btn-primary"
+                    fullWidth
+                    disabled={isLoading}
+                    isLoading={isLoading}
+                  >
                     Đăng Ký
                   </Button>
                 </div>
 
                 <p className="text-center text-sm">
                   Bạn đã có tài khoản?{" "}
-                  <Link href="/auth" className="text-primary font-semibold hover:underline">
+                  <Link
+                    href="/auth"
+                    className="text-primary font-semibold hover:underline"
+                  >
                     Đăng nhập
                   </Link>
                 </p>
@@ -279,8 +300,10 @@ export default function RegisterPage() {
                   label="Họ và tên"
                   placeholder="Nguyễn Văn A"
                   value={form.fullname}
-                  onChange={(e) => setForm({ ...form, fullname: e.target.value })}
-                  onBlur={(e) => validateField('fullname', e.target.value)}
+                  onChange={(e) =>
+                    setForm({ ...form, fullname: e.target.value })
+                  }
+                  onBlur={(e) => validateField("fullname", e.target.value)}
                   isRequired
                   errorMessage={fieldErrors.fullname}
                   isInvalid={!!fieldErrors.fullname}
@@ -291,8 +314,10 @@ export default function RegisterPage() {
                   label="Số điện thoại"
                   placeholder="0901234567"
                   value={form.username}
-                  onChange={(e) => setForm({ ...form, username: e.target.value })}
-                  onBlur={(e) => validateField('username', e.target.value)}
+                  onChange={(e) =>
+                    setForm({ ...form, username: e.target.value })
+                  }
+                  onBlur={(e) => validateField("username", e.target.value)}
                   isRequired
                   errorMessage={fieldErrors.username}
                   isInvalid={!!fieldErrors.username}
@@ -303,8 +328,10 @@ export default function RegisterPage() {
                   label="Mật khẩu"
                   placeholder="Tối thiểu 8 ký tự"
                   value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  onBlur={(e) => validateField('password', e.target.value)}
+                  onChange={(e) =>
+                    setForm({ ...form, password: e.target.value })
+                  }
+                  onBlur={(e) => validateField("password", e.target.value)}
                   isRequired
                   errorMessage={fieldErrors.password}
                   isInvalid={!!fieldErrors.password}
@@ -314,8 +341,10 @@ export default function RegisterPage() {
                   label="Xác nhận mật khẩu"
                   placeholder="Nhập lại mật khẩu"
                   value={form.confirm}
-                  onChange={(e) => setForm({ ...form, confirm: e.target.value })}
-                  onBlur={(e) => validateField('confirm', e.target.value)}
+                  onChange={(e) =>
+                    setForm({ ...form, confirm: e.target.value })
+                  }
+                  onBlur={(e) => validateField("confirm", e.target.value)}
                   isRequired
                   errorMessage={fieldErrors.confirm}
                   isInvalid={!!fieldErrors.confirm}
@@ -331,24 +360,38 @@ export default function RegisterPage() {
                 />
 
                 <Select
-                  className="w-full" label="Chọn giới tính"
+                  className="w-full"
+                  label="Chọn giới tính"
                   defaultSelectedKeys={new Set([form.gender])}
-                  onSelectionChange={(key) => setForm({ ...form, gender: key.currentKey as "male" | "female" | "other" })}
+                  onSelectionChange={(key) =>
+                    setForm({
+                      ...form,
+                      gender: key.currentKey as "male" | "female" | "other",
+                    })
+                  }
                 >
                   <SelectItem key="male">Nam</SelectItem>
                   <SelectItem key="female">Nữ</SelectItem>
                 </Select>
 
-
                 <div className="text-center my-3">
-                  <Button type="submit" className="btn-primary" fullWidth disabled={isLoading} isLoading={isLoading}>
+                  <Button
+                    type="submit"
+                    className="btn-primary"
+                    fullWidth
+                    disabled={isLoading}
+                    isLoading={isLoading}
+                  >
                     Đăng Ký
                   </Button>
                 </div>
 
                 <p className="text-center text-sm">
                   Bạn đã có tài khoản?{" "}
-                  <Link href="/auth" className="text-primary font-semibold hover:underline">
+                  <Link
+                    href="/auth"
+                    className="text-primary font-semibold hover:underline"
+                  >
                     Đăng nhập
                   </Link>
                 </p>

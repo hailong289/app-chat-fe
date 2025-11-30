@@ -1,15 +1,17 @@
 import { create } from "zustand";
-import { RoomsState, roomType } from "./types/room.state";
+import { RoomsState, roomType, User } from "./types/room.state";
 import RoomService from "@/service/room.service";
 import { QueryRooms } from "@/types/room.type";
 import { db } from "@/libs/db";
 import {
+  deleteMany,
   deleteOne,
   getOne,
   updateOne,
   upsertMany,
   upsertOne,
 } from "@/libs/crud";
+
 const useRoomStore = create<RoomsState>()((set, get) => ({
   isLoading: false,
   rooms: [],
@@ -17,6 +19,7 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
   room: null,
   type: "all",
   readedRooms: {},
+  roomTypingUsers: {},
   // last_message_id: null,
   setType: (type: "group" | "private" | "channel" | "all") => set({ type }),
 
@@ -32,7 +35,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
 
     try {
       await upsertMany(db.rooms, rooms);
-      console.log("✅ Saved rooms to IndexedDB with emoji support");
     } catch (error) {
       console.error("❌ Error saving rooms to IndexedDB:", error);
       // Continue anyway, data is already in state
@@ -64,7 +66,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
   getRoomsByType: async (type: string) => {
     let rooms;
     if (type == "all") {
-      console.log("🚀 ~ type:", type);
       rooms = await db.rooms.toArray();
     } else {
       rooms = await db.rooms.where("type").equals(type).toArray();
@@ -247,7 +248,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
   },
   // handel socket
   updateRoomSocket: (data: roomType) => {
-    console.log("🚀 updateRoomSocket ~ data:", data);
     // Nếu id của data bằng id của room hiện tại thì cập nhật luôn room
     if (get().room?.id === data.id) {
       set({ room: data });
@@ -276,7 +276,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     // Luôn update vào IndexedDB và refresh lại state từ db
     upsertOne(db.rooms, data)
       .then(() => {
-        console.log("✅ Updated room in IndexedDB from socket:", data.id);
         get().getRoomsByType(currentType);
       })
       .catch((error) => {
@@ -292,11 +291,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
         last_read_id: data.lastMessageId,
         is_read: true,
         unread_count: 0,
-      });
-
-      console.log("✅ Updated room read status in IndexedDB:", {
-        roomId: data.roomId,
-        lastMessageId: data.lastMessageId,
       });
     } catch (error) {
       console.error("❌ Error updating room read status in IndexedDB:", error);
@@ -327,6 +321,62 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       lastMessageId: messageId,
       roomId: roomId,
     });
+  },
+  roomDeleteSocket: (data: { roomId: string }) => {
+    set((state) => ({
+      rooms: state.rooms.filter((r) => r.id !== data.roomId),
+      room: state.room?.id === data.roomId ? null : state.room,
+    }));
+    // Delete room from IndexedDB
+    deleteOne(db.rooms, data.roomId).catch(() => {});
+    // Delete room messages from IndexedDB
+    if (db.messages?.where && typeof db.messages.where === "function") {
+      db.messages
+        .where("roomId")
+        .equals(data.roomId)
+        .delete()
+        .catch(() => {});
+    }
+  },
+  roomTypingSocket: (data: { isTyping: boolean; socket: any }) => {
+    console.log("Room typing socket event:", data);
+    const roomId = get().room?.roomId;
+    console.log("🚀 ~ roomId:", roomId);
+    if (!roomId) return;
+    data.socket.emit("user:typing", {
+      roomId,
+      typing: data.isTyping,
+    });
+  },
+  handleTypingEvent: ({
+    user,
+    typing,
+    roomId,
+  }: {
+    user: User;
+    typing: boolean;
+    roomId: string;
+  }) => {
+    const currentTypingUsers = get().roomTypingUsers[roomId] || [];
+
+    let updatedTypingUsers: User[];
+    if (typing) {
+      // Thêm user vào danh sách nếu chưa có
+      if (currentTypingUsers.some((u) => u.id === user.id)) {
+        updatedTypingUsers = currentTypingUsers;
+      } else {
+        updatedTypingUsers = [...currentTypingUsers, user];
+      }
+    } else {
+      // Xóa user khỏi danh sách nếu có
+      updatedTypingUsers = currentTypingUsers.filter((u) => u.id !== user.id);
+    }
+    set((state) => ({
+      roomTypingUsers: {
+        ...state.roomTypingUsers,
+        [roomId]: updatedTypingUsers,
+      },
+    }));
   },
 }));
 

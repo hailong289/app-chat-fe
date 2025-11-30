@@ -5,7 +5,6 @@ import type { NextRequest } from "next/server";
 const publicPaths = ["/auth", "/auth/login", "/auth/register", "/dashboard"];
 
 export function middleware(request: NextRequest) {
-  console.log("Middleware is running");
   const tokens = request.cookies.get("tokens")?.value;
   const { pathname } = request.nextUrl;
 
@@ -51,5 +50,6 @@ export const config = {
     "/chat/:path*",
     "/settings/:path*",
     "/contacts/:path*",
+    "/docs/:path*",
   ],
 };

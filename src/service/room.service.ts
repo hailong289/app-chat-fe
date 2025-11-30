@@ -2,7 +2,6 @@ import { QueryRooms } from "@/types/room.type";
 import apiService from "./api.service";
 export default class RoomService {
   static getRooms(queryParams: QueryRooms) {
-    console.log("🚀 ~ RoomService ~ getRooms ~ queryParams:", queryParams);
     return apiService.get("/chat/rooms", queryParams);
   }
   static changeRoomName(body: { roomId: string; name: string }) {
@@ -26,7 +25,8 @@ export default class RoomService {
     return apiService.patch("/chat/rooms/avatar", body);
   }
   static addMembers(body: { roomId: string; memberIds: string[] }) {
-    return apiService.patch("/chat/rooms/members/add", body);
+    console.log("🚀 ~ RoomService ~ addMembers ~ body:", body);
+    return apiService.patch("/chat/rooms/add", body);
   }
 
   static createRoom(body: {

@@ -1,11 +1,7 @@
 "use client";
 import formatTimeAgo from "@/libs/forrmattime";
 import useRoomStore from "@/store/useRoomStore";
-import {
-  MagnifyingGlassCircleIcon,
-  MagnifyingGlassIcon,
-  XCircleIcon,
-} from "@heroicons/react/16/solid";
+import { MagnifyingGlassIcon, XCircleIcon } from "@heroicons/react/16/solid";
 import { PencilSquareIcon } from "@heroicons/react/24/outline";
 import {
   Button,
@@ -18,7 +14,6 @@ import {
   Tab,
   Input,
   Tooltip,
-  Image,
 } from "@heroui/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
@@ -26,6 +21,7 @@ import { CreateRoomModal } from "../chat/modals/createRoom.modal";
 import { useSocket } from "../providers/SocketProvider";
 import useContactStore from "@/store/useContactStore";
 import useAuthStore from "@/store/useAuthStore";
+import TypingIndicator from "../chat/input/TypingIndicator";
 
 export const Home = () => {
   const { socket } = useSocket();
@@ -37,10 +33,11 @@ export const Home = () => {
   const contactState = useContactStore((state) => state);
   const authState = useAuthStore((state) => state);
 
-  const [limit, setLimit] = useState(20); // Fixed initial value
+  const [limit, setLimit] = useState(20);
   const [search, setSearch] = useState("");
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [openModal, setOpenModal] = useState(false);
+
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<string>(searchParams.get("chatId") || "");
 
@@ -52,67 +49,48 @@ export const Home = () => {
     }),
     [search, limit, roomState.type]
   );
+
   // Load initial data once
   useEffect(() => {
-    // Load từ IndexedDB vào state (nếu có cache)
     roomState.getRoomsByType("all");
-    // Fetch mới từ API
     roomState.getRooms();
-  }, []); // Only on mount
+  }, []);
 
-  /**
-   * useEffect: Lắng nghe socket reconnect và fetch danh sách rooms mới nhất
-   * Xảy ra khi: Socket reconnect sau khi mất kết nối
-   */
+  // Re-fetch rooms on socket reconnect
   useEffect(() => {
     if (!socket) return;
 
     const handleReconnect = () => {
       console.log(
-        "🔌 [SOCKET RECONNECT] Socket đã kết nối lại, đang fetch danh sách rooms mới nhất..."
+        "🔌 [SOCKET RECONNECT] Socket reconnected, fetching rooms..."
       );
 
-      // Đợi một chút để đảm bảo socket đã hoàn toàn kết nối
       setTimeout(async () => {
         try {
-          console.log(
-            "📥 [SOCKET RECONNECT] Fetching danh sách rooms mới nhất"
-          );
-
-          // Fetch lại danh sách rooms từ server với query hiện tại
           await roomState.getRooms(queryRoom);
-
-          console.log(
-            "✅ [SOCKET RECONNECT] Đã tải danh sách rooms thành công"
-          );
+          console.log("✅ [SOCKET RECONNECT] Fetched rooms successfully");
         } catch (error) {
-          console.error(
-            "❌ [SOCKET RECONNECT] Lỗi khi tải danh sách rooms:",
-            error
-          );
+          console.error("❌ [SOCKET RECONNECT] Error fetching rooms:", error);
         }
-      }, 500); // Đợi 500ms để socket ổn định
+      }, 500);
     };
 
-    // Lắng nghe sự kiện reconnect
     socket.on("connect", handleReconnect);
-
-    // Cleanup
     return () => {
       socket.off("connect", handleReconnect);
     };
   }, [socket, queryRoom, roomState]);
 
-  // Debounce search và fetch khi query thay đổi
+  // Debounce search + query changes
+  const getRooms = useRoomStore((state) => state.getRooms);
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      roomState.getRooms(queryRoom);
-    }, 300); // Debounce 300ms
-console.log('change query room');
-    return () => clearTimeout(timeoutId);
-  }, [queryRoom]);
+      getRooms(queryRoom);
+    }, 300);
 
-  //  Optimized infinite scroll
+    return () => clearTimeout(timeoutId);
+  }, [queryRoom, getRooms]);
+  // Infinite scroll
   const bottomRef = useRef<HTMLDivElement>(null);
   const isLoadingMore = useRef(false);
 
@@ -121,18 +99,17 @@ console.log('change query room');
       (entries) => {
         const [entry] = entries;
         if (entry.isIntersecting && !isLoadingMore.current) {
-          console.log("🎯 Load more rooms...");
           isLoadingMore.current = true;
           setLimit((prev) => prev + 20);
-          // Reset flag sau khi load xong
+
           setTimeout(() => {
             isLoadingMore.current = false;
           }, 500);
         }
       },
       {
-        threshold: 0.5, // Trigger khi thấy 50% element
-        rootMargin: "100px", // Preload trước 100px
+        threshold: 0.5,
+        rootMargin: "100px",
       }
     );
 
@@ -140,11 +117,15 @@ console.log('change query room');
     return () => observer.disconnect();
   }, []);
 
-  // Memoize button component
   const btnNewMsg = useMemo(
     () => (
       <Tooltip content="Tin nhắn mới" placement="bottom">
-        <Button variant="light" size="sm" onPress={() => setOpenModal(true)}>
+        <Button
+          variant="light"
+          size="sm"
+          onPress={() => setOpenModal(true)}
+          className="text-primary"
+        >
           <PencilSquareIcon className="w-5 h-5" />
         </Button>
       </Tooltip>
@@ -152,20 +133,33 @@ console.log('change query room');
     []
   );
 
-  // Optimize chat click handler
   const handleChatClick = useCallback(
     (chat: any) => {
-      console.log(`Selected chat with ${chat.name}`);
       roomState.getRoomById(chat.id);
       router.push(`/chat?chatId=${chat.id}`);
       setIsSearchVisible(false);
       setSearch("");
       setTab(chat.id);
     },
-    [roomState, socket]
+    [roomState, router]
   );
 
-  // Optimize search handlers
+  const handleClickAction = useCallback(
+    (chat: any) => {
+      roomState.getRoomById(chat.id);
+
+      if (!roomState.rooms.some((r) => r.id === chat.id)) {
+        roomState.createRoom("private", `Chat với ${chat.id}`, [chat.id]);
+      }
+
+      router.push(`/chat?chatId=${chat.id}`);
+      setIsSearchVisible(false);
+      setSearch("");
+      setTab(chat.id);
+    },
+    [roomState, router]
+  );
+
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setSearch(e.target.value);
@@ -182,30 +176,28 @@ console.log('change query room');
     setSearch("");
   }, []);
 
-  // Handle tab navigation
   const handleTab = useCallback(
-    (tab: string) => () => {
-      router.push(`${pathname}?tab=${tab}`);
+    (tabKey: string) => () => {
+      router.push(`${pathname}?tab=${tabKey}`);
     },
     [router, pathname]
   );
 
   return (
     <>
+      {/* Top actions */}
       {!isSearchVisible && (
-        <div className="flex items-center justify-end p-1 border-b border-gray-200">
-          {/* <Image alt="logo" src="/logo.jpg" width={20} /> */}
+        <div className="flex items-center justify-end p-1 border-b border-default dark:bg-slate-900">
           {btnNewMsg}
         </div>
       )}
-      {/* Top Bar */}
 
       {/* Status Section */}
       {!isSearchVisible && (
-        <Card className="rounded-none shadow-none border-b border-gray-200">
+        <Card className="rounded-none shadow-none border-b border-default dark:bg-slate-900">
           <CardBody className="p-4">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="font-semibold text-gray-800">Hoạt động</h2>
+              <h2 className="font-semibold text-foreground">Hoạt động</h2>
               <Button
                 variant="light"
                 size="sm"
@@ -215,7 +207,9 @@ console.log('change query room');
                 Xem tất cả
               </Button>
             </div>
+
             <div className="flex space-x-4 overflow-x-auto p-1">
+              {/* My status */}
               <div className="flex flex-col items-center space-y-1 flex-shrink-0">
                 <Badge content=" " color="success" placement="bottom-right">
                   <Avatar
@@ -226,41 +220,50 @@ console.log('change query room');
                     color="success"
                   />
                 </Badge>
-                <p className="text-xs text-gray-600 text-center">
+                <p className="text-xs text-default-500 text-center">
                   Trạng thái của tôi
                 </p>
               </div>
-              {contactState.online.map((contact, index) => (
-                <div
-                  key={contact.id}
-                  className="flex flex-col items-center space-y-1 flex-shrink-0"
-                >
-                  <Avatar
-                    src={contact.avatar || undefined}
-                    name={contact.fullname}
-                    size="lg"
-                  />
-                  <p className="text-xs text-gray-600 text-center">
-                    {contact.fullname}...
-                  </p>
-                </div>
-              ))}
+
+              {/* Online contacts */}
+              {contactState.online
+                .filter((contact) => contact.id !== authState.user?.id)
+                .map((contact) => (
+                  <button
+                    key={contact.id}
+                    className="flex flex-col items-center space-y-1 flex-shrink-0"
+                    onClick={() => handleClickAction(contact)}
+                  >
+                    <Avatar
+                      src={contact.avatar || undefined}
+                      name={contact.fullname}
+                      size="lg"
+                    />
+                    <p className="text-xs text-default-500 text-center">
+                      {contact.fullname}...
+                    </p>
+                  </button>
+                ))}
             </div>
           </CardBody>
         </Card>
       )}
 
-      {/* Messages Section */}
-      <Card className="rounded-none shadow-none border-b border-gray-200">
+      {/* Search + Tabs */}
+      <Card className="rounded-none shadow-none border-b border-default dark:bg-slate-900">
         <CardBody className="p-4">
-          <div className="flex justify-between items-center mb-3">
+          <div className="flex justify-between items-center mb-3 gap-2">
             <Input
               placeholder="Tìm kiếm"
               size="sm"
               type="text"
+              variant="bordered"
               value={search}
               onChange={handleSearchChange}
               onFocus={handleSearchFocus}
+              classNames={{
+                inputWrapper: "bg-content2",
+              }}
               endContent={
                 isSearchVisible ? (
                   <Button
@@ -273,12 +276,13 @@ console.log('change query room');
                     <XCircleIcon className="w-5 h-5" />
                   </Button>
                 ) : (
-                  <MagnifyingGlassIcon className="w-5 h-5" />
+                  <MagnifyingGlassIcon className="w-5 h-5 text-default-500" />
                 )
               }
             />
             {isSearchVisible && btnNewMsg}
           </div>
+
           {!isSearchVisible && (
             <div className="mb-3 w-full">
               <Tabs
@@ -292,6 +296,7 @@ console.log('change query room');
                     key as "all" | "group" | "private" | "channel"
                   )
                 }
+                className="bg-content2 rounded-xl"
               >
                 <Tab key="all" title="Tất cả" />
                 <Tab key="group" title="Nhóm" />
@@ -301,18 +306,21 @@ console.log('change query room');
           )}
         </CardBody>
       </Card>
+
+      {/* Chat list */}
       <div
         id="list-chat"
-        className="flex-1 overflow-y-auto scroll-smooth w-full shadow-[4px_0_10px_-2px_rgba(0,0,0,0.1)]"
+        className="flex-1 overflow-y-auto scroll-smooth w-full shadow-[4px_0_10px_-2px_rgba(0,0,0,0.15)] bg-background"
       >
-        {/* Chat List */}
-        <div className="divide-y divide-gray-200 w-full">
+        <div className="divide-y divide-default-200 w-full">
           {roomState.rooms.map((chat) => (
             <Card
               key={chat.id}
               isPressable
-              className={`w-full rounded-none shadow-none cursor-pointer hover:bg-gray-100 transition-colors ${
-                tab === chat.id ? "bg-gray-100" : ""
+              className={`w-full rounded-none shadow-none cursor-pointer transition-colors bg-background hover:bg-default-100 ${
+                tab === chat.id ? "bg-default-100" : ""
+              }dark:bg-slate-900 dark:hover:bg-slate-800 dark:${
+                tab === chat.id ? "bg-slate-800" : ""
               }`}
               onPress={() => handleChatClick(chat)}
             >
@@ -324,15 +332,16 @@ console.log('change query room');
                     size="md"
                     className="flex-shrink-0"
                   />
+
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-800 truncate">
+                    <h3 className="font-semibold text-foreground truncate">
                       {chat.name}
                     </h3>
+
                     <p
-                      className={`
-    text-sm text-gray-700 truncate font-${chat.is_read ? "normal" : "semibold"}
-    block w-full w-full
-  `}
+                      className={`text-sm text-default-600 truncate ${
+                        chat.is_read ? "" : "font-semibold"
+                      }`}
                       title={chat?.last_message?.content || ""}
                     >
                       {chat?.last_message?.isMine ? "Bạn: " : ""}
@@ -346,9 +355,14 @@ console.log('change query room');
                         "..."}
                     </p>
                   </div>
+
+                  <TypingIndicator
+                    users={roomState.roomTypingUsers[chat.roomId] || []}
+                  />
                 </div>
+
                 <div className="text-right flex-shrink-0 ml-2">
-                  <p className="text-xs text-gray-400 whitespace-nowrap">
+                  <p className="text-xs text-default-400 whitespace-nowrap">
                     {chat.updatedAt ? formatTimeAgo(chat.updatedAt) : ""}
                   </p>
                   {chat.unread_count > 0 && (
@@ -362,16 +376,18 @@ console.log('change query room');
               </CardBody>
             </Card>
           ))}
+
           <div
             ref={bottomRef}
             className="h-10 flex items-center justify-center"
           >
             {isLoadingMore.current && (
-              <div className="text-xs text-gray-400">Đang tải...</div>
+              <div className="text-xs text-default-400">Đang tải...</div>
             )}
           </div>
         </div>
       </div>
+
       <CreateRoomModal isOpen={openModal} onClose={() => setOpenModal(false)} />
     </>
   );

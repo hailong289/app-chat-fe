@@ -30,7 +30,10 @@ export function ScrollToBottomButton({
             color="primary"
             variant="shadow"
             isIconOnly
-            className="shadow-lg hover:shadow-xl transition-shadow"
+            className="
+              shadow-lg hover:shadow-xl transition-shadow
+              dark:shadow-black/40
+            "
             size="lg"
           >
             <ChevronDoubleDownIcon className="w-5 h-5" />
@@ -38,7 +41,15 @@ export function ScrollToBottomButton({
 
           {/* Badge hiển thị số tin nhắn chưa đọc */}
           {!isRead && (
-            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+            <div
+              className="
+                absolute -top-1 -right-1 
+                bg-red-500 text-white
+                dark:bg-red-400 dark:text-white
+                text-xs rounded-full min-w-[20px] h-5 
+                flex items-center justify-center px-1
+              "
+            >
               {unreadCount > 99 ? "99+" : unreadCount}
             </div>
           )}
@@ -47,4 +58,3 @@ export function ScrollToBottomButton({
     </AnimatePresence>
   );
 }
-

@@ -1,3 +1,5 @@
+"use client";
+
 import { FilePreview } from "@/store/types/message.state";
 import {
   Modal,
@@ -117,12 +119,10 @@ export const CompactFileGallery = ({
           ${
             isFailed
               ? "border-2 border-red-500 shadow-red-500/50"
-              : "border border-gray-200 "
+              : "border border-default-200 dark:border-default-600"
           }
-          
-          w-full  
+          w-full ${heightClass} bg-default-100 dark:bg-default-50
         `}
-        // onClick={() => handleFileClick(file, index)}
       >
         {/* Thumbnail */}
         {fileKind === "photo" && (
@@ -139,6 +139,7 @@ export const CompactFileGallery = ({
             onClick={() => handleFileClick(file, index)}
           />
         )}
+
         {fileKind === "video" && (
           <button
             className="relative w-full h-full bg-black"
@@ -157,14 +158,15 @@ export const CompactFileGallery = ({
               <track kind="captions" />
             </video>
             <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-transparent to-black/40">
-              <div className="bg-white/20 backdrop-blur-sm rounded-full p-3">
+              <div className="bg-black/40 backdrop-blur-sm rounded-full p-3">
                 <PlayCircleIcon className="w-8 h-8 text-white drop-shadow-lg" />
               </div>
             </div>
           </button>
         )}
+
         {fileKind === "audio" && (
-          <div className="w-full   flex items-center justify-center">
+          <div className="w-full h-full flex items-center justify-center bg-default-100 dark:bg-default-50">
             <MiniAudioBubble
               src={file.url}
               initialDuration={
@@ -172,24 +174,26 @@ export const CompactFileGallery = ({
                   ? file.duration / 1000
                   : undefined
               }
-              onPlayChange={(playing) => {
-                // optional: nếu bạn muốn tắt các audio khác đang mở -> quản lý ở parent
+              onPlayChange={() => {
+                // nếu sau này muốn stop các audio khác -> xử lý ở parent
               }}
-              className="h-full"
+              className="w-full px-2"
             />
           </div>
         )}
+
         {fileKind === "pdf" && (
           <Tooltip content={file.name} placement="top">
             <button
               onClick={() => handleFileClick(file, index)}
-              className="flex flex-col items-center justify-center gap-2"
+              className="flex flex-col items-center justify-center gap-2 w-full h-full bg-default-100 dark:bg-default-50"
             >
               <DocumentTextIcon className="w-10 h-10 text-red-500" />
               <span className="text-xs font-semibold text-red-600">PDF</span>
             </button>
           </Tooltip>
         )}
+
         {fileKind === "file" && (
           <button
             onClick={() => handleFileClick(file, index)}
@@ -198,20 +202,23 @@ export const CompactFileGallery = ({
             <DocumentIcon className="w-10 h-10 text-white drop-shadow-lg" />
           </button>
         )}
+
         {/* Upload Progress */}
         {isUploading && (
-          <div className="flex gap-1 items-center">
-            <Progress
-              size="sm"
-              value={file.uploadProgress || 0}
-              color="primary"
-              className="w-full mb-2"
-            />
-            <div className="text-xs font-medium text-primary-700">
-              {file.uploadProgress || 0}%
+          <div className="absolute inset-x-0 bottom-0 p-2 bg-black/40 backdrop-blur-sm">
+            <div className="flex gap-2 items-center">
+              <Progress
+                size="sm"
+                value={file.uploadProgress || 0}
+                color="primary"
+                className="w-full"
+              />
+              <div className="text-xs font-medium text-primary-50">
+                {file.uploadProgress || 0}%
+              </div>
             </div>
           </div>
-        )}{" "}
+        )}
       </div>
     );
   };
@@ -234,9 +241,9 @@ export const CompactFileGallery = ({
                 return (
                   <motion.div
                     key={`file-${file._id}-${idx}`}
-                    initial={{ opacity: 0, scale: 0.8 }}
+                    initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
                     transition={{ duration: 0.2, delay: idx * 0.05 }}
                   >
                     {renderCompactThumbnail(file, originalIndex)}
@@ -245,6 +252,7 @@ export const CompactFileGallery = ({
               })}
             </motion.div>
           )}
+
           {displayFiles.length === 2 && (
             <motion.div
               key="grid-2"
@@ -258,9 +266,9 @@ export const CompactFileGallery = ({
                 return (
                   <motion.div
                     key={`file-${file._id}-${idx}`}
-                    initial={{ opacity: 0, scale: 0.8 }}
+                    initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
                     transition={{ duration: 0.2, delay: idx * 0.05 }}
                   >
                     {renderCompactThumbnail(file, originalIndex)}
@@ -269,6 +277,7 @@ export const CompactFileGallery = ({
               })}
             </motion.div>
           )}
+
           {displayFiles.length === 3 && (
             <motion.div
               key="grid-3"
@@ -279,7 +288,7 @@ export const CompactFileGallery = ({
             >
               <motion.div
                 key={displayFiles[0]._id}
-                initial={{ opacity: 0, scale: 0.8 }}
+                initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.2 }}
                 className="row-span-2"
@@ -291,7 +300,7 @@ export const CompactFileGallery = ({
               </motion.div>
               <motion.div
                 key={displayFiles[1]._id}
-                initial={{ opacity: 0, scale: 0.8 }}
+                initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.2, delay: 0.05 }}
               >
@@ -302,7 +311,7 @@ export const CompactFileGallery = ({
               </motion.div>
               <motion.div
                 key={displayFiles[2]._id}
-                initial={{ opacity: 0, scale: 0.8 }}
+                initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.2, delay: 0.1 }}
               >
@@ -313,6 +322,7 @@ export const CompactFileGallery = ({
               </motion.div>
             </motion.div>
           )}
+
           {displayFiles.length === 4 && (
             <motion.div
               key="grid-4"
@@ -326,9 +336,9 @@ export const CompactFileGallery = ({
                 return (
                   <motion.div
                     key={`file-${file._id}-${idx}`}
-                    initial={{ opacity: 0, scale: 0.8 }}
+                    initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
                     transition={{ duration: 0.2, delay: idx * 0.05 }}
                   >
                     {renderCompactThumbnail(file, originalIndex)}
@@ -337,22 +347,23 @@ export const CompactFileGallery = ({
               })}
             </motion.div>
           )}
+
           {displayFiles.length > 4 && (
             <motion.div
               key="grid-many"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="grid grid-cols-3 sm:grid-cols-4  gap-2"
+              className="grid grid-cols-3 sm:grid-cols-4 gap-2"
             >
               {displayFiles.map((file, idx) => {
                 const originalIndex = files.indexOf(file);
                 return (
                   <motion.div
                     key={`file-${file._id}-${idx}`}
-                    initial={{ opacity: 0, scale: 0.8 }}
+                    initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
                     transition={{
                       duration: 0.2,
                       delay: Math.min(idx * 0.03, 0.3),
@@ -410,7 +421,7 @@ export const CompactFileGallery = ({
         </AnimatePresence>
       </div>
 
-      {/* Modal for full view - Tối ưu hiển thị full file */}
+      {/* Modal for full view */}
       <Modal
         isOpen={!!selectedFile}
         onClose={handleClose}
@@ -418,12 +429,12 @@ export const CompactFileGallery = ({
         scrollBehavior="inside"
         hideCloseButton
         classNames={{
-          base: " overflow-hidden",
+          base: "overflow-hidden",
           wrapper: "items-center justify-center",
           backdrop: "bg-black/95 backdrop-blur-sm",
         }}
       >
-        <ModalContent className="bg-gray-900/98 backdrop-blur-xl border border-white/10 shadow-2xl">
+        <ModalContent className="bg-gray-900/98 backdrop-blur-xl border border-white/10 shadow-2xl flex flex-col">
           {(onClose) => (
             <>
               {/* Header */}
@@ -438,7 +449,6 @@ export const CompactFileGallery = ({
                   </p>
                 </div>
 
-                {/* Navigation Controls */}
                 <div className="flex items-center gap-2 ml-4">
                   <Button
                     isIconOnly
@@ -446,7 +456,7 @@ export const CompactFileGallery = ({
                     size="sm"
                     onPress={handlePrevious}
                     isDisabled={currentIndex === 0}
-                    className="text-gray-400 hover:text-white disabled:opacity-30"
+                    className="text-gray-400 hover:text-white disabled:opacity-30 bg-transparent"
                   >
                     <ChevronLeftIcon className="w-5 h-5" />
                   </Button>
@@ -456,7 +466,7 @@ export const CompactFileGallery = ({
                     size="sm"
                     onPress={handleNext}
                     isDisabled={currentIndex === files.length - 1}
-                    className="text-gray-400 hover:text-white disabled:opacity-30"
+                    className="text-gray-400 hover:text-white disabled:opacity-30 bg-transparent"
                   >
                     <ChevronRightIcon className="w-5 h-5" />
                   </Button>
@@ -464,223 +474,225 @@ export const CompactFileGallery = ({
                     isIconOnly
                     variant="light"
                     onPress={onClose}
-                    className="text-gray-400 hover:text-white"
+                    className="text-gray-400 hover:text-white bg-transparent"
                   >
                     ✕
                   </Button>
                 </div>
               </ModalHeader>
 
-              {/* Body - Full height without scroll */}
-              <ModalBody className="p-0 overflow-hidden flex-1">
+              {/* Body */}
+              <ModalBody className="p-0 flex-1 flex flex-col overflow-hidden">
                 {selectedFile && (
-                  <div className="w-full h-full">
-                    {/* Upload Progress */}
-                    {selectedFile.status === "uploading" && (
-                      <div className="p-6 bg-blue-500/20 border-b border-blue-500/30">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm font-medium text-blue-100">
-                            Đang tải lên...
-                          </span>
-                          <span className="text-sm text-blue-200 font-semibold">
-                            {selectedFile.uploadProgress || 0}%
-                          </span>
-                        </div>
-                        <Progress
-                          value={selectedFile.uploadProgress || 0}
-                          color="primary"
-                          size="md"
-                          className="h-2"
-                        />
-                      </div>
-                    )}
-
-                    {/* Failed Status */}
-                    {selectedFile.status === "failed" && (
-                      <div className="p-6 bg-red-500/20 border-b border-red-500/30">
-                        <p className="text-sm font-medium text-red-100">
-                          ❌ Tải lên thất bại
-                        </p>
-                      </div>
-                    )}
-
-                    {/* File Content - Responsive & Full Display */}
-                    <div className="flex items-center justify-center h-full overflow-hidden">
-                      {normalizeKind(selectedFile) === "photo" && (
-                        <button
-                          type="button"
-                          className="relative w-full h-full flex items-center justify-center cursor-pointer bg-transparent border-0 p-0"
-                          onClick={(e) => {
-                            // Click vào ảnh sẽ đóng modal
-                            if (
-                              e.target === e.currentTarget ||
-                              (e.target as HTMLElement).tagName === "IMG"
-                            ) {
-                              onClose();
-                            }
-                          }}
-                          aria-label="Click to close"
-                        >
-                          <img
-                            src={selectedFile.url}
-                            alt={selectedFile.name}
-                            className="max-w-full max-h-[calc(100vh-12rem)] object-contain rounded-lg shadow-2xl pointer-events-none"
-                            style={
-                              selectedFile.width && selectedFile.height
-                                ? {
-                                    aspectRatio: `${selectedFile.width} / ${selectedFile.height}`,
-                                  }
-                                : undefined
-                            }
-                          />
-                        </button>
-                      )}
-
-                      {normalizeKind(selectedFile) === "video" && (
-                        <div className="relative w-full h-full flex items-center justify-center">
-                          <video
-                            src={selectedFile.url}
-                            controls
-                            autoPlay
-                            className="max-w-full max-h-[calc(100vh-12rem)] rounded-lg shadow-2xl bg-black"
-                            style={
-                              selectedFile.width && selectedFile.height
-                                ? {
-                                    aspectRatio: `${selectedFile.width} / ${selectedFile.height}`,
-                                  }
-                                : undefined
-                            }
-                          >
-                            <track kind="captions" />
-                          </video>
-                        </div>
-                      )}
-
-                      {normalizeKind(selectedFile) === "audio" && (
-                        <div className="w-full max-w-2xl space-y-6">
-                          <div className="aspect-square max-w-md mx-auto bg-gradient-to-br from-purple-600 via-pink-600 to-red-600 rounded-2xl flex items-center justify-center shadow-2xl">
-                            <MusicalNoteIcon className="w-32 h-32 text-white/90" />
+                  <div className="flex flex-1 overflow-hidden">
+                    {/* Viewer + status */}
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                      {/* Upload / Error status */}
+                      {selectedFile.status === "uploading" && (
+                        <div className="p-4 bg-blue-500/10 border-b border-blue-500/40">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium text-blue-100">
+                              Đang tải lên...
+                            </span>
+                            <span className="text-sm text-blue-200 font-semibold">
+                              {selectedFile.uploadProgress || 0}%
+                            </span>
                           </div>
-                          <div className="bg-gray-800/50 rounded-xl p-4 backdrop-blur-sm">
-                            <audio
+                          <Progress
+                            value={selectedFile.uploadProgress || 0}
+                            color="primary"
+                            size="md"
+                            className="h-2"
+                          />
+                        </div>
+                      )}
+
+                      {selectedFile.status === "failed" && (
+                        <div className="p-4 bg-red-500/10 border-b border-red-500/40">
+                          <p className="text-sm font-medium text-red-100">
+                            ❌ Tải lên thất bại
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Nội dung file */}
+                      <div className="flex-1 flex items-center justify-center overflow-hidden px-4 py-4">
+                        {normalizeKind(selectedFile) === "photo" && (
+                          <button
+                            type="button"
+                            className="relative w-full h-full flex items-center justify-center cursor-pointer bg-transparent border-0 p-0"
+                            onClick={(e) => {
+                              // click lên nền/ảnh -> đóng
+                              if (
+                                e.target === e.currentTarget ||
+                                (e.target as HTMLElement).tagName === "IMG"
+                              ) {
+                                onClose();
+                              }
+                            }}
+                            aria-label="Click to close"
+                          >
+                            <img
+                              src={selectedFile.url}
+                              alt={selectedFile.name}
+                              className="max-w-full max-h-[calc(100vh-12rem)] object-contain rounded-lg shadow-2xl pointer-events-none"
+                              style={
+                                selectedFile.width && selectedFile.height
+                                  ? {
+                                      aspectRatio: `${selectedFile.width} / ${selectedFile.height}`,
+                                    }
+                                  : undefined
+                              }
+                            />
+                          </button>
+                        )}
+
+                        {normalizeKind(selectedFile) === "video" && (
+                          <div className="relative w-full h-full flex items-center justify-center">
+                            <video
                               src={selectedFile.url}
                               controls
                               autoPlay
-                              className="w-full"
+                              className="max-w-full max-h-[calc(100vh-12rem)] rounded-lg shadow-2xl bg-black"
+                              style={
+                                selectedFile.width && selectedFile.height
+                                  ? {
+                                      aspectRatio: `${selectedFile.width} / ${selectedFile.height}`,
+                                    }
+                                  : undefined
+                              }
                             >
                               <track kind="captions" />
-                            </audio>
+                            </video>
                           </div>
-                        </div>
-                      )}
-                      {normalizeKind(selectedFile) === "pdf" && (
-                        <iframe
-                          src={selectedFile.url}
-                          title={`PDF preview: ${selectedFile.name}`}
-                          className="w-full h-full bg-white rounded-md"
-                        />
-                      )}
-                      {normalizeKind(selectedFile) === "file" && (
-                        <div className="text-center py-16 px-8">
-                          <div className="bg-gradient-to-br from-blue-600 to-cyan-600 w-32 h-32 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-2xl">
-                            <DocumentIcon className="w-20 h-20 text-white" />
+                        )}
+
+                        {normalizeKind(selectedFile) === "audio" && (
+                          <div className="w-full max-w-2xl space-y-6">
+                            <div className="aspect-square max-w-md mx-auto bg-gradient-to-br from-purple-600 via-pink-600 to-red-600 rounded-2xl flex items-center justify-center shadow-2xl">
+                              <MusicalNoteIcon className="w-32 h-32 text-white/90" />
+                            </div>
+                            <div className="bg-gray-800/70 rounded-xl p-4 backdrop-blur-sm">
+                              <audio
+                                src={selectedFile.url}
+                                controls
+                                autoPlay
+                                className="w-full"
+                              >
+                                <track kind="captions" />
+                              </audio>
+                            </div>
                           </div>
-                          <p className="text-base text-gray-300 mb-2 font-medium">
-                            {selectedFile.name}
-                          </p>
-                          <p className="text-sm text-gray-500 mb-8">
-                            Không thể xem trước file này
-                          </p>
-                          {selectedFile.status === "uploaded" && (
-                            <Button
-                              color="primary"
-                              size="lg"
-                              startContent={
-                                <ArrowDownTrayIcon className="w-5 h-5" />
-                              }
-                              onPress={() => {
-                                const link = document.createElement("a");
-                                link.href =
-                                  selectedFile.uploadedUrl || selectedFile.url;
-                                link.download = selectedFile.name;
-                                link.click();
-                              }}
-                              className="bg-gradient-to-r from-blue-600 to-cyan-600 font-semibold"
-                            >
-                              Tải xuống
-                            </Button>
-                          )}
-                        </div>
-                      )}
-                      {/* Thumbnail Gallery Navigation - Hiển thị tất cả file */}
-                      {files.length > 1 && (
-                        <div className=" p-4 bg-gray-900/50 ">
-                          <div className="flex flex-col h-[calc(100vh-5rem)] gap-3 overflow-hidden overflow-y-auto pb-2 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
-                            {files.map((file, idx) => {
-                              const isActive = idx === currentIndex;
-                              const thumbKind = normalizeKind(file);
-                              return (
-                                <button
-                                  key={file._id}
-                                  type="button"
-                                  onClick={() => {
-                                    setCurrentIndex(idx);
-                                    setSelectedFile(file);
-                                  }}
-                                  className={`
-                                  flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden transition-all
+                        )}
+
+                        {normalizeKind(selectedFile) === "pdf" && (
+                          <iframe
+                            src={selectedFile.url}
+                            title={`PDF preview: ${selectedFile.name}`}
+                            className="w-full h-full bg-white rounded-md"
+                          />
+                        )}
+
+                        {normalizeKind(selectedFile) === "file" && (
+                          <div className="text-center py-10 px-8">
+                            <div className="bg-gradient-to-br from-blue-600 to-cyan-600 w-28 h-28 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-2xl">
+                              <DocumentIcon className="w-16 h-16 text-white" />
+                            </div>
+                            <p className="text-base text-gray-100 mb-1 font-medium">
+                              {selectedFile.name}
+                            </p>
+                            <p className="text-sm text-gray-400 mb-6">
+                              Không thể xem trước file này
+                            </p>
+                            {selectedFile.status === "uploaded" && (
+                              <Button
+                                color="primary"
+                                size="lg"
+                                startContent={
+                                  <ArrowDownTrayIcon className="w-5 h-5" />
+                                }
+                                onPress={() => {
+                                  const link = document.createElement("a");
+                                  link.href =
+                                    selectedFile.uploadedUrl ||
+                                    selectedFile.url;
+                                  link.download = selectedFile.name;
+                                  link.click();
+                                }}
+                                className="bg-gradient-to-r from-blue-600 to-cyan-600 font-semibold"
+                              >
+                                Tải xuống
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Sidebar thumbnails */}
+                    {files.length > 1 && (
+                      <div className="w-20 sm:w-24 md:w-28 border-l border-white/10 bg-gray-900/80 px-2 py-3">
+                        <div className="flex flex-col gap-2 h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+                          {files.map((file, idx) => {
+                            const isActive = idx === currentIndex;
+                            const thumbKind = normalizeKind(file);
+                            return (
+                              <button
+                                key={file._id}
+                                type="button"
+                                onClick={() => {
+                                  setCurrentIndex(idx);
+                                  setSelectedFile(file);
+                                }}
+                                className={`
+                                  flex-shrink-0 w-full aspect-square rounded-lg overflow-hidden transition-all
                                   ${
                                     isActive
                                       ? "ring-2 ring-blue-500 opacity-100 scale-105"
                                       : "opacity-60 hover:opacity-100 hover:scale-105"
                                   }
                                 `}
-                                >
-                                  {thumbKind === "photo" && (
-                                    <img
-                                      src={file.url}
-                                      alt={file.name}
-                                      className="w-full h-full object-cover"
-                                      style={
-                                        file.width && file.height
-                                          ? {
-                                              aspectRatio: `${file.width} / ${file.height}`,
-                                            }
-                                          : undefined
-                                      }
-                                    />
-                                  )}
-                                  {thumbKind === "video" && (
-                                    <div
-                                      className="w-full h-full bg-black flex items-center justify-center"
-                                      style={
-                                        file.width && file.height
-                                          ? {
-                                              aspectRatio: `${file.width} / ${file.height}`,
-                                            }
-                                          : undefined
-                                      }
-                                    >
-                                      <PlayCircleIcon className="w-6 h-6 text-white" />
-                                    </div>
-                                  )}
-                                  {thumbKind === "audio" && (
-                                    <div className="w-full h-full bg-gradient-to-br from-purple-500 to-red-500 flex items-center justify-center">
-                                      <MusicalNoteIcon className="w-6 h-6 text-white" />
-                                    </div>
-                                  )}
-                                  {thumbKind === "file" && (
-                                    <div className="w-full h-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-                                      <DocumentIcon className="w-6 h-6 text-white" />
-                                    </div>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
+                              >
+                                {thumbKind === "photo" && (
+                                  <img
+                                    src={file.url}
+                                    alt={file.name}
+                                    className="w-full h-full object-cover"
+                                    style={
+                                      file.width && file.height
+                                        ? {
+                                            aspectRatio: `${file.width} / ${file.height}`,
+                                          }
+                                        : undefined
+                                    }
+                                  />
+                                )}
+                                {thumbKind === "video" && (
+                                  <div className="w-full h-full bg-black flex items-center justify-center">
+                                    <PlayCircleIcon className="w-6 h-6 text-white" />
+                                  </div>
+                                )}
+                                {thumbKind === "audio" && (
+                                  <div className="w-full h-full bg-gradient-to-br from-purple-500 to-red-500 flex items-center justify-center">
+                                    <MusicalNoteIcon className="w-6 h-6 text-white" />
+                                  </div>
+                                )}
+                                {thumbKind === "pdf" && (
+                                  <div className="w-full h-full bg-white flex items-center justify-center">
+                                    <DocumentTextIcon className="w-6 h-6 text-red-500" />
+                                  </div>
+                                )}
+                                {thumbKind === "file" && (
+                                  <div className="w-full h-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+                                    <DocumentIcon className="w-6 h-6 text-white" />
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </ModalBody>
@@ -692,11 +704,10 @@ export const CompactFileGallery = ({
   );
 };
 
-// Helper function to handle both number and MongoDB Long format
+// Helper: handle both number and MongoDB Long
 function formatFileSize(
   size: number | { low: number; high: number; unsigned: boolean }
 ): string {
-  // Convert MongoDB Long to number if needed
   let bytes: number;
   if (typeof size === "number") {
     bytes = size;

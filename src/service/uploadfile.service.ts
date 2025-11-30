@@ -70,6 +70,7 @@ export default class UploadService {
     options?: {
       roomId?: string;
       id?: string;
+      messageId?: string;
       onProgress?: (pct: number) => void;
       signal?: AbortSignal; // dùng AbortController để hủy
       endpoint?: string; // override nếu cần
@@ -79,13 +80,7 @@ export default class UploadService {
     form.append("file", file);
     form.append("roomId", options?.roomId ?? "avatar");
     form.append("id", options?.id ?? "");
-
-    console.log("📤 Uploading file:", {
-      fileName: file instanceof File ? file.name : "blob",
-      fileSize: file.size,
-      roomId: options?.roomId,
-      fileId: options?.id, // ← ID gửi lên server
-    });
+    form.append("messageId", options?.messageId ?? "");
 
     const response = await apiService.axios.post<UploadApiResponse>(
       options?.endpoint ?? "/filesystem/upload-single-user",
@@ -101,16 +96,8 @@ export default class UploadService {
       }
     );
 
-    console.log("📥 Raw API response:", response.data);
-    console.log("🔍 Check ID consistency:", {
-      sentId: options?.id,
-      receivedId: response.data.metadata._id,
-      match: options?.id === response.data.metadata._id,
-    });
-
     // Transform response về format chuẩn
     const transformed = this.transformUploadResponse(response.data);
-    console.log("🔄 Transformed:", transformed);
 
     return {
       ...response,

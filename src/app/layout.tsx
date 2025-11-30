@@ -13,7 +13,7 @@ import { SocketEventGlobal } from "@/components/socketEventGlobal";
 import SocketStatusIndicator from "@/components/socket/SocketStatusIndicator";
 import NotificationPermission from "@/components/notifications/NotificationPermission";
 import { InitApp } from "@/components/providers/initApp.provider";
-
+// import { ThemeProvider } from "next-themes";
 export const metadata: Metadata = {
   title: "ChatApp",
   description: "Ứng dụng chat hiện đại",

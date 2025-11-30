@@ -7,7 +7,6 @@ import {
   CardHeader,
   Avatar,
   Button,
-  Chip,
   Divider,
 } from "@heroui/react";
 import {
@@ -19,11 +18,11 @@ import {
   VideoCameraIcon,
   EllipsisVerticalIcon,
 } from "@heroicons/react/24/outline";
+import { PlusIcon } from "@heroicons/react/16/solid";
 import { useRouter } from "next/navigation";
 import useRoomStore from "@/store/useRoomStore";
 import useAuthStore from "@/store/useAuthStore";
 import useCounterStore from "@/store/useCounterStore";
-import { PlusIcon } from "@heroicons/react/16/solid";
 import useContactStore from "@/store/useContactStore";
 
 interface ContactProfileProps {
@@ -37,8 +36,8 @@ export default function ContactProfile({
   const countSate = useCounterStore((state) => state);
   const router = useRouter();
   const authState = useAuthStore((state) => state);
-  console.log("🚀 ~ ContactProfile ~ authState:", authState?.user?.id);
   const roomState = useRoomStore((state) => state);
+
   const handleChatPrivate = (id: string) => {
     roomState.createRoom("private", `Chat với ${id}`, [id]);
     router.push(`/chat?chatId=${id}`);
@@ -68,23 +67,25 @@ export default function ContactProfile({
         return "Chưa cập nhật";
     }
   };
+
   const ButtonHandleAddFriend = () => {
-    console.log("🚀 ~ ButtonHandleAddFriend ~ contact:", contact);
     contactState.sendInvitation({
-      userId: authState?.user?._id || "",
+      userId: authState?.user?.id || "",
       receiverId: contact.id,
     });
   };
+
   return (
-    <div className="h-full bg-gray-50 overflow-y-auto">
+    <div className="h-full bg-background text-foreground overflow-y-auto">
       {/* Header */}
-      <Card className="rounded-none shadow-sm">
-        <CardHeader className="flex justify-between items-center p-4 border-b">
+      <Card className="rounded-none shadow-sm dark:bg-slate-900 border-b border-default">
+        <CardHeader className="flex justify-between items-center p-4">
           <h2 className="text-lg font-semibold">Thông tin liên hệ</h2>
           <Button
             isIconOnly
             variant="light"
             size="sm"
+            className="text-default-500"
             onPress={() => router.push("/?tab=contacts")}
           >
             <EllipsisVerticalIcon className="w-5 h-5" />
@@ -93,7 +94,7 @@ export default function ContactProfile({
       </Card>
 
       {/* Profile Avatar & Name */}
-      <Card className="rounded-none shadow-none border-b">
+      <Card className="rounded-none shadow-none border-b border-default dark:bg-slate-900/80">
         <CardBody className="flex flex-col items-center py-8">
           <Avatar
             src={contact.avatar || undefined}
@@ -102,13 +103,17 @@ export default function ContactProfile({
             isBordered
             color={contact.isOnline ? "success" : "default"}
           />
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">
+          <h1 className="text-2xl font-bold mb-1 text-foreground">
             {contact.fullname}
           </h1>
 
+          {contact.isOnline && (
+            <p className="text-xs text-success-500">Đang hoạt động</p>
+          )}
+
           {/* Action Buttons */}
-          {authState?.user?.id && authState?.user?.id !== contact.id && (
-            <div className="flex gap-3 mt-6">
+          {authState?.user?.id && authState.user.id !== contact.id && (
+            <div className="flex flex-wrap gap-3 mt-6 justify-center">
               {contact.friendship === "INVALID" && (
                 <Button
                   color="default"
@@ -116,9 +121,10 @@ export default function ContactProfile({
                   startContent={<PlusIcon className="w-5 h-5" />}
                   onPress={ButtonHandleAddFriend}
                 >
-                  Thêm Bạn bè
+                  Thêm bạn bè
                 </Button>
               )}
+
               {contact.friendship === "PENDING" && (
                 <>
                   {contact.actionUserId === authState.user.id ? (
@@ -133,8 +139,8 @@ export default function ContactProfile({
                   ) : (
                     <>
                       <Button
-                        color="default"
-                        variant="bordered"
+                        color="primary"
+                        variant="solid"
                         startContent={<PlusIcon className="w-5 h-5" />}
                         onPress={() => handleChatPrivate(contact.id)}
                       >
@@ -152,15 +158,18 @@ export default function ContactProfile({
                   )}
                 </>
               )}
+
               <Button
                 color="primary"
+                variant="solid"
                 startContent={<ChatBubbleLeftIcon className="w-5 h-5" />}
                 onPress={() => handleChatPrivate(contact.id)}
               >
                 Nhắn tin
               </Button>
+
               {contact.friendship === "ACCEPTED" && (
-                <div>
+                <div className="flex flex-wrap gap-2">
                   <Button
                     color="default"
                     variant="bordered"
@@ -182,51 +191,40 @@ export default function ContactProfile({
       </Card>
 
       {/* Contact Information */}
-      <Card className="rounded-none shadow-none mt-2">
+      <Card className="rounded-none shadow-none mt-2 dark:bg-slate-900 border-b border-default">
         <CardHeader className="px-4 pt-4 pb-2">
-          <h3 className="text-sm font-semibold text-gray-600 uppercase">
+          <h3 className="text-sm font-semibold text-default-500 uppercase">
             Thông tin cá nhân
           </h3>
         </CardHeader>
-        <CardBody className="px-4 pb-4">
-          {/* Phone */}
+        <CardBody className="px-4 pb-4 space-y-2">
+          {/* Phone (chỉ hiện khi là bạn bè) */}
           {contact.friendship === "ACCEPTED" && (
             <>
               <div className="flex items-center gap-3 py-3">
-                <div className="bg-blue-100 p-2 rounded-full">
-                  <PhoneIcon className="w-5 h-5 text-blue-600" />
+                <div className="p-2 rounded-full bg-primary/10 text-primary">
+                  <PhoneIcon className="w-5 h-5" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-gray-500">Số điện thoại</p>
-                  <p className="text-sm font-medium text-gray-800">
+                  <p className="text-xs text-default-500">Số điện thoại</p>
+                  <p className="text-sm font-medium text-foreground">
                     {contact.phone || "Chưa cập nhật"}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 py-3">
-                <div className="bg-blue-100 p-2 rounded-full">
-                  <PhoneIcon className="w-5 h-5 text-blue-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs text-gray-500">Số điện thoại</p>
-                  <p className="text-sm font-medium text-gray-800">
-                    {contact.phone || "Chưa cập nhật"}
-                  </p>
-                </div>
-              </div>
+
+              <Divider />
             </>
           )}
 
-          <Divider />
-
           {/* Email */}
           <div className="flex items-center gap-3 py-3">
-            <div className="bg-green-100 p-2 rounded-full">
-              <EnvelopeIcon className="w-5 h-5 text-green-600" />
+            <div className="p-2 rounded-full bg-success/10 text-success">
+              <EnvelopeIcon className="w-5 h-5" />
             </div>
             <div className="flex-1">
-              <p className="text-xs text-gray-500">Email</p>
-              <p className="text-sm font-medium text-gray-800">
+              <p className="text-xs text-default-500">Email</p>
+              <p className="text-sm font-medium text-foreground">
                 {contact.email || "Chưa cập nhật"}
               </p>
             </div>
@@ -236,12 +234,12 @@ export default function ContactProfile({
 
           {/* Gender */}
           <div className="flex items-center gap-3 py-3">
-            <div className="bg-purple-100 p-2 rounded-full">
-              <UserIcon className="w-5 h-5 text-purple-600" />
+            <div className="p-2 rounded-full bg-secondary/10 text-secondary">
+              <UserIcon className="w-5 h-5" />
             </div>
             <div className="flex-1">
-              <p className="text-xs text-gray-500">Giới tính</p>
-              <p className="text-sm font-medium text-gray-800">
+              <p className="text-xs text-default-500">Giới tính</p>
+              <p className="text-sm font-medium text-foreground">
                 {getGenderText(contact.gender)}
               </p>
             </div>
@@ -251,12 +249,12 @@ export default function ContactProfile({
 
           {/* Date of Birth */}
           <div className="flex items-center gap-3 py-3">
-            <div className="bg-orange-100 p-2 rounded-full">
-              <CalendarIcon className="w-5 h-5 text-orange-600" />
+            <div className="p-2 rounded-full bg-warning/10 text-warning">
+              <CalendarIcon className="w-5 h-5" />
             </div>
             <div className="flex-1">
-              <p className="text-xs text-gray-500">Ngày sinh</p>
-              <p className="text-sm font-medium text-gray-800">
+              <p className="text-xs text-default-500">Ngày sinh</p>
+              <p className="text-sm font-medium text-foreground">
                 {formatDate(contact.dateOfBirth || "")}
               </p>
             </div>
@@ -265,17 +263,17 @@ export default function ContactProfile({
       </Card>
 
       {/* Additional Info */}
-      <Card className="rounded-none shadow-none mt-2">
+      <Card className="rounded-none shadow-none mt-2 mb-4 dark:bg-slate-900 border-b border-default">
         <CardHeader className="px-4 pt-4 pb-2">
-          <h3 className="text-sm font-semibold text-gray-600 uppercase">
+          <h3 className="text-sm font-semibold text-default-500 uppercase">
             Thông tin khác
           </h3>
         </CardHeader>
-        <CardBody className="px-4 pb-4">
+        <CardBody className="px-4 pb-4 space-y-2">
           <div className="flex items-center gap-3 py-3">
             <div className="flex-1">
-              <p className="text-xs text-gray-500">Ngày tham gia</p>
-              <p className="text-sm font-medium text-gray-800">
+              <p className="text-xs text-default-500">Ngày tham gia</p>
+              <p className="text-sm font-medium text-foreground">
                 {formatDate(contact.createdAt)}
               </p>
             </div>
@@ -285,26 +283,14 @@ export default function ContactProfile({
 
           <div className="flex items-center gap-3 py-3">
             <div className="flex-1">
-              <p className="text-xs text-gray-500">Cập nhật lần cuối</p>
-              <p className="text-sm font-medium text-gray-800">
+              <p className="text-xs text-default-500">Cập nhật lần cuối</p>
+              <p className="text-sm font-medium text-foreground">
                 {formatDate(contact.updatedAt)}
               </p>
             </div>
           </div>
         </CardBody>
       </Card>
-
-      {/* Actions */}
-      {/* <Card className="rounded-none shadow-none mt-2 mb-4">
-        <CardBody className="p-4">
-          <Button color="danger" variant="light" fullWidth>
-            Chặn liên hệ
-          </Button>
-          <Button color="default" variant="light" fullWidth className="mt-2">
-            Báo cáo
-          </Button>
-        </CardBody>
-      </Card> */}
     </div>
   );
 }

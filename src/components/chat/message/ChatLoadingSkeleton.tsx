@@ -12,7 +12,11 @@ export function ChatLoadingSkeleton({ chatId }: ChatLoadingSkeletonProps) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="absolute inset-0 bg-white/95 backdrop-blur-sm z-50 flex flex-col"
+      className="
+        absolute inset-0 z-50 flex flex-col
+        bg-white/95 backdrop-blur-sm
+        dark:bg-gray-950/90 dark:backdrop-blur-sm
+      "
     >
       {/* Skeleton messages */}
       <div className="flex-1 p-4 space-y-6 overflow-hidden">
@@ -52,9 +56,10 @@ export function ChatLoadingSkeleton({ chatId }: ChatLoadingSkeletonProps) {
 
                 {/* Content skeleton */}
                 <Skeleton
-                  className={`h-10 rounded-2xl ${
-                    isMyMessage ? "rounded-tr-md" : "rounded-tl-md"
-                  }`}
+                  className={`
+                    h-10 rounded-2xl 
+                    ${isMyMessage ? "rounded-tr-md" : "rounded-tl-md"}
+                  `}
                   style={{ width: messageWidth }}
                 />
 
@@ -72,13 +77,24 @@ export function ChatLoadingSkeleton({ chatId }: ChatLoadingSkeletonProps) {
       </div>
 
       {/* Loading indicator */}
-      <div className="flex items-center justify-center py-6 bg-gradient-to-t from-white/50 to-transparent">
+      <div
+        className="
+          flex items-center justify-center py-6
+          bg-gradient-to-t from-white/50 to-transparent
+          dark:from-gray-900/70 dark:to-transparent
+        "
+      >
         <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-200 border-t-blue-600"></div>
+          <div
+            className="
+              animate-spin rounded-full h-6 w-6 border-2
+              border-blue-200 border-t-blue-600
+              dark:border-blue-500 dark:border-t-blue-400
+            "
+          ></div>
           <Skeleton className="h-4 w-40 rounded" />
         </div>
       </div>
     </motion.div>
   );
 }
-

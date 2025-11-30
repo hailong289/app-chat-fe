@@ -4,7 +4,6 @@ import { toast } from "@/store/useToastStore";
 import useAuthStore from "@/store/useAuthStore";
 import useCounterStore from "@/store/useCounterStore";
 import { useSocket } from "@/components/providers/SocketProvider";
-import { clearAllLocalStorage } from "@/utils/localStorage";
 import {
   Bars3BottomLeftIcon,
   BookmarkIcon,
@@ -23,6 +22,7 @@ import {
 } from "@heroui/react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
+import { ThemeSwitcher } from "../ThemeSwitcher";
 
 export const Header = () => {
   const router = useRouter();
@@ -63,9 +63,10 @@ export const Header = () => {
       ) {
         return "active-menu-item";
       }
-      return searchParams.get("tab") === tabName || tab === tabName
-        ? "bg-default/40"
-        : "";
+
+      const isActive = searchParams.get("tab") === tabName || tab === tabName;
+
+      return isActive ? "bg-default/40 dark:bg-slate-800" : "";
     },
     [pathname, searchParams, tab]
   );
@@ -74,8 +75,6 @@ export const Header = () => {
     // Ngắt kết nối socket trước khi logout
     disconnectSocket();
 
-    // Xóa tất cả localStorage
-
     handleLogout((error) => {
       if (error) {
         console.error("Logout error:", error);
@@ -83,7 +82,7 @@ export const Header = () => {
         return;
       }
       toast.success("Đăng xuất thành công!", "Thành công");
-      
+
       router.push("/dashboard");
     });
   }, [handleLogout, router, disconnectSocket]);
@@ -91,68 +90,87 @@ export const Header = () => {
   return (
     <div>
       <nav
-        className={`relative flex flex-col justify-between top-0 left-0 bg-primary px-1 overflow-hidden transition-all duration-300 ${
-          isToggled ? "w-15" : "w-50"
-        } h-screen`}
+        className={`
+          relative flex flex-col justify-between top-0 left-0
+          px-1 overflow-hidden transition-all duration-300
+          h-screen
+          bg-primary dark:bg-slate-900
+          ${isToggled ? "w-15" : "w-50"}
+        `}
       >
-        <div className="relative min-w-15 bg-primary top-0 left-0 w-full mt-10 space-y-6 flex flex-col items-start overflow-hidden">
+        {/* TOP MENU */}
+        <div className="relative min-w-15 top-0 left-0 w-full mt-10 space-y-6 flex flex-col items-start overflow-hidden">
           <Button
-            className={`${activeTab(
-              "home"
-            )} w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white`}
+            className={`
+              ${activeTab("home")}
+              w-full transition-all relative left-0 top-0 duration-300
+              justify-start gap-4
+              text-white dark:text-gray-100
+            `}
             variant="light"
             onPress={() => handleLink("", "/")}
           >
-            <ChatBubbleLeftRightIcon className="relative block min-w-[24px] h-[24px] text-white" />
-            <span>Đoạn chat</span>
+            <ChatBubbleLeftRightIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
+            <span className="truncate">Đoạn chat</span>
           </Button>
 
           <Button
-            className={`${activeTab(
-              "contacts"
-            )} w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white`}
+            className={`
+              ${activeTab("contacts")}
+              w-full transition-all relative left-0 top-0 duration-300
+              justify-start gap-4
+              text-white dark:text-gray-100
+            `}
             variant="light"
             onPress={() => handleLink("contacts", "/contacts")}
           >
-            <UserPlusIcon className="relative block min-w-[24px] h-[24px] text-white" />
-            <span>Bạn bè</span>
+            <UserPlusIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
+            <span className="truncate">Bạn bè</span>
           </Button>
 
           <Button
-            className={`${activeTab(
-              "notifications"
-            )} w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4`}
+            className={`
+              ${activeTab("notifications")}
+              w-full transition-all relative left-0 top-0 duration-300
+              justify-start gap-4
+            `}
             variant="light"
             onPress={() => handleLink("notifications")}
           >
             <Badge color="danger" content="5">
-              <BellIcon className="relative block min-w-[24px] h-[24px] text-white" />
+              <BellIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
             </Badge>
-            <span className="text-white">Thông Báo</span>
+            <span className="text-white dark:text-gray-100 truncate">
+              Thông Báo
+            </span>
           </Button>
 
           <Button
-            className={`${activeTab(
-              "documents"
-            )} w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white`}
+            className={`
+              ${activeTab("documents")}
+              w-full transition-all relative left-0 top-0 duration-300
+              justify-start gap-4
+              text-white dark:text-gray-100
+            `}
             variant="light"
             onPress={() => handleLink("documents")}
           >
-            <BookmarkIcon className="relative block min-w-[24px] h-[24px] text-white" />
-            <span>Tệp</span>
+            <BookmarkIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
+            <span className="truncate">Tệp</span>
           </Button>
         </div>
 
+        {/* BOTTOM USER + TOGGLE + THEME */}
         <div className="relative bottom-0 overflow-hidden flex flex-col gap-4 justify-center items-start mb-4">
           <Dropdown>
             <DropdownTrigger>
-              <div className="flex w-full transition-all relative left-0 top-0 duration-300 justify-start items-center gap-4 text-white overflow-hidden cursor-pointer">
+              <div className="flex w-full transition-all relative left-0 top-0 duration-300 justify-start items-center gap-4 text-white dark:text-gray-100 overflow-hidden cursor-pointer">
                 <Avatar
-                  className="relative block min-w-[40px] h-[40px] text-white"
+                  className="relative block min-w-[40px] h-[40px]"
                   src={user?.avatar ?? ""}
                   name={user?.fullname ?? "User"}
                 />
-                <div className="relative left-0 bottom-0 whitespace-nowrap">
+                <div className="relative left-0 bottom-0 whitespace-nowrap truncate max-w-[120px]">
                   {user?.fullname}
                 </div>
               </div>
@@ -176,13 +194,21 @@ export const Header = () => {
             </DropdownMenu>
           </Dropdown>
 
-          <Button variant="light" size="sm" onPress={changeToggle} isIconOnly>
+          <Button
+            variant="light"
+            size="sm"
+            onPress={changeToggle}
+            isIconOnly
+            className="text-white dark:text-gray-100"
+          >
             {isToggled ? (
               <Bars3BottomLeftIcon className="w-6 h-6" />
             ) : (
               <XCircleIcon className="w-6 h-6" />
             )}
           </Button>
+
+          <ThemeSwitcher />
         </div>
       </nav>
     </div>

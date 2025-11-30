@@ -1,12 +1,13 @@
-import { Avatar, Button, Tooltip } from "@heroui/react";
+import { Avatar, Button, Spinner, Tooltip } from "@heroui/react";
 import { motion } from "framer-motion";
 import { formatMessageTime } from "@/libs/timeline-helpers";
-import { CompactFileGallery } from "../CompactFileGallery";
+import { CompactFileGallery } from "../../CompactFileGallery";
 import { MessageBubble } from "./MessageBubble";
 import { MessageActions } from "./MessageActions";
 import { MessageReactions } from "./MessageReactions";
 import { ReplyPreview } from "./ReplyPreview";
 import { MessageType } from "@/store/types/message.state";
+import { ArrowPathIcon, EyeDropperIcon } from "@heroicons/react/16/solid";
 
 interface MessageItemProps {
   msg: MessageType;
@@ -67,6 +68,21 @@ export function MessageItem({
   const isSameSenderAsNext = nextMsg?.sender._id === msg.sender._id;
   const shouldAnimateThis = shouldAnimate && isNewMessage;
 
+  const PinnedIcon = () => {
+    return (
+      <button
+        className={`absolute top-2 ${
+          msg.isMine ? "right-4" : "left-4"
+        } bg-blue-500 dark:bg-blue-400 rounded-full p-1 shadow-md hover:bg-blue-600 dark:hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-300 z-10`}
+        onDoubleClick={() => onTogglePin(msg)}
+      >
+        <Tooltip content="Đã gim tin nhắn" size="sm">
+          <EyeDropperIcon className="w-3 h-3 text-white" />
+        </Tooltip>
+      </button>
+    );
+  };
+
   // Small helper that renders the "Tin chưa đọc" divider
   const UnreadDivider = () => {
     if (!(isUnreadDivider && !msg.isRead && !msg.isMine)) return null;
@@ -87,7 +103,7 @@ export function MessageItem({
             duration: shouldAnimate ? 0.6 : 0,
             delay: shouldAnimate ? 0.2 : 0,
           }}
-          className="flex-1 h-px bg-gradient-to-r from-transparent via-red-400 to-transparent"
+          className="flex-1 h-px bg-gradient-to-r from-transparent via-red-400 dark:via-red-500 to-transparent"
         ></motion.div>
         <motion.span
           initial={shouldAnimate ? { scale: 0 } : false}
@@ -113,7 +129,7 @@ export function MessageItem({
             duration: shouldAnimate ? 0.6 : 0,
             delay: shouldAnimate ? 0.2 : 0,
           }}
-          className="flex-1 h-px bg-gradient-to-r from-transparent via-red-400 to-transparent"
+          className="flex-1 h-px bg-gradient-to-r from-transparent via-red-400 dark:via-red-500 to-transparent"
         ></motion.div>
       </motion.div>
     );
@@ -132,13 +148,13 @@ export function MessageItem({
           >
             <Avatar
               src={read_by.user.avatar || undefined}
-              className="w-3 h-3 ring-2 ring-white"
+              className="w-3 h-3 ring-2 ring-white dark:ring-gray-800"
               name={read_by.user.fullname || "User"}
             />
           </Tooltip>
         ))}
         {(count ?? 0) > 3 && (
-          <span className="text-xs text-gray-400 ml-1">
+          <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">
             +{Math.max((count ?? 0) - 3, 0)}
           </span>
         )}
@@ -161,7 +177,7 @@ export function MessageItem({
             isBordered
           />
         ) : (
-          <div className="w-8 h-8"></div>
+          <div className="w-8 h-8" />
         )}
       </div>
     );
@@ -181,7 +197,7 @@ export function MessageItem({
             size="sm"
             color="danger"
             variant="flat"
-            startContent={<span className="text-xs">⚠️</span>}
+            startContent={<ArrowPathIcon className="w-4 h-4" />}
             onPress={() => {
               messageState.resendMessage(chatId, msg.id, socket);
             }}
@@ -191,11 +207,11 @@ export function MessageItem({
           </Button>
         )}
 
-        <span className="text-xs text-gray-400">
+        <span className="text-xs text-gray-400 dark:text-gray-500">
           {formatMessageTime(msg.createdAt)}
         </span>
-        {msg.isMine && msg.status !== "failed" && (
-          <span className="text-xs text-gray-400">
+        {msg.isMine && msg.status === "sent" && (
+          <span className="text-xs text-gray-400 dark:text-gray-500">
             {(msg.read_by_count ?? 0) > 0 ? (
               <Tooltip content="Đã xem" size="sm" placement="left-start">
                 ✓✓
@@ -207,6 +223,31 @@ export function MessageItem({
             )}
           </span>
         )}
+        {msg.isMine &&
+          (msg.status === "pending" || msg.status === "uploading") && (
+            <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center">
+              <Tooltip
+                content={
+                  msg.status === "pending" ? ` Đang gửi...` : "Đang tải lên..."
+                }
+                size="sm"
+                placement="left-start"
+              >
+                <span className="inline-flex items-center gap-1">
+                  <Spinner size="sm" color="default" />
+                  {msg.status === "uploading" && (
+                    <span className="ml-1">
+                      Đang tải{" "}
+                      {msg.attachments?.filter(
+                        (att) => att.status === "uploading"
+                      ).length || 0}
+                      /{msg.attachments?.length || 0} tệp
+                    </span>
+                  )}
+                </span>
+              </Tooltip>
+            </span>
+          )}
       </div>
     );
   };
@@ -235,11 +276,14 @@ export function MessageItem({
 
       <fieldset
         ref={setMessageRef(msg.id)}
-        className={`flex items-end gap-2 group ${
+        className={`relative flex items-end gap-2 group ${
           msg.isMine ? "justify-end" : "justify-start"
         }`}
         data-mid={msg.id}
       >
+        {/* Pinned icon */}
+        {!msg.hiddenByMe && !msg.isDeleted && msg.pinned && <PinnedIcon />}
+
         {/* Read avatars cho tin của mình (bên trái bubble) */}
         {isLastInGroup && msg.isMine && (
           <ReadAvatars reads={msg.read_by} count={msg.read_by_count} />
@@ -295,7 +339,7 @@ export function MessageItem({
 
                 {/* Tên người gửi */}
                 {!msg.isMine && !isSameSenderAsPrev && (
-                  <span className="text-xs text-gray-500 mb-1 ml-3 font-medium">
+                  <span className="text-xs text-gray-500 dark:text-gray-300 mb-1 ml-3 font-medium">
                     {msg.sender.fullname || "User"}
                   </span>
                 )}

@@ -97,16 +97,18 @@ export function useChatMessagesEffects({
       hasInitialFetchRef.current = {};
       setIsBottomVisible(false);
 
+      const handleMessageLoaded = () => {
+        setShouldAnimate(true);
+        setIsSwitchingChat(false);
+        requestAnimationFrame(() => {
+          scrollToMessage(lastMsgId);
+        });
+      };
+
       messageState
         .getMessageByRoomId(chatId)
         .then(() => {
-          requestAnimationFrame(() => {
-            setShouldAnimate(true);
-            setIsSwitchingChat(false);
-            requestAnimationFrame(() => {
-              scrollToMessage(lastMsgId);
-            });
-          });
+          requestAnimationFrame(handleMessageLoaded);
         })
         .catch(() => {
           setIsSwitchingChat(false);
