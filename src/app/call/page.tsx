@@ -10,6 +10,7 @@ import {
   VideoCameraSlashIcon,
   SpeakerWaveIcon,
   SpeakerXMarkIcon,
+  ComputerDesktopIcon,
 } from "@heroicons/react/24/solid";
 import { useSocket } from "@/components/providers/SocketProvider";
 import useAuthStore from "@/store/useAuthStore";
@@ -27,7 +28,7 @@ function CallPageContent() {
   const { 
     status: callStatus, 
     stream: { localStream, remoteStream },
-    action: { isMicEnabled, isCameraEnabled, isSpeakerphoneEnabled, duration },
+    action: { isMicEnabled, isCameraEnabled, isSpeakerphoneEnabled, duration, isSharingScreen },
     mode,
     userInfo,
     roomId,
@@ -279,6 +280,14 @@ function CallPageContent() {
               ) : (
                 <SpeakerXMarkIcon className="h-6 w-6 text-white" />
               )}
+            </Button>
+            <Button
+              color="default"
+              className="rounded-full h-14 w-14 p-0 bg-white/20 backdrop-blur-sm"
+              onPress={() => actionToggleTrack('shareScreen', !isSharingScreen)}
+              isIconOnly
+            >
+              <ComputerDesktopIcon className="h-6 w-6 text-white" />
             </Button>
           </>
         )}

@@ -32,6 +32,6 @@ export interface CallState {
   handleCreatePeerConnection: (roomId: string, socket: Socket) => Promise<RTCPeerConnection>;
   updateCallState: (state: Partial<CallState>) => void;
   flushPendingCandidates: (roomId: string) => Promise<void>;
-  actionToggleTrack: (action: 'mic' | 'video' | 'speaker', value: boolean) => Promise<void>;
+  actionToggleTrack: (action: 'mic' | 'video' | 'speaker' | 'shareScreen', value: boolean) => Promise<void>;
 }
 
