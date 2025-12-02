@@ -79,6 +79,7 @@ function CallPageContent() {
         isCameraEnabled: searchParams.get("callType") === "video",
         isSpeakerphoneEnabled: true,
         duration: 0,
+        isSharingScreen: false,
       },
     });
   }, [searchParams]);
