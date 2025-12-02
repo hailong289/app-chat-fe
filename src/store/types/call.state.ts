@@ -22,6 +22,7 @@ export interface CallState {
     isCameraEnabled: boolean; // true: camera on, false: camera off
     isSpeakerphoneEnabled: boolean; // true: speakerphone on, false: speakerphone off
     duration: number; // thời gian gọi
+    isSharingScreen: boolean; // true: share screen on, false: share screen off
   };
   openCall: (data: any) => void;
   eventCall: (event: string, payload: any) => Promise<void>;
