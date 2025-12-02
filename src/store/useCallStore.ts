@@ -69,7 +69,7 @@ const useCallStore = create<CallState>()(
                     }
                     break;
                 case "answer":
-                    if (window.opener && actionUserId !== currentUser.id) { // window open khác với window location
+                    if (window.opener) { // window open khác với window location
                         const pc = get().peerConnection;
                         if (!pc) {
                             console.error("Peer connection chưa được tạo");
