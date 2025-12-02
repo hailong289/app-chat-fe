@@ -16,7 +16,6 @@ import { useSocket } from "@/components/providers/SocketProvider";
 import useAuthStore from "@/store/useAuthStore";
 import Helpers from "@/libs/helpers";
 import useCallStore from "@/store/useCallStore";
-import { User } from "@/types/auth.type";
 
 function CallPageContent() {
   const router = useRouter();
@@ -38,18 +37,40 @@ function CallPageContent() {
     updateCallState,
     eventCall,
     actionToggleTrack,
+    endCall,
   } = useCallStore();
 
   // handle socket event
   useEffect(() => {
     socket?.on("call:candidate", (payload: any) => eventCall("candidate", payload));
     socket?.on("call:answer", (payload: any) => eventCall("answer", payload));
-
     return () => {
       socket?.off("call:candidate", (payload: any) => eventCall("candidate", payload));
       socket?.off("call:answer", (payload: any) => eventCall("answer", payload));
     }
   }, [socket]);
+
+  useEffect(() => {
+    // Hàm xử lý khi đóng window
+    const handleWindowClose = () => {
+        // Gọi hàm dọn dẹp
+        alert("Đóng window");
+        handleEndCall();
+    };
+
+    // 1. Lắng nghe sự kiện pagehide (được khuyến nghị thay cho unload)
+    window.addEventListener('pagehide', handleWindowClose);
+    
+    // 2. Lắng nghe thêm unload để chắc chắn (cho các trình duyệt cũ)
+    window.addEventListener('unload', handleWindowClose);
+
+    feat(call): Implement robust termination on window close and refactor ending logic
+    return () => {
+        handleWindowClose();
+        window.removeEventListener('pagehide', handleWindowClose);
+        window.removeEventListener('unload', handleWindowClose);
+    };
+}, []);
 
   // update local and remote stream
   useEffect(() => {
@@ -61,8 +82,6 @@ function CallPageContent() {
       console.log("remoteStream", remoteStream, remoteVideoRef.current);
       remoteVideoRef.current.srcObject = remoteStream;
     }
-    console.log("localStream update", localStream, localVideoRef.current);
-    console.log("remoteStream update", remoteStream, remoteVideoRef.current);
   }, [localStream, remoteStream]);
 
   // update call state
@@ -127,12 +146,13 @@ function CallPageContent() {
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
     }
-    
-    socket?.emit('call:end', {
+
+    endCall({
       roomId: roomId,
       callerId: callerId,
       calleeId: calleeId,
       status: 'ended',
+      socket,
     });
   };
 
@@ -242,7 +262,7 @@ function CallPageContent() {
           <>
             <Button
               color={isMicEnabled ? "danger" : "default"}
-              className="rounded-full h-14 w-14 p-0 bg-white/20 backdrop-blur-sm"
+              className={`rounded-full h-14 w-14 p-0 backdrop-blur-sm ${isMicEnabled ? 'bg-primary' : 'bg-white/20'}`}
               onPress={() => actionToggleTrack('mic', isMicEnabled ? false : true)}
               isIconOnly
             >
@@ -251,7 +271,7 @@ function CallPageContent() {
             {mode === 'video' && (
               <Button
                 color={isCameraEnabled ? "default" : "danger"}
-                className="rounded-full h-14 w-14 p-0 bg-white/20 backdrop-blur-sm"
+                className={`rounded-full h-14 w-14 p-0 backdrop-blur-sm ${isCameraEnabled ? 'bg-primary' : 'bg-white/20'}`}
                 onPress={() => actionToggleTrack('video', isCameraEnabled ? false : true)}
                 isIconOnly
               >
@@ -272,7 +292,7 @@ function CallPageContent() {
             </Button>
             <Button
               color={isSpeakerphoneEnabled ? "default" : "danger"}
-              className="rounded-full h-14 w-14 p-0 bg-white/20 backdrop-blur-sm"
+              className={`rounded-full h-14 w-14 p-0 backdrop-blur-sm ${isSpeakerphoneEnabled ? 'bg-primary' : 'bg-white/20'}`}
               onPress={() => actionToggleTrack('speaker', !isSpeakerphoneEnabled)}
               isIconOnly
             >
@@ -282,14 +302,18 @@ function CallPageContent() {
                 <SpeakerXMarkIcon className="h-6 w-6 text-white" />
               )}
             </Button>
-            <Button
-              color="default"
-              className="rounded-full h-14 w-14 p-0 bg-white/20 backdrop-blur-sm"
-              onPress={() => actionToggleTrack('shareScreen', !isSharingScreen)}
-              isIconOnly
-            >
-              <ComputerDesktopIcon className="h-6 w-6 text-white" />
-            </Button>
+            {
+              callStatus === 'accepted' && (
+                <Button
+                  color="default"
+                  className={`rounded-full h-14 w-14 p-0 backdrop-blur-sm ${isSharingScreen ? 'bg-primary' : 'bg-white/20'}`}
+                  onPress={() => actionToggleTrack('shareScreen', !isSharingScreen)}
+                  isIconOnly
+                >
+                  <ComputerDesktopIcon className="h-6 w-6 text-white" />
+                </Button>
+              )
+            }
           </>
         )}
       </div>

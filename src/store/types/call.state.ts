@@ -25,6 +25,7 @@ export interface CallState {
     isSharingScreen: boolean; // true: share screen on, false: share screen off
   };
   openCall: (data: any) => void;
+  endCall: (data: any) => void;
   eventCall: (event: string, payload: any) => Promise<void>;
   acceptCall: (data: any) => void;
   handleCreateLocalStream: () => void;

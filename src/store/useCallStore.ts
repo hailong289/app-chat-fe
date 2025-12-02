@@ -33,7 +33,7 @@ const useCallStore = create<CallState>()(
             window.open(`/call?roomId=${roomId}&userInfo=${encodedUserInfo}&callType=${mode}&status=calling`, '', 'width=800,height=600');
         },
         acceptCall: async (payload) => {
-            const { roomId, callerId, calleeId, callType, socket } = payload;
+            const { roomId, callerId, calleeId, socket } = payload;
             await get().handleCreatePeerConnection(roomId, socket);
             const pc = get().peerConnection;
             if (!pc) {
@@ -51,6 +51,18 @@ const useCallStore = create<CallState>()(
             });
             set({ status: 'accepted' });
             Helpers.updateURLParams('status', 'accepted');
+        },
+        endCall: async (payload: any) => {
+            const { roomId, callerId, calleeId, status, socket } = payload;
+            if (window.opener) {
+                window.close();
+            }
+            socket?.emit('call:end', {
+                roomId: roomId,
+                callerId: callerId,
+                calleeId: calleeId,
+                status: status,
+            });
         },
         eventCall: async (event: string, payload: any) => {
             const authStore = useAuthStore.getState();
