@@ -20,11 +20,16 @@ const useCallStore = create<CallState>()(
         },
         peerConnection: null,
         pendingCandidates: new Map<string, RTCIceCandidate[]>(),
-        startCall: (payload) => {
+        action: {
+            isMicEnabled: true,
+            isCameraEnabled: false,
+            isSpeakerphoneEnabled: true,
+            duration: 0, // thời gian gọi
+        },
+        openCall: (payload) => {
             const { roomId, mode, userCallee } = payload;
             const encodedUserInfo = Helpers.enCryptUserInfo(userCallee);
             window.open(`/call?roomId=${roomId}&userInfo=${encodedUserInfo}&callType=${mode}&status=calling`, '', 'width=800,height=600');
-            set({ roomId, status: 'calling', mode, userInfo: userCallee });
         },
         acceptCall: async (payload) => {
             const { roomId, callerId, calleeId, callType, socket } = payload;
@@ -56,15 +61,15 @@ const useCallStore = create<CallState>()(
             const { actionUserId, callType, callee, caller, room, offer, answer, candidate, roomId } = payload;
             switch (event) {
                 case "start":
-                    if (actionUserId !== currentUser.id && !window.opener) {
+                    if (!window.opener && actionUserId !== currentUser.id) {
+                        console.log("start", caller, offer);
                         const encodedUserInfo = Helpers.enCryptUserInfo(caller);
                         const encodedOffer = Helpers.enCryptUserInfo(offer);
                         window.open(`/call?roomId=${room.room_id}&userInfo=${encodedUserInfo}&callType=${callType}&status=incoming&offer=${encodedOffer}`, '', 'width=500,height=600');
-                        set({ roomId: room.room_id, status: 'incoming', mode: callType, userInfo: caller });
                     }
                     break;
                 case "answer":
-                    if (actionUserId !== currentUser.id && window.opener) { // window open khác với window location
+                    if (window.opener && actionUserId !== currentUser.id) { // window open khác với window location
                         const pc = get().peerConnection;
                         if (!pc) {
                             console.error("Peer connection chưa được tạo");
@@ -73,54 +78,56 @@ const useCallStore = create<CallState>()(
                         const answerDescription = Helpers.decryptUserInfo(answer);
                         pc.setRemoteDescription(new RTCSessionDescription(answerDescription));
                         console.log("answer", answerDescription);
-                        set({ status: 'accepted', mode: callType, userInfo: callee });
+                        set({ status: 'accepted' });
                         Helpers.updateURLParams('status', 'accepted');
                         await get().flushPendingCandidates(room.room_id);
                     }
                     break;
                 case "end":
-                    const currentState = get();
-                    
-                    // Dừng tất cả tracks trong localStream
-                    if (currentState.stream.localStream) {
-                        currentState.stream.localStream.getTracks().forEach(track => {
-                            track.stop();
+                    if (window.opener) {
+                        const currentState = get();
+                        
+                        // Dừng tất cả tracks trong localStream
+                        if (currentState.stream.localStream) {
+                            currentState.stream.localStream.getTracks().forEach(track => {
+                                track.stop();
+                            });
+                        }
+                        
+                        // Dừng tất cả tracks trong remoteStream
+                        if (currentState.stream.remoteStream) {
+                            currentState.stream.remoteStream.getTracks().forEach(track => {
+                                track.stop();
+                            });
+                        }
+                        
+                        // Dừng tất cả tracks trong instanceStream
+                        if (currentState.stream.instanceStream) {
+                            currentState.stream.instanceStream.getTracks().forEach(track => {
+                                track.stop();
+                            });
+                        }
+                        
+                        // Đóng peerConnection
+                        if (currentState.peerConnection) {
+                            currentState.peerConnection.close();
+                        }
+                        
+                        set({ 
+                            roomId: null, 
+                            status: 'ended', 
+                            mode: callType, 
+                            userInfo: null,
+                            peerConnection: null,
+                            stream: {
+                                localStream: null,
+                                remoteStream: null,
+                                instanceStream: null,
+                            },
+                            pendingCandidates: new Map<string, RTCIceCandidate[]>(),
                         });
-                    }
-                    
-                    // Dừng tất cả tracks trong remoteStream
-                    if (currentState.stream.remoteStream) {
-                        currentState.stream.remoteStream.getTracks().forEach(track => {
-                            track.stop();
-                        });
-                    }
-                    
-                    // Dừng tất cả tracks trong instanceStream
-                    if (currentState.stream.instanceStream) {
-                        currentState.stream.instanceStream.getTracks().forEach(track => {
-                            track.stop();
-                        });
-                    }
-                    
-                    // Đóng peerConnection
-                    if (currentState.peerConnection) {
-                        currentState.peerConnection.close();
-                    }
-                    
-                    set({ 
-                        roomId: null, 
-                        status: 'ended', 
-                        mode: callType, 
-                        userInfo: null,
-                        peerConnection: null,
-                        stream: {
-                            localStream: null,
-                            remoteStream: null,
-                            instanceStream: null,
-                        },
-                        pendingCandidates: new Map<string, RTCIceCandidate[]>(),
-                    });
-                    window.close();
+                        window.close();
+                    }               
                     break;
                 case "candidate":
                     if (window.opener) { // window open khác với window location
@@ -147,12 +154,6 @@ const useCallStore = create<CallState>()(
                     }
                     break;
             }
-        },
-        openWindowCall: () => {
-            set({ isWindowOpen: true });
-        },
-        closeWindowCall: () => {
-            set({ isWindowOpen: false });
         },
         handleCreateLocalStream: async () => {
             if (get().stream.localStream) {
@@ -235,8 +236,21 @@ const useCallStore = create<CallState>()(
             set({ peerConnection: pc });
             return pc;
         },
-        updateStatus: (status: 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined') => {
-            set({ status: status });
+        updateCallState: (state) => {
+            if (state.status === 'accepted') {
+                set({ action: { ...get().action, duration: 0 } });
+                const interval = setInterval(() => {
+                    set((prev) => ({
+                        ...prev,
+                        action: { ...prev.action, duration: prev.action.duration + 1 },
+                    }));
+                }, 1000);
+                return () => clearInterval(interval);
+            }
+            set((prev) => ({
+                ...prev,
+                ...state,
+            }));
         },
         flushPendingCandidates: async (roomId: string) => {
             if (!window.opener) {
@@ -261,7 +275,43 @@ const useCallStore = create<CallState>()(
                 }
                 pendingCandidates.delete(roomId);
             }
-        }
+        },
+        actionToggleTrack: async (action: 'mic' | 'video' | 'speaker', value: boolean) => {
+            const currentState = get();
+            if (!currentState.stream.localStream) {
+                console.error("Stream chưa được tạo");
+                return;
+            }
+            switch (action) {
+                case 'mic':
+                    currentState.stream.localStream.getAudioTracks().forEach((track: MediaStreamTrack) => {
+                        track.enabled = value;
+                    });
+                    set((prev) => ({
+                        ...prev,
+                        action: { ...prev.action, isMicEnabled: value },
+                    }));
+                    break;
+                case 'video':
+                    currentState.stream.localStream.getVideoTracks().forEach((track: MediaStreamTrack) => {
+                        track.enabled = value;
+                    });
+                    set((prev) => ({
+                        ...prev,
+                        action: { ...prev.action, isCameraEnabled: value },
+                    }));
+                    break;
+                case 'speaker':
+                    currentState.stream.localStream.getAudioTracks().forEach((track: MediaStreamTrack) => {
+                        track.enabled = value;
+                    });
+                    set((prev) => ({
+                        ...prev,
+                        action: { ...prev.action, isSpeakerphoneEnabled: value },
+                    }));
+                    break;
+            }
+        },
     })
 );
 export default useCallStore;

@@ -64,7 +64,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   });
   const roomState = useRoomStore((state) => state);
   const { socket } = useSocket();
-  const { startCall } = useCallStore();
+  const { openCall } = useCallStore();
   const { user } = useAuthStore();
   const router = useRouter();
 
@@ -77,7 +77,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     const userCallee = roomData.members.find(
       (m) => m.id != user?.id
     );
-    startCall({
+    openCall({
       roomId: roomData.roomId || "",
       mode,
       userCaller: {

@@ -25,44 +25,21 @@ function CallPageContent() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const { 
-    acceptCall,
     status: callStatus, 
+    stream: { localStream, remoteStream },
+    action: { isMicEnabled, isCameraEnabled, isSpeakerphoneEnabled, duration },
+    mode,
+    userInfo,
+    roomId,
+    acceptCall,
     handleCreateOffer,
     handleReceiveOffer,
-    updateStatus,
+    updateCallState,
     eventCall,
-    stream: { localStream, remoteStream },
+    actionToggleTrack,
   } = useCallStore();
 
-  const [form, setForm] = useState<{
-    roomId: string;
-    isIncoming: boolean;
-    isVideo: boolean;
-    userInfo: User;
-    duration: number;
-    isActive: boolean;
-    action: {
-      isMuted: boolean;
-      isVideoEnabled: boolean;
-      isSpeakerEnabled: boolean;
-    };
-  }>({
-    roomId: searchParams.get("roomId") || "",
-    isIncoming: searchParams.get("status") === "incoming", // idle: không có cuộc gọi, calling: người gọi, incoming: người bị gọi, ended: kết thúc cuộc gọi, accepted: đã chấp nhận cuộc gọi, declined: đã từ chối cuộc gọi
-    isVideo: searchParams.get("callType") === "video", // true: video, false: audio
-    userInfo: Helpers.decryptUserInfo(
-      searchParams.get("userInfo") || "{}"
-    ),
-    duration: 0, // thời gian gọi
-    isActive: searchParams.get("status") === "accepted", // true: active, false: inactive
-    action: {
-      isMuted: false,
-      isVideoEnabled: true,
-      isSpeakerEnabled: true,
-    },
-  });
-
-  
+  // handle socket event
   useEffect(() => {
     socket?.on("call:candidate", (payload: any) => eventCall("candidate", payload));
     socket?.on("call:answer", (payload: any) => eventCall("answer", payload));
@@ -73,6 +50,7 @@ function CallPageContent() {
     }
   }, [socket]);
 
+  // update local and remote stream
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       console.log("localStream", localStream, localVideoRef.current);
@@ -82,42 +60,45 @@ function CallPageContent() {
       console.log("remoteStream", remoteStream, remoteVideoRef.current);
       remoteVideoRef.current.srcObject = remoteStream;
     }
+    console.log("localStream update", localStream, localVideoRef.current);
+    console.log("remoteStream update", remoteStream, remoteVideoRef.current);
   }, [localStream, remoteStream]);
 
-  // Update status
+  // update call state
   useEffect(() => {
-    updateStatus(searchParams.get("status") as 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined');
+    updateCallState({
+      roomId: searchParams.get("roomId") || "",
+      status: searchParams.get("status") as 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined',
+      mode: searchParams.get("callType") as 'audio' | 'video',
+      userInfo: Helpers.decryptUserInfo(
+        searchParams.get("userInfo") || "{}"
+      ),
+      action: {
+        isMicEnabled: true,
+        isCameraEnabled: searchParams.get("callType") === "video",
+        isSpeakerphoneEnabled: true,
+        duration: 0,
+      },
+    });
   }, [searchParams]);
-
-  // update duration
-  useEffect(() => {
-    if (form.isActive) {
-      const interval = setInterval(() => {
-        setForm((prev) => ({ ...prev, duration: prev.duration + 1 }));
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [form.isActive]);
 
   useEffect(() => {
     const handle = async () => {
       if (!socket) return;
-      if (callStatus === 'accepted') {
-        setForm((prev) => ({ ...prev, isActive: true }));
-      } else if (callStatus === 'incoming' && form.roomId && searchParams.get("offer")) {
+      if (callStatus === 'incoming' && roomId && searchParams.get("offer")) {
         await handleReceiveOffer({
           offer: searchParams.get("offer"),
-          roomId: form.roomId,
+          roomId: roomId,
           socket,
-          callType: form.isVideo ? 'video' : 'audio',
+          callType: mode === 'video' ? 'video' : 'audio',
         });
       } else if (callStatus === 'calling') {
         await handleCreateOffer({
           callerId: currentUser?.id,
-          calleeId: form.userInfo?.id,
-          roomId: form.roomId,
-          callType: form.isVideo ? 'video' : 'audio',
-          callee: form.userInfo,
+          calleeId: userInfo?.id,
+          roomId: roomId,
+          callType: mode === 'video' ? 'video' : 'audio',
+          callee: userInfo,
           socket,
         });
       }
@@ -133,9 +114,9 @@ function CallPageContent() {
 
   const handleEndCall = () => {
     // kết thúc cuộc gọi
-    const callerId = form.isIncoming ? form.userInfo?.id : currentUser?.id;
-    const calleeId = form.isIncoming ? currentUser?.id : form.userInfo?.id;
-    console.log("form", form, callerId, calleeId);
+    const callerId = callStatus === 'incoming' ? userInfo?.id : currentUser?.id;
+    const calleeId = callStatus === 'incoming' ? currentUser?.id : userInfo?.id;
+    console.log("callerId", callerId, calleeId);
     
     // Clear video srcObject trước khi end call
     if (localVideoRef.current) {
@@ -146,7 +127,7 @@ function CallPageContent() {
     }
     
     socket?.emit('call:end', {
-      roomId: form.roomId,
+      roomId: roomId,
       callerId: callerId,
       calleeId: calleeId,
       status: 'ended',
@@ -155,30 +136,12 @@ function CallPageContent() {
 
   const handleAccept = () => {
     acceptCall({
-      roomId: form.roomId,
-      callerId: form.userInfo?.id,
+      roomId: roomId,
+      callerId: userInfo?.id,
       calleeId: currentUser?.id,
-      callType: form.isVideo ? 'video' : 'audio',
+      callType: mode === 'video' ? 'video' : 'audio',
       socket,
     });
-  };
-
-  const toggleMute = () => {
-    localStream?.getAudioTracks().forEach((track: MediaStreamTrack) => {
-      track.enabled = form.action.isMuted;
-    });
-    setForm((prev) => ({ ...prev, action: { ...prev.action, isMuted: !prev.action.isMuted } }));
-  };
-
-  const toggleVideo = () => {
-    localStream?.getVideoTracks().forEach((track: MediaStreamTrack) => {
-      track.enabled = form.action.isVideoEnabled;
-    });
-    setForm((prev) => ({ ...prev, action: { ...prev.action, isVideoEnabled: !prev.action.isVideoEnabled } }));
-  };
-
-  const toggleSpeaker = () => {
-    setForm((prev) => ({ ...prev, action: { ...prev.action, isSpeakerEnabled: !prev.action.isSpeakerEnabled } }));
   };
 
   if (!socket) {
@@ -189,7 +152,7 @@ function CallPageContent() {
     );
   }
 
-  if (!form.userInfo) {
+  if (!userInfo || callStatus === 'idle') {
     return (
       <div className="bg-dark h-screen w-full flex items-center justify-center">
         <p className="text-gray-500">Đang tải thông tin cuộc gọi...</p>
@@ -201,20 +164,20 @@ function CallPageContent() {
     <div className="bg-dark h-screen w-full relative overflow-hidden">
       {/* Remote video (main view) */}
       <div className="absolute inset-0 bg-black">
-        {form.isVideo && remoteStream && (
+        {mode === 'video' && remoteStream && (
           <video
             ref={remoteVideoRef}
             className="w-full h-full object-cover"
             autoPlay
             playsInline
-            muted={!form.action.isSpeakerEnabled}
+            muted={!isSpeakerphoneEnabled}
           />
         )}
-        {(!form.isVideo || !remoteStream) && (
+        {(!(mode === 'video') || !remoteStream) && (
           <div className="w-full h-full flex items-center justify-center">
             <Avatar
-              src={form.userInfo.avatar}
-              name={form.userInfo.fullname}
+              src={userInfo.avatar}
+              name={userInfo.fullname}
               className="w-32 h-32 text-4xl"
             />
           </div>
@@ -222,7 +185,7 @@ function CallPageContent() {
       </div>
 
       {/* Local video (picture-in-picture) */}
-      {form.isVideo && localStream && (
+      {(mode === 'video') && localStream && (
         <div className="absolute bottom-24 right-4 w-48 h-36 rounded-lg overflow-hidden border-2 border-white shadow-lg">
           <video
             ref={localVideoRef}
@@ -239,18 +202,22 @@ function CallPageContent() {
         <h2 className="text-white text-xl font-semibold mb-1">
           {callStatus === 'accepted'
             ? `Đã kết nối`
-            : form.isIncoming
-            ? `Bạn đang nhận cuộc gọi từ ${form.userInfo.fullname}`
-            : `Bạn đang gọi đến ${form.userInfo.fullname}`}
+            : callStatus === 'incoming'
+            ? `Bạn đang nhận cuộc gọi từ ${userInfo.fullname}`
+            : `Bạn đang gọi đến ${userInfo.fullname}`}
         </h2>
-        <p className="text-gray-300 text-sm">
-          {form.isActive ? formatDuration(form.duration) : ""}
-        </p>
+        {
+          callStatus === 'accepted' && (
+            <p className="text-gray-300 text-sm">
+              {formatDuration(duration)}
+            </p>
+          )
+        }
       </div>
 
       {/* Control buttons */}
       <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4 z-10">
-        {form.isIncoming && !form.isActive ? (
+        {callStatus === 'incoming' ? (
           <>
             <Button
               color="danger"
@@ -272,21 +239,21 @@ function CallPageContent() {
         ) : (
           <>
             <Button
-              color={form.action.isMuted ? "danger" : "default"}
+              color={isMicEnabled ? "danger" : "default"}
               className="rounded-full h-14 w-14 p-0 bg-white/20 backdrop-blur-sm"
-              onPress={toggleMute}
+              onPress={() => actionToggleTrack('mic', isMicEnabled ? false : true)}
               isIconOnly
             >
-              <MicrophoneIcon className="h-6 w-6 text-white" />
+              <MicrophoneIcon className={`h-6 w-6 text-white`} />
             </Button>
-            {form.isVideo && (
+            {mode === 'video' && (
               <Button
-                color={form.action.isVideoEnabled ? "default" : "danger"}
+                color={isCameraEnabled ? "default" : "danger"}
                 className="rounded-full h-14 w-14 p-0 bg-white/20 backdrop-blur-sm"
-                onPress={toggleVideo}
+                onPress={() => actionToggleTrack('video', isCameraEnabled ? false : true)}
                 isIconOnly
               >
-                {form.action.isVideoEnabled ? (
+                {isCameraEnabled ? (
                   <VideoCameraIcon className="h-6 w-6 text-white" />
                 ) : (
                   <VideoCameraSlashIcon className="h-6 w-6 text-white" />
@@ -302,12 +269,12 @@ function CallPageContent() {
               <PhoneXMarkIcon className="h-7 w-7" />
             </Button>
             <Button
-              color={form.action.isSpeakerEnabled ? "default" : "danger"}
+              color={isSpeakerphoneEnabled ? "default" : "danger"}
               className="rounded-full h-14 w-14 p-0 bg-white/20 backdrop-blur-sm"
-              onPress={toggleSpeaker}
+              onPress={() => actionToggleTrack('speaker', !isSpeakerphoneEnabled)}
               isIconOnly
             >
-              {form.action.isSpeakerEnabled ? (
+              {isSpeakerphoneEnabled ? (
                 <SpeakerWaveIcon className="h-6 w-6 text-white" />
               ) : (
                 <SpeakerXMarkIcon className="h-6 w-6 text-white" />

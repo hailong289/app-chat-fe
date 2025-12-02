@@ -17,16 +17,21 @@ export interface CallState {
   };
   peerConnection: RTCPeerConnection | null;
   pendingCandidates: Map<string, RTCIceCandidate[]>;
-  startCall: (data: any) => void;
+  action: {
+    isMicEnabled: boolean; // true: mic on, false: mic off
+    isCameraEnabled: boolean; // true: camera on, false: camera off
+    isSpeakerphoneEnabled: boolean; // true: speakerphone on, false: speakerphone off
+    duration: number; // thời gian gọi
+  };
+  openCall: (data: any) => void;
   eventCall: (event: string, payload: any) => Promise<void>;
   acceptCall: (data: any) => void;
-  openWindowCall: () => void;
-  closeWindowCall: () => void;
   handleCreateLocalStream: () => void;
   handleCreateOffer: (data: any) => void;
   handleReceiveOffer: (data: any) => Promise<void>;
   handleCreatePeerConnection: (roomId: string, socket: Socket) => Promise<RTCPeerConnection>;
-  updateStatus: (status: 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined') => void;
+  updateCallState: (state: Partial<CallState>) => void;
   flushPendingCandidates: (roomId: string) => Promise<void>;
+  actionToggleTrack: (action: 'mic' | 'video' | 'speaker', value: boolean) => Promise<void>;
 }
 
