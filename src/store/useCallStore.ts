@@ -30,7 +30,7 @@ const useCallStore = create<CallState>()(
         openCall: (payload) => {
             const { roomId, mode, userCallee } = payload;
             const encodedUserInfo = Helpers.enCryptUserInfo(userCallee);
-            window.open(`/call?roomId=${roomId}&userInfo=${encodedUserInfo}&callType=${mode}&status=calling`, '', 'width=800,height=600');
+            window.open(`/call?roomId=${roomId}&userInfo=${encodedUserInfo}&callType=${mode}&status=calling&isCaller=true`, '', 'width=800,height=600');
         },
         acceptCall: async (payload) => {
             const { roomId, callerId, calleeId, socket } = payload;

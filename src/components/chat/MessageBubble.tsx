@@ -1,8 +1,11 @@
-import { EyeDropperIcon } from "@heroicons/react/16/solid";
+import { EyeDropperIcon, PhoneIcon, VideoCameraIcon } from "@heroicons/react/16/solid";
 import { LinkPreview } from "./LinkPreview";
 import { extractFirstUrl } from "@/libs/url-helpers";
 import { MAX_MESSAGE_LENGTH } from "./constants/messageConstants";
-import { MessageType } from "@/store/types/message.state";
+import { CallHistoryType, MessageType } from "@/store/types/message.state";
+import useAuthStore from "@/store/useAuthStore";
+import Helpers from "@/libs/helpers";
+import { formatMessageTime } from "@/libs/timeline-helpers";
 
 interface MessageBubbleProps {
   msg: MessageType;
@@ -10,6 +13,8 @@ interface MessageBubbleProps {
   isSameSenderAsNext: boolean;
   isExpanded: boolean;
   onToggleExpanded: (id: string) => void;
+  type: "text" | "image" | "file" | "system" | "video" | "audio" | "gif" | "call"
+  callHistory: CallHistoryType | null;
 }
 
 function DeletedMessageBubble({ isMine }: { isMine: boolean }) {
@@ -151,12 +156,48 @@ function RegularMessageBubble({
   );
 }
 
+function CallMessageBubble({
+  msg,
+  isSameSenderAsPrev,
+  isSameSenderAsNext,
+  callHistory,
+}: Readonly<{
+  msg: MessageType;
+  isSameSenderAsPrev: boolean;
+  isSameSenderAsNext: boolean;
+  callHistory: CallHistoryType;
+}>) {
+  const { user } = useAuthStore();
+  const currentUserId = user?.id;
+
+  const isOutgoing = currentUserId && callHistory.caller_id === currentUserId;
+  const isIncoming = currentUserId && callHistory.callee_id === currentUserId;
+  const callTypeLabel = callHistory.call_type === "video" ? "video" : "";
+
+  const callDirectionLabel = isOutgoing
+    ? `Bạn đã gọi ${callTypeLabel}`
+    : isIncoming
+    ? `Bạn đã nhận cuộc gọi ${callTypeLabel}`
+    : `Cuộc gọi ${callTypeLabel} đã kết thúc`;
+
+  return (
+    <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
+      <div className={getBubbleClasses(msg, isSameSenderAsPrev, isSameSenderAsNext)}>
+        { callHistory.call_type === "video" ? <VideoCameraIcon className="w-4 h-4 inline-block mr-2 text-green-500" /> : <PhoneIcon className="w-4 h-4 inline-block mr-2 text-green-500" />}
+        {callDirectionLabel}
+      </div>
+    </div>
+  );
+}
+
 export function MessageBubble({
   msg,
   isSameSenderAsPrev,
   isSameSenderAsNext,
   isExpanded,
   onToggleExpanded,
+  type,
+  callHistory,
 }: Readonly<MessageBubbleProps>) {
   if (msg.hiddenByMe) {
     return <DeletedMessageBubble isMine={msg.isMine} />;
@@ -176,6 +217,10 @@ export function MessageBubble({
         onToggleExpanded={onToggleExpanded}
       />
     );
+  }
+
+  if (type === "call" && callHistory) {
+    return <CallMessageBubble msg={msg} isSameSenderAsPrev={isSameSenderAsPrev} isSameSenderAsNext={isSameSenderAsNext} callHistory={callHistory} />;
   }
 
   return null;

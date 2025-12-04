@@ -80,7 +80,26 @@ export type MessageType = {
     | "uploading"
     | "uploaded"
     | "recalled";
+  call_history?: CallHistoryType | null;
 };
+
+export interface CallHistoryType {
+  _id: string;
+  room_id: string;
+  caller_id: string;
+  callee_id: string;
+  call_type: "audio" | "video";
+  status: "ringing" | "accepted" | "rejected" | "missed" | "ended";
+  started_at: string | null;
+  answered_at: string | null;
+  ended_at: string | null;
+  duration: number | string | null;
+  ended_by: string | null;
+  end_reason: string | null;
+  call_id: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface RoomData {
   messages: MessageType[];

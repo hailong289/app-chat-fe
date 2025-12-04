@@ -84,6 +84,12 @@ class Helpers {
     // Tham số: (state object, title, new_url)
     window.history.replaceState(null, '', url.toString());
   };
+
+  static formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
 }
 
 export default Helpers;

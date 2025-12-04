@@ -64,7 +64,6 @@ function CallPageContent() {
     // 2. Lắng nghe thêm unload để chắc chắn (cho các trình duyệt cũ)
     window.addEventListener('unload', handleWindowClose);
 
-    feat(call): Implement robust termination on window close and refactor ending logic
     return () => {
         handleWindowClose();
         window.removeEventListener('pagehide', handleWindowClose);
@@ -134,10 +133,10 @@ function CallPageContent() {
   };
 
   const handleEndCall = () => {
+    const isCaller = searchParams.get("isCaller") === "true";
     // kết thúc cuộc gọi
-    const callerId = callStatus === 'incoming' ? userInfo?.id : currentUser?.id;
-    const calleeId = callStatus === 'incoming' ? currentUser?.id : userInfo?.id;
-    console.log("callerId", callerId, calleeId);
+    const callerId = isCaller ? currentUser?.id : userInfo?.id;
+    const calleeId = isCaller ? userInfo?.id : currentUser?.id;
     
     // Clear video srcObject trước khi end call
     if (localVideoRef.current) {
@@ -151,7 +150,7 @@ function CallPageContent() {
       roomId: roomId,
       callerId: callerId,
       calleeId: calleeId,
-      status: 'ended',
+      status: callStatus === 'accepted' ? "ended" : "rejected",
       socket,
     });
   };
