@@ -16,6 +16,7 @@ import { useSocket } from "@/components/providers/SocketProvider";
 import useAuthStore from "@/store/useAuthStore";
 import Helpers from "@/libs/helpers";
 import useCallStore from "@/store/useCallStore";
+import { CallMember } from "@/store/types/call.state";
 
 function CallPageContent() {
   const router = useRouter();
@@ -23,17 +24,16 @@ function CallPageContent() {
   const { socket } = useSocket();
   const currentUser = useAuthStore((state) => state.user);
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const { 
     status: callStatus, 
-    stream: { localStream, remoteStream },
+    stream: { localStream, remoteStreams },
     action: { isMicEnabled, isCameraEnabled, isSpeakerphoneEnabled, duration, isSharingScreen },
     mode,
-    userInfo,
+    members,
     roomId,
+    handleCreateLocalStream,
     acceptCall,
-    handleCreateOffer,
-    handleReceiveOffer,
     updateCallState,
     eventCall,
     actionToggleTrack,
@@ -42,56 +42,48 @@ function CallPageContent() {
 
   // handle socket event
   useEffect(() => {
-    socket?.on("call:candidate", (payload: any) => eventCall("candidate", payload));
+    socket?.on("call:accepted", (payload: any) => eventCall("accepted", payload));
+    socket?.on("call:start", (payload: any) => eventCall("start", payload));
     socket?.on("call:answer", (payload: any) => eventCall("answer", payload));
+    socket?.on("call:candidate", (payload: any) => eventCall("candidate", payload));
+    socket?.on("call:end", (payload: any) => eventCall("end", payload));
     return () => {
+      socket?.off("call:accepted", (payload: any) => eventCall("accepted", payload));
+      socket?.off("call:start", (payload: any) => eventCall("start", payload));
       socket?.off("call:candidate", (payload: any) => eventCall("candidate", payload));
       socket?.off("call:answer", (payload: any) => eventCall("answer", payload));
+      socket?.off("call:end", (payload: any) => eventCall("end", payload));
     }
   }, [socket]);
-
-  useEffect(() => {
-    // Hàm xử lý khi đóng window
-    const handleWindowClose = () => {
-        // Gọi hàm dọn dẹp
-        alert("Đóng window");
-        handleEndCall();
-    };
-
-    // 1. Lắng nghe sự kiện pagehide (được khuyến nghị thay cho unload)
-    window.addEventListener('pagehide', handleWindowClose);
-    
-    // 2. Lắng nghe thêm unload để chắc chắn (cho các trình duyệt cũ)
-    window.addEventListener('unload', handleWindowClose);
-
-    return () => {
-        handleWindowClose();
-        window.removeEventListener('pagehide', handleWindowClose);
-        window.removeEventListener('unload', handleWindowClose);
-    };
-}, []);
 
   // update local and remote stream
   useEffect(() => {
     if (localVideoRef.current && localStream) {
-      console.log("localStream", localStream, localVideoRef.current);
-      localVideoRef.current.srcObject = localStream;
+      if (localVideoRef.current.srcObject !== localStream) {
+        localVideoRef.current.srcObject = localStream;
+      }
     }
-    if (remoteVideoRef.current && remoteStream) {
-      console.log("remoteStream", remoteStream, remoteVideoRef.current);
-      remoteVideoRef.current.srcObject = remoteStream;
-    }
-  }, [localStream, remoteStream]);
+    remoteStreams.forEach((stream, key) => {
+      const remoteVideoElement = remoteVideoRefs.current.get(key);
+      if (remoteVideoElement && stream) {
+        // Chỉ set lại nếu stream khác với stream hiện tại để tránh nháy màn hình
+        if (remoteVideoElement.srcObject !== stream) {
+          remoteVideoElement.srcObject = stream;
+        }
+      }
+    });
+  }, [localStream, remoteStreams]);
 
   // update call state
   useEffect(() => {
+    if (!socket) return;
     updateCallState({
       roomId: searchParams.get("roomId") || "",
       status: searchParams.get("status") as 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined',
       mode: searchParams.get("callType") as 'audio' | 'video',
-      userInfo: Helpers.decryptUserInfo(
-        searchParams.get("userInfo") || "{}"
-      ),
+      members: Helpers.decryptUserInfo(
+        searchParams.get("members") || "[]"
+      ) as CallMember[],
       action: {
         isMicEnabled: true,
         isCameraEnabled: searchParams.get("callType") === "video",
@@ -99,31 +91,16 @@ function CallPageContent() {
         duration: 0,
         isSharingScreen: false,
       },
+      socket: socket,
     });
-  }, [searchParams]);
+  }, [searchParams, socket]);
 
   useEffect(() => {
-    const handle = async () => {
-      if (!socket) return;
-      if (callStatus === 'incoming' && roomId && searchParams.get("offer")) {
-        await handleReceiveOffer({
-          offer: searchParams.get("offer"),
-          roomId: roomId,
-          socket,
-          callType: mode === 'video' ? 'video' : 'audio',
-        });
-      } else if (callStatus === 'calling') {
-        await handleCreateOffer({
-          callerId: currentUser?.id,
-          calleeId: userInfo?.id,
-          roomId: roomId,
-          callType: mode === 'video' ? 'video' : 'audio',
-          callee: userInfo,
-          socket,
-        });
-      }
+    if (!socket) return;
+    if (callStatus === 'incoming' || callStatus === 'calling') {
+      handleCreateLocalStream();
     }
-    handle();
+    console.log("callStatus", callStatus);
   }, [callStatus, socket]);
 
   const formatDuration = (seconds: number) => {
@@ -133,37 +110,83 @@ function CallPageContent() {
   };
 
   const handleEndCall = () => {
+    let status = "ended";
     const isCaller = searchParams.get("isCaller") === "true";
-    // kết thúc cuộc gọi
-    const callerId = isCaller ? currentUser?.id : userInfo?.id;
-    const calleeId = isCaller ? userInfo?.id : currentUser?.id;
-    
     // Clear video srcObject trước khi end call
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
     }
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = null;
+    remoteVideoRefs.current.forEach((videoRef) => {
+      if (videoRef) {
+        videoRef.srcObject = null;
+      }
+    });
+
+    if (isCaller) {
+      status = callStatus === 'accepted' ? "ended" : "cancelled";
+    } else {
+      status = callStatus === 'accepted' ? "ended" : "rejected";
     }
 
     endCall({
       roomId: roomId,
-      callerId: callerId,
-      calleeId: calleeId,
-      status: callStatus === 'accepted' ? "ended" : "rejected",
-      socket,
+      actionUserId: currentUser?.id,
+      status
     });
   };
 
   const handleAccept = () => {
     acceptCall({
+      actionUserId: currentUser?.id,
+      members: members,
       roomId: roomId,
-      callerId: userInfo?.id,
-      calleeId: currentUser?.id,
-      callType: mode === 'video' ? 'video' : 'audio',
       socket,
     });
   };
+
+  const getUserInfo = (): { id: string; fullname: string; avatar: string } => {
+    console.log("members", members);
+    const countMembers = members.length;
+    if (countMembers === 2) {
+      const user = members.find((m: CallMember) => m.id === currentUser?.id);
+      if (user) {
+        return {
+          id: user.id,
+          fullname: user.fullname,
+          avatar: user.avatar,
+        };
+      }
+      return {
+        id: "0",
+        fullname: "Không xác định",
+        avatar: "https://ui-avatars.com/api/?name=Không+xác+định",
+      };
+    } else {
+      return {
+        id: "0",
+        fullname: "Bạn và người khác",
+        avatar: "https://ui-avatars.com/api/?name=Bạn+và+người+khác",
+      };
+    }
+  }
+
+  const getUserInfoLabel = () => {
+    const countMembers = members.length;
+    const isCaller = members.some((m: CallMember) => m.id === currentUser?.id && m.is_caller);
+    if (countMembers > 2) {
+      if (isCaller) {
+        return `Bạn đã bắt đầu cuộc gọi nhóm với ${countMembers - 1} người khác`;
+      }
+      return `Bạn đang nhận cuộc gọi nhóm với ${countMembers - 1} người khác`;
+    } else {
+      if (isCaller) {
+        const callee = members.find((m: CallMember) => m.id !== currentUser?.id && !m.is_caller);
+        return `Bạn đang gọi đến ${callee?.fullname}`;
+      }
+      const caller = members.find((m: CallMember) => m.id !== currentUser?.id && m.is_caller);
+      return `Bạn đang nhận cuộc gọi từ ${caller?.fullname}`;
+    }
+  }
 
   if (!socket) {
     return (
@@ -173,7 +196,7 @@ function CallPageContent() {
     );
   }
 
-  if (!userInfo || callStatus === 'idle') {
+  if (!members || callStatus === 'idle') {
     return (
       <div className="bg-dark h-screen w-full flex items-center justify-center">
         <p className="text-gray-500">Đang tải thông tin cuộc gọi...</p>
@@ -185,20 +208,33 @@ function CallPageContent() {
     <div className="bg-dark h-screen w-full relative overflow-hidden">
       {/* Remote video (main view) */}
       <div className="absolute inset-0 bg-black">
-        {mode === 'video' && remoteStream && (
-          <video
-            ref={remoteVideoRef}
-            className="w-full h-full object-cover"
-            autoPlay
-            playsInline
-            muted={!isSpeakerphoneEnabled}
-          />
-        )}
-        {(!(mode === 'video') || !remoteStream) && (
+        {mode === 'video' && remoteStreams.size > 0 && (() => {
+          const firstStreamEntry = Array.from(remoteStreams.entries())[0];
+          if (!firstStreamEntry) return null;
+          const [key, stream] = firstStreamEntry;
+          const videoRef = (el: HTMLVideoElement | null) => {
+            if (el) {
+              remoteVideoRefs.current.set(key, el);
+              // Không set srcObject ở đây, để useEffect xử lý để tránh nháy màn hình
+            } else {
+              remoteVideoRefs.current.delete(key);
+            }
+          };
+          return (
+            <video
+              ref={videoRef}
+              className="w-full h-full object-cover"
+              autoPlay
+              playsInline
+              muted={!isSpeakerphoneEnabled}
+            />
+          );
+        })()}
+        {(!(mode === 'video') || remoteStreams.size === 0) && (
           <div className="w-full h-full flex items-center justify-center">
             <Avatar
-              src={userInfo.avatar}
-              name={userInfo.fullname}
+              src={getUserInfo().avatar}
+              name={getUserInfo().fullname}
               className="w-32 h-32 text-4xl"
             />
           </div>
@@ -221,11 +257,7 @@ function CallPageContent() {
       {/* Call info overlay */}
       <div className="absolute top-8 left-1/2 transform -translate-x-1/2 text-center z-10">
         <h2 className="text-white text-xl font-semibold mb-1">
-          {callStatus === 'accepted'
-            ? `Đã kết nối`
-            : callStatus === 'incoming'
-            ? `Bạn đang nhận cuộc gọi từ ${userInfo.fullname}`
-            : `Bạn đang gọi đến ${userInfo.fullname}`}
+          {callStatus === 'accepted' ? `Đã kết nối` : getUserInfoLabel()}
         </h2>
         {
           callStatus === 'accepted' && (

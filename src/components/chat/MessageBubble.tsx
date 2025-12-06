@@ -1,4 +1,4 @@
-import { EyeDropperIcon, PhoneIcon, VideoCameraIcon } from "@heroicons/react/16/solid";
+import { EyeDropperIcon, PhoneIcon, VideoCameraIcon, UserIcon, UsersIcon } from "@heroicons/react/16/solid";
 import { LinkPreview } from "./LinkPreview";
 import { extractFirstUrl } from "@/libs/url-helpers";
 import { MAX_MESSAGE_LENGTH } from "./constants/messageConstants";
@@ -168,23 +168,57 @@ function CallMessageBubble({
   callHistory: CallHistoryType;
 }>) {
   const { user } = useAuthStore();
-  const currentUserId = user?.id;
-
-  const isOutgoing = currentUserId && callHistory.caller_id === currentUserId;
-  const isIncoming = currentUserId && callHistory.callee_id === currentUserId;
-  const callTypeLabel = callHistory.call_type === "video" ? "video" : "";
-
-  const callDirectionLabel = isOutgoing
-    ? `Bạn đã gọi ${callTypeLabel}`
-    : isIncoming
-    ? `Bạn đã nhận cuộc gọi ${callTypeLabel}`
-    : `Cuộc gọi ${callTypeLabel} đã kết thúc`;
+  const totalMembers = callHistory.members.length;
+  const isGroupCall = totalMembers > 2;
+  const isVideoCall = callHistory.call_type === "video";
+  const callTypeLabel = isVideoCall ? "video" : "gọi thoại";
+  const currentUser = callHistory.members.find((member) => member.id === user?._id);
+  const otherUser = callHistory.members.find((member) => member.id !== user?._id);
+  const isCaller = currentUser?.is_caller === true ? true : false;
+  let status = "Đã kết thúc";
+  if (currentUser?.status === "initiated") {
+    status = "Đang chờ";
+  } else if (otherUser?.status === "started") {
+    status = "Đang diễn ra";
+  } else if (currentUser?.status === "ended") {
+    status = isCaller ? "Bạn đã kết thúc cuộc gọi" : "Cuộc gọi đã kết thúc";
+  } else if (currentUser?.status === "cancelled") {
+    status = isCaller ? "Bạn đã hủy cuộc gọi" : "Cuộc gọi đã bị hủy";
+  } else if (currentUser?.status === "rejected") {
+    status = isCaller ? "Bạn đã từ chối cuộc gọi" : "Cuộc gọi đã bị từ chối";
+  }
 
   return (
     <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
       <div className={getBubbleClasses(msg, isSameSenderAsPrev, isSameSenderAsNext)}>
-        { callHistory.call_type === "video" ? <VideoCameraIcon className="w-4 h-4 inline-block mr-2 text-green-500" /> : <PhoneIcon className="w-4 h-4 inline-block mr-2 text-green-500" />}
-        {callDirectionLabel}
+        {isGroupCall ? (
+          <div className="flex items-center">
+            <UsersIcon className="w-4 h-4 inline-block mr-2 text-green-500" />
+            <span className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+              Cuộc gọi nhóm với {totalMembers - 1} người khác
+            </span>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center border-b border-gray-200 pb-2">
+              <UserIcon className="w-4 h-4 inline-block mr-2 text-green-500" />
+              <span className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                {`Cuộc gọi ${callTypeLabel} với ${otherUser?.fullname}`}
+              </span>
+            </div>
+            <div className="flex items-center pt-2">
+              {isVideoCall ? <VideoCameraIcon className="w-4 h-4 inline-block mr-2 text-green-500" /> : <PhoneIcon className="w-4 h-4 inline-block mr-2 text-green-500" />}
+              <span className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                {status}
+              </span>
+            </div>
+            <div className="flex items-center">
+              <span className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                Thời gian: {Helpers.formatDuration(callHistory.duration)}
+              </span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

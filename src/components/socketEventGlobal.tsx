@@ -20,9 +20,9 @@ export const SocketEventGlobal = () => {
     socket.on("message:upset", messageState.upsetMsg);
     socket.on("mark:readed", roomState.setRoomReaded);
     socket.on("status:online", contactState.socketHandleOnline);
-    socket.on("call:start", (payload: any) => callState.eventCall("start", payload));
-    socket.on("call:end", (payload: any) => callState.eventCall("end", payload));
+    socket.on("call:request", (payload: any) => callState.eventCall("request", payload)); // request: yêu cầu gọi
     return () => {
+      socket.off("call:request", (payload: any) => callState.eventCall("request", payload));
       socket.off("room:upset", roomState.updateRoomSocket);
       socket.off("message:upset", messageState.upsetMsg);
       socket.off("mark:readed", roomState.setRoomReaded);

@@ -26,12 +26,10 @@ import {
 import ChatDrawer from "./drawer/chat-drawer";
 import useRoomStore from "@/store/useRoomStore";
 import { EyeDropperIcon } from "@heroicons/react/16/solid";
-import { RoomsState } from "@/store/types/room.state";
+import { roomMembers, RoomsState } from "@/store/types/room.state";
 import { useSocket } from "../providers/SocketProvider";
 import useCallStore from "@/store/useCallStore";
 import useAuthStore from "@/store/useAuthStore";
-import Helpers from "@/libs/helpers";
-import { useRouter } from "next/navigation";
 
 interface ChatHeaderProps {
   // chatName?: string;
@@ -56,40 +54,24 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   } = useDisclosure();
   const [showSearch, setShowSearch] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState("");
-  const [formModalCall, setFormModalCall] = React.useState({
-    isOpen: false,
-    isVideo: false,
-    isIncoming: false,
-    caller: { id: "", name: "", avatar: "" },
-  });
   const roomState = useRoomStore((state) => state);
   const { socket } = useSocket();
   const { openCall } = useCallStore();
   const { user } = useAuthStore();
-  const router = useRouter();
 
   const handleStartCall = (room: RoomsState, mode: 'audio' | 'video') => {
     const roomData = room.room;
     if (!roomData) return;
-    const userCaller = roomData.members.find(
-      (m) => m.id == user?.id
-    );
-    const userCallee = roomData.members.find(
-      (m) => m.id != user?.id
-    );
     openCall({
       roomId: roomData.roomId || "",
       mode,
-      userCaller: {
-        id: userCaller?.id || "",
-        fullname: userCaller?.name || "",
-        avatar: userCaller?.avatar || "",
-      },
-      userCallee: {
-        id: userCallee?.id || "",
-        fullname: userCallee?.name || "",
-        avatar: userCallee?.avatar || "",
-      },
+      members: roomData.members.map((m: roomMembers) => ({
+        id: m.id,
+        fullname: m.name,
+        avatar: m.avatar,
+        is_caller: true,
+      })),
+      currentUser: user,
       socket
     });
   };
