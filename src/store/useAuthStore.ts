@@ -5,8 +5,6 @@ import AuthService from "@/service/auth.service";
 import { deleteCookie, setCookie } from "cookies-next";
 import Dexie from "dexie";
 import * as LocalStorageUtils from "@/utils/localStorage";
-import { updateOne, upsertOne } from "@/libs/crud";
-import { db } from "@/libs/db";
 
 // Lưu trạng thái xác thực trong localStorage
 const useAuthStore = create<AuthState>()(

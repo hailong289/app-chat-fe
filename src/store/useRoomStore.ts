@@ -4,7 +4,6 @@ import RoomService from "@/service/room.service";
 import { QueryRooms } from "@/types/room.type";
 import { db } from "@/libs/db";
 import {
-  deleteMany,
   deleteOne,
   getOne,
   updateOne,

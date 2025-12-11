@@ -62,7 +62,7 @@ export const AddMemberModal = ({ isOpen, onClose }: Props) => {
     if (isMembersInvalid) return;
 
     console.log("Thành viên:", memberIds);
-    // TODO: call API add member ở đây
+    // TODO: call API add member here - implement after backend confirms member add endpoint
     roomState.addMember(memberIds);
 
     setMemberIds([]);

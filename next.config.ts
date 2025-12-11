@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  reactStrictMode: true,
+  reactStrictMode: false, // Disabled for React 19 / Next 15 BlockNote compatibility
   // Removed 'output: standalone' - using standard build for Docker
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,

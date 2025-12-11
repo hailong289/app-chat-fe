@@ -218,17 +218,23 @@ export function sanitizeFilename(
   const base = parts.join(".") || "file";
 
   // normalize unicode to NFKD and remove diacritics
-  const normalized = base.normalize("NFKD").replace(/\p{Diacritic}/gu, "");
+  const normalized = base.normalize("NFKD").replaceAll(/\p{Diacritic}/gu, "");
 
   // replace invalid chars with replacement
-  let safe = normalized.replace(/[^A-Za-z0-9._-]+/g, replacement);
+  let safe = normalized.replaceAll(/[^A-Za-z0-9._-]+/g, replacement);
 
   // collapse multiple replacements
-  const repEsc = replacement.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
-  safe = safe.replace(new RegExp(`${repEsc}{2,}`, "g"), replacement);
+  const repEsc = replacement.replaceAll(
+    /[-/\\^$*+?.()|[\]{}]/g,
+    String.raw`\$&`
+  );
+  safe = safe.replaceAll(new RegExp(`${repEsc}{2,}`, "g"), replacement);
 
   // trim replacements from ends
-  safe = safe.replace(new RegExp(`^(?:${repEsc})+|(?:${repEsc})+$`, "g"), "");
+  safe = safe.replaceAll(
+    new RegExp(`^(?:${repEsc})+|(?:${repEsc})+$`, "g"),
+    ""
+  );
 
   // truncate if too long
   if (safe.length > maxLength) safe = safe.slice(0, maxLength);

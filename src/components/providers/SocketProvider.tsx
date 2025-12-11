@@ -172,7 +172,8 @@ export function SocketProvider({
 
     console.log("🔌 [Socket] Initializing connection to:", url);
     setStatus("connecting");
-    const s = io(url, opts);
+    const namespaceUrl = url.endsWith("/chat") ? url : `${url}/chat`;
+    const s = io(namespaceUrl, opts);
 
     s.on("connect", () => {
       console.log(

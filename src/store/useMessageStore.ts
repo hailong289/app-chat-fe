@@ -11,7 +11,7 @@ export interface SendMessageArgs {
   userFullname?: string; // User fullname
   userAvatar?: string; // User avatar
 }
-import { upsertOne, deleteOne, upsertMany } from "@/libs/crud";
+import { upsertOne, deleteOne } from "@/libs/crud";
 import { db } from "@/libs/db";
 import { ObjectId } from "bson";
 import UploadService from "@/service/uploadfile.service";
@@ -24,42 +24,45 @@ import MessageService from "@/service/message.service";
  */
 const sanitizeMessageForDB = (msg: MessageType): MessageType => {
   try {
-    // Create a clean copy using JSON parse/stringify to remove circular refs
-    const cleanMsg = JSON.parse(
-      JSON.stringify({
-        ...msg,
-        attachments: msg.attachments?.map((att) => ({
-          _id: att._id,
-          kind: att.kind,
-          url: att.url,
-          name: att.name,
-          size: att.size,
-          mimeType: att.mimeType,
-          thumbUrl: att.thumbUrl,
-          width: att.width,
-          height: att.height,
-          duration: att.duration,
-          status: att.status,
-          uploadProgress: att.uploadProgress,
-          uploadedUrl: att.uploadedUrl,
-          // Explicitly exclude file and any non-serializable data
-        })),
-        // Ensure sender is clean
-        sender: msg.sender
-          ? {
-              _id: msg.sender._id,
-              fullname: msg.sender.fullname,
-              avatar: msg.sender.avatar,
-            }
-          : undefined,
-        // Ensure content is a clean string
-        content: msg.content ? String(msg.content) : "",
-      })
-    );
+    // Create a clean copy using structuredClone to remove circular refs
+    const cleanMsg = structuredClone({
+      ...msg,
+      attachments: msg.attachments?.map((att) => ({
+        _id: att._id,
+        kind: att.kind,
+        url: att.url,
+        name: att.name,
+        size: att.size,
+        mimeType: att.mimeType,
+        thumbUrl: att.thumbUrl,
+        width: att.width,
+        height: att.height,
+        duration: att.duration,
+        status: att.status,
+        uploadProgress: att.uploadProgress,
+        uploadedUrl: att.uploadedUrl,
+        // Explicitly exclude file and any non-serializable data
+      })),
+      // Ensure sender is always valid
+      sender: msg.sender
+        ? {
+            _id: msg.sender._id,
+            id: msg.sender.id,
+            fullname: msg.sender.fullname,
+            avatar: msg.sender.avatar,
+          }
+        : {
+            _id: "unknown",
+            fullname: "Unknown",
+            avatar: "",
+          },
+      // Ensure content is a clean string
+      content: msg.content ? String(msg.content) : "",
+    });
 
     return cleanMsg;
   } catch (error) {
-    console.error("❌ Error sanitizing message for DB:", error, msg);
+    console.error("❌ Error sanitizing message for DB:", error);
     // Return a minimal valid message if sanitization fails
     return {
       ...msg,
@@ -68,10 +71,15 @@ const sanitizeMessageForDB = (msg: MessageType): MessageType => {
       sender: msg.sender
         ? {
             _id: msg.sender._id,
+            id: msg.sender.id,
             fullname: msg.sender.fullname || "Unknown",
             avatar: msg.sender.avatar,
           }
-        : undefined,
+        : {
+            _id: "unknown",
+            fullname: "Unknown",
+            avatar: "",
+          },
     } as MessageType;
   }
 };
@@ -648,8 +656,8 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
       return messages;
     } catch (error) {
-      // console.error("❌ Error fetching messages from API:", error);
       // Don't throw error, return empty array to prevent UI breaking
+      // Error is expected in some cases (network issues, etc)
       return [];
     }
   },
@@ -788,36 +796,21 @@ const useMessageStore = create<MessageState>()((set, get) => ({
             id: att._id,
           };
         })
-        .catch((err) => {
-          const e = err as any;
-
+        .catch((err: unknown) => {
           // Log chi tiết lỗi
           try {
+            const error_ = err as unknown;
+            const errorObj =
+              error_ instanceof Error ? error_ : new Error(String(error_));
             console.error(
               `⚠️ Upload error for file index ${index} (id=${att._id}):`,
               {
-                message: e?.message || String(e),
-                name: e?.name,
-                stack: e?.stack,
-                responseData: e?.response?.data,
-                responseStatus: e?.response?.status,
-                request: e?.request,
-                rawProps: Object.getOwnPropertyNames(e || {}).reduce(
-                  (acc, k) => {
-                    try {
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      acc[k] = e[k];
-                    } catch {
-                      acc[k] = "<unserializable>";
-                    }
-                    return acc;
-                  },
-                  {} as Record<string, any>
-                ),
+                message: errorObj.message,
+                stack: errorObj.stack,
               }
             );
-          } catch (logErr) {
-            console.error("⚠️ Error serializing upload error:", logErr, err);
+          } catch {
+            /* ignored */
           }
 
           // Mark failed
@@ -853,11 +846,15 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       }
 
       if (!res.success) {
-        const errObj = res.error;
+        const errObj = res.error as Record<string, unknown>;
         const uploadError = {
-          message: errObj?.message || String(errObj),
-          responseData: errObj?.response?.data,
-          responseStatus: errObj?.response?.status,
+          message: (errObj?.message as string | undefined) || String(errObj),
+          responseData: (
+            errObj?.response as Record<string, unknown> | undefined
+          )?.data,
+          responseStatus: (
+            errObj?.response as Record<string, unknown> | undefined
+          )?.status,
         };
 
         return {
@@ -1140,7 +1137,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       },
     });
   },
-  upsetMsgError: async (payload: {
+  upsetMsgError: (payload: {
     message: string;
     error: string;
     data: {
@@ -1229,7 +1226,11 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
     // update IndexedDB
     try {
-      await upsertOne(db.messages, sanitizeMessageForDB(updatedMsg));
+      upsertOne(db.messages, sanitizeMessageForDB(updatedMsg)).catch(
+        (error) => {
+          console.error("[upsetMsgError] IndexedDB upsert error:", error);
+        }
+      );
       return true;
     } catch (error) {
       console.error("[upsetMsgError] IndexedDB upsert error:", error);

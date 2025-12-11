@@ -239,7 +239,7 @@ export const Home = () => {
   );
 
   return (
-    <>
+    <div className=" flex flex-col">
       {/* Top actions */}
       {!isSearchVisible && (
         <div className="flex items-center justify-end p-1 border-b border-default dark:bg-slate-900">
@@ -493,6 +493,6 @@ export const Home = () => {
       </div>
 
       <CreateRoomModal isOpen={openModal} onClose={() => setOpenModal(false)} />
-    </>
+    </div>
   );
 };
