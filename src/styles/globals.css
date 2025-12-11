@@ -128,3 +128,40 @@
     background-color: rgba(59, 130, 246, 0.05);
   }
 }
+
+/* BlockNote Custom Theme Overrides */
+.blocknote-wrapper .bn-editor {
+  background-color: transparent !important;
+}
+
+/* Light Mode Overrides */
+[data-theme="light"] .blocknote-wrapper {
+  --bn-colors-editor-text: #111827;
+  --bn-colors-editor-background: #ffffff;
+  --bn-colors-menu-background: #ffffff;
+  --bn-colors-menu-text: #111827;
+  --bn-colors-hovered-background: #f3f4f6;
+  --bn-colors-selected-background: #42a59f; /* App Primary */
+  --bn-colors-selected-text: #ffffff;
+  --bn-border-radius: 0.5rem;
+  --bn-font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Dark Mode Overrides */
+[data-theme="dark"] .blocknote-wrapper {
+  --bn-colors-editor-text: #f3f4f6;
+  --bn-colors-editor-background: #0f172a; /* gray-950 */
+  --bn-colors-menu-background: #1e293b; /* gray-800 */
+  --bn-colors-menu-text: #f3f4f6;
+  --bn-colors-hovered-background: #334155; /* gray-700 */
+  --bn-colors-selected-background: #0ea5e9; /* App Primary Dark */
+  --bn-colors-selected-text: #ffffff;
+  --bn-border-radius: 0.5rem;
+  --bn-font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Fix BlockNote z-index issues with sticky headers */
+.bn-side-menu,
+.bn-formatting-toolbar {
+  z-index: 30 !important;
+}

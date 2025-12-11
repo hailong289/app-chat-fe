@@ -1,13 +1,15 @@
 // src/components/docs/BlockNoteEditor.tsx
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
+import { useTheme } from "next-themes";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import * as Y from "yjs";
 import { SocketIOProvider } from "@/libs/SocketIOProvider";
+import UploadService from "@/service/uploadfile.service";
 
 export interface BlockNoteEditorProps {
   readonly onEditorReady?: (editor: any) => void;
@@ -24,14 +26,18 @@ export default function BlockNoteEditorBase({
   userName = "Anonymous",
   userColor = "#ff0000",
 }: BlockNoteEditorProps) {
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // Wait for hydration
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Create STABLE reference to fragment - CRITICAL for BlockNote to read existing data
   const fragment = useMemo(() => {
     const frag = ydoc.getXmlFragment("document-store");
-    console.log("🔍 BlockNote fragment created:", {
-      fragmentLength: frag.length,
-      fragmentType: frag.constructor.name,
-      hasData: frag.length > 0,
-    });
+
     return frag;
   }, [ydoc]);
 
@@ -46,6 +52,25 @@ export default function BlockNoteEditorBase({
           },
         }
       : undefined,
+    uploadFile: async (file: File) => {
+      try {
+        console.log("📤 Uploading file:", file.name);
+        const response = await UploadService.uploadSingle(file, "docs");
+        const data = response.data as any;
+        const url = data?.metadata?.url || data?.url;
+
+        if (url) {
+          console.log("✅ File uploaded:", url);
+          return url;
+        } else {
+          console.error("❌ Upload response missing URL:", data);
+          return "";
+        }
+      } catch (error) {
+        console.error("❌ Upload failed:", error);
+        return "";
+      }
+    },
   });
 
   useEffect(() => {
@@ -57,12 +82,7 @@ export default function BlockNoteEditorBase({
   // DEBUG: Listen to Y.Doc updates to verify BlockNote is writing to it
   useEffect(() => {
     const updateHandler = (update: Uint8Array, origin: any) => {
-      console.log("🔔 Y.Doc UPDATE in BlockNoteEditor:", {
-        updateSize: update.length,
-        origin: origin?.constructor?.name || typeof origin,
-        hasProvider: !!provider,
-        providerType: provider?.constructor?.name,
-      });
+      // Debug logging removed for production
     };
 
     ydoc.on("update", updateHandler);
@@ -72,11 +92,17 @@ export default function BlockNoteEditorBase({
     };
   }, [ydoc, provider]);
 
-  console.log("🎨 BlockNote editor rendering:", {
-    hasEditor: !!editor,
-    hasProvider: !!provider,
-    fragmentLength: fragment.length,
-  });
+  if (!mounted) {
+    return null;
+  }
 
-  return <BlockNoteView editor={editor} />;
+  return (
+    <div className="blocknote-wrapper w-full h-full">
+      <BlockNoteView
+        editor={editor}
+        theme={resolvedTheme === "dark" ? "dark" : "light"}
+        className="min-h-[500px]"
+      />
+    </div>
+  );
 }

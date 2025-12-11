@@ -18,9 +18,9 @@ function parseYjsSnapshot(snapshot: any): Uint8Array | null {
       isArray: Array.isArray(snapshot),
       isUint8Array: snapshot instanceof Uint8Array,
       isArrayBuffer: snapshot instanceof ArrayBuffer,
-      hasDataProperty: snapshot.data !== undefined,
-      hasTypeProperty: snapshot.type !== undefined,
-      structureType: snapshot.type,
+      hasDataProperty: snapshot?.data !== undefined,
+      hasTypeProperty: snapshot?.type !== undefined,
+      structureType: snapshot?.type,
     });
 
     if (snapshot instanceof Uint8Array) {
@@ -136,7 +136,7 @@ export function useDocumentSync({
         hasSnapshot: !!data.yjsSnapshot,
         snapshotType: data.yjsSnapshot ? typeof data.yjsSnapshot : "none",
         snapshotStructure: data.yjsSnapshot
-          ? (data.yjsSnapshot as any).type || "raw"
+          ? (data.yjsSnapshot as any)?.type || "raw"
           : "none",
         plainText: data.plainText,
       });
