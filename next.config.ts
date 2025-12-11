@@ -3,6 +3,27 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: false, // Disabled for React 19 / Next 15 BlockNote compatibility
   // Removed 'output: standalone' - using standard build for Docker
+
+  // Transpile BlockNote packages for compatibility
+  transpilePackages: [
+    "@blocknote/core",
+    "@blocknote/react",
+    "@blocknote/mantine",
+  ],
+
+  webpack: (config, { isServer }) => {
+    // Fix for BlockNote with webpack/turbopack
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+      };
+    }
+    return config;
+  },
+
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL,
