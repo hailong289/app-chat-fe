@@ -1,10 +1,14 @@
-"use client";
-import { DocSocketProvider } from "@/components/providers/DocSocketProvider";
+import type { Metadata } from "next";
 
-export default function DocsLayout({
+export const metadata: Metadata = {
+  title: "Tài liệu- Ichat",
+  description: "Bạn bè trên Ichat",
+};
+
+export default function ChatLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
-  return <DocSocketProvider>{children}</DocSocketProvider>;
+}) {
+  return children;
 }

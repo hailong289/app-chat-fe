@@ -1,200 +1,204 @@
 "use client";
-import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useParams } from "next/navigation";
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
 import { useDocSocket } from "@/hooks/useDocSocket";
-import { useDocumentSync } from "@/hooks/useDocumentSync";
 import useAuthStore from "@/store/useAuthStore";
-import { DynamicEditor } from "@/components/docs/DynamicEditor";
-import * as Y from "yjs";
-import {
-  Avatar,
-  AvatarGroup,
-  Button,
-  Chip,
-  Tooltip,
-  Spinner,
-  Card,
-  CardBody,
-} from "@heroui/react";
-import {
-  ChevronLeftIcon,
-  CheckCircleIcon,
-  SignalIcon,
-  SignalSlashIcon,
-  UserGroupIcon,
-} from "@heroicons/react/24/outline";
+import Link from "next/link";
+
+const BlockNoteEditor = dynamic(
+  () => import("@/components/docs/BlockNoteEditor"),
+  { ssr: false }
+);
+
+interface DocumentMetadata {
+  _id: string;
+  ownerId: string;
+  title: string;
+  roomId: string;
+  visibility: string;
+  yjsSnapshot?: number[] | Uint8Array;
+  plainText?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface UserPresence {
+  userId: string;
+  fullname: string;
+  avatar?: string;
+  color?: string;
+  cursorPosition?: Record<string, unknown>;
+  isTyping?: boolean;
+}
 
 export default function DocumentEditorPage() {
   const params = useParams();
-  const router = useRouter();
   const docId = params?.id as string;
   const { socket, status } = useDocSocket();
   const currentUser = useAuthStore((s) => s.user);
+  const [editor, setEditor] = useState<any>(null);
+  const [document, setDocument] = useState<DocumentMetadata | null>(null);
+  const [usersPresence, setUsersPresence] = useState<Map<string, UserPresence>>(
+    new Map()
+  );
 
-  // Create Y.Doc instance (stable reference)
-  const [ydoc] = useState(() => new Y.Doc());
+  // Open document và nhận metadata
+  useEffect(() => {
+    if (!docId || !socket || status !== "connected" || !currentUser) return;
 
-  // Use centralized document sync hook
-  const { document, usersPresence, provider, isRoomJoined, isSnapshotApplied } =
-    useDocumentSync({
-      docId,
-      socket,
-      ydoc,
-      enabled: status === "connected" && !!currentUser,
+    socket.emit("doc:open", { docId }, (response: any) => {
+      if (response?.ok && response?.document) {
+        setDocument(response.document);
+      }
     });
 
-  const isLoading = !document || !isSnapshotApplied;
-  const activeUsers = Array.from(usersPresence.values());
-  const otherUsers = activeUsers.filter((u) => u.userId !== currentUser?._id);
+    return () => {
+      socket.emit("doc:close", { docId });
+    };
+  }, [docId, socket, status, currentUser]);
 
-  if (isLoading) {
+  // Lắng nghe user presence events
+  useEffect(() => {
+    if (!socket || !docId) return;
+
+    const handleUserJoined = (data: {
+      userId: string;
+      fullname: string;
+      avatar?: string;
+    }) => {
+      setUsersPresence((prev) => {
+        const updated = new Map(prev);
+        updated.set(data.userId, {
+          userId: data.userId,
+          fullname: data.fullname,
+          avatar: data.avatar,
+        });
+        return updated;
+      });
+    };
+
+    const handleUserLeft = (data: { userId: string; fullname: string }) => {
+      setUsersPresence((prev) => {
+        const updated = new Map(prev);
+        updated.delete(data.userId);
+        return updated;
+      });
+    };
+
+    socket.on("user:joined", handleUserJoined);
+    socket.on("user:left", handleUserLeft);
+
+    return () => {
+      socket.off("user:joined", handleUserJoined);
+      socket.off("user:left", handleUserLeft);
+    };
+  }, [socket, docId]);
+
+  if (!document) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 gap-4">
-        <Spinner size="lg" color="primary" />
-        <p className="text-gray-500 dark:text-gray-400 animate-pulse">
-          {!document ? "Loading document..." : "Syncing editor..."}
-        </p>
+      <div className="p-8 text-center">
+        <div className="inline-block">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+          <p className="mt-4">Loading document...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
-      {/* Navbar / Header */}
-      <header className="sticky top-0 z-40 w-full backdrop-blur-lg bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-800 transition-all">
-        <div className="max-w-screen-2xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-          {/* Left: Navigation & Title */}
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <Button
-              isIconOnly
-              variant="light"
-              radius="full"
-              onPress={() => router.push("/docs")}
-              className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-            >
-              <ChevronLeftIcon className="w-5 h-5" />
-            </Button>
-
-            <div className="flex flex-col min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-gray-900 dark:text-white truncate max-w-[200px] sm:max-w-md">
-                  {document.title}
-                </h1>
-                <Chip
-                  size="sm"
-                  variant="flat"
-                  color={status === "connected" ? "success" : "danger"}
-                  startContent={
-                    status === "connected" ? (
-                      <SignalIcon className="w-3 h-3" />
-                    ) : (
-                      <SignalSlashIcon className="w-3 h-3" />
-                    )
-                  }
-                  className="hidden sm:flex h-6 px-2 gap-1"
-                >
-                  {status === "connected" ? "Online" : "Offline"}
-                </Chip>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 truncate">
-                Last edited just now
-                <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600 mx-1" />
-                {activeUsers.length} active
-              </p>
-            </div>
-          </div>
-
-          {/* Right: Actions & Presence */}
-          <div className="flex items-center gap-4">
-            {/* Active Users Avatars */}
-            <div className="hidden sm:flex items-center">
-              <AvatarGroup
-                max={4}
-                total={activeUsers.length > 4 ? activeUsers.length : undefined}
-                size="sm"
-                isBordered
+    <div className="min-h-screen bg-white">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="border-b bg-gray-50 p-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-4">
+              <Link
+                href="/docs"
+                className="text-gray-600 hover:text-gray-900 transition"
               >
-                {/* Current User */}
-                <Tooltip content="You">
-                  <Avatar
-                    src={currentUser?.avatar}
-                    name={currentUser?.fullname?.[0]}
-                    className="ring-2 ring-offset-2 ring-blue-500"
-                    color="primary"
-                  />
-                </Tooltip>
+                ← Back to Documents
+              </Link>
+              <div>
+                <h1 className="text-3xl font-bold">{document.title}</h1>
+                <p className="text-sm text-gray-500 mt-1">
+                  Document ID: {docId}
+                </p>
+              </div>
+            </div>
 
-                {/* Other Users */}
-                {otherUsers.map((user) => (
-                  <Tooltip
-                    key={user.userId}
-                    content={
-                      <div className="px-1 py-0.5">
-                        <div className="font-bold text-xs">{user.fullname}</div>
-                        {user.isTyping && (
-                          <div className="text-[10px] text-blue-400 animate-pulse">
-                            Typing...
-                          </div>
-                        )}
-                      </div>
-                    }
-                  >
-                    <Avatar
-                      src={user.avatar}
-                      name={user.fullname?.[0]}
+            {/* Active Users */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">
+                Active users: {usersPresence.size + 1}
+              </span>
+              <div className="flex -space-x-2">
+                {Array.from(usersPresence.values())
+                  .slice(0, 3)
+                  .map((user) => (
+                    <div
+                      key={user.userId}
+                      className="w-8 h-8 rounded-full bg-gray-300 border-2 border-white flex items-center justify-center text-xs font-bold"
                       style={{
-                        backgroundColor: user.color,
-                        borderColor: user.isTyping ? "#3b82f6" : undefined,
+                        backgroundColor: user.color || "#ccc",
                       }}
-                      className={
-                        user.isTyping
-                          ? "animate-pulse ring-2 ring-blue-400"
-                          : ""
-                      }
-                    />
-                  </Tooltip>
-                ))}
-              </AvatarGroup>
+                      title={user.fullname}
+                    >
+                      {user.fullname[0]}
+                    </div>
+                  ))}
+                <div className="w-8 h-8 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center text-xs font-bold text-white">
+                  {currentUser?.fullname?.[0] || "?"}
+                </div>
+              </div>
             </div>
-
-            {/* Mobile User Count */}
-            <div className="sm:hidden flex items-center gap-1 text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full text-xs font-medium">
-              <UserGroupIcon className="w-4 h-4" />
-              {activeUsers.length}
-            </div>
-
-            <Button
-              color="primary"
-              variant="solid"
-              size="sm"
-              className="font-medium shadow-lg shadow-blue-500/20"
-              startContent={<CheckCircleIcon className="w-4 h-4" />}
-            >
-              Share
-            </Button>
           </div>
         </div>
-      </header>
 
-      {/* Main Editor Area */}
-      <main className="flex-1 w-full max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
-        <Card className="min-h-[calc(100vh-8rem)] shadow-sm border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-          <CardBody className="p-0">
-            <div className="editor-wrapper h-full min-h-[500px] p-4 sm:p-8 lg:p-12">
-              <DynamicEditor
-                key={document._id}
-                ydoc={ydoc}
-                provider={provider}
-                userName={currentUser?.fullname || "Anonymous"}
-                userColor={
-                  activeUsers.find((u) => u.userId === currentUser?._id)
-                    ?.color || "#0066ff"
-                }
-              />
+        {/* Editor */}
+        <div className="p-8">
+          <div className="border rounded-lg overflow-hidden shadow-sm">
+            <BlockNoteEditor
+              onEditorReady={setEditor}
+              docId={docId}
+              socket={socket}
+              userName={currentUser?.fullname || "Anonymous"}
+              userColor="#0066ff"
+              initialYjsSnapshot={document.yjsSnapshot}
+            />
+          </div>
+        </div>
+
+        {/* Users List */}
+        <div className="border-t bg-gray-50 p-4">
+          <h3 className="font-semibold mb-2">Active Users</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {/* Current User */}
+            <div className="text-sm p-2 bg-blue-100 rounded">
+              <div className="font-medium">{currentUser?.fullname}</div>
+              <div className="text-xs text-gray-600">You</div>
             </div>
-          </CardBody>
-        </Card>
-      </main>
+
+            {/* Other Users */}
+            {Array.from(usersPresence.values()).map((user) => (
+              <div
+                key={user.userId}
+                className="text-sm p-2 bg-gray-100 rounded"
+              >
+                <div className="font-medium" style={{ color: user.color }}>
+                  {user.fullname}
+                  {user.isTyping && (
+                    <span className="ml-2 text-xs">
+                      <span className="animate-pulse">✏️ typing...</span>
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-gray-600">{user.userId}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
