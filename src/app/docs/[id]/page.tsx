@@ -1,13 +1,27 @@
 "use client";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDocSocket } from "@/hooks/useDocSocket";
-import { useDocumentSync } from "@/hooks/useDocumentSync";
 import useAuthStore from "@/store/useAuthStore";
 import Link from "next/link";
-import { DynamicEditor } from "@/components/docs/DynamicEditor";
-import * as Y from "yjs";
+
+const BlockNoteEditor = dynamic(
+  () => import("@/components/docs/BlockNoteEditor"),
+  { ssr: false }
+);
+
+interface DocumentMetadata {
+  _id: string;
+  ownerId: string;
+  title: string;
+  roomId: string;
+  visibility: string;
+  yjsSnapshot?: number[] | Uint8Array;
+  plainText?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 interface UserPresence {
   userId: string;
@@ -23,27 +37,70 @@ export default function DocumentEditorPage() {
   const docId = params?.id as string;
   const { socket, status } = useDocSocket();
   const currentUser = useAuthStore((s) => s.user);
+  const [editor, setEditor] = useState<any>(null);
+  const [document, setDocument] = useState<DocumentMetadata | null>(null);
+  const [usersPresence, setUsersPresence] = useState<Map<string, UserPresence>>(
+    new Map()
+  );
 
-  // Create Y.Doc instance (stable reference)
-  const [ydoc] = useState(() => new Y.Doc());
+  // Open document và nhận metadata
+  useEffect(() => {
+    if (!docId || !socket || status !== "connected" || !currentUser) return;
 
-  // Use centralized document sync hook
-  const { document, usersPresence, provider, isRoomJoined, isSnapshotApplied } =
-    useDocumentSync({
-      docId,
-      socket,
-      ydoc,
-      enabled: status === "connected" && !!currentUser,
+    socket.emit("doc:open", { docId }, (response: any) => {
+      if (response?.ok && response?.document) {
+        setDocument(response.document);
+      }
     });
 
-  if (!document || !isSnapshotApplied) {
+    return () => {
+      socket.emit("doc:close", { docId });
+    };
+  }, [docId, socket, status, currentUser]);
+
+  // Lắng nghe user presence events
+  useEffect(() => {
+    if (!socket || !docId) return;
+
+    const handleUserJoined = (data: {
+      userId: string;
+      fullname: string;
+      avatar?: string;
+    }) => {
+      setUsersPresence((prev) => {
+        const updated = new Map(prev);
+        updated.set(data.userId, {
+          userId: data.userId,
+          fullname: data.fullname,
+          avatar: data.avatar,
+        });
+        return updated;
+      });
+    };
+
+    const handleUserLeft = (data: { userId: string; fullname: string }) => {
+      setUsersPresence((prev) => {
+        const updated = new Map(prev);
+        updated.delete(data.userId);
+        return updated;
+      });
+    };
+
+    socket.on("user:joined", handleUserJoined);
+    socket.on("user:left", handleUserLeft);
+
+    return () => {
+      socket.off("user:joined", handleUserJoined);
+      socket.off("user:left", handleUserLeft);
+    };
+  }, [socket, docId]);
+
+  if (!document) {
     return (
-      <div className="p-8 bg-white text-center">
+      <div className="p-8 text-center">
         <div className="inline-block">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
-          <p className="mt-4">
-            {!document ? "Loading document..." : "Preparing editor..."}
-          </p>
+          <p className="mt-4">Loading document...</p>
         </div>
       </div>
     );
@@ -53,7 +110,7 @@ export default function DocumentEditorPage() {
     <div className="min-h-screen bg-white">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="border-b  p-4">
+        <div className="border-b bg-gray-50 p-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
               <Link
@@ -101,18 +158,19 @@ export default function DocumentEditorPage() {
         {/* Editor */}
         <div className="p-8">
           <div className="border rounded-lg overflow-hidden shadow-sm">
-            <DynamicEditor
-              key={document._id}
-              ydoc={ydoc}
-              provider={provider}
+            <BlockNoteEditor
+              onEditorReady={setEditor}
+              docId={docId}
+              socket={socket}
               userName={currentUser?.fullname || "Anonymous"}
               userColor="#0066ff"
+              initialYjsSnapshot={document.yjsSnapshot}
             />
           </div>
         </div>
 
         {/* Users List */}
-        <div className="border-t  p-4">
+        <div className="border-t bg-gray-50 p-4">
           <h3 className="font-semibold mb-2">Active Users</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {/* Current User */}
