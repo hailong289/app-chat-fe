@@ -18,9 +18,9 @@ function parseYjsSnapshot(snapshot: any): Uint8Array | null {
       isArray: Array.isArray(snapshot),
       isUint8Array: snapshot instanceof Uint8Array,
       isArrayBuffer: snapshot instanceof ArrayBuffer,
-      hasDataProperty: snapshot.data !== undefined,
-      hasTypeProperty: snapshot.type !== undefined,
-      structureType: snapshot.type,
+      hasDataProperty: snapshot?.data !== undefined,
+      hasTypeProperty: snapshot?.type !== undefined,
+      structureType: snapshot?.type,
     });
 
     if (snapshot instanceof Uint8Array) {
@@ -113,6 +113,7 @@ interface UseDocumentSyncOptions {
 
 interface UseDocumentSyncReturn {
   document: DocumentMetadata | null;
+  setDocument: React.Dispatch<React.SetStateAction<DocumentMetadata | null>>;
   usersPresence: Map<string, UserPresence>;
   provider: SocketIOProvider | null;
   isRoomJoined: boolean;
@@ -154,9 +155,7 @@ export function useDocumentSync({
       console.log("📋 Document data received:", {
         hasSnapshot: !!data.yjsSnapshot,
         snapshotType: data.yjsSnapshot ? typeof data.yjsSnapshot : "none",
-        snapshotStructure: data.yjsSnapshot
-          ? (data.yjsSnapshot as any).type || "raw"
-          : "none",
+        snapshotStructure: (data.yjsSnapshot as any)?.type || "raw",
         plainText: data.plainText,
       });
 
@@ -314,6 +313,7 @@ export function useDocumentSync({
   console.log("🚀 ~ useDocumentSync ~ document:", document);
   return {
     document,
+    setDocument,
     usersPresence,
     provider,
     isRoomJoined,

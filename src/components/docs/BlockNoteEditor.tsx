@@ -4,6 +4,7 @@
 import { useEffect, useMemo } from "react";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
+import { useTheme } from "next-themes";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { Doc } from "yjs";
@@ -24,12 +25,14 @@ export default function BlockNoteEditorBase({
   userName = "Anonymous",
   userColor = "#ff0000",
 }: BlockNoteEditorProps) {
+  const { resolvedTheme } = useTheme();
+
   // Create STABLE reference to fragment - CRITICAL for BlockNote to read existing data
   const fragment = useMemo(() => {
     const frag = ydoc.getXmlFragment("document-store");
     console.log("🔍 BlockNote fragment created:", {
       fragmentLength: frag.length,
-      fragmentType: frag.constructor.name,
+      fragmentType: frag.constructor?.name,
       hasData: frag.length > 0,
     });
     return frag;
@@ -74,7 +77,14 @@ export default function BlockNoteEditorBase({
     hasEditor: !!editor,
     hasProvider: !!provider,
     fragmentLength: fragment.length,
+    theme: resolvedTheme,
   });
 
-  return <BlockNoteView editor={editor} />;
+  return (
+    <BlockNoteView
+      editor={editor}
+      theme={resolvedTheme === "dark" ? "dark" : "light"}
+      className="min-h-[500px]"
+    />
+  );
 }
