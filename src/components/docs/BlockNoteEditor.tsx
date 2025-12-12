@@ -9,6 +9,7 @@ import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { Doc } from "yjs";
 import { SocketIOProvider } from "@/libs/SocketIOProvider";
+import UploadService from "@/service/uploadfile.service";
 
 export interface BlockNoteEditorProps {
   readonly onEditorReady?: (editor: any) => void;
@@ -16,6 +17,7 @@ export interface BlockNoteEditorProps {
   readonly provider: SocketIOProvider | null;
   readonly userName?: string;
   readonly userColor?: string;
+  readonly userAvatar?: string;
 }
 
 export default function BlockNoteEditorBase({
@@ -24,6 +26,7 @@ export default function BlockNoteEditorBase({
   provider,
   userName = "Anonymous",
   userColor = "#ff0000",
+  userAvatar,
 }: BlockNoteEditorProps) {
   const { resolvedTheme } = useTheme();
 
@@ -39,12 +42,35 @@ export default function BlockNoteEditorBase({
   }, [ydoc]);
 
   const editor = useCreateBlockNote({
+    uploadFile: async (file: File) => {
+      try {
+        console.log("📤 Uploading file:", file.name);
+        const response = await UploadService.uploadSingle(file, "docs");
+        // The API returns { metadata: { url: ... } } but typed as UploadSingleResp in service
+        // We cast to any to safely access metadata based on actual API response structure
+        const data = response.data as any;
+        const url = data.metadata?.url || data.url;
+
+        if (!url) {
+          throw new Error("No URL returned from upload API");
+        }
+
+        console.log("✅ File uploaded:", url);
+        return url;
+      } catch (error) {
+        console.error("❌ Upload failed:", error);
+        // Return empty string or throw to indicate failure
+        throw error;
+      }
+    },
     collaboration: {
       provider: provider || undefined,
       fragment, // Use stable fragment reference
       user: {
         name: userName,
         color: userColor,
+        // @ts-ignore - BlockNote types might not explicitly include avatar yet, but it's often supported in custom implementations or newer versions
+        avatar: userAvatar,
       },
     },
   });

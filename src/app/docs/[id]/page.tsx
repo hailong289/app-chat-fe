@@ -482,6 +482,7 @@ export default function DocumentEditorPage() {
                   activeUsers.find((u) => u.userId === currentUser?._id)
                     ?.color || "#0066ff"
                 }
+                userAvatar={currentUser?.avatar}
               />
             </div>
           </CardBody>

@@ -230,7 +230,7 @@ export class SocketIOProvider {
         this.socket.emit("doc:cursor", {
           docId: this.docId,
           cursorPosition: localState.cursor || {},
-          // We can also send user info if needed, but backend seems to handle it
+          userInfo: localState.user, // Send user info (including avatar) to server
         });
       }
     });
@@ -243,6 +243,8 @@ export class SocketIOProvider {
         fullname: string;
         cursorPosition: Record<string, unknown>;
         color: string;
+        avatar?: string; // Add avatar to type
+        userInfo?: { avatar?: string }; // Handle nested userInfo if backend relays it
       }) => {
         // Convert userId to a numeric clientID for Yjs Awareness
         const clientId = this.getNumericClientId(data.userId);
@@ -252,6 +254,7 @@ export class SocketIOProvider {
           user: {
             name: data.fullname,
             color: data.color,
+            avatar: data.avatar || data.userInfo?.avatar, // Try to get avatar
           },
           cursor: data.cursorPosition,
         };
