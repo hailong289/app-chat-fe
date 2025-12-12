@@ -5,11 +5,7 @@ import { useEffect, useState } from "react";
 import { useDocSocket } from "@/hooks/useDocSocket";
 import useAuthStore from "@/store/useAuthStore";
 import Link from "next/link";
-
-const BlockNoteEditor = dynamic(
-  () => import("@/components/docs/BlockNoteEditor"),
-  { ssr: false }
-);
+import { DynamicEditor } from "@/components/docs/DynamicEditor";
 
 interface DocumentMetadata {
   _id: string;
@@ -158,7 +154,7 @@ export default function DocumentEditorPage() {
         {/* Editor */}
         <div className="p-8">
           <div className="border rounded-lg overflow-hidden shadow-sm">
-            <BlockNoteEditor
+            <DynamicEditor
               onEditorReady={setEditor}
               docId={docId}
               socket={socket}
