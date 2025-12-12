@@ -2,33 +2,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import useAuthStore from "@/store/useAuthStore";
+import { Avatar, Select, SelectItem } from "@heroui/react";
+import useRoomStore from "@/store/useRoomStore";
 import useDocumentStore from "@/store/useDocumentStore";
-import {
-  Button,
-  Card,
-  CardBody,
-  CardFooter,
-  CardHeader,
-  Chip,
-  Input,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  Spinner,
-  useDisclosure,
-} from "@heroui/react";
-import {
-  PlusIcon,
-  DocumentTextIcon,
-  TrashIcon,
-  MagnifyingGlassIcon,
-  ClockIcon,
-  GlobeAltIcon,
-  LockClosedIcon,
-  UserGroupIcon,
-} from "@heroicons/react/24/outline";
 
 export default function DocumentsListPage() {
   const router = useRouter();
@@ -42,26 +18,28 @@ export default function DocumentsListPage() {
     deleteDocument,
   } = useDocumentStore();
 
-  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [newDocTitle, setNewDocTitle] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedRoomId, setSelectedRoomId] = useState<string>("");
 
   // Load documents
   useEffect(() => {
     loadDocuments();
   }, []);
 
-  const handleCreateDocument = async (onClose: () => void) => {
+  const handleCreateDocument = async () => {
     if (!newDocTitle.trim()) return;
 
     const newDoc = await createDocument({
       title: newDocTitle.trim(),
       visibility: "private",
+      roomId: selectedRoomId || undefined,
     });
 
     if (newDoc) {
-      onClose();
+      setShowCreateModal(false);
       setNewDocTitle("");
+      setSelectedRoomId("");
       router.push(`/docs/${newDoc._id}`);
     }
   };
@@ -71,205 +49,187 @@ export default function DocumentsListPage() {
     await deleteDocument(docId);
   };
 
-  const filteredDocuments = documents.filter((doc) =>
-    doc.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   if (loading) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-950 gap-4">
-        <Spinner size="lg" color="primary" />
-        <p className="text-gray-500 dark:text-gray-400 animate-pulse">
-          Loading your library...
-        </p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading documents...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto py-8 px-4">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Documents
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">
-              Manage and collaborate on your ideas
+            <h1 className="text-4xl font-bold text-gray-900">Documents</h1>
+            <p className="text-gray-600 mt-2">
+              Manage and collaborate on your documents
             </p>
           </div>
-          <Button
-            onPress={onOpen}
-            color="primary"
-            size="lg"
-            startContent={<PlusIcon className="w-5 h-5" />}
-            className="shadow-lg shadow-blue-500/30 font-medium"
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition flex items-center gap-2"
           >
-            New Document
-          </Button>
-        </div>
-
-        {/* Search & Filter Bar */}
-        <div className="sticky top-4 z-10 bg-gray-50/80 dark:bg-gray-950/80 backdrop-blur-md py-2">
-          <Input
-            placeholder="Search documents..."
-            value={searchQuery}
-            onValueChange={setSearchQuery}
-            startContent={
-              <MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />
-            }
-            size="lg"
-            classNames={{
-              inputWrapper: "bg-white dark:bg-gray-900 shadow-sm",
-            }}
-            isClearable
-            onClear={() => setSearchQuery("")}
-          />
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Create New Document
+          </button>
         </div>
 
         {/* Documents Grid */}
-        {filteredDocuments.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center bg-white dark:bg-gray-900 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700">
-            <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-              <DocumentTextIcon className="w-10 h-10 text-gray-400" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-              {searchQuery ? "No documents found" : "No documents yet"}
+        {documents.length === 0 ? (
+          <div className="text-center py-16 bg-white rounded-lg shadow">
+            <svg
+              className="w-16 h-16 mx-auto text-gray-400 mb-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              No documents yet
             </h3>
-            <p className="text-gray-500 dark:text-gray-400 max-w-sm mb-6">
-              {searchQuery
-                ? `We couldn't find any documents matching "${searchQuery}"`
-                : "Create your first document to start writing and collaborating with your team."}
+            <p className="text-gray-600 mb-6">
+              Create your first document to get started
             </p>
-            {!searchQuery && (
-              <Button onPress={onOpen} color="primary" variant="flat">
-                Create Document
-              </Button>
-            )}
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition"
+            >
+              Create Document
+            </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredDocuments.map((doc) => (
-              <Card
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {documents.map((doc) => (
+              <div
                 key={doc._id}
-                isPressable
-                onPress={() => router.push(`/docs/${doc._id}`)}
-                className="group hover:scale-[1.02] transition-transform duration-200 border border-transparent hover:border-blue-500/30 dark:bg-gray-900"
+                className="bg-white rounded-lg shadow hover:shadow-lg transition cursor-pointer overflow-hidden group"
               >
-                <CardHeader className="flex justify-between items-start px-4 pt-4 pb-0">
-                  <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-500 mb-2">
-                    <DocumentTextIcon className="w-6 h-6" />
-                  </div>
-                  <Chip
-                    size="sm"
-                    variant="flat"
-                    color={
-                      doc.visibility === "private"
-                        ? "default"
-                        : doc.visibility === "shared"
-                        ? "secondary"
-                        : "success"
-                    }
-                    startContent={
-                      doc.visibility === "private" ? (
-                        <LockClosedIcon className="w-3 h-3" />
-                      ) : doc.visibility === "shared" ? (
-                        <UserGroupIcon className="w-3 h-3" />
-                      ) : (
-                        <GlobeAltIcon className="w-3 h-3" />
-                      )
-                    }
-                    className="capitalize"
-                  >
-                    {doc.visibility}
-                  </Chip>
-                </CardHeader>
-
-                <CardBody className="px-4 py-3">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white line-clamp-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                    {doc.title}
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 line-clamp-2 min-h-[2.5em]">
-                    {doc.plainText || "No preview available..."}
-                  </p>
-                </CardBody>
-
-                <CardFooter className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
-                  <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                    <ClockIcon className="w-3 h-3" />
-                    {new Date(
-                      doc.updatedAt || doc.createdAt || ""
-                    ).toLocaleDateString()}
+                <button
+                  onClick={() => router.push(`/docs/${doc._id}`)}
+                  className="p-6"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <h3 className="text-xl font-semibold text-gray-900 group-hover:text-blue-600 transition">
+                        {doc.title}
+                      </h3>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {new Date(
+                          doc.updatedAt || doc.createdAt || ""
+                        ).toLocaleDateString()}
+                      </p>
+                    </div>
+                    {(() => {
+                      let visibilityClass = "";
+                      if (doc.visibility === "private") {
+                        visibilityClass = "bg-gray-100 text-gray-700";
+                      } else if (doc.visibility === "shared") {
+                        visibilityClass = "bg-blue-100 text-blue-700";
+                      } else {
+                        visibilityClass = "bg-green-100 text-green-700";
+                      }
+                      return (
+                        <span
+                          className={`px-2 py-1 text-xs rounded-full ${visibilityClass}`}
+                        >
+                          {doc.visibility}
+                        </span>
+                      );
+                    })()}
                   </div>
 
+                  {doc.plainText && (
+                    <p className="text-gray-600 text-sm line-clamp-3">
+                      {doc.plainText}
+                    </p>
+                  )}
+                </button>
+
+                <div className="bg-gray-50 px-6 py-3 flex justify-between items-center border-t">
+                  <span className="text-xs text-gray-500">
+                    {doc.ownerId === currentUser?._id ? "Owner" : "Shared"}
+                  </span>
                   {doc.ownerId === currentUser?._id && (
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      color="danger"
-                      variant="light"
-                      onPress={(e) => {
-                        // e.stopPropagation(); // Card isPressable handles click, need to stop propagation?
-                        // HeroUI Card isPressable might conflict, but let's try standard button behavior
-                        // Actually, onPress on Button should capture it.
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
                         handleDeleteDocument(doc._id);
                       }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="text-red-600 hover:text-red-800 text-sm font-medium transition"
                     >
-                      <TrashIcon className="w-4 h-4" />
-                    </Button>
+                      Delete
+                    </button>
                   )}
-                </CardFooter>
-              </Card>
+                </div>
+              </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Create Document Modal */}
-      <Modal
-        isOpen={isOpen}
-        onOpenChange={onOpenChange}
-        placement="center"
-        backdrop="blur"
-      >
-        <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader className="flex flex-col gap-1">
-                Create New Document
-              </ModalHeader>
-              <ModalBody>
-                <Input
-                  autoFocus
-                  label="Document Title"
-                  placeholder="Enter a title for your document"
-                  variant="bordered"
-                  value={newDocTitle}
-                  onValueChange={setNewDocTitle}
-                  startContent={
-                    <DocumentTextIcon className="w-4 h-4 text-gray-400" />
-                  }
-                />
-              </ModalBody>
-              <ModalFooter>
-                <Button color="danger" variant="light" onPress={onClose}>
-                  Cancel
-                </Button>
-                <Button
-                  color="primary"
-                  onPress={() => handleCreateDocument(onClose)}
-                  isLoading={creating}
-                  isDisabled={!newDocTitle.trim()}
+      {/* Create Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6 flex flex-col gap-2">
+              <h2 className="text-2xl font-bold mb-4">Create New Document</h2>
+              <input
+                type="text"
+                value={newDocTitle}
+                onChange={(e) => setNewDocTitle(e.target.value)}
+                placeholder="tên tài liệu"
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreateDocument();
+                  if (e.key === "Escape") setShowCreateModal(false);
+                }}
+              />
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg font-medium transition"
+                  disabled={creating}
                 >
-                  Create
-                </Button>
-              </ModalFooter>
-            </>
-          )}
-        </ModalContent>
-      </Modal>
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateDocument}
+                  disabled={!newDocTitle.trim() || creating}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {creating ? "Creating..." : "Create"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
