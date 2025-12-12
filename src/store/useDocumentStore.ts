@@ -10,7 +10,9 @@ interface DocumentState {
   creating: boolean;
 
   loadDocuments: (roomId?: string) => Promise<void>;
+  getDocument: (docId: string) => Promise<Document | null>;
   createDocument: (data: CreateDocumentDto) => Promise<Document | null>;
+  duplicateDocument: (docId: string) => Promise<Document | null>;
   deleteDocument: (docId: string) => Promise<void>;
   updateDocumentContent: (
     docId: string,
@@ -20,10 +22,10 @@ interface DocumentState {
     docId: string,
     shareUserId: string,
     role?: string
-  ) => Promise<void>;
-  unshareDocument: (docId: string, shareUserId: string) => Promise<void>;
-  updateTitle: (docId: string, title: string) => Promise<void>;
-  updateVisibility: (docId: string, visibility: string) => Promise<void>;
+  ) => Promise<Document | null>;
+  unshareDocument: (docId: string, shareUserId: string) => Promise<Document | null>;
+  updateTitle: (docId: string, title: string) => Promise<Document | null>;
+  updateVisibility: (docId: string, visibility: string) => Promise<Document | null>;
 }
 
 const useDocumentStore = create<DocumentState>((set) => ({
@@ -43,6 +45,30 @@ const useDocumentStore = create<DocumentState>((set) => ({
     }
   },
 
+  getDocument: async (docId) => {
+    try {
+      const doc = await documentService.getDocument(docId);
+      // Optionally update the list if the document exists in it
+      set((state) => {
+        const exists = state.documents.find((d) => d._id === docId);
+        if (exists) {
+          return {
+            documents: state.documents.map((d) =>
+              d._id === docId ? doc : d
+            ),
+          };
+        }
+        // If we want to add it to the list even if not loaded via loadDocuments:
+        // return { documents: [...state.documents, doc] };
+        return {};
+      });
+      return doc;
+    } catch (error) {
+      console.error("Failed to get document:", error);
+      return null;
+    }
+  },
+
   createDocument: async (data) => {
     set({ creating: true });
     try {
@@ -54,6 +80,17 @@ const useDocumentStore = create<DocumentState>((set) => ({
       return null;
     } finally {
       set({ creating: false });
+    }
+  },
+
+  duplicateDocument: async (docId) => {
+    try {
+      const newDoc = await documentService.duplicateDocument(docId);
+      set((state) => ({ documents: [newDoc, ...state.documents] }));
+      return newDoc;
+    } catch (error) {
+      console.error("Failed to duplicate document:", error);
+      return null;
     }
   },
 
@@ -88,8 +125,10 @@ const useDocumentStore = create<DocumentState>((set) => ({
           d._id === docId ? updatedDoc : d
         ),
       }));
+      return updatedDoc;
     } catch (error) {
       console.error("Failed to share document:", error);
+      return null;
     }
   },
 
@@ -104,8 +143,10 @@ const useDocumentStore = create<DocumentState>((set) => ({
           d._id === docId ? updatedDoc : d
         ),
       }));
+      return updatedDoc;
     } catch (error) {
       console.error("Failed to unshare document:", error);
+      return null;
     }
   },
 
@@ -117,8 +158,10 @@ const useDocumentStore = create<DocumentState>((set) => ({
           d._id === docId ? updatedDoc : d
         ),
       }));
+      return updatedDoc;
     } catch (error) {
       console.error("Failed to update title:", error);
+      return null;
     }
   },
 
@@ -133,8 +176,10 @@ const useDocumentStore = create<DocumentState>((set) => ({
           d._id === docId ? updatedDoc : d
         ),
       }));
+      return updatedDoc;
     } catch (error) {
       console.error("Failed to update visibility:", error);
+      return null;
     }
   },
 }));

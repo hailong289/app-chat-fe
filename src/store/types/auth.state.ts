@@ -22,6 +22,7 @@ export interface AuthState {
   setAuth: (isAuthenticated: boolean) => void;
   forgotPassword: (payload: ForgotPasswordPayload) => void;
   resetPassword: (payload: ResetPasswordPayload) => void;
-  //   refreshAccessToken: () => Promise<string | null>;
-  //   getValidAccessToken: () => Promise<string | null>;
+  refreshToken: () => Promise<void>;
+  // refreshAccessToken: () => Promise<string | null>;
+  // getValidAccessToken: () => Promise<string | null>;
 }

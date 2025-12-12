@@ -98,6 +98,13 @@ class DocumentService {
     );
     return response.data.metadata;
   }
+
+  async duplicateDocument(docId: string) {
+    const response = await apiService.post<{ metadata: Document }>(
+      `${this.baseUrl}/${docId}/duplicate`
+    );
+    return response.data.metadata;
+  }
 }
 
 export default new DocumentService();

@@ -34,7 +34,7 @@ export default function ShareModal({
   onClose,
   document,
   onUpdate,
-}: ShareModalProps) {
+}: Readonly<ShareModalProps>) {
   const { t } = useTranslation();
   const { shareDocument, unshareDocument, updateVisibility } =
     useDocumentStore();
@@ -70,9 +70,11 @@ export default function ShareModal({
   const handleVisibilityChange = async (newVisibility: string) => {
     setLoading(true);
     try {
-      await updateVisibility(document._id, newVisibility);
-      setVisibility(newVisibility);
-      onUpdate({ ...document, visibility: newVisibility });
+      const updatedDoc = await updateVisibility(document._id, newVisibility);
+      if (updatedDoc) {
+        setVisibility(newVisibility);
+        onUpdate(updatedDoc);
+      }
     } catch (error) {
       console.error("Failed to update visibility", error);
     } finally {
@@ -83,25 +85,7 @@ export default function ShareModal({
   const handleShare = async (userId: string, role: string = "editor") => {
     setLoading(true);
     try {
-      await shareDocument(document._id, userId, role);
-      // Optimistic update or fetch fresh?
-      // The store action updates the list, but we need the updated document object with sharedWith populated.
-      // The store action returns void but updates the store state.
-      // We might need to fetch the document again or assume the store action logic.
-      // Actually, looking at useDocumentStore, it updates the local list with the result from service.
-      // But here we are in a modal, we need the updated doc to show the list.
-      // Let's assume onUpdate should be called with the new doc.
-      // I should modify useDocumentStore to return the updated doc or I can fetch it.
-      // For now, I'll fetch it or rely on the fact that I can construct the new state if I knew the user details.
-      // Better: modify useDocumentStore to return the updated doc.
-
-      // Re-fetching for safety for now, or better yet, let's update useDocumentStore to return the doc.
-      // I'll do that in a separate step if needed. For now, I'll assume I need to reload or the parent handles it.
-      // Wait, useDocumentStore updates the `documents` array.
-      // I can get the updated doc from the store if I have access to it.
-      const updatedDoc = useDocumentStore
-        .getState()
-        .documents.find((d) => d._id === document._id);
+      const updatedDoc = await shareDocument(document._id, userId, role);
       if (updatedDoc) {
         onUpdate(updatedDoc);
       }
@@ -116,10 +100,7 @@ export default function ShareModal({
   const handleUnshare = async (userId: string) => {
     setLoading(true);
     try {
-      await unshareDocument(document._id, userId);
-      const updatedDoc = useDocumentStore
-        .getState()
-        .documents.find((d) => d._id === document._id);
+      const updatedDoc = await unshareDocument(document._id, userId);
       if (updatedDoc) {
         onUpdate(updatedDoc);
       }

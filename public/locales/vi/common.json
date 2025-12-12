@@ -5,12 +5,64 @@
     "success": "Thành công",
     "cancel": "Hủy",
     "confirm": "Xác nhận",
+    "confirmDelete": "Xác nhận xóa",
     "save": "Lưu",
     "delete": "Xóa",
     "edit": "Sửa",
     "search": "Tìm kiếm",
     "send": "Gửi",
-    "or": "Hoặc"
+    "or": "Hoặc",
+    "ok": "Đồng ý"
+  },
+  "docs": {
+    "renameSuccess": "Đổi tên tài liệu thành công",
+    "renameError": "Đổi tên tài liệu thất bại",
+    "deleteSuccess": "Đã xóa tài liệu",
+    "deleteError": "Xóa tài liệu thất bại",
+    "copySuccess": "Đã tạo bản sao",
+    "copyError": "Tạo bản sao thất bại",
+    "status": {
+      "saved": "Đã lưu",
+      "offline": "Ngoại tuyến"
+    },
+    "menu": {
+      "file": {
+        "title": "Tệp",
+        "copy": "Tạo bản sao",
+        "download": "Tải xuống PDF",
+        "print": "In",
+        "delete": "Xóa"
+      },
+      "edit": {
+        "title": "Chỉnh sửa",
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "cut": "Cắt",
+        "copy": "Sao chép",
+        "paste": "Dán"
+      },
+      "view": {
+        "title": "Xem",
+        "mode": "Chế độ: Đang chỉnh sửa",
+        "outline": "Hiện mục lục"
+      },
+      "help": {
+        "title": "Trợ giúp",
+        "shortcuts": "Phím tắt",
+        "support": "Trợ giúp & Hỗ trợ"
+      }
+    },
+    "you": "Bạn",
+    "typing": "Đang nhập...",
+    "share": "Chia sẻ",
+    "actions": {
+      "export": "Xuất ra PDF",
+      "delete": "Xóa tài liệu"
+    },
+    "deleteModal": {
+      "title": "Xóa tài liệu",
+      "content": "Bạn có chắc chắn muốn xóa {{title}}? Hành động này không thể hoàn tác."
+    }
   },
   "auth": {
     "login": {
@@ -313,6 +365,35 @@
       }
     },
     "user": "Người dùng"
+  },
+  "documents": {
+    "title": "Tài liệu",
+    "subtitle": "Quản lý và cộng tác trên tài liệu của bạn",
+    "search": "Tìm kiếm tài liệu",
+    "create": "Tạo mới",
+    "createNew": "Tạo tài liệu mới",
+    "loading": "Đang tải tài liệu...",
+    "empty": {
+      "title": "Chưa có tài liệu nào",
+      "desc": "Tạo tài liệu đầu tiên để bắt đầu",
+      "button": "Tạo tài liệu"
+    },
+    "visibility": {
+      "private": "Riêng tư",
+      "shared": "Đã chia sẻ",
+      "public": "Công khai"
+    },
+    "owner": "Chủ sở hữu",
+    "shared": "Được chia sẻ",
+    "delete": "Xoá",
+    "deleteConfirm": "Bạn có chắc chắn muốn xoá tài liệu này?",
+    "modal": {
+      "title": "Tạo tài liệu mới",
+      "placeholder": "Tên tài liệu",
+      "cancel": "Huỷ",
+      "create": "Tạo",
+      "creating": "Đang tạo..."
+    }
   },
   "share": {
     "title": "Chia sẻ \"{{title}}\"",

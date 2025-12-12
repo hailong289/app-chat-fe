@@ -18,12 +18,14 @@ export type DocSocketStatus =
   | "connecting"
   | "connected"
   | "disconnected"
+  | "reconnecting"
   | "error";
 
 type DocSocketCtx = {
   socket: Socket | null;
   status: DocSocketStatus;
   error: string | null;
+  reconnectCount: number;
   reconnect: () => void;
   disconnect: () => void;
 };
@@ -32,9 +34,30 @@ const DocSocketContext = createContext<DocSocketCtx>({
   socket: null,
   status: "idle",
   error: null,
+  reconnectCount: 0,
   reconnect: () => {},
   disconnect: () => {},
 });
+
+/**
+ * Tạo hoặc lấy client ID duy nhất cho sticky session
+ * Giúp load balancer route về đúng server instance
+ */
+function getOrCreateClientId(): string {
+  if (globalThis.window === undefined) return "";
+
+  const key = "doc_client_id";
+  let clientId = localStorage.getItem(key);
+
+  if (!clientId) {
+    clientId = `client_${Date.now()}_${Math.random()
+      .toString(36)
+      .substring(2, 9)}`;
+    localStorage.setItem(key, clientId);
+  }
+
+  return clientId;
+}
 
 /**
  * Lấy accessToken từ Zustand store hoặc cookie
@@ -71,7 +94,9 @@ export function DocSocketProvider({
   const [status, setStatus] = useState<DocSocketStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [reconnectCount, setReconnectCount] = useState(0);
   const socketRef = useRef<Socket | null>(null);
+  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const socketUrl =
     process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001";
@@ -79,30 +104,68 @@ export function DocSocketProvider({
   // Socket options
   const opts = useMemo(
     () => ({
+      transports: ["websocket", "polling"], // Fallback to polling if websocket fails
       auth: token ? { token } : undefined,
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
-      transports: ["websocket", "polling"],
-      timeout: 20000,
+      reconnectionAttempts: Infinity, // Thử reconnect vô hạn
+      reconnectionDelay: 1000, // Delay ban đầu 1s
+      reconnectionDelayMax: 10000, // Tối đa 10s giữa các lần thử
+      timeout: 20_000, // Tăng timeout cho load balancer
+      // Cho phép upgrade từ polling lên websocket
       upgrade: true,
+      // Quan trọng cho Auto Scaling: enable sticky session
       forceNew: false,
+      // Gửi heartbeat để giữ connection alive qua load balancer
       pingInterval: 25000,
-      pingTimeout: 20000,
+      pingTimeout: 60000,
+      // Custom query params có thể dùng cho sticky session
+      query: {
+        clientId: getOrCreateClientId(),
+        version: "1.0.0",
+      },
     }),
     [token]
   );
 
   // Connect/Reconnect function
   const connect = useCallback(() => {
-    if (!token) {
-      setError("No authentication token found");
-      setStatus("error");
-      return;
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current.connect();
     }
+  }, []);
 
-    if (socketRef.current?.connected) {
+  // Disconnect function
+  const disconnect = useCallback(() => {
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+      setSocket(null);
+      setStatus("disconnected");
+      setReconnectCount(0);
+      setError(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Cleanup timer on unmount
+    return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Auto-connect when token is available
+  useEffect(() => {
+    // Mỗi lần token đổi (login/logout), ngắt kết nối cũ & kết nối lại nếu có token
+    socketRef.current?.disconnect();
+    socketRef.current = null;
+
+    if (!token) {
+      setStatus("idle");
+      setReconnectCount(0);
+      setError(null);
       return;
     }
 
@@ -118,27 +181,85 @@ export function DocSocketProvider({
       setStatus("connected");
       setError(null);
       setSocket(newSocket);
+      setReconnectCount(0);
+
+      // Log server instance info (if provided by backend)
+      newSocket.emit("client:info", {
+        clientId: getOrCreateClientId(),
+        userAgent:
+          typeof navigator === "undefined" ? "Unknown" : navigator.userAgent,
+        timestamp: Date.now(),
+      });
     });
 
     newSocket.on("disconnect", (reason) => {
-      setStatus("disconnected");
+      // Different handling based on disconnect reason
+      if (reason === "io server disconnect") {
+        // Server intentionally disconnected, need manual reconnect
+        setStatus("reconnecting");
+        reconnectTimerRef.current = setTimeout(() => {
+          newSocket.connect();
+        }, 2000);
+      } else if (reason === "transport close" || reason === "ping timeout") {
+        // Network issue or timeout, auto reconnect will handle
+        setStatus("reconnecting");
+      } else {
+        setStatus("disconnected");
+      }
+    });
+
+    newSocket.io.on("reconnect_attempt", (attempt) => {
+      setStatus("reconnecting");
+      setReconnectCount(attempt);
+    });
+
+    newSocket.io.on("reconnect", (attempt) => {
+      setStatus("connected");
+      setReconnectCount(0);
+      setError(null);
+    });
+
+    newSocket.io.on("reconnect_error", (err) => {
+      console.error("💥 [DocSocket] Reconnect error:", err.message);
+      setError(err.message);
+    });
+
+    newSocket.io.on("reconnect_failed", () => {
+      console.error("❌ [DocSocket] Reconnect failed after all attempts");
+      setStatus("error");
+      setError("Reconnection failed after all attempts");
     });
 
     newSocket.on("connect_error", (err) => {
       console.error("❌ Doc socket connect error:", err.message);
       setError(err.message);
+
+      // Nếu server trả unauthorized, đừng spam reconnect vô nghĩa
+      const msg = String(err?.message || "").toLowerCase();
+      if (
+        msg.includes("unauthorized") ||
+        msg.includes("jwt") ||
+        msg.includes("forbidden") ||
+        (err as any)?.code === 401
+      ) {
+        setStatus("error");
+        setError("Authentication failed. Please login again.");
+        // Ngắt hẳn; user cần login lại để có token mới
+        newSocket.disconnect();
+        return;
+      }
       setStatus("error");
     });
 
     newSocket.on("error", (err: any) => {
-      console.error("❌ Doc socket error:", {
-        error: err,
-        type: typeof err,
-        keys: err ? Object.keys(err) : [],
-        message: err?.message,
-        stack: err?.stack,
-      });
-      setError(err?.message || err?.error || "Socket error");
+      console.error("❌ Doc socket error:", err);
+      let msg = "Socket error";
+      if (err instanceof Error) msg = err.message;
+      else if (typeof err === "string") msg = err;
+      else if (err?.message) msg = err.message;
+      else if (err?.error) msg = err.error;
+
+      setError(msg);
       setStatus("error");
     });
 
@@ -152,34 +273,16 @@ export function DocSocketProvider({
       // Don't set status to error for exceptions - they might be recoverable
     });
 
-    newSocket.on("connected", (data: any) => {});
-
     socketRef.current = newSocket;
     setSocket(newSocket);
-  }, [token, socketUrl, opts]);
-
-  // Disconnect function
-  const disconnect = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
-      setSocket(null);
-      setStatus("disconnected");
-    }
-  }, []);
-
-  // Auto-connect when token is available
-  useEffect(() => {
-    if (token) {
-      connect();
-    } else {
-      disconnect();
-    }
 
     return () => {
-      disconnect();
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
+      newSocket.disconnect();
+      socketRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, socketUrl, opts]);
 
   const value = useMemo(
@@ -187,10 +290,11 @@ export function DocSocketProvider({
       socket,
       status,
       error,
+      reconnectCount,
       reconnect: connect,
       disconnect,
     }),
-    [socket, status, error]
+    [socket, status, error, reconnectCount, connect, disconnect]
   );
 
   return (

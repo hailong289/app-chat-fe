@@ -45,7 +45,7 @@ const Ctx = createContext<SocketCtx>({
 function getOrCreateClientId(): string {
   if (globalThis.window === undefined) return "";
 
-  const key = "socket_client_id";
+  const key = "chat_client_id";
   let clientId = localStorage.getItem(key);
 
   if (!clientId) {

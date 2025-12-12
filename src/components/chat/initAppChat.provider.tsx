@@ -13,6 +13,7 @@ export const InitAppChat = () => {
     if (!authState.isAuthenticated) return;
     contactState.getFriends();
     contactState.getAllContacts();
+    authState.refreshToken();
     if (!socket) return;
     contactState.checkOnlineStatus(socket);
   }, [authState.isAuthenticated, socket]);

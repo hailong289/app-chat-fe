@@ -15,6 +15,8 @@ type FirebaseContextType = {
   requestPermission: () => Promise<void>;
 };
 
+import useAlertStore from "@/store/useAlertStore";
+
 const FirebaseContext = createContext<FirebaseContextType | null>(null);
 
 export const useFirebase = () => {
@@ -171,7 +173,11 @@ export const FirebaseProvider = ({
 
       if (!("Notification" in window)) {
         console.error("❌ Browser doesn't support notifications");
-        alert("Trình duyệt của bạn không hỗ trợ thông báo");
+        useAlertStore.getState().showAlert({
+          title: "Lỗi",
+          message: "Trình duyệt của bạn không hỗ trợ thông báo",
+          type: "error",
+        });
         return;
       }
 
@@ -197,7 +203,11 @@ export const FirebaseProvider = ({
       }
     } catch (err) {
       console.error("❌ Error getting token:", err);
-      alert("Có lỗi khi xin quyền thông báo. Vui lòng thử lại.");
+      useAlertStore.getState().showAlert({
+        title: "Lỗi",
+        message: "Có lỗi khi xin quyền thông báo. Vui lòng thử lại.",
+        type: "error",
+      });
     }
   }
 

@@ -5,12 +5,64 @@
     "success": "Success",
     "cancel": "Cancel",
     "confirm": "Confirm",
+    "confirmDelete": "Confirm Delete",
     "save": "Save",
     "delete": "Delete",
     "edit": "Edit",
     "search": "Search",
     "send": "Send",
-    "or": "Or"
+    "or": "Or",
+    "ok": "OK"
+  },
+  "docs": {
+    "renameSuccess": "Document renamed successfully",
+    "renameError": "Failed to rename document",
+    "deleteSuccess": "Document deleted",
+    "deleteError": "Failed to delete document",
+    "copySuccess": "Copy created",
+    "copyError": "Failed to copy document",
+    "status": {
+      "saved": "Saved",
+      "offline": "Offline"
+    },
+    "menu": {
+      "file": {
+        "title": "File",
+        "copy": "Make a copy",
+        "download": "Download PDF",
+        "print": "Print",
+        "delete": "Delete"
+      },
+      "edit": {
+        "title": "Edit",
+        "undo": "Undo",
+        "redo": "Redo",
+        "cut": "Cut",
+        "copy": "Copy",
+        "paste": "Paste"
+      },
+      "view": {
+        "title": "View",
+        "mode": "Mode: Editing",
+        "outline": "Show outline"
+      },
+      "help": {
+        "title": "Help",
+        "shortcuts": "Keyboard shortcuts",
+        "support": "Help & Support"
+      }
+    },
+    "you": "You",
+    "typing": "Typing...",
+    "share": "Share",
+    "actions": {
+      "export": "Export to PDF",
+      "delete": "Delete document"
+    },
+    "deleteModal": {
+      "title": "Delete Document",
+      "content": "Are you sure you want to delete {{title}}? This action cannot be undone."
+    }
   },
   "auth": {
     "login": {
@@ -313,6 +365,35 @@
       }
     },
     "user": "User"
+  },
+  "documents": {
+    "title": "Documents",
+    "subtitle": "Manage and collaborate on your documents",
+    "search": "Search documents",
+    "create": "Create",
+    "createNew": "Create New Document",
+    "loading": "Loading documents...",
+    "empty": {
+      "title": "No documents yet",
+      "desc": "Create your first document to get started",
+      "button": "Create Document"
+    },
+    "visibility": {
+      "private": "Private",
+      "shared": "Shared",
+      "public": "Public"
+    },
+    "owner": "Owner",
+    "shared": "Shared",
+    "delete": "Delete",
+    "deleteConfirm": "Are you sure you want to delete this document?",
+    "modal": {
+      "title": "Create New Document",
+      "placeholder": "Document name",
+      "cancel": "Cancel",
+      "create": "Create",
+      "creating": "Creating..."
+    }
   },
   "share": {
     "title": "Share \"{{title}}\"",

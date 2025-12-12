@@ -2,9 +2,17 @@
 
 import Image from "next/image";
 import { useTranslation } from "react-i18next";
+import { useEffect, useState } from "react";
 
 export default function Page() {
   const { t } = useTranslation();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
 
   return (
     <div className="w-full h-screen flex items-center justify-center bg-light">

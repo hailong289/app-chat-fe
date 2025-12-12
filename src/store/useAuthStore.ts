@@ -5,11 +5,13 @@ import AuthService from "@/service/auth.service";
 import { deleteCookie, setCookie } from "cookies-next";
 import Dexie from "dexie";
 import * as LocalStorageUtils from "@/utils/localStorage";
+import { AuthResponse } from "@/types/auth.type";
+import apiService from "@/service/api.service";
 
 // Lưu trạng thái xác thực trong localStorage
 const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       isAuthenticated: false,
       isLoading: false,
       user: null,
@@ -104,6 +106,65 @@ const useAuthStore = create<AuthState>()(
           set({ isLoading: false });
         } catch (error) {
           callback?.(error);
+        }
+      },
+      refreshToken: async () => {
+        // 1. Lấy refresh token từ state hiện tại
+        const currentRefreshToken = get().tokens?.refreshToken;
+
+        // Nếu không có token thì không làm gì cả (hoặc logout)
+        if (!currentRefreshToken) {
+          get().logout();
+          return;
+        }
+
+        try {
+          // 2. Gọi API Refresh
+          const response = await AuthService.refreshToken(currentRefreshToken);
+          const dateNow = Math.floor(Date.now() / 1000);
+
+          // Lấy data mới từ response (cấu trúc tuỳ thuộc backend trả về, ở đây giả định giống login)
+          const metadata = response.data?.metadata as AuthResponse["metadata"];
+
+          if (
+            !metadata ||
+            typeof metadata.accessToken !== "string" ||
+            typeof metadata.refreshToken !== "string" ||
+            typeof metadata.expiresIn !== "number"
+          ) {
+            throw new Error("No valid metadata returned");
+          }
+
+          // 3. Cập nhật State
+          set({
+            isAuthenticated: true,
+            user: (metadata as any).user || get().user, // Giữ user cũ nếu API refresh không trả về user info
+            tokens: {
+              accessToken: metadata.accessToken,
+              refreshToken: metadata.refreshToken, // Update luôn refresh token mới (nếu có xoay vòng)
+              expiresIn: metadata.expiresIn,
+              expiredAt: dateNow + metadata.expiresIn,
+            },
+          });
+
+          // 4. Cập nhật Cookie (quan trọng để đồng bộ với Axios Interceptor và SSR)
+          setCookie(
+            "tokens",
+            JSON.stringify({
+              accessToken: metadata.accessToken,
+              refreshToken: metadata.refreshToken,
+              expiresIn: metadata.expiresIn,
+              expiredAt: dateNow + metadata.expiresIn,
+            }),
+            {
+              maxAge: metadata.expiresIn,
+              path: "/",
+            }
+          );
+        } catch (error) {
+          console.error("Manual refresh failed:", error);
+          // 5. Nếu refresh thất bại (token hết hạn hẳn hoặc bị revoke) -> Logout
+          get().logout();
         }
       },
       forgotPassword: async (payload) => {

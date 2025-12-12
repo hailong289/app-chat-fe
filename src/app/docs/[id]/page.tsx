@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import { useDocSocket } from "@/hooks/useDocSocket";
 import { useDocumentSync } from "@/hooks/useDocumentSync";
 import useAuthStore from "@/store/useAuthStore";
+import useDocumentStore from "@/store/useDocumentStore";
 import { DynamicEditor } from "@/components/docs/DynamicEditor";
 import { Doc } from "yjs";
-import documentService from "@/service/document.service";
 import useToast from "@/hooks/useToast";
 import ShareModal from "@/components/docs/ShareModal";
 import {
@@ -24,7 +24,6 @@ import {
   DropdownTrigger,
   DropdownMenu,
   DropdownItem,
-  Input,
   Modal,
   ModalContent,
   ModalHeader,
@@ -44,31 +43,32 @@ import {
   ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
 
+import { useTranslation } from "react-i18next";
+
 export default function DocumentEditorPage() {
   const params = useParams();
   const router = useRouter();
+  const { t } = useTranslation();
   const docId = params?.id as string;
   const { socket, status } = useDocSocket();
   const currentUser = useAuthStore((s) => s.user);
+  const { updateTitle, deleteDocument, duplicateDocument } = useDocumentStore();
   const toast = useToast();
+
+  // Editor instance
+  const [editor, setEditor] = useState<any>(null);
 
   // Create Y.Doc instance (stable reference)
   const [ydoc] = useState(() => new Doc());
 
   // Use centralized document sync hook
-  const {
-    document,
-    setDocument,
-    usersPresence,
-    provider,
-    isRoomJoined,
-    isSnapshotApplied,
-  } = useDocumentSync({
-    docId,
-    socket,
-    ydoc,
-    enabled: status === "connected" && !!currentUser,
-  });
+  const { document, setDocument, usersPresence, provider, isSnapshotApplied } =
+    useDocumentSync({
+      docId,
+      socket,
+      ydoc,
+      enabled: status === "connected" && !!currentUser,
+    });
 
   const activeUsers = Array.from(usersPresence.values());
   const isOnline = status === "connected";
@@ -112,14 +112,18 @@ export default function DocumentEditorPage() {
     }
 
     try {
-      const updatedDoc = await documentService.updateTitle(docId, titleInput);
-      setDocument((prev) =>
-        prev ? { ...prev, title: updatedDoc.title } : null
-      );
-      toast.success("Document renamed successfully");
+      const updatedDoc = await updateTitle(docId, titleInput);
+      if (updatedDoc) {
+        setDocument((prev) =>
+          prev ? { ...prev, title: updatedDoc.title } : null
+        );
+        toast.success(t("docs.renameSuccess"));
+      } else {
+        throw new Error("Failed to update title");
+      }
     } catch (error) {
       console.error("Failed to rename document:", error);
-      toast.error("Failed to rename document");
+      toast.error(t("docs.renameError"));
       setTitleInput(document?.title || "");
     } finally {
       setIsEditingTitle(false);
@@ -141,33 +145,84 @@ export default function DocumentEditorPage() {
 
   const handleDelete = async () => {
     try {
-      await documentService.deleteDocument(docId);
-      toast.success("Document deleted");
+      await deleteDocument(docId);
+      toast.success(t("docs.deleteSuccess"));
       router.push("/docs");
     } catch (error) {
       console.error("Failed to delete document:", error);
-      toast.error("Failed to delete document");
+      toast.error(t("docs.deleteError"));
     }
   };
 
   const handleExportPDF = () => {
-    window.print();
+    globalThis.print();
   };
 
   const handleMakeCopy = async () => {
     if (!document) return;
     try {
-      const newDoc = await documentService.createDocument({
-        title: `${document.title} (Copy)`,
-        visibility: "private", // Default to private
-      });
-      toast.success("Copy created");
-      // Optionally redirect to the new document
-      // router.push(`/docs/${newDoc._id}`);
-      // For now just notify
+      const newDoc = await duplicateDocument(docId);
+      if (newDoc) {
+        toast.success(t("docs.copySuccess"));
+        // Optionally redirect to the new document
+        // router.push(`/docs/${newDoc._id}`);
+      } else {
+        throw new Error("Failed to copy document");
+      }
     } catch (error) {
       console.error("Failed to copy document:", error);
-      toast.error("Failed to copy document");
+      toast.error(t("docs.copyError"));
+    }
+  };
+
+  // Edit Handlers
+  const handleUndo = () => {
+    if (editor) {
+      console.log("Executing Undo", editor);
+      editor.focus();
+      editor.undo();
+    }
+  };
+
+  const handleRedo = () => {
+    if (editor) {
+      console.log("Executing Redo", editor);
+      editor.focus();
+      editor.redo();
+    }
+  };
+
+  const handleCut = () => {
+    if (editor) {
+      // Focus the editor first
+      editor.focus();
+      // Use window.document.execCommand for cut (legacy but widely supported for this use case)
+      globalThis.document.execCommand("cut");
+    }
+  };
+
+  const handleCopy = () => {
+    if (editor) {
+      editor.focus();
+      globalThis.document.execCommand("copy");
+    }
+  };
+
+  const handlePaste = async () => {
+    if (editor) {
+      editor.focus();
+      try {
+        const text = await navigator.clipboard.readText();
+        // Insert text at current selection
+        editor.insertBlocks(
+          [{ content: text }],
+          editor.getTextCursorPosition().block,
+          "after"
+        );
+      } catch (err) {
+        console.error("Failed to read clipboard", err);
+        toast.error(t("docs.pasteError") || "Please use Ctrl+V to paste");
+      }
     }
   };
 
@@ -230,15 +285,17 @@ export default function DocumentEditorPage() {
                   className="text-lg font-semibold bg-transparent border-b-2 border-blue-500 focus:outline-none text-gray-900 dark:text-white min-w-[200px]"
                 />
               ) : (
-                <div
-                  className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 px-2 py-1 rounded transition-colors"
+                <button
+                  type="button"
+                  aria-label={t("docs.editTitle")}
+                  className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 px-2 py-1 rounded transition-colors bg-transparent border-none focus:outline-none"
                   onClick={() => setIsEditingTitle(true)}
                 >
                   <h1 className="text-lg font-semibold text-gray-900 dark:text-white truncate max-w-[200px] sm:max-w-md select-none">
                     {document.title}
                   </h1>
                   <PencilIcon className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100" />
-                </div>
+                </button>
               )}
 
               <Chip
@@ -253,7 +310,7 @@ export default function DocumentEditorPage() {
                   dot: isOnline ? "bg-green-500" : "bg-yellow-500",
                 }}
               >
-                {isOnline ? "Saved" : "Offline"}
+                {isOnline ? t("docs.status.saved") : t("docs.status.offline")}
               </Chip>
             </div>
 
@@ -266,7 +323,7 @@ export default function DocumentEditorPage() {
                     variant="light"
                     className="h-6 px-2 min-w-0 text-xs data-[hover=true]:bg-gray-100 dark:data-[hover=true]:bg-gray-800"
                   >
-                    File
+                    {t("docs.menu.file.title")}
                   </Button>
                 </DropdownTrigger>
                 <DropdownMenu aria-label="File actions">
@@ -275,21 +332,21 @@ export default function DocumentEditorPage() {
                     startContent={<DocumentDuplicateIcon className="w-4 h-4" />}
                     onPress={handleMakeCopy}
                   >
-                    Make a copy
+                    {t("docs.menu.file.copy")}
                   </DropdownItem>
                   <DropdownItem
                     key="export"
                     startContent={<ArrowDownTrayIcon className="w-4 h-4" />}
                     onPress={handleExportPDF}
                   >
-                    Download PDF
+                    {t("docs.menu.file.download")}
                   </DropdownItem>
                   <DropdownItem
                     key="print"
                     startContent={<PrinterIcon className="w-4 h-4" />}
-                    onPress={() => window.print()}
+                    onPress={() => globalThis.print()}
                   >
-                    Print
+                    {t("docs.menu.file.print")}
                   </DropdownItem>
                   <DropdownItem
                     key="delete"
@@ -298,7 +355,7 @@ export default function DocumentEditorPage() {
                     startContent={<TrashIcon className="w-4 h-4" />}
                     onPress={onDeleteOpen}
                   >
-                    Delete
+                    {t("docs.menu.file.delete")}
                   </DropdownItem>
                 </DropdownMenu>
               </Dropdown>
@@ -310,24 +367,24 @@ export default function DocumentEditorPage() {
                     variant="light"
                     className="h-6 px-2 min-w-0 text-xs data-[hover=true]:bg-gray-100 dark:data-[hover=true]:bg-gray-800"
                   >
-                    Edit
+                    {t("docs.menu.edit.title")}
                   </Button>
                 </DropdownTrigger>
                 <DropdownMenu aria-label="Edit actions">
-                  <DropdownItem key="undo" shortcut="⌘Z">
-                    Undo
+                  <DropdownItem key="undo" shortcut="⌘Z" onPress={handleUndo}>
+                    {t("docs.menu.edit.undo")}
                   </DropdownItem>
-                  <DropdownItem key="redo" shortcut="⌘⇧Z">
-                    Redo
+                  <DropdownItem key="redo" shortcut="⌘⇧Z" onPress={handleRedo}>
+                    {t("docs.menu.edit.redo")}
                   </DropdownItem>
-                  <DropdownItem key="cut" shortcut="⌘X">
-                    Cut
+                  <DropdownItem key="cut" shortcut="⌘X" onPress={handleCut}>
+                    {t("docs.menu.edit.cut")}
                   </DropdownItem>
-                  <DropdownItem key="copy" shortcut="⌘C">
-                    Copy
+                  <DropdownItem key="copy" shortcut="⌘C" onPress={handleCopy}>
+                    {t("docs.menu.edit.copy")}
                   </DropdownItem>
-                  <DropdownItem key="paste" shortcut="⌘V">
-                    Paste
+                  <DropdownItem key="paste" shortcut="⌘V" onPress={handlePaste}>
+                    {t("docs.menu.edit.paste")}
                   </DropdownItem>
                 </DropdownMenu>
               </Dropdown>
@@ -339,12 +396,16 @@ export default function DocumentEditorPage() {
                     variant="light"
                     className="h-6 px-2 min-w-0 text-xs data-[hover=true]:bg-gray-100 dark:data-[hover=true]:bg-gray-800"
                   >
-                    View
+                    {t("docs.menu.view.title")}
                   </Button>
                 </DropdownTrigger>
                 <DropdownMenu aria-label="View actions">
-                  <DropdownItem key="mode">Mode: Editing</DropdownItem>
-                  <DropdownItem key="sidebar">Show outline</DropdownItem>
+                  <DropdownItem key="mode">
+                    {t("docs.menu.view.mode")}
+                  </DropdownItem>
+                  <DropdownItem key="sidebar">
+                    {t("docs.menu.view.outline")}
+                  </DropdownItem>
                 </DropdownMenu>
               </Dropdown>
 
@@ -355,14 +416,16 @@ export default function DocumentEditorPage() {
                     variant="light"
                     className="h-6 px-2 min-w-0 text-xs data-[hover=true]:bg-gray-100 dark:data-[hover=true]:bg-gray-800"
                   >
-                    Help
+                    {t("docs.menu.help.title")}
                   </Button>
                 </DropdownTrigger>
                 <DropdownMenu aria-label="Help actions">
                   <DropdownItem key="shortcuts">
-                    Keyboard shortcuts
+                    {t("docs.menu.help.shortcuts")}
                   </DropdownItem>
-                  <DropdownItem key="support">Help & Support</DropdownItem>
+                  <DropdownItem key="support">
+                    {t("docs.menu.help.support")}
+                  </DropdownItem>
                 </DropdownMenu>
               </Dropdown>
             </div>
@@ -379,7 +442,7 @@ export default function DocumentEditorPage() {
               isBordered
             >
               {/* Current User */}
-              <Tooltip content={`You (${currentUser?.fullname})`}>
+              <Tooltip content={`${t("docs.you")} (${currentUser?.fullname})`}>
                 <Avatar
                   src={currentUser?.avatar}
                   name={currentUser?.fullname?.[0]}
@@ -399,7 +462,7 @@ export default function DocumentEditorPage() {
                       </div>
                       {user.isTyping && (
                         <div className="text-tiny text-default-500">
-                          Typing...
+                          {t("docs.typing")}
                         </div>
                       )}
                     </div>
@@ -434,7 +497,7 @@ export default function DocumentEditorPage() {
             startContent={<ShareIcon className="w-4 h-4" />}
             onPress={handleShare}
           >
-            Share
+            {t("docs.share")}
           </Button>
 
           <Dropdown placement="bottom-end">
@@ -449,14 +512,14 @@ export default function DocumentEditorPage() {
                 startContent={<ArrowDownTrayIcon className="w-4 h-4" />}
                 onPress={handleExportPDF}
               >
-                Export to PDF
+                {t("docs.actions.export")}
               </DropdownItem>
               <DropdownItem
                 key="copy"
                 startContent={<DocumentDuplicateIcon className="w-4 h-4" />}
                 onPress={handleMakeCopy}
               >
-                Make a copy
+                {t("docs.menu.file.copy")}
               </DropdownItem>
               <DropdownItem
                 key="delete"
@@ -465,7 +528,7 @@ export default function DocumentEditorPage() {
                 startContent={<TrashIcon className="w-4 h-4" />}
                 onPress={onDeleteOpen}
               >
-                Delete document
+                {t("docs.actions.delete")}
               </DropdownItem>
             </DropdownMenu>
           </Dropdown>
@@ -479,6 +542,7 @@ export default function DocumentEditorPage() {
             <div className="editor-wrapper h-full min-h-[500px] p-4 sm:p-8 lg:p-12">
               <DynamicEditor
                 key={`${document._id}-${provider ? "online" : "offline"}`}
+                onEditorReady={setEditor}
                 ydoc={ydoc}
                 provider={provider}
                 userName={currentUser?.fullname || "Anonymous"}
@@ -499,20 +563,19 @@ export default function DocumentEditorPage() {
           {(onClose) => (
             <>
               <ModalHeader className="flex flex-col gap-1">
-                Delete Document
+                {t("docs.deleteModal.title")}
               </ModalHeader>
               <ModalBody>
                 <p>
-                  Are you sure you want to delete <b>{document.title}</b>? This
-                  action cannot be undone.
+                  {t("docs.deleteModal.content", { title: document.title })}
                 </p>
               </ModalBody>
               <ModalFooter>
                 <Button color="default" variant="light" onPress={onClose}>
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button color="danger" onPress={handleDelete}>
-                  Delete
+                  {t("common.delete")}
                 </Button>
               </ModalFooter>
             </>
