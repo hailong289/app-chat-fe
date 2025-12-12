@@ -16,6 +16,7 @@ import {
 import { MessageType } from "@/store/types/message.state";
 import { EMOJIS } from "../constants/messageConstants";
 import { canRecallMessage } from "../../../utils/messageHelpers";
+import { useTranslation } from "react-i18next";
 
 interface MessageActionsProps {
   readonly msg: MessageType;
@@ -42,6 +43,7 @@ export function MessageActions({
   onCopy,
   noAction = false,
 }: MessageActionsProps) {
+  const { t } = useTranslation();
   // Actions are hidden for deleted/hidden messages
   if (msg.isDeleted || msg.hiddenByMe) return null;
 
@@ -76,7 +78,9 @@ export function MessageActions({
           <DropdownMenu aria-label="Static Actions" variant="faded">
             {noAction ? null : (
               <DropdownItem key="gim" onPress={() => onTogglePin(msg)}>
-                {msg.pinned ? "Bỏ gim" : "Gim"}
+                {msg.pinned
+                  ? t("chat.messages.actions.unpin")
+                  : t("chat.messages.actions.pin")}
               </DropdownItem>
             )}
             {/* Copy - chỉ hiện với text messages */}
@@ -85,7 +89,7 @@ export function MessageActions({
                 key="copy"
                 onPress={() => onCopy(msg.content || "")}
               >
-                Sao chép
+                {t("chat.messages.actions.copy")}
               </DropdownItem>
             ) : null}
             {/* Actions limited to messages created by me */}
@@ -99,7 +103,7 @@ export function MessageActions({
                     key="recall"
                     onPress={() => onRecall(msg)}
                   >
-                    Thu hồi
+                    {t("chat.messages.actions.recall")}
                   </DropdownItem>
                 ) : null}
               </>
@@ -110,7 +114,7 @@ export function MessageActions({
               color="danger"
               onPress={() => onDelete(msg)}
             >
-              Xoá chỉ ở phía tôi
+              {t("chat.messages.actions.deleteForMe")}
             </DropdownItem>
           </DropdownMenu>
         </Dropdown>
@@ -159,7 +163,7 @@ export function MessageActions({
           >
             <div className="flex flex-col gap-2">
               <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 px-2">
-                Thả cảm xúc
+                {t("chat.messages.actions.react")}
               </div>
               <div className="grid grid-cols-6 gap-1">
                 {EMOJIS.map((emoji) => (

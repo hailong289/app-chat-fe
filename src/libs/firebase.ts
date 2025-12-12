@@ -72,7 +72,6 @@ const initializeFirebase = () => {
           "serviceWorker" in globalThis.navigator
         ) {
           firebaseMessaging = getMessaging(firebaseApp);
-          console.log("✅ Firebase Messaging initialized");
         } else {
           console.warn(
             "⚠️ Browser không hỗ trợ Firebase Messaging (thiếu Notification hoặc ServiceWorker)"

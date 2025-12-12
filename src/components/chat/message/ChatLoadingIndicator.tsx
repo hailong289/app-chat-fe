@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Skeleton } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 
 interface ChatLoadingIndicatorProps {
   isLoadingOlder: boolean;
@@ -13,7 +14,8 @@ export function ChatLoadingIndicator({
   isLoadingFromAPI,
   isFetchingNewMessages,
   messageStateLoading,
-}: ChatLoadingIndicatorProps) {
+}: Readonly<ChatLoadingIndicatorProps>) {
+  const { t } = useTranslation();
   return (
     <>
       {/* Top loading indicator */}
@@ -30,8 +32,8 @@ export function ChatLoadingIndicator({
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
                 <span>
                   {isLoadingFromAPI
-                    ? "Đang tải từ server..."
-                    : "Đang tải tin nhắn cũ..."}
+                    ? t("chat.messages.loading.server")
+                    : t("chat.messages.loading.older")}
                 </span>
               </div>
             </motion.div>
@@ -59,7 +61,9 @@ export function ChatLoadingIndicator({
                 "
               >
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
-                <span className="font-medium">Đang tải tin nhắn mới...</span>
+                <span className="font-medium">
+                  {t("chat.messages.loading.new")}
+                </span>
               </div>
             </div>
 
@@ -96,8 +100,8 @@ export function ChatLoadingIndicator({
               <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-600 border-t-transparent"></div>
               <span className="font-medium whitespace-nowrap">
                 {isFetchingNewMessages
-                  ? "Đang tải tin nhắn mới"
-                  : "Đang tải..."}
+                  ? t("chat.messages.loading.new")
+                  : t("chat.messages.loading.general")}
               </span>
             </div>
           </motion.div>

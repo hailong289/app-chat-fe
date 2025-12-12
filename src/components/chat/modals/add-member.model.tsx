@@ -13,6 +13,7 @@ import {
   User,
 } from "@heroui/react";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   isOpen: boolean;
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export const AddMemberModal = ({ isOpen, onClose }: Props) => {
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
   const [memberIds, setMemberIds] = useState<string[]>([]);
 
@@ -61,7 +63,6 @@ export const AddMemberModal = ({ isOpen, onClose }: Props) => {
   const addMember = () => {
     if (isMembersInvalid) return;
 
-    console.log("Thành viên:", memberIds);
     // TODO: call API add member here - implement after backend confirms member add endpoint
     roomState.addMember(memberIds);
 
@@ -80,11 +81,14 @@ export const AddMemberModal = ({ isOpen, onClose }: Props) => {
       <ModalContent>
         {(close) => (
           <>
-            <ModalHeader>Thêm thành viên</ModalHeader>
+            <ModalHeader>{t("chat.modal.addMember.title")}</ModalHeader>
             <ModalBody className="w-full">
               <Input
-                label={`Bạn bè đã chọn: ${memberIds.length}/${contacts.length}`}
-                placeholder="Nhập tên bạn bè"
+                label={t("chat.modal.addMember.selected", {
+                  count: memberIds.length,
+                  total: contacts.length,
+                })}
+                placeholder={t("chat.modal.addMember.placeholder")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -109,13 +113,15 @@ export const AddMemberModal = ({ isOpen, onClose }: Props) => {
               </CheckboxGroup>
             </ModalBody>
             <ModalFooter>
-              <Button onPress={close}>Huỷ</Button>
+              <Button onPress={close}>
+                {t("chat.modal.addMember.cancel")}
+              </Button>
               <Button
                 color="primary"
                 onPress={addMember}
                 disabled={isMembersInvalid}
               >
-                Thêm
+                {t("chat.modal.addMember.add")}
               </Button>
             </ModalFooter>
           </>

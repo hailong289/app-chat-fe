@@ -19,11 +19,6 @@ export class SocketIOProvider {
     this.socket = socket;
     this.awareness = new awarenessProtocol.Awareness(doc);
 
-    console.log("🔌 SocketIOProvider initialized:", {
-      docId,
-      socketId: socket.id,
-    });
-
     this.setupUpdateListener();
     this.setupSocketListeners();
     this.setupAwarenessSync();
@@ -35,23 +30,11 @@ export class SocketIOProvider {
       // Only send updates that originated from this client
       // Don't send updates that came from the server (origin === this)
       if (origin !== this) {
-        console.log(
-          `🚀 Y.Doc update detected: ${update.length} bytes (${(
-            update.length / 1024
-          ).toFixed(2)} KB)`
-        );
-
         // 🚀 HYBRID APPROACH:
         // 1. Gửi incremental update NGAY LẬP TỨC cho broadcast (real-time)
         // 2. Debounce full state cho DB (data integrity)
 
         // ⚡ Send incremental update immediately (no debounce for real-time feel)
-        console.log(
-          `🚀 Broadcasting incremental: ${update.length} bytes (${(
-            update.length / 1024
-          ).toFixed(2)} KB)`
-        );
-
         this.socket.emit("doc:broadcast", {
           docId: this.docId,
           yjsUpdate: Array.from(update), // Incremental - chỉ broadcast, không lưu DB
@@ -73,12 +56,6 @@ export class SocketIOProvider {
 
         this.snapshotTimeout = setTimeout(() => {
           const fullState = encodeStateAsUpdate(this.doc);
-
-          console.log(
-            `💾 Saving full state to DB: ${fullState.length} bytes (${(
-              fullState.length / 1024
-            ).toFixed(2)} KB)`
-          );
 
           this.socket.emit("doc:change", {
             docId: this.docId,
@@ -107,10 +84,6 @@ export class SocketIOProvider {
 
   private setupSocketListeners() {
     // Listen for REAL-TIME incremental updates from other users
-    console.log(
-      "📡 Registering socket listeners for doc:broadcasted and doc:changed"
-    );
-
     this.socket.on(
       "doc:broadcasted",
       (data: {
@@ -118,14 +91,6 @@ export class SocketIOProvider {
         clientId?: string;
         userId?: string;
       }) => {
-        console.log("🎯 doc:broadcasted event received:", {
-          hasUpdate: !!data.yjsUpdate,
-          updateType: data.yjsUpdate?.constructor?.name,
-          fromClient: data.clientId,
-          fromUser: data.userId,
-          myClientId: this.socket.id,
-        });
-
         // Apply incremental updates from other users
         if (data.clientId !== this.socket.id && data.yjsUpdate) {
           try {
@@ -157,11 +122,9 @@ export class SocketIOProvider {
               return;
             }
 
-            console.log(
-              `📥 Received broadcast from ${data.userId}: ${
-                update.length
-              } bytes (${(update.length / 1024).toFixed(2)} KB)`
-            );
+            if (update.length === 0) {
+              return;
+            }
 
             // Pass 'this' as origin so we don't re-emit this update
             applyUpdate(this.doc, update, this);
@@ -176,13 +139,6 @@ export class SocketIOProvider {
     this.socket.on(
       "doc:changed",
       (data: { yjsSnapshot?: number[]; clientId?: string }) => {
-        console.log("🎯 doc:changed event received:", {
-          hasSnapshot: !!data.yjsSnapshot,
-          snapshotSize: data.yjsSnapshot?.length,
-          fromClient: data.clientId,
-          myClientId: this.socket.id,
-        });
-
         // Don't apply our own changes back (prevent echo)
         if (data.clientId !== this.socket.id && data.yjsSnapshot) {
           try {
@@ -197,12 +153,6 @@ export class SocketIOProvider {
               );
               return;
             }
-
-            console.log(
-              `💾 Received full state update: ${
-                data.yjsSnapshot.length
-              } bytes (${(data.yjsSnapshot.length / 1024).toFixed(2)} KB)`
-            );
 
             const update = new Uint8Array(data.yjsSnapshot);
             // Pass 'this' as origin so we don't re-emit this update
@@ -229,7 +179,7 @@ export class SocketIOProvider {
       if (localState) {
         this.socket.emit("doc:cursor", {
           docId: this.docId,
-          cursorPosition: localState.cursor || {},
+          cursorPosition: localState.cursor || null, // Send null if no cursor
           userInfo: localState.user, // Send user info (including avatar) to server
         });
       }
@@ -241,13 +191,24 @@ export class SocketIOProvider {
       (data: {
         userId: string;
         fullname: string;
-        cursorPosition: Record<string, unknown>;
+        cursorPosition: Record<string, unknown> | null;
         color: string;
         avatar?: string; // Add avatar to type
         userInfo?: { avatar?: string }; // Handle nested userInfo if backend relays it
       }) => {
         // Convert userId to a numeric clientID for Yjs Awareness
         const clientId = this.getNumericClientId(data.userId);
+
+        // Validate cursor position
+        let cursor = data.cursorPosition;
+        if (
+          !cursor ||
+          typeof cursor !== "object" ||
+          !("anchor" in cursor) ||
+          !("head" in cursor)
+        ) {
+          cursor = null;
+        }
 
         // Construct the awareness state expected by BlockNote
         const state = {
@@ -256,7 +217,7 @@ export class SocketIOProvider {
             color: data.color,
             avatar: data.avatar || data.userInfo?.avatar, // Try to get avatar
           },
-          cursor: data.cursorPosition,
+          cursor: cursor,
         };
 
         // Update the awareness state for this client
@@ -351,8 +312,6 @@ export class SocketIOProvider {
   }
 
   destroy() {
-    console.log("🔌 SocketIOProvider destroying...");
-
     if (this.snapshotTimeout) {
       clearTimeout(this.snapshotTimeout);
     }
@@ -375,7 +334,6 @@ export class SocketIOProvider {
     this.socket.off("user:left");
     this.socket.off("user:typing");
     this.awareness.destroy();
-    console.log("✅ SocketIOProvider destroyed");
   }
 
   public sendTyping(isTyping: boolean) {

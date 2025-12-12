@@ -27,7 +27,6 @@ export function useBlockNoteSync({
   useEffect(() => {
     if (!socket || status !== "connected" || !docId) return;
 
-    console.log("📡 Joining document room:", docId);
     socket.emit("doc:join", { docId });
 
     // Request snapshot từ server
@@ -45,7 +44,6 @@ export function useBlockNoteSync({
     const handleSnapshot = (data: { docId: string; snapshot: any[] }) => {
       if (data.docId !== docId) return;
 
-      console.log("✅ Received snapshot:", data.snapshot.length, "blocks");
       onLoadSnapshot?.(data.snapshot);
 
       if (editor && data.snapshot.length > 0) {
@@ -70,8 +68,6 @@ export function useBlockNoteSync({
       userId: string;
     }) => {
       if (data.docId !== docId) return;
-
-      console.log("📥 Update from server:", data.userId);
 
       // Merge updates từ server
       if (Array.isArray(data.blocks)) {
@@ -101,8 +97,6 @@ export function useBlockNoteSync({
         docId,
         blocks,
       });
-
-      console.log("📤 Sent update:", blocks.length, "blocks");
     },
     [socket, docId]
   );

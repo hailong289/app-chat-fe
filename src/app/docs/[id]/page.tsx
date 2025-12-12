@@ -8,6 +8,7 @@ import { DynamicEditor } from "@/components/docs/DynamicEditor";
 import { Doc } from "yjs";
 import documentService from "@/service/document.service";
 import useToast from "@/hooks/useToast";
+import ShareModal from "@/components/docs/ShareModal";
 import {
   Avatar,
   AvatarGroup,
@@ -84,6 +85,13 @@ export default function DocumentEditorPage() {
     onOpenChange: onDeleteOpenChange,
   } = useDisclosure();
 
+  // Share Modal State
+  const {
+    isOpen: isShareOpen,
+    onOpen: onShareOpen,
+    onClose: onShareClose,
+  } = useDisclosure();
+
   useEffect(() => {
     if (document) {
       setTitleInput(document.title);
@@ -104,9 +112,7 @@ export default function DocumentEditorPage() {
     }
 
     try {
-      const updatedDoc = await documentService.updateDocument(docId, {
-        title: titleInput,
-      });
+      const updatedDoc = await documentService.updateTitle(docId, titleInput);
       setDocument((prev) =>
         prev ? { ...prev, title: updatedDoc.title } : null
       );
@@ -130,9 +136,7 @@ export default function DocumentEditorPage() {
   };
 
   const handleShare = () => {
-    const url = window.location.href;
-    navigator.clipboard.writeText(url);
-    toast.success("Link copied to clipboard!");
+    onShareOpen();
   };
 
   const handleDelete = async () => {
@@ -515,6 +519,16 @@ export default function DocumentEditorPage() {
           )}
         </ModalContent>
       </Modal>
+
+      {/* Share Modal */}
+      {document && (
+        <ShareModal
+          isOpen={isShareOpen}
+          onClose={onShareClose}
+          document={document as any}
+          onUpdate={(updatedDoc) => setDocument(updatedDoc as any)}
+        />
+      )}
     </div>
   );
 }

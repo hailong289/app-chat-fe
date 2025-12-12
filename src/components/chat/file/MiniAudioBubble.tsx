@@ -2,6 +2,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PlayIcon, PauseIcon } from "@heroicons/react/24/solid";
+import { useTranslation } from "react-i18next";
 
 function fmt(t: number) {
   if (!isFinite(t) || t <= 0) return "0:00";
@@ -22,6 +23,7 @@ export default function MiniAudioBubble({
   className?: string;
   onPlayChange?: (isPlaying: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setPlaying] = useState(false);
   const [dur, setDur] = useState(initialDuration ?? 0);
@@ -79,7 +81,9 @@ export default function MiniAudioBubble({
       <button
         onClick={toggle}
         className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/25 hover:bg-white/35 transition"
-        aria-label={isPlaying ? "Pause" : "Play"}
+        aria-label={
+          isPlaying ? t("chat.file.audio.pause") : t("chat.file.audio.play")
+        }
       >
         {isPlaying ? (
           <PauseIcon className="w-4 h-4" />

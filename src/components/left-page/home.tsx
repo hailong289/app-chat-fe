@@ -74,14 +74,9 @@ export const Home = () => {
     if (!socket) return;
 
     const handleReconnect = () => {
-      console.log(
-        "🔌 [SOCKET RECONNECT] Socket reconnected, fetching rooms..."
-      );
-
       setTimeout(async () => {
         try {
           await roomState.getRooms(queryRoom);
-          console.log("✅ [SOCKET RECONNECT] Fetched rooms successfully");
         } catch (error) {
           console.error("❌ [SOCKET RECONNECT] Error fetching rooms:", error);
         }

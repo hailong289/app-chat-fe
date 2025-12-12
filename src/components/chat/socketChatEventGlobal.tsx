@@ -14,7 +14,6 @@ export const SocketEventChatGlobal = () => {
   const messageState = useMessageStore((state) => state);
   useEffect(() => {
     if (!socket) return;
-    console.log("nhận xử lý socket");
     socket.on(socketEvent.ROOMUPSERT, roomState.updateRoomSocket);
     socket.on(socketEvent.MSGUPSERT, messageState.upsetMsg);
     socket.on(socketEvent.MSGMARKREAD, roomState.setRoomReaded);

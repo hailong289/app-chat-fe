@@ -23,6 +23,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { DocumentTextIcon } from "@heroicons/react/16/solid";
 import MiniAudioBubble from "./MiniAudioBubble";
+import { useTranslation } from "react-i18next";
 
 // Helper: Normalize kind value (backend có thể trả "image" hoặc "photo")
 const normalizeKind = (file: FilePreview): string => {
@@ -55,6 +56,7 @@ export const CompactFileGallery = ({
   maxDisplay = 3,
   className = "",
 }: CompactFileGalleryProps) => {
+  const { t } = useTranslation();
   const [selectedFile, setSelectedFile] = useState<FilePreview | null>(null);
   const [showAll, setShowAll] = useState(false); // Mặc định không hiện hết
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -393,7 +395,7 @@ export const CompactFileGallery = ({
                 onPress={() => setShowAll(true)}
                 className="mt-2 w-full"
               >
-                Xem thêm {remainingCount} file
+                {t("chat.file.gallery.seeMore", { count: remainingCount })}
               </Button>
             </motion.div>
           )}
@@ -413,7 +415,7 @@ export const CompactFileGallery = ({
                 onPress={() => setShowAll(false)}
                 className="mt-2 w-full"
               >
-                Thu gọn
+                {t("chat.file.gallery.collapse")}
               </Button>
             </motion.div>
           )}
@@ -491,7 +493,7 @@ export const CompactFileGallery = ({
                         <div className="p-4 bg-blue-500/10 border-b border-blue-500/40">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-sm font-medium text-blue-100">
-                              Đang tải lên...
+                              {t("chat.file.gallery.uploading")}
                             </span>
                             <span className="text-sm text-blue-200 font-semibold">
                               {selectedFile.uploadProgress || 0}%
@@ -509,7 +511,7 @@ export const CompactFileGallery = ({
                       {selectedFile.status === "failed" && (
                         <div className="p-4 bg-red-500/10 border-b border-red-500/40">
                           <p className="text-sm font-medium text-red-100">
-                            ❌ Tải lên thất bại
+                            {t("chat.file.gallery.failed")}
                           </p>
                         </div>
                       )}
@@ -601,7 +603,7 @@ export const CompactFileGallery = ({
                               {selectedFile.name}
                             </p>
                             <p className="text-sm text-gray-400 mb-6">
-                              Không thể xem trước file này
+                              {t("chat.file.gallery.noPreview")}
                             </p>
                             {selectedFile.status === "uploaded" && (
                               <Button
@@ -620,7 +622,7 @@ export const CompactFileGallery = ({
                                 }}
                                 className="bg-gradient-to-r from-blue-600 to-cyan-600 font-semibold"
                               >
-                                Tải xuống
+                                {t("chat.file.gallery.download")}
                               </Button>
                             )}
                           </div>

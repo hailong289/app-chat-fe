@@ -105,7 +105,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       roomId: room.id || "",
     };
     const response: any = await RoomService.leaveRoom(body);
-    console.log("🚀 ~ response:", response.data.statusCode == 200);
     if (response.data.statusCode != 200) {
       set({ isLoading: false, error: "Failed to leave room" });
       return false;
@@ -114,7 +113,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     await deleteOne(db.rooms, room.id);
     const rooms = get().rooms.filter((r) => r.id !== room.id);
     get().getRoomsByType(get().type);
-    console.log("🚀 ~ rooms:", rooms);
     set({
       room: rooms.length > 0 ? rooms[0] : null,
     });
@@ -169,13 +167,11 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     };
 
     const result: any = await RoomService.changeNickName(body);
-    console.log("🚀 ~ result:", result);
     if (result.data.statusCode !== 200) {
       set({ isLoading: false, error: "Failed to change nickname" });
       return;
     }
 
-    console.log("🚀 ~ room:", room);
     await updateOne(db.rooms, room.id, { ...room });
     set({
       room: { ...room },
@@ -196,7 +192,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       link: link,
     };
     const result: any = await RoomService.changeAvatar(body);
-    console.log("🚀 ~ result:", result);
     if (result.data.statusCode !== 200) {
       set({ isLoading: false, error: "Failed to change avatar" });
       return;
@@ -305,11 +300,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     }
   },
   markMessageAsRead: (roomId: string, messageId: string, socket: any) => {
-    console.log("📖 Marking message as read:", {
-      roomId,
-      messageId,
-    });
-
     // Emit socket event
     socket?.emit("mark:read", {
       roomId,
@@ -339,9 +329,7 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     }
   },
   roomTypingSocket: (data: { isTyping: boolean; socket: any }) => {
-    console.log("Room typing socket event:", data);
     const roomId = get().room?.roomId;
-    console.log("🚀 ~ roomId:", roomId);
     if (!roomId) return;
     data.socket.emit("user:typing", {
       roomId,

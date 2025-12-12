@@ -3,6 +3,7 @@ import { LinkPreview } from "./LinkPreview";
 import { extractFirstUrl } from "@/libs/url-helpers";
 import { MAX_MESSAGE_LENGTH } from "../constants/messageConstants";
 import { MessageType } from "@/store/types/message.state";
+import { useTranslation } from "react-i18next";
 
 interface MessageBubbleProps {
   msg: MessageType;
@@ -12,7 +13,8 @@ interface MessageBubbleProps {
   onToggleExpanded: (id: string) => void;
 }
 
-function DeletedMessageBubble({ isMine }: { isMine: boolean }) {
+function DeletedMessageBubble({ isMine }: Readonly<{ isMine: boolean }>) {
+  const { t } = useTranslation();
   return (
     <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
       <div
@@ -22,13 +24,16 @@ function DeletedMessageBubble({ isMine }: { isMine: boolean }) {
           dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700
         `}
       >
-        {isMine ? "Bạn đã xoá tin nhắn này" : "Tin nhắn đã bị xoá"}
+        {isMine
+          ? t("chat.messages.bubble.deleted.me")
+          : t("chat.messages.bubble.deleted.other")}
       </div>
     </div>
   );
 }
 
-function RecalledMessageBubble({ isMine }: { isMine: boolean }) {
+function RecalledMessageBubble({ isMine }: Readonly<{ isMine: boolean }>) {
+  const { t } = useTranslation();
   return (
     <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
       <div
@@ -38,7 +43,9 @@ function RecalledMessageBubble({ isMine }: { isMine: boolean }) {
           dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700
         `}
       >
-        {isMine ? "Bạn đã thu hồi tin nhắn này" : "Tin nhắn đã bị thu hồi"}
+        {isMine
+          ? t("chat.messages.bubble.recalled.me")
+          : t("chat.messages.bubble.recalled.other")}
       </div>
     </div>
   );
@@ -98,6 +105,7 @@ function RegularMessageBubble({
   isExpanded: boolean;
   onToggleExpanded: (id: string) => void;
 }>) {
+  const { t } = useTranslation();
   const isLongMessage = msg.content.length > MAX_MESSAGE_LENGTH;
   const displayContent =
     isLongMessage && !isExpanded
@@ -126,7 +134,9 @@ function RegularMessageBubble({
               msg.isMine ? "text-blue-100" : "text-blue-600 dark:text-blue-400"
             }`}
           >
-            {isExpanded ? "Thu gọn" : "Xem thêm"}
+            {isExpanded
+              ? t("chat.messages.bubble.collapse")
+              : t("chat.messages.bubble.seeMore")}
           </button>
         )}
 

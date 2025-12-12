@@ -42,7 +42,6 @@ const useContactStore = create<ContactState>()(
             friendship: "INVALID",
             isOnline: false,
           }));
-          console.log("🚀 ~ dataContacts:", dataContacts);
           await upsertMany(db.contacts, dataContacts);
           set({ searchResults: dataContacts, isLoading: false });
         } catch (error: any) {
@@ -55,7 +54,6 @@ const useContactStore = create<ContactState>()(
       setContact: async (id: string) => {
         set({ isLoading: true, error: null });
         const contact = await getOne(db.contacts, id);
-        console.log("🚀 ~ contact:", contact);
         set({ contact, isLoading: false });
       },
       getFriends: async () => {
@@ -90,7 +88,6 @@ const useContactStore = create<ContactState>()(
           await upsertOne(db.contacts, contact);
           await get().getAllContacts();
           set({ contact });
-          console.log("🚀 ~ contact:", contact);
         } catch (error: any) {
           set({
             error: error?.message || "An error occurred",
@@ -121,7 +118,6 @@ const useContactStore = create<ContactState>()(
             actionUserId: contact.friendship?.actionUserId || null,
             isOnline: false,
           }));
-          console.log("🚀 ~ dataContacts:", dataContacts);
           if (payload?.type === "sent") {
             set({ sent: dataContacts });
           } else {
@@ -259,7 +255,6 @@ const useContactStore = create<ContactState>()(
         });
       },
       checkOnlineStatus: (socket: any) => {
-        console.log("checkOOnline");
         const ids = get().contacts.map((c) => c.id);
         socket.emit(socketEvent.USERSATUS, ids);
       },

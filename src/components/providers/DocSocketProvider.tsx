@@ -103,7 +103,6 @@ export function DocSocketProvider({
     }
 
     if (socketRef.current?.connected) {
-      console.log("⚡ Doc socket already connected");
       return;
     }
 
@@ -111,20 +110,17 @@ export function DocSocketProvider({
     setError(null);
 
     const docNamespaceUrl = `${socketUrl}/doc`;
-    console.log("🔌 Connecting to doc socket:", docNamespaceUrl);
 
     const newSocket = io(docNamespaceUrl, opts);
 
     // Connection events
     newSocket.on("connect", () => {
-      console.log("✅ Doc socket connected, socket.id:", newSocket.id);
       setStatus("connected");
       setError(null);
       setSocket(newSocket);
     });
 
     newSocket.on("disconnect", (reason) => {
-      console.log("🔌 Doc socket disconnected:", reason);
       setStatus("disconnected");
     });
 
@@ -156,9 +152,7 @@ export function DocSocketProvider({
       // Don't set status to error for exceptions - they might be recoverable
     });
 
-    newSocket.on("connected", (data: any) => {
-      console.log("✅ Doc socket connected event:", data);
-    });
+    newSocket.on("connected", (data: any) => {});
 
     socketRef.current = newSocket;
     setSocket(newSocket);
@@ -167,7 +161,6 @@ export function DocSocketProvider({
   // Disconnect function
   const disconnect = useCallback(() => {
     if (socketRef.current) {
-      console.log("🔌 Disconnecting doc socket");
       socketRef.current.disconnect();
       socketRef.current = null;
       setSocket(null);

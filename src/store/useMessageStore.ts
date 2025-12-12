@@ -337,8 +337,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       })) as { data: { metadata: MessageType[] } };
 
-      console.log("🚀 ~ fetchNewMessages response:", response);
-
       // Validate response structure
       if (!response?.data?.metadata || !Array.isArray(response.data.metadata)) {
         console.warn("⚠️ Invalid response structure from API:", response);
@@ -347,7 +345,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       }
 
       if (response.data.metadata.length === 0) {
-        console.log("📭 No new messages from API");
         set((state) => ({ ...state, isLoading: false }));
         return;
       }
@@ -396,10 +393,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           },
           isLoading: false,
         }));
-
-        console.log(`✅ Added ${uniqueNewMessages.length} new messages`);
       } else {
-        console.log("ℹ️ All messages already exist in state");
         set((state) => ({ ...state, isLoading: false }));
       }
     } catch (error) {
@@ -451,7 +445,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         });
 
         get().autoMarkMessageSent(roomId, messageId, 3000);
-        console.log("✅ Message resent (no attachments):", messageId);
         return;
       }
 
@@ -506,8 +499,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         });
 
         get().autoMarkMessageSent(roomId, messageId, 3000);
-
-        console.log("✅ Message resent:", messageId);
       } else {
         console.warn(
           "⚠️ Some or all attachments failed to upload on resend — marking message failed",
@@ -568,11 +559,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         return [];
       }
 
-      console.log(
-        `🌐 Fetching messages from API for room: ${roomId}`,
-        queryParams
-      );
-
       // Gọi API lấy tin nhắn
       const response = (await MessageService.getMessages({
         roomId,
@@ -588,7 +574,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       }
 
       if (response.data.metadata.length === 0) {
-        console.log("📭 No messages returned from API");
         return [];
       }
 
@@ -600,16 +585,12 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         attachments: sanitizeAttachmentsFromAPI(msg.attachments),
       }));
 
-      console.log(`✅ Fetched ${messages.length} messages from API`);
-
       // Upsert từng tin nhắn vào IndexedDB (đã được sanitize)
       await Promise.all(
         messages.map((msg: MessageType) =>
           upsertOne(db.messages, sanitizeMessageForDB(msg))
         )
       );
-
-      console.log(`💾 Saved ${messages.length} messages to IndexedDB`);
 
       // Lấy room hiện tại và merge messages
       const currentRoom = get().messagesRoom[roomId] || {
@@ -649,10 +630,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           },
         },
       });
-
-      console.log(
-        `🔄 Updated state with ${sortedMessages.length} total messages`
-      );
 
       return messages;
     } catch (error) {
@@ -755,7 +732,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     const filesToUpload = attachments.filter((att) => att.file);
 
     if (filesToUpload.length === 0) {
-      console.log("✅ No files to upload");
       return attachments;
     }
 
@@ -788,7 +764,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       })
         .then((resp) => {
           const data = resp.data;
-          console.log(`✅ Uploaded file ${index}:`, data);
           return {
             success: true as const,
             result: data,
@@ -906,13 +881,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       },
     });
 
-    // Log summary
-    const successCount = perFileResults.filter((r) => r.success).length;
-    const failCount = perFileResults.length - successCount;
-    console.log(
-      `✅ Upload summary: ${successCount} succeeded, ${failCount} failed`
-    );
-
     return updatedAttachments;
   },
 
@@ -942,8 +910,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     }
 
     try {
-      console.log(`🌐 Loading older messages before ID: ${oldestMessageId}`);
-
       // Gọi API để lấy tin nhắn cũ hơn
       const result: any = await MessageService.getMessages({
         roomId,
@@ -983,13 +949,8 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           await upsertOne(db.messages, sanitizeMessageForDB(msg));
         }
 
-        console.log(
-          `✅ Loaded ${olderMessages.length} older messages from API`
-        );
-
         return olderMessages; // Return messages for caller to check
       } else {
-        console.log("📭 No more older messages from server");
         return []; // Return empty array if no messages
       }
     } catch (error) {
@@ -1024,7 +985,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
         // Update IndexedDB
         await deleteOne(db.messages, messageId);
-        console.log("✅ Message deleted:", messageId);
       }
     } catch (error) {
       console.error("❌ Error deleting message:", error);
@@ -1074,7 +1034,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
             })
           );
         }
-        console.log("✅ Message recalled:", messageId);
       }
     } catch (error) {
       console.error("❌ Error recalling message:", error);

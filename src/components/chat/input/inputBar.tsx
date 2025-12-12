@@ -52,18 +52,7 @@ import {
 } from "@heroicons/react/24/outline";
 import useRoomStore from "@/store/useRoomStore";
 import TypingIndicator from "./TypingIndicator";
-
-const emojiTab = [
-  { name: "Gần đây", category: Categories.SUGGESTED },
-  { name: "Mặt cười", category: Categories.SMILEYS_PEOPLE },
-  { name: "Động vật", category: Categories.ANIMALS_NATURE },
-  { name: "Đồ ăn", category: Categories.FOOD_DRINK },
-  { name: "Hoạt động", category: Categories.ACTIVITIES },
-  { name: "Du lịch", category: Categories.TRAVEL_PLACES },
-  { name: "Đồ vật", category: Categories.OBJECTS },
-  { name: "Ký hiệu", category: Categories.SYMBOLS },
-  { name: "Cờ", category: Categories.FLAGS },
-];
+import { useTranslation } from "react-i18next";
 
 const maxFiles = 20;
 
@@ -86,11 +75,27 @@ export default function ChatInputBar({
   toggleInput,
   setScrollto,
 }: ChatInputBarProps) {
+  const { t } = useTranslation();
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<FilePreview[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [compressImages, setCompressImages] = useState(true);
   const [micro, setMicro] = useState(false);
+
+  const emojiTab = useMemo(
+    () => [
+      { name: t("chat.emoji.recent"), category: Categories.SUGGESTED },
+      { name: t("chat.emoji.smileys"), category: Categories.SMILEYS_PEOPLE },
+      { name: t("chat.emoji.animals"), category: Categories.ANIMALS_NATURE },
+      { name: t("chat.emoji.food"), category: Categories.FOOD_DRINK },
+      { name: t("chat.emoji.activities"), category: Categories.ACTIVITIES },
+      { name: t("chat.emoji.travel"), category: Categories.TRAVEL_PLACES },
+      { name: t("chat.emoji.objects"), category: Categories.OBJECTS },
+      { name: t("chat.emoji.symbols"), category: Categories.SYMBOLS },
+      { name: t("chat.emoji.flags"), category: Categories.FLAGS },
+    ],
+    [t]
+  );
 
   const fileMediaInputRef = useRef<HTMLInputElement>(null);
   const fileDocInputRef = useRef<HTMLInputElement>(null);
@@ -127,17 +132,12 @@ export default function ChatInputBar({
     [compressImages]
   );
 
-  const handleMaxFilesExceeded = useCallback((current: number, max: number) => {
-    console.log(
-      "🚨 Max files exceeded:",
-      current,
-      "files selected, max is",
-      max
-    );
-    toast.error(
-      `Chỉ được chọn tối đa ${max} files. Bạn đã chọn ${current} files.`
-    );
-  }, []);
+  const handleMaxFilesExceeded = useCallback(
+    (current: number, max: number) => {
+      toast.error(t("chat.input.maxFilesExceeded", { max, current }));
+    },
+    [t]
+  );
 
   // ====== SYNC LOCAL STATE VỚI STORE KHI ĐỔI CHAT ======
   useEffect(() => {
@@ -405,7 +405,7 @@ export default function ChatInputBar({
       await PermissionService.requestMicrophoneAccess();
     } catch (error) {
       console.error("PermissionService.requestMicrophoneAccess failed:", error);
-      toast.error("Không thể truy cập micro.");
+      toast.error(t("chat.voice.error.access"));
       return;
     }
 
@@ -415,7 +415,6 @@ export default function ChatInputBar({
         if (state === "idle") start();
       }, 100);
     } else {
-      console.log("cancel voice");
       cancel();
       setMicro(false);
     }
@@ -503,12 +502,12 @@ export default function ChatInputBar({
       >
         {!blockByMine && (
           <p className="text-gray-500 dark:text-gray-300">
-            Bạn không có quyền gửi tin nhắn trong cuộc trò chuyện này.
+            {t("chat.input.blocked.noPermission")}
           </p>
         )}
         {blockByMine && (
           <p className="text-gray-500 dark:text-gray-300">
-            Bạn đã chặn người này vui lòng bỏ chặn để gửi tin nhắn.
+            {t("chat.input.blocked.blockedByMe")}
           </p>
         )}
       </section>
@@ -589,10 +588,11 @@ export default function ChatInputBar({
               <div className="flex flex-col items-start gap-2 mb-1">
                 <div>
                   <span className="text-xs font-semibold text-teal-600 dark:text-teal-300">
-                    Trả lời{" "}
-                    {replyingTo.isMine
-                      ? "chính tôi"
-                      : replyingTo.sender?.fullname || "Unknown"}
+                    {t("chat.input.replyingTo", {
+                      name: replyingTo.isMine
+                        ? t("chat.input.you")
+                        : replyingTo.sender?.fullname || "Unknown",
+                    })}
                   </span>
                   {replyingTo.type !== "text" && (
                     <Chip
@@ -601,20 +601,24 @@ export default function ChatInputBar({
                       color="primary"
                       className="h-5"
                     >
-                      {replyingTo.type === "image" && "📷 Ảnh"}
-                      {replyingTo.type === "video" && "🎥 Video"}
-                      {replyingTo.type === "file" && "📎 File"}
-                      {replyingTo.type === "gif" && "🎬 GIF"}
-                      {replyingTo.type === "audio" && "🎵 Audio"}
+                      {replyingTo.type === "image" &&
+                        `📷 ${t("chat.input.image")}`}
+                      {replyingTo.type === "video" &&
+                        `🎥 ${t("chat.input.video")}`}
+                      {replyingTo.type === "file" &&
+                        `📎 ${t("chat.input.file")}`}
+                      {replyingTo.type === "gif" && `🎬 ${t("chat.input.gif")}`}
+                      {replyingTo.type === "audio" &&
+                        `🎵 ${t("chat.input.audio")}`}
                     </Chip>
                   )}
                 </div>
                 <p className="text-sm text-center text-gray-700 dark:text-gray-200 line-clamp-2">
                   {replyingTo.type === "text" && replyingTo.content}
-                  {replyingTo.type === "image" && "📷 Ảnh"}
-                  {replyingTo.type === "video" && "🎥 Video"}
-                  {replyingTo.type === "file" && "📎 File"}
-                  {replyingTo.type === "gif" && "🎬 GIF"}
+                  {replyingTo.type === "image" && `📷 ${t("chat.input.image")}`}
+                  {replyingTo.type === "video" && `🎥 ${t("chat.input.video")}`}
+                  {replyingTo.type === "file" && `📎 ${t("chat.input.file")}`}
+                  {replyingTo.type === "gif" && `🎬 ${t("chat.input.gif")}`}
                 </p>
               </div>
             </div>
@@ -647,7 +651,10 @@ export default function ChatInputBar({
           {!micro && (
             <div className="flex items-center gap-2">
               <Tooltip
-                content={`Chèn ảnh hoặc video tối đa ${maxFiles} files và có kích thước tối đa ${config.maxSizeMB}MB mỗi file`}
+                content={t("chat.input.tooltipMedia", {
+                  maxFiles,
+                  maxSize: config.maxSizeMB,
+                })}
               >
                 <Button
                   isIconOnly
@@ -660,7 +667,10 @@ export default function ChatInputBar({
                 </Button>
               </Tooltip>
               <Tooltip
-                content={`Chèn tài liệu tối đa ${maxFiles} files và có kích thước tối đa ${config.maxSizeMB}MB mỗi file`}
+                content={t("chat.input.tooltipFile", {
+                  maxFiles,
+                  maxSize: config.maxSizeMB,
+                })}
               >
                 <Button
                   isIconOnly
@@ -709,7 +719,7 @@ export default function ChatInputBar({
                       previewConfig={{
                         showPreview: false,
                       }}
-                      searchPlaceHolder="Tìm emoji..."
+                      searchPlaceHolder={t("chat.input.searchEmoji")}
                       skinTonesDisabled
                       lazyLoadEmojis={true}
                       categories={emojiTab}
@@ -749,7 +759,7 @@ export default function ChatInputBar({
                   <div className="flex flex-col h-[400px]">
                     <div className="p-3 border-b border-gray-200 dark:border-gray-800">
                       <Input
-                        placeholder="Tìm GIF..."
+                        placeholder={t("chat.input.searchGif")}
                         value={gifSearchQuery}
                         onChange={(e) => setGifSearchQuery(e.target.value)}
                         size="sm"
@@ -801,8 +811,8 @@ export default function ChatInputBar({
                         return (
                           <div className="flex items-center justify-center h-40 text-gray-400 dark:text-gray-500 text-sm">
                             {gifSearchQuery
-                              ? "Không tìm thấy GIF"
-                              : "Nhập để tìm GIF..."}
+                              ? t("chat.input.noGifFound")
+                              : t("chat.input.enterToSearchGif")}
                           </div>
                         );
                       })()}

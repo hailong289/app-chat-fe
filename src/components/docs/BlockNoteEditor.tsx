@@ -33,29 +33,25 @@ export default function BlockNoteEditorBase({
   // Create STABLE reference to fragment - CRITICAL for BlockNote to read existing data
   const fragment = useMemo(() => {
     const frag = ydoc.getXmlFragment("document-store");
-    console.log("🔍 BlockNote fragment created:", {
-      fragmentLength: frag.length,
-      fragmentType: frag.constructor?.name,
-      hasData: frag.length > 0,
-    });
     return frag;
   }, [ydoc]);
 
   const editor = useCreateBlockNote({
     uploadFile: async (file: File) => {
       try {
-        console.log("📤 Uploading file:", file.name);
         const response = await UploadService.uploadSingle(file, "docs");
         // The API returns { metadata: { url: ... } } but typed as UploadSingleResp in service
         // We cast to any to safely access metadata based on actual API response structure
         const data = response.data as any;
-        const url = data.metadata?.url || data.url;
+
+        // Try to find the URL in various places
+        const url = data.url || data.metadata?.url || data.data?.url;
 
         if (!url) {
+          console.error("❌ No URL found in response:", data);
           throw new Error("No URL returned from upload API");
         }
 
-        console.log("✅ File uploaded:", url);
         return url;
       } catch (error) {
         console.error("❌ Upload failed:", error);
@@ -80,31 +76,6 @@ export default function BlockNoteEditorBase({
       onEditorReady(editor);
     }
   }, [editor, onEditorReady]);
-
-  // DEBUG: Listen to Y.Doc updates to verify BlockNote is writing to it
-  useEffect(() => {
-    const updateHandler = (update: Uint8Array, origin: any) => {
-      console.log("🔔 Y.Doc UPDATE in BlockNoteEditor:", {
-        updateSize: update.length,
-        origin: origin?.constructor?.name || typeof origin,
-        hasProvider: !!provider,
-        providerType: provider?.constructor?.name,
-      });
-    };
-
-    ydoc.on("update", updateHandler);
-
-    return () => {
-      ydoc.off("update", updateHandler);
-    };
-  }, [ydoc, provider]);
-
-  console.log("🎨 BlockNote editor rendering:", {
-    hasEditor: !!editor,
-    hasProvider: !!provider,
-    fragmentLength: fragment.length,
-    theme: resolvedTheme,
-  });
 
   return (
     <BlockNoteView

@@ -6,7 +6,7 @@ export interface Document {
   title: string;
   roomId: string;
   visibility: string;
-  yjsSnapshot?: number[] | Uint8Array;
+  yjsSnapshot?: number[] | Uint8Array | string;
   plainText?: string;
   sharedWith?: Array<{ userId: string; role: string }>;
   createdAt?: string;
@@ -22,9 +22,13 @@ export interface CreateDocumentDto {
 class DocumentService {
   private readonly baseUrl = "/documents";
 
-  async getDocuments() {
+  async getDocuments(roomId?: string) {
+    const params: any = {};
+    if (roomId) params.roomId = roomId;
+
     const response = await apiService.get<{ metadata: Document[] }>(
-      this.baseUrl
+      this.baseUrl,
+      { params }
     );
     return response.data.metadata || [];
   }
@@ -44,7 +48,10 @@ class DocumentService {
     return response.data.metadata;
   }
 
-  async updateDocument(docId: string, data: Partial<CreateDocumentDto>) {
+  async updateDocumentContent(
+    docId: string,
+    data: { plainText?: string; yjsSnapshot?: any }
+  ) {
     const response = await apiService.patch<{ metadata: Document }>(
       `${this.baseUrl}/${docId}`,
       data
@@ -54,6 +61,42 @@ class DocumentService {
 
   async deleteDocument(docId: string) {
     await apiService.delete(`${this.baseUrl}/${docId}`);
+  }
+
+  async shareDocument(
+    docId: string,
+    shareUserId: string,
+    role: string = "editor"
+  ) {
+    const response = await apiService.post<{ metadata: Document }>(
+      `${this.baseUrl}/${docId}/share`,
+      { shareUserId, role }
+    );
+    return response.data.metadata;
+  }
+
+  async unshareDocument(docId: string, shareUserId: string) {
+    const response = await apiService.post<{ metadata: Document }>(
+      `${this.baseUrl}/${docId}/unshare`,
+      { shareUserId }
+    );
+    return response.data.metadata;
+  }
+
+  async updateTitle(docId: string, title: string) {
+    const response = await apiService.patch<{ metadata: Document }>(
+      `${this.baseUrl}/${docId}/title`,
+      { title }
+    );
+    return response.data.metadata;
+  }
+
+  async updateVisibility(docId: string, visibility: string) {
+    const response = await apiService.patch<{ metadata: Document }>(
+      `${this.baseUrl}/${docId}/visibility`,
+      { visibility }
+    );
+    return response.data.metadata;
   }
 }
 

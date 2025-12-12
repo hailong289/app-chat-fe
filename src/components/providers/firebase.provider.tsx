@@ -41,7 +41,6 @@ export const FirebaseProvider = ({
     const savedToken = localStorage.getItem("fcm-token");
     if (savedToken) {
       setToken(savedToken);
-      console.log("✅ Loaded FCM token from localStorage");
     }
   }, [isBrowser]);
 
@@ -62,14 +61,11 @@ export const FirebaseProvider = ({
           "/firebase-messaging-sw.js",
           { scope: "/" }
         );
-        console.log("✅ Service Worker registered:", reg);
 
         const readyReg = await navigator.serviceWorker.ready;
-        console.log("✅ Service Worker ready:", readyReg);
 
         // ĐĂNG KÝ FOREGROUND MESSAGE
         unsubscribe = onMessage(messaging, (payload) => {
-          console.log("📩 Foreground message:", payload);
           setMessage(payload);
 
           // Hiển thị native notification khi app đang mở (tuỳ thích)
@@ -180,7 +176,6 @@ export const FirebaseProvider = ({
       }
 
       const permission = await Notification.requestPermission();
-      console.log("🔔 Notification permission:", permission);
 
       if (permission !== "granted") {
         console.warn("🚫 Notification permission denied");
@@ -196,7 +191,6 @@ export const FirebaseProvider = ({
 
       if (t) {
         setToken(t);
-        console.log("✅ FCM Token:", t);
         localStorage.setItem("fcm-token", t);
       } else {
         console.error("❌ No registration token available");

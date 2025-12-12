@@ -130,7 +130,6 @@ export function SocketProvider({
 
   // Force reconnect function
   const forceReconnect = useCallback(() => {
-    console.log("🔄 [Socket] Force reconnect requested");
     if (socketRef.current) {
       socketRef.current.disconnect();
       socketRef.current.connect();
@@ -139,7 +138,6 @@ export function SocketProvider({
 
   // Disconnect function - sử dụng khi logout
   const disconnect = useCallback(() => {
-    console.log("🔌 [Socket] Manual disconnect requested");
     if (socketRef.current) {
       socketRef.current.disconnect();
       socketRef.current = null;
@@ -170,18 +168,11 @@ export function SocketProvider({
       return;
     }
 
-    console.log("🔌 [Socket] Initializing connection to:", url);
     setStatus("connecting");
     const namespaceUrl = url.endsWith("/chat") ? url : `${url}/chat`;
     const s = io(namespaceUrl, opts);
 
     s.on("connect", () => {
-      console.log(
-        "✅ [Socket] Connected! ID:",
-        s.id,
-        "Transport:",
-        s.io.engine.transport.name
-      );
       setStatus("connected");
       setReconnectCount(0);
       setLastError(null);
@@ -196,14 +187,9 @@ export function SocketProvider({
     });
 
     s.on("disconnect", (reason) => {
-      console.log("❌ [Socket] Disconnected. Reason:", reason);
-
       // Different handling based on disconnect reason
       if (reason === "io server disconnect") {
         // Server intentionally disconnected, need manual reconnect
-        console.log(
-          "⚠️ [Socket] Server disconnected, attempting manual reconnect..."
-        );
         setStatus("reconnecting");
         reconnectTimerRef.current = setTimeout(() => {
           s.connect();
@@ -217,18 +203,14 @@ export function SocketProvider({
     });
 
     // Transport upgrade (polling -> websocket)
-    s.io.engine.on("upgrade", (transport: any) => {
-      console.log("⬆️ [Socket] Transport upgraded to:", transport.name);
-    });
+    s.io.engine.on("upgrade", (transport: any) => {});
 
     s.io.on("reconnect_attempt", (attempt) => {
-      console.log(`🔄 [Socket] Reconnect attempt #${attempt}...`);
       setStatus("reconnecting");
       setReconnectCount(attempt);
     });
 
     s.io.on("reconnect", (attempt) => {
-      console.log(`✅ [Socket] Reconnected after ${attempt} attempts`);
       setStatus("connected");
       setReconnectCount(0);
       setLastError(null);
@@ -268,13 +250,11 @@ export function SocketProvider({
 
     // Handle server scaling events
     s.on("server:scaling", (data: any) => {
-      console.log("📊 [Socket] Server scaling event:", data);
       // Backend có thể emit event này khi scaling
       // Client có thể prepare cho disconnect/reconnect
     });
 
     s.on("server:maintenance", (data: any) => {
-      console.log("🔧 [Socket] Server maintenance:", data);
       // Graceful disconnect when server going to maintenance
     });
 

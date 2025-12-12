@@ -28,7 +28,6 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     const requestPermission = async () => {
       try {
         await firebase.requestPermission();
-        console.log("🚀 Thông báo quyền đã được cấp.");
       } catch (err) {
         console.error("🚫 Không thể cấp quyền thông báo.", err);
       }

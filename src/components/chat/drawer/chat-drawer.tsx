@@ -47,6 +47,7 @@ import UploadService from "@/service/uploadfile.service";
 import { AddMemberModal } from "../modals/add-member.model";
 import { useRouter } from "next/navigation";
 import Timeline from "@/components/ui/timeline";
+import { useTranslation } from "react-i18next";
 
 export default function ChatDrawer({
   isOpen,
@@ -57,6 +58,7 @@ export default function ChatDrawer({
   onClose: () => void;
   noAction: boolean;
 }>) {
+  const { t } = useTranslation();
   const [selectedKeys, setSelectedKeys] = useState(new Set(["1"]));
   const files = [
     {
@@ -115,14 +117,14 @@ export default function ChatDrawer({
     (member) => member.id === user?.id && member.role === "admin"
   );
   const role: Record<string, string> = {
-    admin: "Quản trị viên",
-    member: "Thành viên",
-    owner: "chủ sở hữu",
-    guest: "Khách",
+    admin: t("chat.drawer.roles.admin"),
+    member: t("chat.drawer.roles.member"),
+    owner: t("chat.drawer.roles.owner"),
+    guest: t("chat.drawer.roles.guest"),
   };
   const router = useRouter();
   const handleChatPrivate = (id: string) => {
-    roomState.createRoom("private", `Chat với ${id}`, [id]);
+    roomState.createRoom("private", `${t("chat.drawer.chatWith")} ${id}`, [id]);
     router.push(`/chat?chatId=${id}`);
   };
   return (
@@ -174,7 +176,7 @@ export default function ChatDrawer({
                         <AccordionItem
                           key="1"
                           aria-label="Accordion 1"
-                          title="Tuỳ chỉnh về đoạn chat"
+                          title={t("chat.drawer.customize.title")}
                         >
                           <div className="w-full">
                             {roomState.room?.type !== "private" && (
@@ -187,7 +189,7 @@ export default function ChatDrawer({
                                     <PencilIcon className="w-4 h-4 text-gray-400" />
                                   }
                                 >
-                                  Thay đổi trên đoạn chat
+                                  {t("chat.drawer.customize.changeName")}
                                 </Button>
                                 <UploadFileButton
                                   service={(file, folder) =>
@@ -204,7 +206,7 @@ export default function ChatDrawer({
                                   }
                                   accept="image/*"
                                   folder="avatar"
-                                  label="Thay đổi ảnh"
+                                  label={t("chat.drawer.customize.changePhoto")}
                                   className="w-full justify-start"
                                   variant="light"
                                 />
@@ -218,7 +220,7 @@ export default function ChatDrawer({
                                 <PencilIcon className="w-4 h-4 text-gray-400" />
                               }
                             >
-                              Chỉnh sửa biệt danh
+                              {t("chat.drawer.customize.editNickname")}
                             </Button>
                           </div>
                         </AccordionItem>
@@ -228,7 +230,7 @@ export default function ChatDrawer({
                         <AccordionItem
                           key="2"
                           aria-label="Accordion 2"
-                          title="Thành viên trong đoạn chat"
+                          title={t("chat.drawer.members.title")}
                         >
                           {roomState.room?.members?.map((member) => (
                             <div
@@ -273,7 +275,9 @@ export default function ChatDrawer({
                                           <ChatBubbleLeftIcon className="w-5 h-5 text-gray-400" />
                                         }
                                       >
-                                        Gửi tin nhắn riêng tư
+                                        {t(
+                                          "chat.drawer.members.sendPrivateMessage"
+                                        )}
                                       </Button>
                                     </DropdownItem>
                                     <DropdownItem key="2">
@@ -284,7 +288,7 @@ export default function ChatDrawer({
                                           <UserIcon className="w-5 h-5 text-gray-400" />
                                         }
                                       >
-                                        Xem trang cá nhân
+                                        {t("chat.drawer.members.viewProfile")}
                                       </Button>
                                     </DropdownItem>
                                     {isAdmin ? (
@@ -300,7 +304,9 @@ export default function ChatDrawer({
                                             setMemberIdToDelete(member.id);
                                           }}
                                         >
-                                          Xoá khỏi nhóm
+                                          {t(
+                                            "chat.drawer.members.removeFromGroup"
+                                          )}
                                         </Button>
                                       </DropdownItem>
                                     ) : null}
@@ -318,7 +324,7 @@ export default function ChatDrawer({
                                 <UserPlusIcon className="w-4 h-4 text-gray-400" />
                               }
                             >
-                              Thêm thành viên
+                              {t("chat.drawer.members.addMember")}
                             </Button>
                           )}
                         </AccordionItem>
@@ -326,7 +332,7 @@ export default function ChatDrawer({
                       <AccordionItem
                         key="3"
                         aria-label="Accordion 3"
-                        title="file phương tiện file liên kết"
+                        title={t("chat.drawer.media.title")}
                       >
                         <div className="mb-6">
                           <Tabs
@@ -343,9 +349,18 @@ export default function ChatDrawer({
                                 "group-data-[selected=true]:!text-white !font-medium !opacity-100",
                             }}
                           >
-                            <Tab key="media" title="Media" />
-                            <Tab key="link" title="Link" />
-                            <Tab key="docs" title="Docs" />
+                            <Tab
+                              key="media"
+                              title={t("chat.drawer.media.tabs.media")}
+                            />
+                            <Tab
+                              key="link"
+                              title={t("chat.drawer.media.tabs.link")}
+                            />
+                            <Tab
+                              key="docs"
+                              title={t("chat.drawer.media.tabs.docs")}
+                            />
                           </Tabs>
                         </div>
 
@@ -389,7 +404,7 @@ export default function ChatDrawer({
                       <AccordionItem
                         key="4"
                         aria-label="Accordion 4"
-                        title="Quyền riêng tư và hỗ trợ"
+                        title={t("chat.drawer.privacy.title")}
                       >
                         <Button
                           className="w-full justify-start"
@@ -399,9 +414,11 @@ export default function ChatDrawer({
                           }
                         >
                           <div className="flex flex-col items-start justify-start">
-                            <h2 className="font-bold">Báo cáo</h2>
+                            <h2 className="font-bold">
+                              {t("chat.drawer.privacy.report")}
+                            </h2>
                             <span className="text-gray-400">
-                              Đóng góp về cuộc trò truy
+                              {t("chat.drawer.privacy.reportDesc")}
                             </span>
                           </div>
                         </Button>
@@ -415,7 +432,7 @@ export default function ChatDrawer({
                               }
                               onPress={() => setOpenChangeLeavingModal(true)}
                             >
-                              Rời nhóm
+                              {t("chat.drawer.privacy.leaveGroup")}
                             </Button>
                             <ConfirmLeavingModal
                               isOpen={openChangeLeavingModal}
@@ -432,14 +449,16 @@ export default function ChatDrawer({
                               <NoSymbolIcon className="w-5 h-5 text-gray-400" />
                             }
                           >
-                            {roomState.room?.isBlocked ? "Bỏ chặn" : "Chặn"}
+                            {roomState.room?.isBlocked
+                              ? t("chat.drawer.privacy.unblock")
+                              : t("chat.drawer.privacy.block")}
                           </Button>
                         )}
                       </AccordionItem>,
                       <AccordionItem
                         key="5"
                         aria-label="Accordion 5"
-                        title="Lịch sử hoạt động"
+                        title={t("chat.drawer.history.title")}
                       >
                         <Timeline
                           events={roomState.room?.roomEvents?.map((event) => ({

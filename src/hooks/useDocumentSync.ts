@@ -6,39 +6,22 @@ import { SocketIOProvider } from "@/libs/SocketIOProvider";
 // Helper to parse various snapshot formats
 function parseYjsSnapshot(snapshot: any): Uint8Array | null {
   if (!snapshot) {
-    console.log("❌ parseYjsSnapshot: snapshot is null/undefined");
     return null;
   }
 
   try {
     const MAX_SIZE = 50 * 1024 * 1024; // 50MB limit
 
-    console.log("🔍 parseYjsSnapshot input:", {
-      type: typeof snapshot,
-      isArray: Array.isArray(snapshot),
-      isUint8Array: snapshot instanceof Uint8Array,
-      isArrayBuffer: snapshot instanceof ArrayBuffer,
-      hasDataProperty: snapshot?.data !== undefined,
-      hasTypeProperty: snapshot?.type !== undefined,
-      structureType: snapshot?.type,
-    });
-
     if (snapshot instanceof Uint8Array) {
-      console.log("✅ Already Uint8Array, length:", snapshot.length);
       return snapshot;
     }
 
     if (snapshot instanceof ArrayBuffer) {
-      console.log("✅ Converting ArrayBuffer to Uint8Array");
       return new Uint8Array(snapshot);
     }
 
     // MongoDB Buffer object: { type: "Buffer", data: [...] }
     if (snapshot.data && Array.isArray(snapshot.data)) {
-      console.log(
-        "✅ MongoDB Buffer format detected, data length:",
-        snapshot.data.length
-      );
       if (snapshot.data.length > MAX_SIZE) {
         console.error(`❌ Snapshot too large: ${snapshot.data.length} bytes`);
         return null;
@@ -48,7 +31,6 @@ function parseYjsSnapshot(snapshot: any): Uint8Array | null {
 
     // Plain array
     if (Array.isArray(snapshot)) {
-      console.log("✅ Plain array format, length:", snapshot.length);
       if (snapshot.length > MAX_SIZE) {
         console.error(`❌ Snapshot too large: ${snapshot.length} bytes`);
         return null;
@@ -79,7 +61,6 @@ function initializeDefaultContent(ydoc: Doc) {
       blockGroup.insert(0, [blockContainer]);
       fragment.insert(0, [blockGroup]);
     });
-    console.log("✅ Initialized default content for empty document");
   }
 }
 
@@ -91,6 +72,7 @@ interface DocumentMetadata {
   visibility: string;
   yjsSnapshot?: number[] | Uint8Array;
   plainText?: string;
+  sharedWith?: Array<{ userId: string; role: string }>;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -147,35 +129,17 @@ export function useDocumentSync({
   useEffect(() => {
     if (!docId || !socket || !enabled) return;
 
-    console.log("📤 Emitting doc:open for:", docId);
     socket.emit("doc:open", { docId });
 
     const handleDocOpened = (data: DocumentMetadata) => {
-      console.log("✅ Document room joined:", data._id);
-      console.log("📋 Document data received:", {
-        hasSnapshot: !!data.yjsSnapshot,
-        snapshotType: data.yjsSnapshot ? typeof data.yjsSnapshot : "none",
-        snapshotStructure: (data.yjsSnapshot as any)?.type || "raw",
-        plainText: data.plainText,
-      });
-
       // Apply initial snapshot to Y.Doc BEFORE setting document state
       if (data.yjsSnapshot) {
         try {
           const snapshotData = parseYjsSnapshot(data.yjsSnapshot);
           if (snapshotData) {
-            console.log(
-              `📥 Applying initial snapshot: ${snapshotData.length} bytes`
-            );
             applyUpdate(ydoc, snapshotData);
 
             // Verify Y.Doc content after applying
-            const xmlFragment = ydoc.getXmlFragment("document-store");
-            console.log("📄 Y.Doc after snapshot:", {
-              fragmentLength: xmlFragment.length,
-              fragmentType: xmlFragment.constructor.name,
-            });
-
             setIsSnapshotApplied(true);
           } else {
             console.error("❌ Failed to parse snapshot - returned null");
@@ -200,7 +164,6 @@ export function useDocumentSync({
     socket.on("doc:opened", handleDocOpened);
 
     return () => {
-      console.log("📤 Emitting doc:close for:", docId);
       socket.off("doc:opened", handleDocOpened);
       socket.emit("doc:close", { docId });
       setIsRoomJoined(false);
@@ -216,12 +179,10 @@ export function useDocumentSync({
       return;
     }
 
-    console.log("🔌 Initializing SocketIOProvider for:", docId);
     const newProvider = new SocketIOProvider(docId, ydoc, socket);
     setProvider(newProvider);
 
     return () => {
-      console.log("🔌 Destroying SocketIOProvider for:", docId);
       newProvider.destroy();
       setProvider(null);
     };
@@ -238,7 +199,6 @@ export function useDocumentSync({
       fullname: string;
       avatar?: string;
     }) => {
-      console.log("👤 User joined:", data.fullname);
       setUsersPresence((prev) => {
         const updated = new Map(prev);
         updated.set(data.userId, {
@@ -251,7 +211,6 @@ export function useDocumentSync({
     };
 
     const handleUserLeft = (data: { userId: string; fullname: string }) => {
-      console.log("👋 User left:", data.fullname);
       setUsersPresence((prev) => {
         const updated = new Map(prev);
         updated.delete(data.userId);
@@ -310,7 +269,6 @@ export function useDocumentSync({
     };
   }, [socket, docId, isRoomJoined]);
 
-  console.log("🚀 ~ useDocumentSync ~ document:", document);
   return {
     document,
     setDocument,
