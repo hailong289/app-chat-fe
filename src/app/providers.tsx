@@ -5,7 +5,6 @@ import "@/i18n";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { HeroUIProvider, ToastProvider } from "@heroui/react";
 import AlertModal from "@/components/modals/AlertModal";
-import { InitAppChat } from "@/components/chat/initAppChat.provider";
 
 export function Providers({
   children,
@@ -22,7 +21,6 @@ export function Providers({
       <HeroUIProvider>
         <ToastProvider />
         <AlertModal />
-        <InitAppChat />
         {children}
       </HeroUIProvider>
     </NextThemesProvider>

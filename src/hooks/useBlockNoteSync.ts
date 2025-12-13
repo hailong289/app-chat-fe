@@ -1,7 +1,7 @@
 "use client";
 import { BlockNoteEditor } from "@blocknote/core";
 import { useEffect, useCallback } from "react";
-import { useSocket } from "@/components/providers/SocketProvider";
+import { useDocSocket } from "./useDocSocket";
 
 interface BlockNoteSyncOptions {
   docId: string;
@@ -21,7 +21,7 @@ export function useBlockNoteSync({
   editor,
   onLoadSnapshot,
 }: BlockNoteSyncOptions) {
-  const { socket, status } = useSocket();
+  const { socket, status } = useDocSocket();
 
   // Join room và request snapshot
   useEffect(() => {

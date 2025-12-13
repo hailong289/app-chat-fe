@@ -9,8 +9,6 @@ import "@/styles/main.scss";
 import { ClientLayout } from "./client-layout";
 import { FirebaseProvider } from "@/components/providers/firebase.provider";
 import NotificationPermission from "@/components/notifications/NotificationPermission";
-import { InitAppChat } from "@/components/chat/initAppChat.provider";
-// import { ThemeProvider } from "next-themes";
 export const metadata: Metadata = {
   title: "ChatApp",
   description: "Ứng dụng chat hiện đại",
@@ -27,7 +25,7 @@ export default function RootLayout({
         <Providers>
           <FirebaseProvider>
             <NotificationPermission />
-            <InitAppChat />
+
             <ClientLayout>{children}</ClientLayout>
           </FirebaseProvider>
         </Providers>

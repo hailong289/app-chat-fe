@@ -73,6 +73,7 @@ function useAccessToken(): string | null {
     }
     try {
       const raw = getCookie("tokens");
+      console.log("🚀 ~ useAccessToken ~ raw:", raw);
       if (typeof raw === "string" && raw.length > 0) {
         const parsed = JSON.parse(raw);
         if (parsed?.accessToken) {
@@ -115,13 +116,14 @@ export function DocSocketProvider({
       upgrade: true,
       // Quan trọng cho Auto Scaling: enable sticky session
       forceNew: false,
+      multiplex: true,
       // Gửi heartbeat để giữ connection alive qua load balancer
       pingInterval: 25000,
       pingTimeout: 60000,
       // Custom query params có thể dùng cho sticky session
       query: {
         clientId: getOrCreateClientId(),
-        version: "1.0.0",
+        version: "1.1.0",
       },
     }),
     [token]
@@ -231,7 +233,13 @@ export function DocSocketProvider({
     });
 
     newSocket.on("connect_error", (err) => {
-      console.error("❌ Doc socket connect error:", err.message);
+      console.error("❌ Doc Socket Connect Error Details:", {
+        message: err.message,
+        name: err.name,
+        // @ts-ignore - Đôi khi server trả thêm data
+        data: err.data,
+        stack: err.stack,
+      });
       setError(err.message);
 
       // Nếu server trả unauthorized, đừng spam reconnect vô nghĩa

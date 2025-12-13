@@ -26,6 +26,7 @@ import useAuthStore from "@/store/useAuthStore";
 import useAlertStore from "@/store/useAlertStore";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
+import { useDocSocket } from "../providers/DocSocketProvider";
 
 const Document: React.FC = () => {
   const router = useRouter();
@@ -48,10 +49,36 @@ const Document: React.FC = () => {
   const [searchValue, setSearchValue] = useState("");
   const [newDocTitle, setNewDocTitle] = useState("");
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { socket } = useDocSocket();
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleReconnect = () => {
+      setTimeout(async () => {
+        try {
+         await loadDocuments();
+        } catch (error) {
+          console.error("❌ [SOCKET RECONNECT] Error fetching rooms:", error);
+        }
+      }, 500);
+    };
+
+    socket.on("connect", handleReconnect);
+    return () => {
+      socket.off("connect", handleReconnect);
+    };
+  }, [socket]);
+
+  // Debounce search + query changes
 
   useEffect(() => {
-    loadDocuments();
+    const timeoutId = setTimeout(() => {
+      loadDocuments();
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
   }, []);
+  useEffect(() => {}, []);
 
   const handleCreateDocument = async () => {
     if (!newDocTitle.trim()) return;

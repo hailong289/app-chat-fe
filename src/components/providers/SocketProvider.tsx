@@ -75,6 +75,7 @@ function useAccessToken(): string | null {
     // chỉ đọc cookie một lần khi không có token trong store
     try {
       const raw = getCookie("tokens");
+      console.log("🚀 ~ useAccessToken ~ raw:", raw);
       if (typeof raw === "string" && raw.length > 0) {
         const parsed = JSON.parse(raw);
         if (parsed?.accessToken) {
@@ -116,6 +117,7 @@ export function SocketProvider({
       upgrade: true,
       // Quan trọng cho Auto Scaling: enable sticky session
       forceNew: false,
+      multiplex: false,
       // Gửi heartbeat để giữ connection alive qua load balancer
       pingInterval: 25000,
       pingTimeout: 60000,
