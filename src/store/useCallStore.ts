@@ -28,6 +28,7 @@ const useCallStore = create<CallState>()(
         },
         socket: null,
         actionUserId: null,
+        answer: null,
         openCall: (payload) => { // calling: người gọi
             const { roomId, mode, members, currentUser, socket } = payload;
             const memberMap = members.map((m: User) => ({
@@ -51,31 +52,72 @@ const useCallStore = create<CallState>()(
             window.open(`/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${callType}&status=incoming`, '', 'width=500,height=600');
         },
         acceptCall: async (payload) => { // accepted: người bị gọi
-            const { roomId, members, actionUserId, socket } = payload;
-            set({ status: 'accepted' });
+            const { roomId, members, currentUser, socket } = payload;
+            const actionUserId = currentUser.id;
+            const membersNew = members.map((m: CallMember) => ({
+                ...m,
+                status: m.id === currentUser.id ? 'started' : m.status,
+            }));
+            set({ status: 'accepted', members: membersNew });
             Helpers.updateURLParams('status', 'accepted');
-            socket?.emit('call:accepted', {
-                roomId: roomId,
-                membersIds: members.map((m: User) => m.id),
-                actionUserId: actionUserId,
-            });
+            Helpers.updateURLParams('members', Helpers.enCryptUserInfo(membersNew));
+            const otherMembers = membersNew.filter((m: CallMember) => m.id !== currentUser.id);
+            for (const member of otherMembers) {
+                // Tạo peer connection
+                const pc = await get().handleCreatePeerConnection(roomId, member.id);
+                // tạo offer
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                // gửi offer đến người bị gọi
+                socket?.emit('call:accepted', {
+                    membersIds: members.map((m: User) => m.id),
+                    actionUserId: actionUserId,
+                    roomId: roomId,
+                    targetUserId: member.id,
+                    offer: Helpers.enCryptUserInfo(offer),
+                });
+            }
+            // // Tạo peer connection
+            // const pc = await get().handleCreatePeerConnection(roomId, actionUserId);
+            // // tạo offer
+            // const offer = await pc.createOffer();
+            // await pc.setLocalDescription(offer);
+            // // gửi offer đến người gọi
+            // socket?.emit('call:accepted', { // gửi offer đến người gọi
+            //     membersIds: members.map((m: User) => m.id),
+            //     actionUserId: actionUserId,
+            //     roomId: roomId,
+            //     offer: Helpers.enCryptUserInfo(offer),
+            // });
         },
         handleAcceptCall: async (payload: any) => { // accepted: người gọi
-            const { roomId, actionUserId } = payload;
+            const { roomId, offer, members, actionUserId } = payload;
             const socket = get().socket;
-            // tạo peer connection
+            const currentUser = useAuthStore.getState().user;
+            if (!currentUser) {
+                console.error("User not authenticated, cannot handle call event");
+                return;
+            }
+            const userStarted = members.find((m: CallMember) => m.id === currentUser.id && m.status === 'started');
+            if (!userStarted) {
+                console.error("User not found in members");
+                return;
+            }
+            console.log('handleAcceptCall', userStarted);
+            // Nhận offer từ người gọi
+            const offerDescription = Helpers.decryptUserInfo(offer);
             const pc = await get().handleCreatePeerConnection(roomId, actionUserId);
-            // tạo offer
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            set({ status: 'accepted' });
-            Helpers.updateURLParams('status', 'accepted');
-            // gửi offer đến người bị gọi
-            socket?.emit('call:start', {
-                actionUserId: actionUserId,
+            await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
+            const answerCreated = await pc.createAnswer();
+            await pc.setLocalDescription(answerCreated);
+            socket?.emit('call:answer', {
                 roomId: roomId,
-                offer: Helpers.enCryptUserInfo(offer),
+                answer: Helpers.enCryptUserInfo(answerCreated),
+                members: Helpers.enCryptUserInfo(members),
+                targetUserId: actionUserId,
             });
+            set({ status: 'accepted', answer: Helpers.enCryptUserInfo(answerCreated) });
+            Helpers.updateURLParams('status', 'accepted');
         },
         endCall: async (payload: any) => {
             const { roomId, actionUserId, status } = payload;
@@ -142,6 +184,7 @@ const useCallStore = create<CallState>()(
         eventCall: async (event: string, payload: any) => {
             const authStore = useAuthStore.getState();
             const currentUser = authStore.user;
+            const status = get().status;
             if (!currentUser) {
                 console.warn("User not authenticated, cannot handle call event");
                 return;
@@ -149,7 +192,7 @@ const useCallStore = create<CallState>()(
             if (!window.opener && event !== "request") {
                 return;
             }
-            const { actionUserId, offer, answer, candidate, roomId } = payload;
+            const { actionUserId, offer, answer, candidate, roomId, targetUserId } = payload;
             const socket = get().socket;
             switch (event) {
                 case "request":
@@ -162,44 +205,68 @@ const useCallStore = create<CallState>()(
                 case "accepted":
                     await get().handleAcceptCall(payload);
                     break;
-                case "start": {
-                     // nhận offer từ người chấp nhận cuộc gọi
-                     const offerDescription = Helpers.decryptUserInfo(offer);
-                     const pc = await get().handleCreatePeerConnection(roomId, actionUserId);
-                     await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
-                     const answerCreated = await pc.createAnswer();
-                     await pc.setLocalDescription(answerCreated);
-                     socket?.emit('call:answer', {
-                         roomId: roomId,
-                         actionUserId: actionUserId,
-                         answer: Helpers.enCryptUserInfo(answerCreated),
-                     });
-                    break;
-                }
                 case "answer": {
+                    if (status !== 'accepted') {
+                        console.error("Call not accepted, cannot handle answer event");
+                        return;
+                    }
+                    console.log("targetUserId", targetUserId);
                     const answerDescription = Helpers.decryptUserInfo(answer);
-                    const pc = await get().handleCreatePeerConnection(roomId, actionUserId);
-                    await pc.setRemoteDescription(new RTCSessionDescription(answerDescription));
-                    await get().flushPendingCandidates(roomId, actionUserId);
+                    console.log("answerDescription", answerDescription);
+                    
+                    const key = `${roomId}-${actionUserId}`;
+                    const pc = get().stream.peerConnections.get(key);
+                    
+                    if (!pc) {
+                        console.error("Peer connection not found for answer");
+                        return;
+                    }
+                    
+                    // Verify the peer connection is in the correct state
+                    console.log("Peer connection signaling state:", pc.signalingState);
+                    console.log("Local description exists:", !!pc.localDescription);
+                    console.log("Remote description exists:", !!pc.remoteDescription);
+                    
+                    // The peer connection should have a local description (offer) set
+                    // and be in "have-local-offer" state to receive an answer
+                    if (pc.signalingState === 'stable' && !pc.localDescription) {
+                        console.error("Cannot set remote answer: peer connection is stable but has no local description");
+                        return;
+                    }
+                    
+                    // If already have remote description, skip
+                    if (pc.remoteDescription) {
+                        console.warn("Remote description already set, skipping");
+                        await get().flushPendingCandidates(roomId, actionUserId);
+                        break;
+                    }
+                    
+                    try {
+                        await pc.setRemoteDescription(new RTCSessionDescription(answerDescription));
+                        await get().flushPendingCandidates(roomId, actionUserId);
+                    } catch (error) {
+                        console.error("Error setting remote description (answer):", error);
+                        throw error;
+                    }
                     break;
                 }
                 case "end":
                     await get().handleEndCall(payload);              
                     break;
                 case "candidate":
-                    console.log("candidate", candidate);
+                    // console.log("candidate", candidate);
                     const key = `${roomId}-${actionUserId}`;
                     const iceCandidate = new RTCIceCandidate(candidate);
                     const pc = get().stream.peerConnections.get(key);
                     if (pc && pc.remoteDescription) {
                         try {
                             await pc.addIceCandidate(iceCandidate);
-                            console.log("✅ Added Late ICE Candidate directly");
+                            // console.log("✅ Added Late ICE Candidate directly");
                         } catch (err) {
                             console.error("❌ Error adding late candidate:", err);
                         }
                     } else {
-                        console.log("⏳ Queuing ICE candidate (waiting for remoteDescription)...");
+                        // console.log("⏳ Queuing ICE candidate (waiting for remoteDescription)...");
                         const pendingCandidates = get().pendingCandidates;
                         if (!pendingCandidates.has(key)) {
                             pendingCandidates.set(key, []);

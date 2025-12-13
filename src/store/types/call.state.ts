@@ -40,6 +40,7 @@ export interface CallState {
   };
   socket: Socket | null;
   actionUserId: string | null;
+  answer: string | null;
   openCall: (data: any) => void;
   endCall: (data: any) => void;
   eventCall: (event: string, payload: any) => Promise<void>;

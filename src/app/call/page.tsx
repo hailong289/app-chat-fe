@@ -137,7 +137,7 @@ function CallPageContent() {
 
   const handleAccept = () => {
     acceptCall({
-      actionUserId: currentUser?.id,
+      currentUser: currentUser,
       members: members,
       roomId: roomId,
       socket,
@@ -145,7 +145,6 @@ function CallPageContent() {
   };
 
   const getUserInfo = (): { id: string; fullname: string; avatar: string } => {
-    console.log("members", members);
     const countMembers = members.length;
     if (countMembers === 2) {
       const user = members.find((m: CallMember) => m.id === currentUser?.id);

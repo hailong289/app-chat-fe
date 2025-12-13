@@ -179,7 +179,7 @@ export const FirebaseProvider = ({
       }
     } catch (err) {
       console.error("❌ Error getting token:", err);
-      alert("Có lỗi khi xin quyền thông báo. Vui lòng thử lại.");
+      // alert("Có lỗi khi xin quyền thông báo. Vui lòng thử lại.");
     }
   }
 
