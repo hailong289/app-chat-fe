@@ -8,7 +8,7 @@ import { deleteOldMessagesKeepLatest } from "@/utils/localStorage";
 export const InitAppChat = () => {
   const contactState = useContactStore((state) => state);
   const authState = useAuthStore((state) => state);
-  const { socket } = useSocket();
+  const { socket } = useSocket("/chat");
   useEffect(() => {
     if (!authState.isAuthenticated) return;
     contactState.getFriends();

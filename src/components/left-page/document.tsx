@@ -26,7 +26,7 @@ import useAuthStore from "@/store/useAuthStore";
 import useAlertStore from "@/store/useAlertStore";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
-import { useDocSocket } from "../providers/DocSocketProvider";
+import { useSocket } from "../providers/SocketProvider";
 
 const Document: React.FC = () => {
   const router = useRouter();
@@ -49,14 +49,14 @@ const Document: React.FC = () => {
   const [searchValue, setSearchValue] = useState("");
   const [newDocTitle, setNewDocTitle] = useState("");
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { socket } = useDocSocket();
+  const { socket } = useSocket("/doc");
   useEffect(() => {
     if (!socket) return;
 
     const handleReconnect = () => {
       setTimeout(async () => {
         try {
-         await loadDocuments();
+          await loadDocuments();
         } catch (error) {
           console.error("❌ [SOCKET RECONNECT] Error fetching rooms:", error);
         }

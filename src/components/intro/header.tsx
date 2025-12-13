@@ -34,7 +34,7 @@ export const Header = () => {
 
   const { logout: handleLogout, user } = useAuthStore();
   const { isToggled, tab, setToggleState, setTab } = useCounterStore();
-  const { disconnect: disconnectSocket } = useSocket();
+  const { disconnect: disconnectSocket } = useSocket('/chat');
 
   const changeToggle = useCallback(() => {
     setToggleState(!isToggled);

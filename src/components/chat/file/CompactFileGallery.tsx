@@ -186,7 +186,7 @@ export const CompactFileGallery = ({
 
         {fileKind === "pdf" && (
           <button
-            onClick={() => handleFileClick(file, index)}
+            onClick={() => window.open(file.url, "_blank")}
             className="px-4 flex items-center justify-center gap-2 w-full h-full w-max-80 bg-default-100 dark:bg-default-50"
           >
             <DocumentTextIcon className="w-10 h-10 text-red-500" />
@@ -196,7 +196,7 @@ export const CompactFileGallery = ({
 
         {fileKind === "file" && (
           <button
-            onClick={() => handleFileClick(file, index)}
+            onClick={() => window.open(file.url, "_blank")}
             className="w-max-80 h-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center text-truncate px-4 gap-2"
           >
             <DocumentIcon className="w-10 h-10 text-white drop-shadow-lg" />

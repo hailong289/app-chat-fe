@@ -22,6 +22,7 @@ import {
   XCircleIcon,
   TrashIcon,
   DocumentIcon,
+  BookOpenIcon,
 } from "@heroicons/react/16/solid";
 import {
   Button,
@@ -53,6 +54,10 @@ import {
 import useRoomStore from "@/store/useRoomStore";
 import TypingIndicator from "./TypingIndicator";
 import { useTranslation } from "react-i18next";
+import { DocumentPickerModal } from "../modals/DocumentPickerModal";
+import { Document } from "@/service/document.service";
+import FileGalleryModal from "../../modals/FileGalleryModal";
+import { FolderIcon } from "@heroicons/react/24/outline";
 
 const maxFiles = 20;
 
@@ -81,6 +86,8 @@ export default function ChatInputBar({
   const [isDragging, setIsDragging] = useState(false);
   const [compressImages, setCompressImages] = useState(true);
   const [micro, setMicro] = useState(false);
+  const [showDocPicker, setShowDocPicker] = useState(false);
+  const [showFileGallery, setShowFileGallery] = useState(false);
 
   const emojiTab = useMemo(
     () => [
@@ -119,13 +126,19 @@ export default function ChatInputBar({
   const roomTypingUsers = useRoomStore((state) => state.roomTypingUsers);
   const roomTypingSocket = useRoomStore((state) => state.roomTypingSocket);
 
-  const { socket } = useSocket();
+  const { socket } = useSocket("/chat");
+
+  const isGuest = useMemo(() => {
+    return room?.members?.some(
+      (member) => member.id === auth?.id && member.role === "guest"
+    );
+  }, [room, auth]);
 
   // ====== FILE CONFIG ======,
   const config: FileAcceptConfig = useMemo(
     () => ({
       ...defaultConfig,
-      accept: [...defaultConfig.accept, ...documentOnlyConfig.accept],
+      accept: ["*/*"],
       maxFiles,
       compressImages,
     }),
@@ -486,8 +499,31 @@ export default function ChatInputBar({
     toggleInput,
   ]);
 
+  // ====== RENDER ======
+  const handleSelectDocument = useCallback(
+    (doc: Document) => {
+      if (!socket || !auth) return;
+
+      sendMessage({
+        roomId: chatId,
+        content: doc.title,
+        attachments: [],
+        type: "document",
+        socket,
+        userId: auth._id,
+        userFullname: auth.fullname,
+        userAvatar: auth.avatar,
+        documentId: doc._id,
+      });
+
+      setScrollto("bottom");
+      setShowDocPicker(false);
+    },
+    [chatId, socket, auth, sendMessage, setScrollto]
+  );
+
   // ====== BLOCKED / NO ACTION ======
-  if (noAction || isBlocked || !room?.id) {
+  if (noAction || isBlocked || !room?.id || isGuest) {
     return (
       <section
         aria-label="Chat input area"
@@ -500,7 +536,7 @@ export default function ChatInputBar({
             "linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.2) 100%)",
         }}
       >
-        {!blockByMine && (
+        {!blockByMine && !isGuest && (
           <p className="text-gray-500 dark:text-gray-300">
             {t("chat.input.blocked.noPermission")}
           </p>
@@ -510,13 +546,23 @@ export default function ChatInputBar({
             {t("chat.input.blocked.blockedByMe")}
           </p>
         )}
+        {isGuest && (
+          <p className="text-gray-500 dark:text-gray-300">
+            {t("chat.input.blocked.guest", "Bạn chỉ có quyền xem")}
+          </p>
+        )}
       </section>
     );
   }
 
-  // ====== RENDER ======
   return (
     <div>
+      <DocumentPickerModal
+        isOpen={showDocPicker}
+        onClose={() => setShowDocPicker(false)}
+        onSelect={handleSelectDocument}
+        roomId={chatId}
+      />
       <div className="mb-4 absolute bottom-15">
         <TypingIndicator users={roomTypingUsers[room?.roomId || ""] || []} />
       </div>
@@ -680,6 +726,20 @@ export default function ChatInputBar({
                   onClick={() => fileDocInputRef.current?.click()}
                 >
                   <DocumentIcon className="w-5 h-5" />
+                </Button>
+              </Tooltip>
+
+              <Tooltip
+                content={t("documents.select_document", "Select Document")}
+              >
+                <Button
+                  isIconOnly
+                  color="secondary"
+                  className="bg-purple-500 hover:bg-purple-600"
+                  size="sm"
+                  onClick={() => setShowDocPicker(true)}
+                >
+                  <BookOpenIcon className="w-5 h-5" />
                 </Button>
               </Tooltip>
 
@@ -971,9 +1031,28 @@ export default function ChatInputBar({
           hidden
           multiple
           onChange={onPick}
-          accept={buildInputAccept(documentOnlyConfig.accept)}
+          accept="*"
         />
       </section>
+
+      <FileGalleryModal
+        isOpen={showFileGallery}
+        onClose={() => setShowFileGallery(false)}
+        onSelect={(files) => {
+          if (files.length > 0 && socket) {
+            const attachmentIds = files.map((f) => f._id);
+            socket.emit("message:send", {
+              roomId: chatId,
+              userId: useAuthStore.getState().user?._id,
+              type: "text",
+              content: "",
+              attachments: attachmentIds,
+            });
+          }
+        }}
+        roomId={chatId}
+        userId={useAuthStore.getState().user?._id}
+      />
     </div>
   );
 }

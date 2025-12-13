@@ -44,7 +44,7 @@ export const ChatMessages = memo(
       }
     });
 
-    const { socket } = useSocket();
+    const { socket } = useSocket('/chat');
     const roomState = useRoomStore((state) => state);
     const messageState = useMessageStore((state) => state);
     const messages =

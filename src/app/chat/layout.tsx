@@ -1,5 +1,3 @@
-import { SocketEventChatGlobal } from "@/components/chat/socketChatEventGlobal";
-import { SocketProvider } from "@/components/providers/SocketProvider";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -12,11 +10,5 @@ export default function ChatLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return children
-  // return (
-  //   <SocketProvider url={process.env.NEXT_PUBLIC_SOCKET_URL}>
-  //     <SocketEventChatGlobal />
-  //     {children}
-  //   </SocketProvider>
-  // );
+  return children;
 }

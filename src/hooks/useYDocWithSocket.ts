@@ -5,7 +5,7 @@ import { useEffect, useMemo } from "react";
 import * as Y from "yjs";
 // Nếu bị lỗi bundler với `.js` thì đổi lại thành: "y-protocols/awareness"
 import { Awareness } from "y-protocols/awareness.js";
-import { useDocSocket } from "./useDocSocket";
+import { useSocket } from "@/components/providers/SocketProvider";
 
 interface AwarenessUpdate {
   added: number[];
@@ -14,7 +14,7 @@ interface AwarenessUpdate {
 }
 
 export function useYDocWithSocket(roomId: string) {
-  const { socket, status } = useDocSocket();
+  const { socket, status } = useSocket("/doc");
 
   // Mỗi roomId = 1 Y.Doc riêng, doc sống suốt vòng đời của room
   const doc = useMemo(() => new Y.Doc(), [roomId]);

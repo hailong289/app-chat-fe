@@ -1,7 +1,6 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
-import { useDocSocket } from "@/hooks/useDocSocket";
 import { useDocumentSync } from "@/hooks/useDocumentSync";
 import useAuthStore from "@/store/useAuthStore";
 import useDocumentStore from "@/store/useDocumentStore";
@@ -44,13 +43,14 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { useTranslation } from "react-i18next";
+import { useSocket } from "@/components/providers/SocketProvider";
 
 export default function DocumentEditorPage() {
   const params = useParams();
   const router = useRouter();
   const { t } = useTranslation();
   const docId = params?.id as string;
-  const { socket, status } = useDocSocket();
+  const { socket, status } = useSocket("/doc");
   const currentUser = useAuthStore((s) => s.user);
   const { updateTitle, deleteDocument, duplicateDocument } = useDocumentStore();
   const toast = useToast();

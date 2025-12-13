@@ -54,24 +54,21 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   // Layout chính của app chat
   return (
-    <SocketProvider url={process.env.NEXT_PUBLIC_SOCKET_URL as string}>
-      <InitAppChat />
-      <div className="flex h-screen w-full bg-slate-900 text-foreground">
-        <nav className="relative h-full">
-          <Suspense fallback={<div className="w-[60px] h-full" />}>
-            <Header />
-          </Suspense>
-        </nav>
-        <main className="flex-1 h-screen flex overflow-hidden">
-          {/* Global socket listener / toasts / events */}
+    <div className="flex h-screen w-full bg-slate-900 text-foreground">
+      <nav className="relative h-full">
+        <Suspense fallback={<div className="w-[60px] h-full" />}>
+          <Header />
+        </Suspense>
+      </nav>
+      <main className="flex-1 h-screen flex overflow-hidden">
+        {/* Global socket listener / toasts / events */}
 
-          <Suspense fallback={<div className={`h-full`} />}>
-            <LeftSide />
-          </Suspense>
+        <Suspense fallback={<div className={`h-full`} />}>
+          <LeftSide />
+        </Suspense>
 
-          <div className="flex-1 overflow-y-auto">{children}</div>
-        </main>
-      </div>
-    </SocketProvider>
+        <div className="flex-1 overflow-y-auto h-screen">{children}</div>
+      </main>
+    </div>
   );
 }

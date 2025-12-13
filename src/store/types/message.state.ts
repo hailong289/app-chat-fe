@@ -25,7 +25,15 @@ export type FilePreview = {
 export type MessageType = {
   id: string;
   roomId: string;
-  type: "text" | "image" | "file" | "system" | "video" | "audio" | "gif";
+  type:
+    | "text"
+    | "image"
+    | "file"
+    | "system"
+    | "video"
+    | "audio"
+    | "gif"
+    | "document";
   content: string;
   createdAt: string;
   editedAt?: string | null;
@@ -33,6 +41,7 @@ export type MessageType = {
   pinned: boolean;
   sender: MessageSender & { id?: string };
   attachments?: Array<FilePreview>;
+  documentId?: string; // Link to Document collection
   reactions?: Array<{
     emoji: string;
     count: number;
@@ -82,6 +91,27 @@ export type MessageType = {
     | "recalled";
 };
 
+export interface GalleryItem {
+  _id: string;
+  msg_roomId: string;
+  msg_content: string;
+  msg_type: string;
+  createdAt: string;
+  attachments: FilePreview[];
+}
+
+export interface RoomGallery {
+  media: GalleryItem[];
+  docs: GalleryItem[];
+  links: GalleryItem[];
+  isLoadingMedia: boolean;
+  isLoadingDocs: boolean;
+  isLoadingLinks: boolean;
+  hasMoreMedia: boolean;
+  hasMoreDocs: boolean;
+  hasMoreLinks: boolean;
+}
+
 export interface RoomData {
   messages: MessageType[];
   input: string | null;
@@ -89,6 +119,7 @@ export interface RoomData {
   // ghim: string[] | null;
   // updatedAt: string | null;
   reply: MessageType | null;
+  gallery?: RoomGallery;
 }
 
 export interface MessageState {
@@ -115,6 +146,10 @@ export interface MessageState {
   deleteMessage: (roomId: string, messageId: string) => Promise<void>;
   recallMessage: (roomId: string, messageId: string) => Promise<void>;
   fetchNewMessages: (roomId: string, lastMessageId?: string) => Promise<void>;
+  fetchRoomGallery: (
+    roomId: string,
+    type: "media" | "docs" | "links"
+  ) => Promise<void>;
 
   uploadAttachments: (data: {
     roomId: string;
@@ -157,4 +192,5 @@ export type msg = {
   updatedAt: string | null;
   messages: Array<MessageType>;
   reply: MessageType | null;
+  gallery?: RoomGallery;
 };
