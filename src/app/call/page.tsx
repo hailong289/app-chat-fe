@@ -187,6 +187,26 @@ function CallPageContent() {
     }
   }
 
+  // Helper function to get member info from stream key
+  const getMemberFromStreamKey = (key: string): CallMember | null => {
+    // Key format: `${roomId}-${actionUserId}`
+    if (!roomId) return null;
+    
+    // Remove roomId prefix to get userId
+    const userId = key.replace(`${roomId}-`, '');
+    return members.find((m: CallMember) => m.id === userId) || null;
+  };
+
+  // Calculate grid layout based on number of streams
+  const getGridLayout = (count: number) => {
+    if (count === 1) return 'grid-cols-1';
+    if (count === 2) return 'grid-cols-2';
+    if (count === 3) return 'grid-cols-2'; // 2 columns, 3rd row spans
+    if (count === 4) return 'grid-cols-2';
+    if (count <= 6) return 'grid-cols-3';
+    return 'grid-cols-4'; // 7+ streams
+  };
+
   if (!socket) {
     return (
       <div className="bg-dark h-screen w-full flex items-center justify-center">
@@ -207,29 +227,96 @@ function CallPageContent() {
     <div className="bg-dark h-screen w-full relative overflow-hidden">
       {/* Remote video (main view) */}
       <div className="absolute inset-0 bg-black">
-        {mode === 'video' && remoteStreams.size > 0 && (() => {
-          const firstStreamEntry = Array.from(remoteStreams.entries())[0];
-          if (!firstStreamEntry) return null;
-          const [key, stream] = firstStreamEntry;
-          const videoRef = (el: HTMLVideoElement | null) => {
-            if (el) {
-              remoteVideoRefs.current.set(key, el);
-              // Không set srcObject ở đây, để useEffect xử lý để tránh nháy màn hình
-            } else {
-              remoteVideoRefs.current.delete(key);
-            }
-          };
-          return (
-            <video
-              ref={videoRef}
-              className="w-full h-full object-cover"
-              autoPlay
-              playsInline
-              muted={!isSpeakerphoneEnabled}
-            />
-          );
-        })()}
-        {(!(mode === 'video') || remoteStreams.size === 0) && (
+        {mode === 'video' && remoteStreams.size > 0 ? (
+          remoteStreams.size === 1 ? (
+            // Single stream - full screen
+            (() => {
+              const [key, stream] = Array.from(remoteStreams.entries())[0];
+              const member = getMemberFromStreamKey(key);
+              const videoRef = (el: HTMLVideoElement | null) => {
+                if (el) {
+                  remoteVideoRefs.current.set(key, el);
+                } else {
+                  remoteVideoRefs.current.delete(key);
+                }
+              };
+              
+              return (
+                <div className="relative w-full h-full">
+                  <video
+                    ref={videoRef}
+                    className="w-full h-full object-cover"
+                    autoPlay
+                    playsInline
+                    muted={!isSpeakerphoneEnabled}
+                  />
+                  {/* User info overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar
+                        src={member?.avatar}
+                        name={member?.fullname || 'Unknown'}
+                        className="w-10 h-10"
+                      />
+                      <span className="text-white text-lg font-semibold">
+                        {member?.fullname || 'Unknown User'}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Audio indicator */}
+                  {member && (
+                    <div className="absolute top-4 left-4">
+                      <div className={`w-3 h-3 rounded-full ${stream.getAudioTracks().length > 0 && stream.getAudioTracks()[0].enabled ? 'bg-green-500' : 'bg-red-500'}`} />
+                    </div>
+                  )}
+                </div>
+              );
+            })()
+          ) : (
+            // Multiple streams - grid layout
+            <div className={`w-full h-full grid ${getGridLayout(remoteStreams.size)} gap-2 p-2`}>
+              {Array.from(remoteStreams.entries()).map(([key, stream]) => {
+                const member = getMemberFromStreamKey(key);
+                const videoRef = (el: HTMLVideoElement | null) => {
+                  if (el) {
+                    remoteVideoRefs.current.set(key, el);
+                  } else {
+                    remoteVideoRefs.current.delete(key);
+                  }
+                };
+                
+                return (
+                  <div key={key} className="relative w-full h-full bg-gray-900 rounded-lg overflow-hidden min-h-0">
+                    <video
+                      ref={videoRef}
+                      className="w-full h-full object-cover"
+                      autoPlay
+                      playsInline
+                      muted={!isSpeakerphoneEnabled}
+                    />
+                    {/* User info overlay */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                      <div className="flex items-center gap-2">
+                        <Avatar
+                          src={member?.avatar}
+                          name={member?.fullname || 'Unknown'}
+                          className="w-6 h-6 text-xs"
+                        />
+                        <span className="text-white text-xs font-medium truncate">
+                          {member?.fullname || 'Unknown User'}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Audio indicator */}
+                    <div className="absolute top-2 left-2">
+                      <div className={`w-2 h-2 rounded-full ${stream.getAudioTracks().length > 0 && stream.getAudioTracks()[0].enabled ? 'bg-green-500' : 'bg-red-500'}`} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Avatar
               src={getUserInfo().avatar}
@@ -240,9 +327,9 @@ function CallPageContent() {
         )}
       </div>
 
-      {/* Local video (picture-in-picture) */}
-      {(mode === 'video') && localStream && (
-        <div className="absolute bottom-24 right-4 w-48 h-36 rounded-lg overflow-hidden border-2 border-white shadow-lg">
+      {/* Local video (picture-in-picture) - only show if there are remote streams */}
+      {(mode === 'video') && localStream && remoteStreams.size > 0 && (
+        <div className="absolute bottom-24 right-4 w-48 h-36 rounded-lg overflow-hidden border-2 border-white shadow-lg z-20">
           <video
             ref={localVideoRef}
             className="w-full h-full object-cover"
