@@ -15,6 +15,8 @@ type FirebaseContextType = {
   requestPermission: () => Promise<void>;
 };
 
+import useAlertStore from "@/store/useAlertStore";
+
 const FirebaseContext = createContext<FirebaseContextType | null>(null);
 
 export const useFirebase = () => {
@@ -41,7 +43,6 @@ export const FirebaseProvider = ({
     const savedToken = localStorage.getItem("fcm-token");
     if (savedToken) {
       setToken(savedToken);
-      console.log("✅ Loaded FCM token from localStorage");
     }
   }, [isBrowser]);
 
@@ -62,14 +63,11 @@ export const FirebaseProvider = ({
           "/firebase-messaging-sw.js",
           { scope: "/" }
         );
-        console.log("✅ Service Worker registered:", reg);
 
         const readyReg = await navigator.serviceWorker.ready;
-        console.log("✅ Service Worker ready:", readyReg);
 
         // ĐĂNG KÝ FOREGROUND MESSAGE
         unsubscribe = onMessage(messaging, (payload) => {
-          console.log("📩 Foreground message:", payload);
           setMessage(payload);
 
           // Hiển thị native notification khi app đang mở (tuỳ thích)
@@ -175,12 +173,15 @@ export const FirebaseProvider = ({
 
       if (!("Notification" in window)) {
         console.error("❌ Browser doesn't support notifications");
-        alert("Trình duyệt của bạn không hỗ trợ thông báo");
+        useAlertStore.getState().showAlert({
+          title: "Lỗi",
+          message: "Trình duyệt của bạn không hỗ trợ thông báo",
+          type: "error",
+        });
         return;
       }
 
       const permission = await Notification.requestPermission();
-      console.log("🔔 Notification permission:", permission);
 
       if (permission !== "granted") {
         console.warn("🚫 Notification permission denied");
@@ -196,14 +197,17 @@ export const FirebaseProvider = ({
 
       if (t) {
         setToken(t);
-        console.log("✅ FCM Token:", t);
         localStorage.setItem("fcm-token", t);
       } else {
         console.error("❌ No registration token available");
       }
     } catch (err) {
       console.error("❌ Error getting token:", err);
-      alert("Có lỗi khi xin quyền thông báo. Vui lòng thử lại.");
+      useAlertStore.getState().showAlert({
+        title: "Lỗi",
+        message: "Có lỗi khi xin quyền thông báo. Vui lòng thử lại.",
+        type: "error",
+      });
     }
   }
 

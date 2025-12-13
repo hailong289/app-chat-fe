@@ -26,7 +26,6 @@ export default function InvaitationSentModal({
   const router = useRouter();
   const onPress = (id: string) => {
     router.push(`/contacts?profileId=${id}`);
-    console.log("Pressed item");
   };
   return (
     <Modal isOpen={isOpen} scrollBehavior="inside" onOpenChange={onOpenChange}>

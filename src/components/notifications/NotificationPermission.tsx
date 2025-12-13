@@ -17,7 +17,6 @@ export default function NotificationPermission() {
       const dismissed = localStorage.getItem("notification-prompt-dismissed");
       if (dismissed === "true") {
         setIsDismissed(true);
-        console.log("🔔 Notification prompt was dismissed by user");
         return;
       }
 
@@ -27,7 +26,6 @@ export default function NotificationPermission() {
       // Nếu đã có token (FCM), không cần hiện prompt nữa
       const savedToken = localStorage.getItem("fcm-token");
       if (token || savedToken) {
-        console.log("🔔 FCM token already exists, skipping prompt");
         return;
       }
 
@@ -35,16 +33,11 @@ export default function NotificationPermission() {
       if (permission === "default") {
         setTimeout(() => {
           setShowPrompt(true);
-          console.log("🔔 Showing notification permission prompt");
         }, 3000);
       } else if (permission === "granted") {
-        console.log(
-          "🔔 Notification permission granted but no token, requesting..."
-        );
         // Có quyền nhưng chưa có token, thử lấy token
         await requestPermission();
       } else {
-        console.log("🔔 Notification permission:", permission);
       }
     };
 
@@ -52,20 +45,17 @@ export default function NotificationPermission() {
   }, [token, requestPermission]);
 
   const handleAllow = async () => {
-    console.log("🔔 User clicked Allow");
     await requestPermission();
     setShowPrompt(false);
   };
 
   const handleDismiss = () => {
-    console.log("🔔 User dismissed notification prompt permanently");
     setShowPrompt(false);
     localStorage.setItem("notification-prompt-dismissed", "true");
     setIsDismissed(true);
   };
 
   const handleLater = () => {
-    console.log("🔔 User clicked Later");
     setShowPrompt(false);
     // Không lưu vào localStorage, sẽ hiện lại lần sau
   };

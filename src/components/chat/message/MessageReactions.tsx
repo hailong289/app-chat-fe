@@ -1,4 +1,5 @@
 import { Tooltip } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 
 interface Reaction {
   emoji: string;
@@ -19,6 +20,7 @@ interface MessageReactionsProps {
 export function MessageReactions({
   reactions,
 }: Readonly<MessageReactionsProps>) {
+  const { t } = useTranslation();
   if (!reactions || reactions.length === 0) return null;
 
   return (
@@ -28,7 +30,9 @@ export function MessageReactions({
           key={`${reaction.emoji}-${idx}`}
           content={
             <div className="text-xs dark:text-gray-200">
-              {reaction.users?.map((u) => u.usr_fullname || "User").join(", ")}
+              {reaction.users
+                ?.map((u) => u.usr_fullname || t("chat.user"))
+                .join(", ")}
             </div>
           }
           size="sm"

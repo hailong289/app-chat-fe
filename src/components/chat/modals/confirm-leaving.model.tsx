@@ -10,6 +10,7 @@ import {
   ModalHeader,
 } from "@heroui/react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 
 interface CallModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const ConfirmLeavingModal: React.FC<CallModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const router = useRouter();
   const roomState = useRoomStore((state) => state);
   const handleChange = async () => {
@@ -35,16 +37,16 @@ export const ConfirmLeavingModal: React.FC<CallModalProps> = ({
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col items-center gap-1">
-              Xác Nhận rời nhóm
+              {t("chat.modal.leaveGroup.title")}
             </ModalHeader>
             <ModalBody>
               <span className="text-sm">
-                Bạn có chắc chắn muốn rời khỏi nhóm này không?
+                {t("chat.modal.leaveGroup.description")}
               </span>
             </ModalBody>
             <ModalFooter className="flex justify-center gap-5">
               <Button color="danger" variant="light" onPress={onClose}>
-                Huỷ
+                {t("chat.modal.leaveGroup.cancel")}
               </Button>
               <Button
                 color="default"
@@ -53,7 +55,7 @@ export const ConfirmLeavingModal: React.FC<CallModalProps> = ({
                   onClose();
                 }}
               >
-                Xác Nhận
+                {t("chat.modal.leaveGroup.confirm")}
               </Button>
             </ModalFooter>
           </>

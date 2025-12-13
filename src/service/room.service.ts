@@ -24,8 +24,10 @@ export default class RoomService {
   static changeAvatar(body: { roomId: string; link: string }) {
     return apiService.patch("/chat/rooms/avatar", body);
   }
+  static changeRole(body: { roomId: string; memberId: string; role: string }) {
+    return apiService.patch("/chat/rooms/role", body);
+  }
   static addMembers(body: { roomId: string; memberIds: string[] }) {
-    console.log("🚀 ~ RoomService ~ addMembers ~ body:", body);
     return apiService.patch("/chat/rooms/add", body);
   }
 

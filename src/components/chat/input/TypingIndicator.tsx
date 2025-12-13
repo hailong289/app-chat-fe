@@ -2,6 +2,7 @@ import React from "react";
 import { Avatar, AvatarGroup, Tooltip } from "@heroui/react";
 import useAuthStore from "@/store/useAuthStore";
 import { User } from "@/store/types/room.state";
+import { useTranslation } from "react-i18next";
 
 // Định nghĩa kiểu dữ liệu User
 
@@ -10,6 +11,7 @@ type TypingIndicatorProps = {
 };
 
 export default function TypingIndicator({ users }: TypingIndicatorProps) {
+  const { t } = useTranslation();
   const authState = useAuthStore((state) => state);
   users = users.filter(
     (u) =>
@@ -23,9 +25,14 @@ export default function TypingIndicator({ users }: TypingIndicatorProps) {
   // Extracted message logic from nested ternary
   let typingMessage = "";
   if (users.length > 2) {
-    typingMessage = "Nhiều người đang nhập...";
+    typingMessage = t("chat.typing.many");
   } else if (users.length === 2) {
-    typingMessage = `${users[0].name} & ${users[1].name} đang gõ`;
+    typingMessage = t("chat.typing.two", {
+      name1: users[0].name,
+      name2: users[1].name,
+    });
+  } else {
+    typingMessage = t("chat.typing.one", { name: users[0].name });
   }
 
   return (

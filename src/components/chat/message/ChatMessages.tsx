@@ -18,6 +18,7 @@ import { ChatEmptyState } from "./ChatEmptyState";
 import { ChatLoadingIndicator } from "./ChatLoadingIndicator";
 import { ScrollToBottomButton } from "./ScrollToBottomButton";
 import { MessageGroup } from "./MessageGroup";
+import { useTranslation } from "react-i18next";
 
 export const ChatMessages = memo(
   ({
@@ -31,6 +32,7 @@ export const ChatMessages = memo(
     scrollto?: string | null;
     toggleInput: boolean;
   }) => {
+    const { t } = useTranslation();
     // Performance monitoring
     const startTime = useRef(performance.now());
 
@@ -42,7 +44,7 @@ export const ChatMessages = memo(
       }
     });
 
-    const { socket } = useSocket();
+    const { socket } = useSocket('/chat');
     const roomState = useRoomStore((state) => state);
     const messageState = useMessageStore((state) => state);
     const messages =
@@ -307,13 +309,15 @@ export const ChatMessages = memo(
                 className="text-center py-2 mb-2"
               >
                 <div className="text-xs text-gray-400 dark:text-gray-500">
-                  📜 Còn {messages.length - state.displayedMessagesCount} tin
-                  nhắn cũ hơn • Cuộn lên để tải{" "}
+                  📜{" "}
+                  {t("chat.messages.scroll.more", {
+                    count: messages.length - state.displayedMessagesCount,
+                  })}{" "}
                   <button
                     className="text-blue-500 dark:text-blue-400 cursor-pointer"
                     onClick={() => handleLoadMore()}
                   >
-                    thêm...
+                    {t("chat.messages.scroll.loadMore")}
                   </button>
                 </div>
               </motion.div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { groupMessagesByDate } from "@/libs/timeline-helpers";
 import { MESSAGES_PER_GROUP } from "../constants/messageConstants";
+import { useTranslation } from "react-i18next";
 
 interface UseChatMessagesEffectsProps {
   chatId: string;
@@ -29,9 +30,13 @@ interface UseChatMessagesEffectsProps {
   socket: any;
   setIsSwitchingChat: (value: boolean) => void;
   setShouldAnimate: (value: boolean) => void;
-  setDisplayedMessagesCount: (count: number | ((prev: number) => number)) => void;
+  setDisplayedMessagesCount: (
+    count: number | ((prev: number) => number)
+  ) => void;
   setHasMoreOnServer: (value: boolean) => void;
-  setExpandedMessages: (value: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
+  setExpandedMessages: (
+    value: Set<string> | ((prev: Set<string>) => Set<string>)
+  ) => void;
   setIsBottomVisible: (value: boolean) => void;
   setIsFetchingNewMessages: (value: boolean) => void;
   setIsLoadingOlder: (value: boolean) => void;
@@ -79,6 +84,7 @@ export function useChatMessagesEffects({
   scrollToMessage,
   handleLoadMore,
 }: UseChatMessagesEffectsProps) {
+  const { t } = useTranslation();
   // Effect: Handle chat switching
   useEffect(() => {
     const isActuallySwitchingChat = prevChatIdRef.current !== chatId;
@@ -200,7 +206,8 @@ export function useChatMessagesEffects({
 
           requestAnimationFrame(() => {
             if (containerRef.current) {
-              containerRef.current.scrollTop = containerRef.current.scrollHeight;
+              containerRef.current.scrollTop =
+                containerRef.current.scrollHeight;
             } else if (bottomRef.current) {
               bottomRef.current.scrollIntoView({ behavior: "smooth" });
             }
@@ -215,7 +222,14 @@ export function useChatMessagesEffects({
     return () => {
       socket.off("connect", handleReconnect);
     };
-  }, [socket, chatId, messageState, containerRef, bottomRef, setIsFetchingNewMessages]);
+  }, [
+    socket,
+    chatId,
+    messageState,
+    containerRef,
+    bottomRef,
+    setIsFetchingNewMessages,
+  ]);
 
   // Effect: Scroll detection and load more
   useEffect(() => {
@@ -341,12 +355,11 @@ export function useChatMessagesEffects({
 
   // Memoized: Visible groups
   const visibleGroups = useMemo(() => {
-    return groupMessagesByDate(visibleMessages, lastMsgId);
-  }, [visibleMessages, lastMsgId]);
+    return groupMessagesByDate(visibleMessages, lastMsgId, t);
+  }, [visibleMessages, lastMsgId, t]);
 
   return {
     visibleMessages,
     visibleGroups,
   };
 }
-

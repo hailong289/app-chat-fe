@@ -16,6 +16,7 @@ import {
   MusicalNoteIcon,
 } from "@heroicons/react/24/solid";
 import { DocumentTextIcon } from "@heroicons/react/16/solid";
+import { useTranslation } from "react-i18next";
 
 // Chuẩn hoá loại file: ưu tiên mimeType -> kind
 const normalizeKind = (
@@ -43,6 +44,7 @@ interface FileGalleryProps {
 }
 
 export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
+  const { t } = useTranslation();
   const [selectedFile, setSelectedFile] = useState<FilePreview | null>(null);
 
   const handleFileClick = (file: FilePreview) => {
@@ -142,7 +144,7 @@ export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
                 className="mb-1"
               />
               <p className="text-[11px] text-white text-center">
-                Đang tải lên… {file.uploadProgress || 0}%
+                {t("chat.file.gallery.uploading")} {file.uploadProgress || 0}%
               </p>
             </div>
           </div>
@@ -152,7 +154,7 @@ export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
         {isFailed && (
           <div className="absolute inset-0 bg-red-500/80 flex items-center justify-center">
             <p className="text-[11px] text-white font-semibold">
-              Upload thất bại
+              {t("chat.file.gallery.failed")}
             </p>
           </div>
         )}
@@ -201,7 +203,7 @@ export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
                   <div className="mb-4 p-4 rounded-lg bg-primary-50 dark:bg-primary-100/10">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-primary-700 dark:text-primary-200">
-                        Đang tải lên…
+                        {t("chat.file.gallery.uploading")}
                       </span>
                       <span className="text-sm text-primary-600 dark:text-primary-200">
                         {selectedFile.uploadProgress || 0}%
@@ -219,7 +221,7 @@ export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
                 {selectedFile.status === "failed" && (
                   <div className="mb-4 p-4 rounded-lg bg-danger-50 dark:bg-danger-100/10">
                     <p className="text-sm font-medium text-danger-700 dark:text-danger-200">
-                      ❌ Upload thất bại. Vui lòng thử lại.
+                      {t("chat.file.gallery.failedRetry")}
                     </p>
                   </div>
                 )}
@@ -277,7 +279,7 @@ export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
                   <div className="p-8 bg-default-100 dark:bg-default-50 rounded-lg text-center">
                     <DocumentIcon className="w-20 h-20 mx-auto text-default-400 mb-4" />
                     <p className="text-sm text-default-600 mb-3">
-                      Không thể xem trước loại tệp này.
+                      {t("chat.file.gallery.noPreviewType")}
                     </p>
                     {selectedFile.status === "uploaded" && (
                       <Button
@@ -288,7 +290,7 @@ export const FileGallery = ({ files, className = "" }: FileGalleryProps) => {
                         color="primary"
                         className="font-medium"
                       >
-                        Tải xuống
+                        {t("chat.file.gallery.download")}
                       </Button>
                     )}
                   </div>

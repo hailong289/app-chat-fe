@@ -8,13 +8,12 @@ import useContactStore from "@/store/useContactStore";
 import { socketEvent } from "@/types/socketEvent.type";
 
 export const SocketEventChatGlobal = () => {
-  const { socket } = useSocket();
+  const { socket } = useSocket("/chat");
   const roomState = useRoomStore((state) => state);
   const contactState = useContactStore((state) => state);
   const messageState = useMessageStore((state) => state);
   useEffect(() => {
     if (!socket) return;
-    console.log("nhận xử lý socket");
     socket.on(socketEvent.ROOMUPSERT, roomState.updateRoomSocket);
     socket.on(socketEvent.MSGUPSERT, messageState.upsetMsg);
     socket.on(socketEvent.MSGMARKREAD, roomState.setRoomReaded);

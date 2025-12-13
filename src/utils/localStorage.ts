@@ -30,8 +30,6 @@ export function clearAllLocalStorage() {
   for (const key of [...zustandStores, ...firebaseKeys, ...socketKeys]) {
     localStorage.removeItem(key);
   }
-
-  console.log("🧹 [Cleanup] All localStorage data cleared");
 }
 
 /**
@@ -41,7 +39,6 @@ export function clearLocalStorageKeys(keys: string[]) {
   keys.forEach((key) => {
     localStorage.removeItem(key);
   });
-  console.log(`🧹 [Cleanup] Cleared keys: ${keys.join(", ")}`);
 }
 
 export async function deleteOldMessagesKeepLatest(limit = 2000) {
@@ -59,6 +56,5 @@ export async function deleteOldMessagesKeepLatest(limit = 2000) {
 
   if (oldIds.length > 0) {
     await db.messages.bulkDelete(oldIds);
-    console.log(`🧹 Deleted ${oldIds.length} old messages`);
   }
 }

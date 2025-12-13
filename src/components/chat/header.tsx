@@ -28,6 +28,7 @@ import { CallModal } from "./modals/call.modal";
 import useRoomStore from "@/store/useRoomStore";
 import { EyeDropperIcon } from "@heroicons/react/16/solid";
 import useContactStore from "@/store/useContactStore";
+import { useTranslation } from "react-i18next";
 
 interface ChatHeaderProps {
   // chatName?: string;
@@ -44,6 +45,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   callback = () => {},
   setScrollto = () => {},
 }) => {
+  const { t } = useTranslation();
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const {
     isOpen: isOpenPinned,
@@ -109,7 +111,9 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                       className="p-0 border-none bg-transparent"
                     >
                       <span className="text-xs text-white">
-                        {onlineMembers.length > 0 ? "Online" : "Offline"}
+                        {onlineMembers.length > 0
+                          ? t("chat.header.online")
+                          : t("chat.header.offline")}
                       </span>
                     </Chip>
                   </div>
@@ -119,7 +123,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           ) : (
             <NavbarItem className="flex-1 w-full">
               <Input
-                placeholder="Tìm kiếm tin nhắn..."
+                placeholder={t("chat.header.searchPlaceholder")}
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
                 startContent={
@@ -276,7 +280,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           {(onClosePPinned) => (
             <>
               <ModalHeader className="flex flex-col items-center gap-1">
-                Danh sách gim tin nhắn
+                {t("chat.header.pinned.title")}
               </ModalHeader>
               <ModalBody>
                 {useRoomStore.getState().room?.pinned_messages &&
@@ -297,17 +301,20 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                         >
                           <p className="text-sm text-gray-700 line-clamp-2">
                             {msg.type === "text" && msg.content}
-                            {msg.type === "image" && "📷 Ảnh"}
-                            {msg.type === "video" && "🎥 Video"}
-                            {msg.type === "file" && "📎 File"}
-                            {msg.type === "gif" && "🎬 GIF"}
+                            {msg.type === "image" &&
+                              t("chat.header.pinned.image")}
+                            {msg.type === "video" &&
+                              t("chat.header.pinned.video")}
+                            {msg.type === "file" &&
+                              t("chat.header.pinned.file")}
+                            {msg.type === "gif" && t("chat.header.pinned.gif")}
                           </p>
                         </Button>
                       ))}
                   </div>
                 ) : (
                   <p className="text-center text-gray-500">
-                    Chưa có tin nhắn nào được gim.
+                    {t("chat.header.pinned.empty")}
                   </p>
                 )}
               </ModalBody>

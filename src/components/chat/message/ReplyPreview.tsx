@@ -1,11 +1,14 @@
 import { ArrowUturnLeftIcon } from "@heroicons/react/16/solid";
+import { useTranslation } from "react-i18next";
 
 interface ReplyPreviewProps {
-  reply: any;
-  onJump: (id: string) => void;
+  readonly reply: any;
+  readonly onJump: (id: string) => void;
 }
 
 export function ReplyPreview({ reply, onJump }: ReplyPreviewProps) {
+  const { t } = useTranslation("common");
+
   if (!reply) return null;
 
   // Field mapping:
@@ -23,27 +26,28 @@ export function ReplyPreview({ reply, onJump }: ReplyPreviewProps) {
           dark:bg-primary-500/20 dark:text-primary-200
         "
       >
-        {reply.type === "image" && "📷 Ảnh"}
-        {reply.type === "video" && "🎥 Video"}
-        {reply.type === "file" && "📎 File"}
-        {reply.type === "gif" && "🎬 GIF"}
-        {reply.type === "audio" && "🎵 Audio"}
+        {reply.type === "image" && t("chat.messages.reply.image")}
+        {reply.type === "video" && t("chat.messages.reply.video")}
+        {reply.type === "file" && t("chat.messages.reply.file")}
+        {reply.type === "gif" && t("chat.messages.reply.gif")}
+        {reply.type === "audio" && t("chat.messages.reply.audio")}
       </span>
     ) : null;
 
   let previewText: string;
   if (isDeleted) {
-    previewText = "Tin nhắn đã bị xoá";
+    previewText = t("chat.messages.reply.deleted");
   } else if (isRecalled) {
     if (reply.isMine) {
-      previewText = "Bạn đã thu hồi tin nhắn này";
+      previewText = t("chat.messages.reply.recalled.me");
     } else {
-      previewText = "Tin nhắn đã bị thu hồi";
+      previewText = t("chat.messages.reply.recalled.other");
     }
   } else if (reply.type === "text") {
     previewText = reply.content;
   } else {
-    previewText = reply.attachments?.[0]?.name || "File đính kèm";
+    previewText =
+      reply.attachments?.[0]?.name || t("chat.messages.reply.attachment");
   }
 
   return (
@@ -61,7 +65,9 @@ export function ReplyPreview({ reply, onJump }: ReplyPreviewProps) {
       <div className="flex items-center gap-2 mb-1">
         <ArrowUturnLeftIcon className="h-3 w-3 text-teal-600 dark:text-teal-300 flex-shrink-0" />
         <span className="text-xs font-semibold text-teal-600 dark:text-teal-300">
-          {reply.isMine ? "Bạn" : reply.sender?.name || "Unknown"}
+          {reply.isMine
+            ? t("chat.messages.you")
+            : reply.sender?.name || "Unknown"}
         </span>
         {badge}
       </div>

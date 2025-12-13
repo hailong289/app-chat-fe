@@ -36,7 +36,7 @@ import TypingIndicator from "../chat/input/TypingIndicator";
 import useCounterStore from "@/store/useCounterStore";
 
 export const Home = () => {
-  const { socket } = useSocket();
+  const { socket } = useSocket("/chat");
 
   const router = useRouter();
   const pathname = usePathname();
@@ -74,14 +74,9 @@ export const Home = () => {
     if (!socket) return;
 
     const handleReconnect = () => {
-      console.log(
-        "🔌 [SOCKET RECONNECT] Socket reconnected, fetching rooms..."
-      );
-
       setTimeout(async () => {
         try {
           await roomState.getRooms(queryRoom);
-          console.log("✅ [SOCKET RECONNECT] Fetched rooms successfully");
         } catch (error) {
           console.error("❌ [SOCKET RECONNECT] Error fetching rooms:", error);
         }
@@ -239,7 +234,7 @@ export const Home = () => {
   );
 
   return (
-    <>
+    <div className="h-full flex flex-col">
       {/* Top actions */}
       {!isSearchVisible && (
         <div className="flex items-center justify-end p-1 border-b border-default dark:bg-slate-900">
@@ -493,6 +488,6 @@ export const Home = () => {
       </div>
 
       <CreateRoomModal isOpen={openModal} onClose={() => setOpenModal(false)} />
-    </>
+    </div>
   );
 };

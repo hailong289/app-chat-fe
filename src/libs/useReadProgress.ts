@@ -106,7 +106,6 @@ export function useReadProgress(opts: {
       if (!hasScroll()) {
         const lastId = getLastReadableMessageId();
         if (lastId) {
-          console.log("📭 No scroll detected - marking all messages as read");
           updateLastRead(lastId);
         }
         return true;

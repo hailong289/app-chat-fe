@@ -10,6 +10,7 @@ import {
   ModalHeader,
 } from "@heroui/react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface CallModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const CallChangeNameModal: React.FC<CallModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const roomState = useRoomStore((state) => state);
   const [name, setName] = useState(roomState.room?.name || "");
   const handleChangeName = async () => {
@@ -34,23 +36,23 @@ export const CallChangeNameModal: React.FC<CallModalProps> = ({
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col items-center gap-1">
-              Đổi Tên Đoạn Chat
+              {t("chat.modal.changeName.title")}
             </ModalHeader>
             <ModalBody>
               <span className="text-sm">
-                Mọi người để biết khi thay đổi tên đoạn chat
+                {t("chat.modal.changeName.description")}
               </span>
               <Input
                 type="text"
                 required={true}
-                label="Tên Đoạn Chat"
+                label={t("chat.modal.changeName.label")}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </ModalBody>
             <ModalFooter className="flex justify-center gap-5">
               <Button color="danger" variant="light" onPress={onClose}>
-                Huỷ
+                {t("chat.modal.changeName.cancel")}
               </Button>
               <Button
                 color="primary"
@@ -60,7 +62,7 @@ export const CallChangeNameModal: React.FC<CallModalProps> = ({
                   onClose();
                 }}
               >
-                Xác Nhận
+                {t("chat.modal.changeName.confirm")}
               </Button>
             </ModalFooter>
           </>

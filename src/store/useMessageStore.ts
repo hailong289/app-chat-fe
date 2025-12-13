@@ -1,17 +1,31 @@
 import { create } from "zustand";
-import { FilePreview, MessageState, MessageType } from "./types/message.state";
+import {
+  FilePreview,
+  GalleryItem,
+  MessageState,
+  MessageType,
+} from "./types/message.state";
 export interface SendMessageArgs {
   roomId: string;
   content: string;
   attachments: FilePreview[];
-  type: "text" | "image" | "file" | "system" | "video" | "audio" | "gif";
+  type:
+    | "text"
+    | "image"
+    | "file"
+    | "system"
+    | "video"
+    | "audio"
+    | "gif"
+    | "document";
   replyTo?: string;
   socket?: any; // Socket instance
   userId?: string; // User ID
   userFullname?: string; // User fullname
   userAvatar?: string; // User avatar
+  documentId?: string; // Document ID
 }
-import { upsertOne, deleteOne, upsertMany } from "@/libs/crud";
+import { upsertOne, deleteOne } from "@/libs/crud";
 import { db } from "@/libs/db";
 import { ObjectId } from "bson";
 import UploadService from "@/service/uploadfile.service";
@@ -24,42 +38,45 @@ import MessageService from "@/service/message.service";
  */
 const sanitizeMessageForDB = (msg: MessageType): MessageType => {
   try {
-    // Create a clean copy using JSON parse/stringify to remove circular refs
-    const cleanMsg = JSON.parse(
-      JSON.stringify({
-        ...msg,
-        attachments: msg.attachments?.map((att) => ({
-          _id: att._id,
-          kind: att.kind,
-          url: att.url,
-          name: att.name,
-          size: att.size,
-          mimeType: att.mimeType,
-          thumbUrl: att.thumbUrl,
-          width: att.width,
-          height: att.height,
-          duration: att.duration,
-          status: att.status,
-          uploadProgress: att.uploadProgress,
-          uploadedUrl: att.uploadedUrl,
-          // Explicitly exclude file and any non-serializable data
-        })),
-        // Ensure sender is clean
-        sender: msg.sender
-          ? {
-              _id: msg.sender._id,
-              fullname: msg.sender.fullname,
-              avatar: msg.sender.avatar,
-            }
-          : undefined,
-        // Ensure content is a clean string
-        content: msg.content ? String(msg.content) : "",
-      })
-    );
+    // Create a clean copy using structuredClone to remove circular refs
+    const cleanMsg = structuredClone({
+      ...msg,
+      attachments: msg.attachments?.map((att) => ({
+        _id: att._id,
+        kind: att.kind,
+        url: att.url,
+        name: att.name,
+        size: att.size,
+        mimeType: att.mimeType,
+        thumbUrl: att.thumbUrl,
+        width: att.width,
+        height: att.height,
+        duration: att.duration,
+        status: att.status,
+        uploadProgress: att.uploadProgress,
+        uploadedUrl: att.uploadedUrl,
+        // Explicitly exclude file and any non-serializable data
+      })),
+      // Ensure sender is always valid
+      sender: msg.sender
+        ? {
+            _id: msg.sender._id,
+            id: msg.sender.id,
+            fullname: msg.sender.fullname,
+            avatar: msg.sender.avatar,
+          }
+        : {
+            _id: "unknown",
+            fullname: "Unknown",
+            avatar: "",
+          },
+      // Ensure content is a clean string
+      content: msg.content ? String(msg.content) : "",
+    });
 
     return cleanMsg;
   } catch (error) {
-    console.error("❌ Error sanitizing message for DB:", error, msg);
+    console.error("❌ Error sanitizing message for DB:", error);
     // Return a minimal valid message if sanitization fails
     return {
       ...msg,
@@ -68,10 +85,15 @@ const sanitizeMessageForDB = (msg: MessageType): MessageType => {
       sender: msg.sender
         ? {
             _id: msg.sender._id,
+            id: msg.sender.id,
             fullname: msg.sender.fullname || "Unknown",
             avatar: msg.sender.avatar,
           }
-        : undefined,
+        : {
+            _id: "unknown",
+            fullname: "Unknown",
+            avatar: "",
+          },
     } as MessageType;
   }
 };
@@ -207,6 +229,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       attachments: attachments || [],
       reply,
       type: type || "text",
+      documentId: args.documentId, // Add documentId
       createdAt: new Date().toISOString(),
       pinned: false,
       sender: {
@@ -300,6 +323,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         content,
         replyTo,
         id,
+        documentId: args.documentId, // Send documentId
       });
       get().autoMarkMessageSent(roomId, id, 3000);
     }
@@ -329,8 +353,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       })) as { data: { metadata: MessageType[] } };
 
-      console.log("🚀 ~ fetchNewMessages response:", response);
-
       // Validate response structure
       if (!response?.data?.metadata || !Array.isArray(response.data.metadata)) {
         console.warn("⚠️ Invalid response structure from API:", response);
@@ -339,7 +361,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       }
 
       if (response.data.metadata.length === 0) {
-        console.log("📭 No new messages from API");
         set((state) => ({ ...state, isLoading: false }));
         return;
       }
@@ -388,10 +409,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           },
           isLoading: false,
         }));
-
-        console.log(`✅ Added ${uniqueNewMessages.length} new messages`);
       } else {
-        console.log("ℹ️ All messages already exist in state");
         set((state) => ({ ...state, isLoading: false }));
       }
     } catch (error) {
@@ -443,7 +461,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         });
 
         get().autoMarkMessageSent(roomId, messageId, 3000);
-        console.log("✅ Message resent (no attachments):", messageId);
         return;
       }
 
@@ -498,8 +515,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         });
 
         get().autoMarkMessageSent(roomId, messageId, 3000);
-
-        console.log("✅ Message resent:", messageId);
       } else {
         console.warn(
           "⚠️ Some or all attachments failed to upload on resend — marking message failed",
@@ -560,11 +575,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         return [];
       }
 
-      console.log(
-        `🌐 Fetching messages from API for room: ${roomId}`,
-        queryParams
-      );
-
       // Gọi API lấy tin nhắn
       const response = (await MessageService.getMessages({
         roomId,
@@ -580,7 +590,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       }
 
       if (response.data.metadata.length === 0) {
-        console.log("📭 No messages returned from API");
         return [];
       }
 
@@ -592,16 +601,12 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         attachments: sanitizeAttachmentsFromAPI(msg.attachments),
       }));
 
-      console.log(`✅ Fetched ${messages.length} messages from API`);
-
       // Upsert từng tin nhắn vào IndexedDB (đã được sanitize)
       await Promise.all(
         messages.map((msg: MessageType) =>
           upsertOne(db.messages, sanitizeMessageForDB(msg))
         )
       );
-
-      console.log(`💾 Saved ${messages.length} messages to IndexedDB`);
 
       // Lấy room hiện tại và merge messages
       const currentRoom = get().messagesRoom[roomId] || {
@@ -642,14 +647,10 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       });
 
-      console.log(
-        `🔄 Updated state with ${sortedMessages.length} total messages`
-      );
-
       return messages;
     } catch (error) {
-      // console.error("❌ Error fetching messages from API:", error);
       // Don't throw error, return empty array to prevent UI breaking
+      // Error is expected in some cases (network issues, etc)
       return [];
     }
   },
@@ -747,7 +748,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     const filesToUpload = attachments.filter((att) => att.file);
 
     if (filesToUpload.length === 0) {
-      console.log("✅ No files to upload");
       return attachments;
     }
 
@@ -780,7 +780,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       })
         .then((resp) => {
           const data = resp.data;
-          console.log(`✅ Uploaded file ${index}:`, data);
           return {
             success: true as const,
             result: data,
@@ -788,36 +787,21 @@ const useMessageStore = create<MessageState>()((set, get) => ({
             id: att._id,
           };
         })
-        .catch((err) => {
-          const e = err as any;
-
+        .catch((err: unknown) => {
           // Log chi tiết lỗi
           try {
+            const error_ = err as unknown;
+            const errorObj =
+              error_ instanceof Error ? error_ : new Error(String(error_));
             console.error(
               `⚠️ Upload error for file index ${index} (id=${att._id}):`,
               {
-                message: e?.message || String(e),
-                name: e?.name,
-                stack: e?.stack,
-                responseData: e?.response?.data,
-                responseStatus: e?.response?.status,
-                request: e?.request,
-                rawProps: Object.getOwnPropertyNames(e || {}).reduce(
-                  (acc, k) => {
-                    try {
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      acc[k] = e[k];
-                    } catch {
-                      acc[k] = "<unserializable>";
-                    }
-                    return acc;
-                  },
-                  {} as Record<string, any>
-                ),
+                message: errorObj.message,
+                stack: errorObj.stack,
               }
             );
-          } catch (logErr) {
-            console.error("⚠️ Error serializing upload error:", logErr, err);
+          } catch {
+            /* ignored */
           }
 
           // Mark failed
@@ -853,11 +837,15 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       }
 
       if (!res.success) {
-        const errObj = res.error;
+        const errObj = res.error as Record<string, unknown>;
         const uploadError = {
-          message: errObj?.message || String(errObj),
-          responseData: errObj?.response?.data,
-          responseStatus: errObj?.response?.status,
+          message: (errObj?.message as string | undefined) || String(errObj),
+          responseData: (
+            errObj?.response as Record<string, unknown> | undefined
+          )?.data,
+          responseStatus: (
+            errObj?.response as Record<string, unknown> | undefined
+          )?.status,
         };
 
         return {
@@ -909,13 +897,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       },
     });
 
-    // Log summary
-    const successCount = perFileResults.filter((r) => r.success).length;
-    const failCount = perFileResults.length - successCount;
-    console.log(
-      `✅ Upload summary: ${successCount} succeeded, ${failCount} failed`
-    );
-
     return updatedAttachments;
   },
 
@@ -945,8 +926,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     }
 
     try {
-      console.log(`🌐 Loading older messages before ID: ${oldestMessageId}`);
-
       // Gọi API để lấy tin nhắn cũ hơn
       const result: any = await MessageService.getMessages({
         roomId,
@@ -986,13 +965,8 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           await upsertOne(db.messages, sanitizeMessageForDB(msg));
         }
 
-        console.log(
-          `✅ Loaded ${olderMessages.length} older messages from API`
-        );
-
         return olderMessages; // Return messages for caller to check
       } else {
-        console.log("📭 No more older messages from server");
         return []; // Return empty array if no messages
       }
     } catch (error) {
@@ -1027,7 +1001,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
         // Update IndexedDB
         await deleteOne(db.messages, messageId);
-        console.log("✅ Message deleted:", messageId);
       }
     } catch (error) {
       console.error("❌ Error deleting message:", error);
@@ -1077,7 +1050,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
             })
           );
         }
-        console.log("✅ Message recalled:", messageId);
       }
     } catch (error) {
       console.error("❌ Error recalling message:", error);
@@ -1140,7 +1112,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       },
     });
   },
-  upsetMsgError: async (payload: {
+  upsetMsgError: (payload: {
     message: string;
     error: string;
     data: {
@@ -1229,7 +1201,11 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
     // update IndexedDB
     try {
-      await upsertOne(db.messages, sanitizeMessageForDB(updatedMsg));
+      upsertOne(db.messages, sanitizeMessageForDB(updatedMsg)).catch(
+        (error) => {
+          console.error("[upsetMsgError] IndexedDB upsert error:", error);
+        }
+      );
       return true;
     } catch (error) {
       console.error("[upsetMsgError] IndexedDB upsert error:", error);
@@ -1270,6 +1246,113 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       });
     }, delayMs);
+  },
+  fetchRoomGallery: async (
+    roomId: string,
+    type: "media" | "docs" | "links"
+  ) => {
+    const state = get();
+    const roomData = state.messagesRoom[roomId] || {
+      messages: [],
+      input: null,
+      attachments: null,
+      reply: null,
+    };
+
+    const gallery = roomData.gallery || {
+      media: [],
+      docs: [],
+      links: [],
+      isLoadingMedia: false,
+      isLoadingDocs: false,
+      isLoadingLinks: false,
+      hasMoreMedia: true,
+      hasMoreDocs: true,
+      hasMoreLinks: true,
+    };
+
+    // Check if already loading or has data (optional: implement pagination check here)
+    if (
+      (type === "media" && gallery.isLoadingMedia) ||
+      (type === "docs" && gallery.isLoadingDocs) ||
+      (type === "links" && gallery.isLoadingLinks)
+    ) {
+      return;
+    }
+
+    // Set loading state
+    set({
+      messagesRoom: {
+        ...state.messagesRoom,
+        [roomId]: {
+          ...roomData,
+          gallery: {
+            ...gallery,
+            isLoadingMedia: type === "media" ? true : gallery.isLoadingMedia,
+            isLoadingDocs: type === "docs" ? true : gallery.isLoadingDocs,
+            isLoadingLinks: type === "links" ? true : gallery.isLoadingLinks,
+          },
+        },
+      },
+    });
+
+    try {
+      const res = await MessageService.getDocuments({
+        roomId,
+        type: type === "links" ? "link" : type, // Map 'links' to 'link' if needed by API
+      });
+
+      const newData = (res.data || []) as GalleryItem[];
+
+      set((currentState) => {
+        const currentRoomData = currentState.messagesRoom[roomId];
+        const currentGallery = currentRoomData?.gallery || gallery;
+
+        return {
+          messagesRoom: {
+            ...currentState.messagesRoom,
+            [roomId]: {
+              ...currentRoomData,
+              gallery: {
+                ...currentGallery,
+                media: type === "media" ? newData : currentGallery.media,
+                docs: type === "docs" ? newData : currentGallery.docs,
+                links: type === "links" ? newData : currentGallery.links,
+                isLoadingMedia:
+                  type === "media" ? false : currentGallery.isLoadingMedia,
+                isLoadingDocs:
+                  type === "docs" ? false : currentGallery.isLoadingDocs,
+                isLoadingLinks:
+                  type === "links" ? false : currentGallery.isLoadingLinks,
+              },
+            },
+          },
+        };
+      });
+    } catch (error) {
+      console.error(`Error fetching ${type} for room ${roomId}:`, error);
+      set((currentState) => {
+        const currentRoomData = currentState.messagesRoom[roomId];
+        const currentGallery = currentRoomData?.gallery || gallery;
+        return {
+          messagesRoom: {
+            ...currentState.messagesRoom,
+            [roomId]: {
+              ...currentRoomData,
+              gallery: {
+                ...currentGallery,
+                isLoadingMedia:
+                  type === "media" ? false : currentGallery.isLoadingMedia,
+                isLoadingDocs:
+                  type === "docs" ? false : currentGallery.isLoadingDocs,
+                isLoadingLinks:
+                  type === "links" ? false : currentGallery.isLoadingLinks,
+              },
+            },
+          },
+        };
+      });
+    }
   },
 }));
 

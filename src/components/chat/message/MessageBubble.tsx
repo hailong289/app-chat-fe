@@ -1,8 +1,11 @@
-import { EyeDropperIcon } from "@heroicons/react/16/solid";
+import { EyeDropperIcon, DocumentIcon } from "@heroicons/react/16/solid";
 import { LinkPreview } from "./LinkPreview";
 import { extractFirstUrl } from "@/libs/url-helpers";
 import { MAX_MESSAGE_LENGTH } from "../constants/messageConstants";
 import { MessageType } from "@/store/types/message.state";
+import { useTranslation } from "react-i18next";
+import { useRouter } from "next/navigation";
+import { Button } from "@heroui/react";
 
 interface MessageBubbleProps {
   msg: MessageType;
@@ -12,7 +15,8 @@ interface MessageBubbleProps {
   onToggleExpanded: (id: string) => void;
 }
 
-function DeletedMessageBubble({ isMine }: { isMine: boolean }) {
+function DeletedMessageBubble({ isMine }: Readonly<{ isMine: boolean }>) {
+  const { t } = useTranslation();
   return (
     <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
       <div
@@ -22,13 +26,16 @@ function DeletedMessageBubble({ isMine }: { isMine: boolean }) {
           dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700
         `}
       >
-        {isMine ? "Bạn đã xoá tin nhắn này" : "Tin nhắn đã bị xoá"}
+        {isMine
+          ? t("chat.messages.bubble.deleted.me")
+          : t("chat.messages.bubble.deleted.other")}
       </div>
     </div>
   );
 }
 
-function RecalledMessageBubble({ isMine }: { isMine: boolean }) {
+function RecalledMessageBubble({ isMine }: Readonly<{ isMine: boolean }>) {
+  const { t } = useTranslation();
   return (
     <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
       <div
@@ -38,7 +45,69 @@ function RecalledMessageBubble({ isMine }: { isMine: boolean }) {
           dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700
         `}
       >
-        {isMine ? "Bạn đã thu hồi tin nhắn này" : "Tin nhắn đã bị thu hồi"}
+        {isMine
+          ? t("chat.messages.bubble.recalled.me")
+          : t("chat.messages.bubble.recalled.other")}
+      </div>
+    </div>
+  );
+}
+
+function DocumentMessageBubble({ msg }: Readonly<{ msg: MessageType }>) {
+  const router = useRouter();
+  const { t } = useTranslation();
+
+  return (
+    <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
+      <div
+        className={`
+          relative p-3 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer
+          transition-colors border
+          ${
+            msg.isMine
+              ? "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800"
+              : "bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700"
+          }
+        `}
+        onClick={() => {
+          router.push(`/docs/${msg.documentId}`);
+        }}
+      >
+        <div
+          className={`p-2 rounded-lg ${
+            msg.isMine
+              ? "bg-blue-100 dark:bg-blue-800"
+              : "bg-gray-100 dark:bg-gray-700"
+          }`}
+        >
+          <DocumentIcon
+            className={`w-6 h-6 ${
+              msg.isMine
+                ? "text-blue-600 dark:text-blue-400"
+                : "text-gray-600 dark:text-gray-400"
+            }`}
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p
+            className={`text-sm font-medium truncate ${
+              msg.isMine
+                ? "text-blue-900 dark:text-blue-100"
+                : "text-gray-900 dark:text-gray-100"
+            }`}
+          >
+            {msg.content || t("documents.untitled", "Untitled Document")}
+          </p>
+          <p
+            className={`text-xs truncate ${
+              msg.isMine
+                ? "text-blue-700 dark:text-blue-300"
+                : "text-gray-500 dark:text-gray-400"
+            }`}
+          >
+            {t("documents.click_to_open", "Click to open")}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -98,6 +167,7 @@ function RegularMessageBubble({
   isExpanded: boolean;
   onToggleExpanded: (id: string) => void;
 }>) {
+  const { t } = useTranslation();
   const isLongMessage = msg.content.length > MAX_MESSAGE_LENGTH;
   const displayContent =
     isLongMessage && !isExpanded
@@ -126,7 +196,9 @@ function RegularMessageBubble({
               msg.isMine ? "text-blue-100" : "text-blue-600 dark:text-blue-400"
             }`}
           >
-            {isExpanded ? "Thu gọn" : "Xem thêm"}
+            {isExpanded
+              ? t("chat.messages.bubble.collapse")
+              : t("chat.messages.bubble.seeMore")}
           </button>
         )}
 
@@ -157,6 +229,10 @@ export function MessageBubble({
 
   if (msg.isDeleted) {
     return <RecalledMessageBubble isMine={msg.isMine} />;
+  }
+
+  if (msg.type === "document") {
+    return <DocumentMessageBubble msg={msg} />;
   }
 
   if (msg.content) {

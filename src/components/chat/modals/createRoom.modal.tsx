@@ -16,22 +16,28 @@ import {
   User,
 } from "@heroui/react";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const types = [
-  { value: "group", label: "Nhóm" },
-  { value: "channel", label: "Kênh" },
-] as const;
-
 export const CreateRoomModal = ({ isOpen, onClose }: Props) => {
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState("");
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [name, setName] = useState("");
   const [type, setType] = useState<"group" | "channel">("group");
+
+  const types = useMemo(
+    () =>
+      [
+        { value: "group", label: t("chat.modal.createRoom.types.group") },
+        { value: "channel", label: t("chat.modal.createRoom.types.channel") },
+      ] as const,
+    [t]
+  );
 
   // Chỉ lấy đúng phần cần dùng để tránh rerender thừa
   const createRoom = useRoomStore((state) => state.createRoom);
@@ -88,7 +94,7 @@ export const CreateRoomModal = ({ isOpen, onClose }: Props) => {
         {(close) => (
           <>
             <ModalHeader className="flex items-center gap-2">
-              <h4>Tạo</h4>
+              <h4>{t("chat.modal.createRoom.title")}</h4>
               <Select
                 className="w-32"
                 selectedKeys={[type]}
@@ -104,22 +110,25 @@ export const CreateRoomModal = ({ isOpen, onClose }: Props) => {
 
             <ModalBody className="w-full">
               <Input
-                label="Tên đoạn chat"
-                placeholder="Nhập tên đoạn chat"
+                label={t("chat.modal.createRoom.nameLabel")}
+                placeholder={t("chat.modal.createRoom.namePlaceholder")}
                 value={name}
                 isRequired
                 isInvalid={isNameInvalid && name.length > 0}
                 validate={(value) => {
                   if (value.trim().length < 3) {
-                    return "Tên đoạn chat phải có ít nhất 3 ký tự.";
+                    return t("chat.modal.createRoom.nameError");
                   }
                 }}
                 onChange={(e) => setName(e.target.value)}
               />
 
               <Input
-                label={`Thành viên ${memberIds.length}/${contacts.length}`}
-                placeholder="Nhập tên thành viên"
+                label={t("chat.modal.createRoom.membersLabel", {
+                  count: memberIds.length,
+                  total: contacts.length,
+                })}
+                placeholder={t("chat.modal.createRoom.membersPlaceholder")}
                 value={searchTerm}
                 startContent={
                   <MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />
@@ -148,13 +157,15 @@ export const CreateRoomModal = ({ isOpen, onClose }: Props) => {
             </ModalBody>
 
             <ModalFooter>
-              <Button onPress={close}>Huỷ</Button>
+              <Button onPress={close}>
+                {t("chat.modal.createRoom.cancel")}
+              </Button>
               <Button
                 disabled={isFormInvalid}
                 color="primary"
                 onPress={handleCreateRoom}
               >
-                Tạo
+                {t("chat.modal.createRoom.create")}
               </Button>
             </ModalFooter>
           </>

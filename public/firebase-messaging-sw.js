@@ -21,8 +21,6 @@ const messaging = firebase.messaging();
 
 // Background message (tab ẩn / tắt)
 messaging.onBackgroundMessage((payload) => {
-  console.log("📩 [SW] Background message:", payload);
-
   const title =
     payload.notification?.title || payload.data?.title || "Thông báo mới";
 

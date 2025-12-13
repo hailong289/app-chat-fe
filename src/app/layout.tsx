@@ -8,9 +8,10 @@ import { Providers } from "./providers";
 import "@/styles/main.scss";
 import { ClientLayout } from "./client-layout";
 import { FirebaseProvider } from "@/components/providers/firebase.provider";
-import { SocketProvider } from "@/components/providers/SocketProvider";
 import NotificationPermission from "@/components/notifications/NotificationPermission";
-// import { ThemeProvider } from "next-themes";
+import { SocketProvider } from "@/components/providers/SocketProvider";
+import { SocketEventChatGlobal } from "@/components/chat/socketChatEventGlobal";
+import { InitAppChat } from "@/components/chat/initAppChat.provider";
 export const metadata: Metadata = {
   title: "ChatApp",
   description: "Ứng dụng chat hiện đại",
@@ -24,12 +25,16 @@ export default function RootLayout({
   return (
     <html lang="vi" suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <Providers>
-          <FirebaseProvider>
-            <NotificationPermission />
-            <ClientLayout>{children}</ClientLayout>
-          </FirebaseProvider>
-        </Providers>
+        <SocketProvider namespaces={["/chat", "/doc"]}>
+          <Providers>
+            <FirebaseProvider>
+              <NotificationPermission />
+              <SocketEventChatGlobal />
+              <InitAppChat />
+              <ClientLayout>{children}</ClientLayout>
+            </FirebaseProvider>
+          </Providers>
+        </SocketProvider>
       </body>
     </html>
   );
