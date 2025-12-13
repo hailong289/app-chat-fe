@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Avatar } from "@heroui/react";
 import {
@@ -18,7 +18,7 @@ import Helpers from "@/libs/helpers";
 import useCallStore from "@/store/useCallStore";
 import { CallMember } from "@/store/types/call.state";
 
-function CallPageContent() {
+function CallPageContentInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { socket } = useSocket();
@@ -43,13 +43,13 @@ function CallPageContent() {
   // handle socket event
   useEffect(() => {
     socket?.on("call:accepted", (payload: any) => eventCall("accepted", payload));
-    socket?.on("call:start", (payload: any) => eventCall("start", payload));
+    // socket?.on("call:start", (payload: any) => eventCall("start", payload));
     socket?.on("call:answer", (payload: any) => eventCall("answer", payload));
     socket?.on("call:candidate", (payload: any) => eventCall("candidate", payload));
     socket?.on("call:end", (payload: any) => eventCall("end", payload));
     return () => {
       socket?.off("call:accepted", (payload: any) => eventCall("accepted", payload));
-      socket?.off("call:start", (payload: any) => eventCall("start", payload));
+      // socket?.off("call:start", (payload: any) => eventCall("start", payload));
       socket?.off("call:candidate", (payload: any) => eventCall("candidate", payload));
       socket?.off("call:answer", (payload: any) => eventCall("answer", payload));
       socket?.off("call:end", (payload: any) => eventCall("end", payload));
@@ -435,6 +435,18 @@ function CallPageContent() {
         )}
       </div>
     </div>
+  );
+}
+
+function CallPageContent() {
+  return (
+    <Suspense fallback={
+      <div className="bg-dark h-screen w-full flex items-center justify-center">
+        <p className="text-gray-500">Đang tải...</p>
+      </div>
+    }>
+      <CallPageContentInner />
+    </Suspense>
   );
 }
 
