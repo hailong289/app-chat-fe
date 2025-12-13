@@ -53,6 +53,6 @@ export interface CallState {
   handleEndCall: (data: any) => void;
   handleRequestCall: (data: any) => void;
   handleAcceptCall: (data: any) => void;
-  // handleShareScreen: (value: boolean) => void;
+  handleShareScreen: (value: boolean) => Promise<void>;
 }
 

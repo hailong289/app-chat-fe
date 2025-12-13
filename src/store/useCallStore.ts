@@ -155,8 +155,46 @@ const useCallStore = create<CallState>()(
             window.opener && window.close();
         },
         handleEndCall: (payload: any) => {
-            const { roomId, actionUserId, status } = payload;
-            const key = `${roomId}-${actionUserId}`;
+            const { roomId, actionUserId, members } = payload;
+            const isCallerEnded = members.some((m: CallMember) => m.is_caller && m.status === 'ended');
+            if (members.length > 2 && !isCallerEnded) { // nếu có nhiều hơn 2 người và người gọi không kết thúc cuộc gọi thì không kết thúc cuộc gọi
+                console.log("Cuộc gọi có nhiều hơn 2 người, không kết thúc cuộc gọi");
+                // xóa peer connection và stream
+                const key = `${roomId}-${actionUserId}`;
+                
+                // Dừng tracks của stream trước khi xóa
+                const streamToRemove = get().stream.remoteStreams.get(key);
+                if (streamToRemove) {
+                    streamToRemove.getTracks().forEach((track) => {
+                        track.stop();
+                    });
+                }
+                
+                // Đóng peer connection
+                const pcToRemove = get().stream.peerConnections.get(key);
+                if (pcToRemove) {
+                    pcToRemove.close();
+                }
+                
+                // Tạo Map mới để trigger re-render trong Zustand
+                const currentRemoteStreams = get().stream.remoteStreams;
+                const newRemoteStreams = new Map(currentRemoteStreams);
+                newRemoteStreams.delete(key);
+                
+                const currentPeerConnections = get().stream.peerConnections;
+                const newPeerConnections = new Map(currentPeerConnections);
+                newPeerConnections.delete(key);
+                
+                // Cập nhật state với Map mới
+                set({ 
+                    stream: { 
+                        ...get().stream, 
+                        remoteStreams: newRemoteStreams,
+                        peerConnections: newPeerConnections
+                    } 
+                });
+                return;
+            }
             // xóa stream
             get().stream.localStream?.getTracks().forEach((track) => {
                 track.stop();
@@ -167,7 +205,9 @@ const useCallStore = create<CallState>()(
                 });
             });
             // xóa peer connection
-            get().stream.peerConnections.delete(key);
+            get().stream.peerConnections.forEach((pc) => {
+                pc.close();
+            });
 
             set({
                 status: 'ended',
@@ -373,8 +413,6 @@ const useCallStore = create<CallState>()(
         },
         actionToggleTrack: async (action: 'mic' | 'video' | 'speaker' | 'shareScreen', value: boolean) => {
             const currentState = get();
-            const roomId = currentState.roomId;
-            const actionUserId = currentState.actionUserId;
             const localStream = currentState.stream.localStream;
             if (!localStream && action !== 'shareScreen') {
                 console.error("Stream chưa được tạo");
@@ -409,91 +447,128 @@ const useCallStore = create<CallState>()(
                     }));
                     break;
                 case 'shareScreen':
-                    // await get().handleShareScreen(roomId, actionUserId, value);
+                    await get().handleShareScreen(value);
                     break;
             }
         },
-        // handleShareScreen: async (roomId: string, actionUserId: string, localStream: MediaStream, value: boolean) => {
-        //     const key = `${roomId}-${actionUserId}`;
-        //     const pc = get().stream.peerConnections.get(key);
-        //     if (value) {
-        //         // --- BẮT ĐẦU SHARE SCREEN ---
-        //         try {
-        //             // 1. Lấy stream màn hình
-        //             const screenStream = await navigator.mediaDevices.getDisplayMedia({ 
-        //                 video: true, 
-        //                 audio: false // Thường tắt audio hệ thống để tránh vọng âm với Mic
-        //             });
-        //             const screenTrack = screenStream.getVideoTracks()[0];
+        handleShareScreen: async (value: boolean) => {
+            const currentState = get();
+            const roomId = currentState.roomId;
+            const localStream = currentState.stream.localStream;
+            const mode = currentState.mode;
+            
+            if (!roomId) {
+                console.error("RoomId không tồn tại");
+                return;
+            }
+            
+            if (mode !== 'video') {
+                console.error("Chỉ có thể share screen trong cuộc gọi video");
+                return;
+            }
+            
+            if (value) {
+                // --- BẮT ĐẦU SHARE SCREEN ---
+                try {
+                    // 1. Lấy stream màn hình
+                    const screenStream = await navigator.mediaDevices.getDisplayMedia({ 
+                        video: true, 
+                        audio: false // Thường tắt audio hệ thống để tránh vọng âm với Mic
+                    });
+                    const screenTrack = screenStream.getVideoTracks()[0];
 
-        //             // 2. Thay thế track Video hiện tại (Camera) bằng Screen Track
-        //             if (pc) {
-        //                 const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
-        //                 if (videoSender) {
-        //                     await videoSender.replaceTrack(screenTrack);
-        //                 }
-        //             }
+                    // 2. Thay thế track Video hiện tại (Camera) bằng Screen Track cho tất cả peer connections
+                    const peerConnections = currentState.stream.peerConnections;
+                    for (const [key, pc] of peerConnections.entries()) {
+                        const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
+                        if (videoSender) {
+                            await videoSender.replaceTrack(screenTrack);
+                        }
+                    }
 
-        //             // 3. Xử lý khi người dùng bấm "Stop Sharing" trên thanh công cụ trình duyệt
-        //             screenTrack.onended = () => {
-        //                 get().actionToggleTrack('shareScreen', false); // Gọi đệ quy để tắt
-        //             };
+                    // 3. Xử lý khi người dùng bấm "Stop Sharing" trên thanh công cụ trình duyệt
+                    screenTrack.onended = () => {
+                        get().actionToggleTrack('shareScreen', false); // Gọi đệ quy để tắt
+                    };
 
-        //             // 4. Cập nhật Local Stream để UI hiển thị màn hình mình đang share
-        //             // (Tùy chọn: Nếu muốn UI vẫn hiện camera thì cần tách riêng stream)
-        //             // Ở đây ta update vào localStream để đồng bộ logic
-        //             if (localStream) {
-        //                 const oldVideoTrack = localStream.getVideoTracks()[0];
-        //                 if (oldVideoTrack) {
-        //                     localStream.removeTrack(oldVideoTrack);
-        //                     // oldVideoTrack.stop(); // Không stop camera nếu muốn switch lại nhanh
-        //                 }
-        //                 localStream.addTrack(screenTrack);
-        //             }
+                    // 4. Lưu camera track để có thể quay lại sau
+                    const cameraTrack = localStream?.getVideoTracks()[0];
+                    
+                    // 5. Cập nhật Local Stream để UI hiển thị màn hình mình đang share
+                    if (localStream && cameraTrack) {
+                        // Tạo stream mới với audio từ localStream và video từ screen
+                        const newLocalStream = new MediaStream();
+                        // Thêm audio tracks từ localStream
+                        localStream.getAudioTracks().forEach(track => {
+                            newLocalStream.addTrack(track);
+                        });
+                        // Thêm screen track
+                        newLocalStream.addTrack(screenTrack);
+                        
+                        set((prev) => ({
+                            ...prev,
+                            stream: { ...prev.stream, localStream: newLocalStream },
+                            action: { ...prev.action, isSharingScreen: true, isCameraEnabled: false },
+                        }));
+                    } else {
+                        set((prev) => ({
+                            ...prev,
+                            stream: { ...prev.stream, localStream: screenStream },
+                            action: { ...prev.action, isSharingScreen: true, isCameraEnabled: false },
+                        }));
+                    }
 
-        //             set((prev) => ({
-        //                 ...prev,
-        //                 stream: { ...prev.stream, localStream: screenStream }, // Cập nhật stream hiển thị
-        //                 action: { ...prev.action, isSharingScreen: true, isCameraEnabled: false }, // Camera coi như tắt
-        //             }));
+                } catch (err) {
+                    console.error("User cancelled screen share or error:", err);
+                    // Reset lại nút toggle nếu user hủy
+                    set((prev) => ({
+                        ...prev,
+                        action: { ...prev.action, isSharingScreen: false },
+                    }));
+                }
+            } else {
+                // --- DỪNG SHARE SCREEN (QUAY LẠI CAMERA) ---
+                try {
+                    // 1. Lấy lại Camera Stream
+                    const cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                        video: true, 
+                        audio: true 
+                    });
+                    const cameraTrack = cameraStream.getVideoTracks()[0];
+                    
+                    // 2. Thay thế track Screen đang chạy bằng Camera Track cho tất cả peer connections
+                    const peerConnections = get().stream.peerConnections;
+                    for (const [key, pc] of peerConnections.entries()) {
+                        const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
+                        if (videoSender) {
+                            await videoSender.replaceTrack(cameraTrack);
+                        }
+                    }
 
-        //         } catch (err) {
-        //             console.error("User cancelled screen share or error:", err);
-        //             // Reset lại nút toggle nếu user hủy
-        //             set((prev) => ({
-        //                 ...prev,
-        //                 action: { ...prev.action, isSharingScreen: false },
-        //             }));
-        //         }
-        //     } else {
-        //         // --- DỪNG SHARE SCREEN (QUAY LẠI CAMERA) ---
-        //         try {
-        //             // 1. Lấy lại Camera Stream
-        //             const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        //             const cameraTrack = cameraStream.getVideoTracks()[0];
-        //             // 2. Thay thế track Screen đang chạy bằng Camera Track
-        //             if (pc) {
-        //                 const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
-        //                 if (videoSender) {
-        //                     await videoSender.replaceTrack(cameraTrack);
-        //                 }
-        //             }
+                    // 3. Dừng track màn hình cũ (để tắt đèn báo share của trình duyệt)
+                    const currentLocalStream = get().stream.localStream;
+                    currentLocalStream?.getVideoTracks().forEach(track => {
+                        if (track.kind === 'video' && track.label.includes('screen') || track.label.includes('Screen')) {
+                            track.stop();
+                        }
+                    });
 
-        //             // 3. Dừng track màn hình cũ (để tắt đèn báo share của trình duyệt)
-        //             const currentLocalStream = get().stream.localStream;
-        //             currentLocalStream?.getVideoTracks().forEach(track => track.stop());
+                    // 4. Cập nhật local stream với camera
+                    set((prev) => ({
+                        ...prev,
+                        stream: { ...prev.stream, localStream: cameraStream },
+                        action: { ...prev.action, isSharingScreen: false, isCameraEnabled: true },
+                    }));
 
-        //             set((prev) => ({
-        //                 ...prev,
-        //                 stream: { ...prev.stream, localStream: cameraStream },
-        //                 action: { ...prev.action, isSharingScreen: false, isCameraEnabled: true },
-        //             }));
-
-        //         } catch (err) {
-        //             console.error("Error reverting to camera:", err);
-        //         }
-        //     }
-        // },
+                } catch (err) {
+                    console.error("Error reverting to camera:", err);
+                    set((prev) => ({
+                        ...prev,
+                        action: { ...prev.action, isSharingScreen: false },
+                    }));
+                }
+            }
+        },
        
     })
 );
