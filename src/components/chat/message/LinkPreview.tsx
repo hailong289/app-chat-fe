@@ -2,6 +2,7 @@
 import { Card, CardBody, Image, Skeleton } from "@heroui/react";
 import { useEffect, useMemo, useState } from "react";
 import { GlobeAltIcon } from "@heroicons/react/24/outline";
+import MessageService from "@/service/message.service";
 
 /* ---------------------------- Helpers ---------------------------- */
 const ytIdFromUrl = (raw: string): { id: string | null; start?: number } => {
@@ -103,65 +104,29 @@ export const LinkPreview = ({
         setError(false);
         return;
       }
-      const controller = new AbortController();
-      const timeoutMs = 6000; // 6s timeout
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
         setLoading(true);
         setError(false);
-        const response = await fetch(
-          `/api/link-preview?url=${encodeURIComponent(url)}`,
-          { signal: controller.signal }
-        );
 
-        if (!response.ok) {
-          const status = response.status;
-          const statusText = response.statusText;
-          const contentType = response.headers.get("content-type") || "";
+        const res = await MessageService.getLinkPreview(url);
 
-          let bodySnippet = "";
-          try {
-            const rawBody = await response.text();
-            if (contentType.includes("text/html")) {
-              bodySnippet = "[HTML response truncated]";
-            } else {
-              bodySnippet = rawBody.slice(0, 300);
-            }
-          } catch (e) {
-            console.debug("Failed to read error body for link preview:", e);
-          }
+        // Giả sử backend trả về ApiResponse<LinkPreviewData>
+        // và dữ liệu thực nằm trong res.data.metadata
+        const data = (res.data as any)?.metadata as LinkPreviewData;
 
-          if (status === 404) {
-            console.warn(
-              "Link preview API returned 404 for url:",
-              url,
-              "- using fallback link only."
-            );
+        if (!ignore) {
+          if (data) {
+            setPreview(data);
           } else {
-            console.error(
-              "Link preview fetch failed:",
-              status,
-              statusText,
-              bodySnippet
-            );
+            // Trường hợp success nhưng không có metadata (hoặc null)
+            setError(true);
           }
-
-          if (!ignore) setError(true);
-          return;
         }
-
-        const data = (await response.json()) as LinkPreviewData;
-        if (!ignore) setPreview(data);
       } catch (err: any) {
-        if (err?.name === "AbortError") {
-          console.error("Link preview fetch aborted (timeout)");
-        } else {
-          console.error("Error fetching link preview:", err);
-        }
+        console.error("Error fetching link preview:", err);
         if (!ignore) setError(true);
       } finally {
-        clearTimeout(timeoutId);
         if (!ignore) setLoading(false);
       }
     };
@@ -171,24 +136,26 @@ export const LinkPreview = ({
     };
   }, [url, shouldFetchPreview]);
 
-  /* ---------------------- Common skeleton ---------------------- */
+  /* ---------------------- Loading Card ----------------------- */
   const LoadingCard = (
     <Card
       className={`
-        max-w-sm mt-2 
-        ${
-          isMine
-            ? "bg-blue-400/20"
-            : "bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
-        }
+        w-full max-w-sm 
+        bg-white dark:bg-gray-900 
+        border border-gray-200 dark:border-gray-800
+        ${roundedClass}
       `}
       shadow="sm"
     >
-      <CardBody className={`p-0 ${roundedClass}`}>
-        <Skeleton className="w-full h-32" />
-        <div className="p-3 space-y-2">
+      <CardBody className="p-0">
+        <Skeleton className="w-full h-40" />
+        <div className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Skeleton className="w-4 h-4 rounded-full" />
+            <Skeleton className="w-20 h-3 rounded-lg" />
+          </div>
+          <Skeleton className="w-full h-5 rounded-lg" />
           <Skeleton className="w-3/4 h-4 rounded-lg" />
-          <Skeleton className="w-full h-3 rounded-lg" />
         </div>
       </CardBody>
     </Card>
@@ -209,18 +176,18 @@ export const LinkPreview = ({
     }).toString();
 
     return (
-      <div className="block mt-2 max-w-sm">
+      <div className="block max-w-sm w-full">
         <div
-          className={`relative w-full overflow-hidden ${roundedClass}`}
+          className={`relative w-full overflow-hidden bg-black ${roundedClass}`}
           style={{ paddingTop: "56.25%" }}
         >
           {!iframeLoaded && (
-            <div className="absolute inset-0">
+            <div className="absolute inset-0 z-10">
               <Skeleton className="w-full h-full" />
             </div>
           )}
           <iframe
-            className="absolute left-0 top-0 h-full w-full"
+            className="absolute left-0 top-0 h-full w-full z-20"
             src={`${base}?${params}`}
             title="YouTube video player"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -239,18 +206,18 @@ export const LinkPreview = ({
     const src = fbEmbedSrc(url, 560);
     const autoplayParam = autoPlay ? "&autoplay=true" : "";
     return (
-      <div className="block mt-2 max-w-sm">
+      <div className="block max-w-sm w-full">
         <div
-          className={`relative w-full overflow-hidden ${roundedClass}`}
+          className={`relative w-full overflow-hidden bg-black ${roundedClass}`}
           style={{ paddingTop: "56.25%" }}
         >
           {!iframeLoaded && (
-            <div className="absolute inset-0">
+            <div className="absolute inset-0 z-10">
               <Skeleton className="w-full h-full" />
             </div>
           )}
           <iframe
-            className="absolute left-0 top-0 h-full w-full"
+            className="absolute left-0 top-0 h-full w-full z-20"
             src={`${src}${autoplayParam}`}
             title="Facebook video player"
             style={{ border: "none", overflow: "hidden" }}
@@ -279,20 +246,23 @@ export const LinkPreview = ({
         target="_blank"
         rel="noopener noreferrer"
         className={`
-          flex items-center gap-2 mt-2 px-3 py-2 rounded-lg border
-          ${
-            isMine
-              ? "bg-blue-400/20 border-blue-400/30 text-white hover:bg-blue-400/30"
-              : `
-                bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200
-                dark:bg-gray-800 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700
-              `
-          }
-          transition-colors duration-200 max-w-sm
+          flex items-center gap-3 px-4 py-3 rounded-xl border
+          bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800
+          hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-700
+          transition-all duration-200 max-w-sm shadow-sm group w-full
         `}
       >
-        <GlobeAltIcon className="w-4 h-4 flex-shrink-0" />
-        <span className="text-xs truncate">{url}</span>
+        <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
+          <GlobeAltIcon className="w-5 h-5 text-gray-500 dark:text-gray-400 group-hover:text-blue-500 transition-colors" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+            {url}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Click to open link
+          </p>
+        </div>
       </a>
     );
   }
@@ -302,16 +272,13 @@ export const LinkPreview = ({
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="block mt-2 max-w-sm"
+      className="block max-w-sm w-full group"
     >
       <Card
         className={`
-          overflow-hidden transition-all duration-200 hover:scale-[1.02]
-          ${
-            isMine
-              ? "bg-blue-400/10 border-blue-400/30"
-              : "bg-white border-gray-200 dark:bg-gray-900 dark:border-gray-700"
-          }
+          overflow-hidden transition-all duration-200 
+          bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800
+          hover:shadow-md hover:border-gray-300 dark:hover:border-gray-700
           ${roundedClass}
         `}
         shadow="sm"
@@ -320,87 +287,58 @@ export const LinkPreview = ({
         <CardBody className="p-0">
           {/* Preview Image */}
           {preview.image && (
-            <div className="relative w-full h-40 bg-gray-100 dark:bg-gray-800 overflow-hidden">
+            <div className="relative w-full h-48 bg-gray-100 dark:bg-gray-800 overflow-hidden">
               <Image
                 src={preview.image}
                 alt={preview.title || "Link preview"}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                 removeWrapper
+                radius="none"
               />
             </div>
           )}
 
           {/* Content */}
-          <div className="p-3 space-y-1">
+          <div className="p-4 space-y-2">
+            {/* Site Info */}
             {(preview.siteName || preview.favicon) && (
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2">
                 {preview.favicon && (
                   <img
                     src={preview.favicon}
                     alt=""
-                    className="w-4 h-4 rounded"
+                    className="w-4 h-4 rounded-sm"
                     onError={(e) => {
                       e.currentTarget.style.display = "none";
                     }}
                   />
                 )}
-                {preview.siteName && (
-                  <span
-                    className={`
-                      text-xs font-medium 
-                      ${
-                        isMine
-                          ? "text-blue-100"
-                          : "text-gray-500 dark:text-gray-400"
-                      }
-                    `}
-                  >
-                    {preview.siteName}
-                  </span>
-                )}
+                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {preview.siteName || new URL(url).hostname}
+                </span>
               </div>
             )}
 
+            {/* Title */}
             {preview.title && (
-              <h4
-                className={`
-                  font-semibold text-sm line-clamp-2
-                  ${isMine ? "text-white" : "text-gray-900 dark:text-gray-100"}
-                `}
-              >
+              <h4 className="font-bold text-base leading-snug text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                 {preview.title}
               </h4>
             )}
 
+            {/* Description */}
             {preview.description && (
-              <p
-                className={`
-                  text-xs line-clamp-2
-                  ${
-                    isMine
-                      ? "text-blue-100"
-                      : "text-gray-600 dark:text-gray-400"
-                  }
-                `}
-              >
+              <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed">
                 {preview.description}
               </p>
             )}
 
-            <p
-              className={`
-                text-xs truncate
-                ${isMine ? "text-blue-200" : "text-gray-400 dark:text-gray-500"}
-              `}
-            >
-              {(() => {
-                try {
-                  return new URL(url).hostname;
-                } catch {
-                  return url;
-                }
-              })()}
-            </p>
+            {/* Fallback Domain if no site name */}
+            {!preview.siteName && !preview.favicon && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                {new URL(url).hostname}
+              </p>
+            )}
           </div>
         </CardBody>
       </Card>

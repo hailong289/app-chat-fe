@@ -19,4 +19,8 @@ export default class MessageService {
   }) {
     return apiService.get(`/chat/documents/${roomId}`, { page, limit, type });
   }
+
+  static getLinkPreview(url: string) {
+    return apiService.get(`/preview-link`, { url });
+  }
 }

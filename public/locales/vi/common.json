@@ -15,6 +15,7 @@
     "ok": "Đồng ý"
   },
   "docs": {
+    "editTitle": "Chỉnh sửa tiêu đề",
     "renameSuccess": "Đổi tên tài liệu thành công",
     "renameError": "Đổi tên tài liệu thất bại",
     "deleteSuccess": "Đã xóa tài liệu",
