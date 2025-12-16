@@ -172,13 +172,13 @@ function CallMessageBubble({
   const isGroupCall = totalMembers > 2;
   const isVideoCall = callHistory.call_type === "video";
   const callTypeLabel = isVideoCall ? "video" : "gọi thoại";
-  const currentUser = callHistory.members.find((member) => member.id === user?._id);
-  const otherUser = callHistory.members.find((member) => member.id !== user?._id);
+  const currentUser = callHistory.members.find((member) => member.id === user?.id);
+  const otherUser = callHistory.members.find((member) => member.id !== user?.id);
   const isCaller = currentUser?.is_caller === true ? true : false;
   let status = "Đã kết thúc";
-  if (currentUser?.status === "initiated") {
+  if (["initiated", "started", "pending"].includes(currentUser?.status || "")) {
     status = "Đang chờ";
-  } else if (otherUser?.status === "started") {
+  } else if (["started", "accepted"].includes(otherUser?.status || "")) {
     status = "Đang diễn ra";
   } else if (currentUser?.status === "ended") {
     status = isCaller ? "Bạn đã kết thúc cuộc gọi" : "Cuộc gọi đã kết thúc";
