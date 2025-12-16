@@ -1,15 +1,29 @@
 import { create } from "zustand";
-import { FilePreview, MessageState, MessageType } from "./types/message.state";
+import {
+  FilePreview,
+  GalleryItem,
+  MessageState,
+  MessageType,
+} from "./types/message.state";
 export interface SendMessageArgs {
   roomId: string;
   content: string;
   attachments: FilePreview[];
-  type: "text" | "image" | "file" | "system" | "video" | "audio" | "gif";
+  type:
+    | "text"
+    | "image"
+    | "file"
+    | "system"
+    | "video"
+    | "audio"
+    | "gif"
+    | "document";
   replyTo?: string;
   socket?: any; // Socket instance
   userId?: string; // User ID
   userFullname?: string; // User fullname
   userAvatar?: string; // User avatar
+  documentId?: string; // Document ID
 }
 import { upsertOne, deleteOne } from "@/libs/crud";
 import { db } from "@/libs/db";
@@ -24,42 +38,45 @@ import MessageService from "@/service/message.service";
  */
 const sanitizeMessageForDB = (msg: MessageType): MessageType => {
   try {
-    // Create a clean copy using JSON parse/stringify to remove circular refs
-    const cleanMsg = JSON.parse(
-      JSON.stringify({
-        ...msg,
-        attachments: msg.attachments?.map((att) => ({
-          _id: att._id,
-          kind: att.kind,
-          url: att.url,
-          name: att.name,
-          size: att.size,
-          mimeType: att.mimeType,
-          thumbUrl: att.thumbUrl,
-          width: att.width,
-          height: att.height,
-          duration: att.duration,
-          status: att.status,
-          uploadProgress: att.uploadProgress,
-          uploadedUrl: att.uploadedUrl,
-          // Explicitly exclude file and any non-serializable data
-        })),
-        // Ensure sender is clean
-        sender: msg.sender
-          ? {
-              _id: msg.sender._id,
-              fullname: msg.sender.fullname,
-              avatar: msg.sender.avatar,
-            }
-          : undefined,
-        // Ensure content is a clean string
-        content: msg.content ? String(msg.content) : "",
-      })
-    );
+    // Create a clean copy using structuredClone to remove circular refs
+    const cleanMsg = structuredClone({
+      ...msg,
+      attachments: msg.attachments?.map((att) => ({
+        _id: att._id,
+        kind: att.kind,
+        url: att.url,
+        name: att.name,
+        size: att.size,
+        mimeType: att.mimeType,
+        thumbUrl: att.thumbUrl,
+        width: att.width,
+        height: att.height,
+        duration: att.duration,
+        status: att.status,
+        uploadProgress: att.uploadProgress,
+        uploadedUrl: att.uploadedUrl,
+        // Explicitly exclude file and any non-serializable data
+      })),
+      // Ensure sender is always valid
+      sender: msg.sender
+        ? {
+            _id: msg.sender._id,
+            id: msg.sender.id,
+            fullname: msg.sender.fullname,
+            avatar: msg.sender.avatar,
+          }
+        : {
+            _id: "unknown",
+            fullname: "Unknown",
+            avatar: "",
+          },
+      // Ensure content is a clean string
+      content: msg.content ? String(msg.content) : "",
+    });
 
     return cleanMsg;
   } catch (error) {
-    console.error("❌ Error sanitizing message for DB:", error, msg);
+    console.error("❌ Error sanitizing message for DB:", error);
     // Return a minimal valid message if sanitization fails
     return {
       ...msg,
@@ -68,10 +85,15 @@ const sanitizeMessageForDB = (msg: MessageType): MessageType => {
       sender: msg.sender
         ? {
             _id: msg.sender._id,
+            id: msg.sender.id,
             fullname: msg.sender.fullname || "Unknown",
             avatar: msg.sender.avatar,
           }
-        : undefined,
+        : {
+            _id: "unknown",
+            fullname: "Unknown",
+            avatar: "",
+          },
     } as MessageType;
   }
 };
@@ -110,10 +132,9 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
   upsetMsg: async (msgData: MessageType) => {
     if (!msgData.roomId) return;
-    console.log("🚀 ~ msgData:", msgData);
 
     // Lưu vào IndexedDB trước
-    msgData.status = "delivered";
+    msgData.status = "sent";
     // Lấy state hiện tại
     const prevRoom = get().messagesRoom[msgData.roomId] || {
       messages: [],
@@ -130,6 +151,19 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       updatedMessages = [...prevMessages, msgData];
     } else {
       // ID đã tồn tại → cập nhật tại chỗ
+      if (
+        Array.isArray(msgData.attachments) &&
+        msgData.attachments.length > 0
+      ) {
+        // Cập nhật các trường mới cho attachment, giữ nguyên attachment cũ nếu không có _id trùng
+        const prevAttachments = prevMessages[existingIndex].attachments || [];
+        msgData.attachments = msgData.attachments.map((newAtt) => {
+          const oldAtt = prevAttachments.find((att) => att._id === newAtt._id);
+          return oldAtt
+            ? { ...oldAtt, ...newAtt } // merge, ưu tiên trường mới
+            : newAtt; // nếu không có thì giữ nguyên newAtt
+        });
+      }
       updatedMessages = prevMessages.map((msg, idx) =>
         idx === existingIndex ? msgData : msg
       );
@@ -145,7 +179,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       },
     });
-    await upsertOne(db.messages, sanitizeMessageForDB(msgData));
+    await upsertOne(db.messages, msgData);
   },
 
   sendMessage: async (args: SendMessageArgs) => {
@@ -160,7 +194,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       userFullname,
       userAvatar,
     } = args;
-    console.log("🚀 ~ args:", args);
 
     // Lưu dữ liệu tạm trước khi gửi
     const prevRoom = get().messagesRoom[roomId] || {
@@ -188,6 +221,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           isDeleted: false,
         }
       : undefined;
+
     const data: MessageType = {
       id,
       roomId,
@@ -195,6 +229,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       attachments: attachments || [],
       reply,
       type: type || "text",
+      documentId: args.documentId, // Add documentId
       createdAt: new Date().toISOString(),
       pinned: false,
       sender: {
@@ -209,6 +244,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       hiddenByMe: false,
       hiddenAt: null,
       isDeleted: false,
+      read_by: [], // Add this property to satisfy MessageType
     };
 
     // Thêm dữ liệu tạm vào messages để hiển thị ngay
@@ -221,30 +257,26 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       },
     });
-
     // Upload attachments nếu có (background task)
     if (attachments && attachments.length > 0) {
       get()
-        .uploadAttachments(roomId, id, attachments)
+        .uploadAttachments({ roomId, messageId: id, attachments })
         .then((uploadedAttachments) => {
-          console.log("🚀 ~ uploadedAttachments:", uploadedAttachments);
-          console.log("🚀 ~ uploadedAttachments:", uploadedAttachments);
-          console.log("✅ Upload complete, updating message...");
-
           // Only send attachments that were uploaded successfully.
           const successful = (uploadedAttachments || []).filter(
-            (a) => a && a.status === "uploaded"
+            (a) => a?.status === "uploaded"
           );
 
-          if (successful.length > 0) {
+          if (successful.length === uploadedAttachments.length) {
             socket?.emit("message:send", {
               roomId,
               type,
               content,
               replyTo,
               id,
-              attachments: successful.map((att) => att._id),
+              attachments: uploadedAttachments.map((att) => att._id),
             });
+            get().autoMarkMessageSent(roomId, id, 3000);
           } else {
             console.warn(
               "⚠️ All attachments failed to upload — marking message failed",
@@ -291,7 +323,9 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         content,
         replyTo,
         id,
+        documentId: args.documentId, // Send documentId
       });
+      get().autoMarkMessageSent(roomId, id, 3000);
     }
   },
 
@@ -319,8 +353,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       })) as { data: { metadata: MessageType[] } };
 
-      console.log("🚀 ~ fetchNewMessages response:", response);
-
       // Validate response structure
       if (!response?.data?.metadata || !Array.isArray(response.data.metadata)) {
         console.warn("⚠️ Invalid response structure from API:", response);
@@ -329,7 +361,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       }
 
       if (response.data.metadata.length === 0) {
-        console.log("📭 No new messages from API");
         set((state) => ({ ...state, isLoading: false }));
         return;
       }
@@ -378,10 +409,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           },
           isLoading: false,
         }));
-
-        console.log(`✅ Added ${uniqueNewMessages.length} new messages`);
       } else {
-        console.log("ℹ️ All messages already exist in state");
         set((state) => ({ ...state, isLoading: false }));
       }
     } catch (error) {
@@ -395,7 +423,8 @@ const useMessageStore = create<MessageState>()((set, get) => ({
   },
 
   resendMessage: async (roomId: string, messageId: string, socket?: any) => {
-    const currentRoom = get().messagesRoom[roomId];
+    const state = get();
+    const currentRoom = state.messagesRoom[roomId];
     if (!currentRoom?.messages) return;
 
     // Tìm message cần gửi lại
@@ -412,7 +441,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
     set({
       messagesRoom: {
-        ...get().messagesRoom,
+        ...state.messagesRoom,
         [roomId]: {
           ...currentRoom,
           messages: updatedMessages,
@@ -421,40 +450,97 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     });
 
     try {
-      // Nếu có attachments, upload lại
-      if (message.attachments && message.attachments.length > 0) {
-        const uploadedAttachments = await get().uploadAttachments(
+      // ====== KHÔNG CÓ ATTACHMENTS -> GỬI LẠI LUÔN (giống sendMessage) ======
+      if (!message.attachments || message.attachments.length === 0) {
+        socket?.emit("message:send", {
           roomId,
-          messageId,
-          message.attachments
-        );
+          type: message.type,
+          content: message.content,
+          replyTo: message.reply?._id,
+          id: messageId,
+        });
 
-        // Emit socket với attachments đã upload
-        socket?.emit("message:send", {
-          roomId,
-          type: message.type,
-          content: message.content,
-          replyTo: message.reply?._id,
-          id: messageId,
-          attachments: uploadedAttachments.map((att) => att._id),
-        });
-      } else {
-        // Không có attachments, gửi ngay
-        socket?.emit("message:send", {
-          roomId,
-          type: message.type,
-          content: message.content,
-          replyTo: message.reply?._id,
-          id: messageId,
-        });
+        get().autoMarkMessageSent(roomId, messageId, 3000);
+        return;
       }
 
-      console.log("✅ Message resent:", messageId);
+      // ====== CÓ ATTACHMENTS ======
+      const allAttachments = message.attachments;
+
+      // Attach đã FAILED -> cần upload lại
+      const hasFailed = allAttachments.some((att) => att.status === "failed");
+
+      let finalAttachments = allAttachments;
+
+      if (hasFailed) {
+        // Chỉ re-upload những cái failed:
+        // uploadAttachments vốn chỉ upload những cái có `file`,
+        // nên để chắc kèo ta clear `file` cho những cái không failed.
+        const uploadInput = allAttachments.map((att) =>
+          att.status === "failed" ? att : { ...att, file: undefined }
+        );
+
+        const uploadedAttachments = await get().uploadAttachments({
+          roomId,
+          messageId,
+          attachments: uploadInput,
+        });
+
+        finalAttachments = uploadedAttachments;
+      } else {
+        // Không còn cái nào failed -> dùng lại attachments hiện tại trong state (refresh)
+        const refreshedRoom = get().messagesRoom[roomId];
+        const refreshedMsg = refreshedRoom?.messages.find(
+          (m) => m.id === messageId
+        );
+        finalAttachments = refreshedMsg?.attachments || allAttachments;
+      }
+
+      // Lấy các attachments đã upload thành công
+      const successful = (finalAttachments || []).filter(
+        (a) => a?.status === "uploaded"
+      );
+
+      // 🔥 GIỐNG LOGIC sendMessage:
+      // Nếu tất cả đều uploaded -> emit
+      // Nếu không -> mark message failed
+      if (successful.length === finalAttachments.length) {
+        socket?.emit("message:send", {
+          roomId,
+          type: message.type,
+          content: message.content,
+          replyTo: message.reply?._id,
+          id: messageId,
+          attachments: successful.map((att) => att._id),
+        });
+
+        get().autoMarkMessageSent(roomId, messageId, 3000);
+      } else {
+        console.warn(
+          "⚠️ Some or all attachments failed to upload on resend — marking message failed",
+          messageId
+        );
+
+        const failedMessages = get().messagesRoom[roomId]?.messages.map((msg) =>
+          msg.id === messageId ? { ...msg, status: "failed" as const } : msg
+        );
+
+        set({
+          messagesRoom: {
+            ...get().messagesRoom,
+            [roomId]: {
+              ...get().messagesRoom[roomId],
+              messages: failedMessages || [],
+            },
+          },
+        });
+      }
     } catch (error) {
       console.error("❌ Resend failed:", error);
 
       // Cập nhật lại status về failed
-      const failedMessages = get().messagesRoom[roomId]?.messages.map((msg) =>
+      const current = get().messagesRoom[roomId];
+      const failedMessages = current?.messages.map((msg) =>
         msg.id === messageId ? { ...msg, status: "failed" as const } : msg
       );
 
@@ -462,7 +548,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         messagesRoom: {
           ...get().messagesRoom,
           [roomId]: {
-            ...get().messagesRoom[roomId],
+            ...current,
             messages: failedMessages || [],
           },
         },
@@ -489,11 +575,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         return [];
       }
 
-      console.log(
-        `🌐 Fetching messages from API for room: ${roomId}`,
-        queryParams
-      );
-
       // Gọi API lấy tin nhắn
       const response = (await MessageService.getMessages({
         roomId,
@@ -509,7 +590,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       }
 
       if (response.data.metadata.length === 0) {
-        console.log("📭 No messages returned from API");
         return [];
       }
 
@@ -521,16 +601,12 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         attachments: sanitizeAttachmentsFromAPI(msg.attachments),
       }));
 
-      console.log(`✅ Fetched ${messages.length} messages from API`);
-
       // Upsert từng tin nhắn vào IndexedDB (đã được sanitize)
       await Promise.all(
         messages.map((msg: MessageType) =>
           upsertOne(db.messages, sanitizeMessageForDB(msg))
         )
       );
-
-      console.log(`💾 Saved ${messages.length} messages to IndexedDB`);
 
       // Lấy room hiện tại và merge messages
       const currentRoom = get().messagesRoom[roomId] || {
@@ -571,14 +647,10 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       });
 
-      console.log(
-        `🔄 Updated state with ${sortedMessages.length} total messages`
-      );
-
       return messages;
     } catch (error) {
-      console.error("❌ Error fetching messages from API:", error);
       // Don't throw error, return empty array to prevent UI breaking
+      // Error is expected in some cases (network issues, etc)
       return [];
     }
   },
@@ -663,29 +735,21 @@ const useMessageStore = create<MessageState>()((set, get) => ({
    * @param messageId ID của message chứa attachments
    * @param attachments Danh sách FilePreview cần upload
    */
-  uploadAttachments: async (
-    roomId: string,
-    messageId: string,
-    attachments: FilePreview[]
-  ) => {
-    console.log("🚀 Starting upload for", attachments.length, "files");
-
+  uploadAttachments: async ({
+    roomId,
+    messageId,
+    attachments,
+  }: {
+    roomId: string;
+    messageId: string;
+    attachments: FilePreview[];
+  }) => {
     // Lọc chỉ những file chưa upload (có file property)
     const filesToUpload = attachments.filter((att) => att.file);
 
     if (filesToUpload.length === 0) {
-      console.log("✅ No files to upload");
       return attachments;
     }
-
-    // Log IDs để verify
-    console.log(
-      "📋 File IDs to upload:",
-      filesToUpload.map((att) => ({
-        name: att.name,
-        _id: att._id,
-      }))
-    );
 
     // Đánh dấu tất cả là "uploading"
     for (const att of filesToUpload) {
@@ -698,89 +762,74 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       );
     }
 
-    // Upload files one-by-one to tolerate partial failures. If one file fails,
-    // we mark it failed but continue uploading the rest. This avoids the
-    // situation where the server has stored some files but the client treats
-    // the whole batch as failed because Promise.all rejected.
-    const perFileResults: Array<{
-      success: boolean;
-      result?: any;
-      error?: any;
-      index: number;
-      id: string;
-    }> = [];
-
-    for (let i = 0; i < filesToUpload.length; i++) {
-      const att = filesToUpload[i];
-      try {
-        const resp = await UploadService.uploadSingleWithProgress(att.file!, {
-          roomId,
-          id: att._id,
-          onProgress: (pct) => {
-            get().updateAttachmentProgress(
-              roomId,
-              messageId,
-              att._id,
-              pct,
-              "uploading"
-            );
-          },
-        });
-
-        const data = resp.data;
-        console.log(`✅ Uploaded file ${i}:`, data);
-        perFileResults.push({
-          success: true,
-          result: data,
-          index: i,
-          id: att._id,
-        });
-      } catch (err) {
-        const e = err as any;
-        // Axios / network errors often have useful info under err.response.
-        // Log structured details to help debugging (message, response payload/status).
-        try {
-          console.error(
-            `⚠️ Upload error for file index ${i} (id=${att._id}):`,
-            {
-              message: e?.message || String(e),
-              name: e?.name,
-              stack: e?.stack,
-              responseData: e?.response?.data,
-              responseStatus: e?.response?.status,
-              request: e?.request,
-              // include own props (including non-enumerable) when possible
-              rawProps: Object.getOwnPropertyNames(e || {}).reduce((acc, k) => {
-                try {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  acc[k] = e[k];
-                } catch (errProp) {
-                  acc[k] = "<unserializable>";
-                }
-                return acc;
-              }, {} as Record<string, any>),
-            }
+    // === PHẦN DÙNG Promise.all ĐỂ UPLOAD SONG SONG ===
+    const uploadPromises = filesToUpload.map((att, index) =>
+      UploadService.uploadSingleWithProgress(att.file!, {
+        roomId,
+        id: att._id,
+        messageId,
+        onProgress: (pct) => {
+          get().updateAttachmentProgress(
+            roomId,
+            messageId,
+            att._id,
+            pct,
+            "uploading"
           );
-        } catch (logErr) {
-          console.error("⚠️ Error serializing upload error:", logErr, err);
-        }
+        },
+      })
+        .then((resp) => {
+          const data = resp.data;
+          return {
+            success: true as const,
+            result: data,
+            index,
+            id: att._id,
+          };
+        })
+        .catch((err: unknown) => {
+          // Log chi tiết lỗi
+          try {
+            const error_ = err as unknown;
+            const errorObj =
+              error_ instanceof Error ? error_ : new Error(String(error_));
+            console.error(
+              `⚠️ Upload error for file index ${index} (id=${att._id}):`,
+              {
+                message: errorObj.message,
+                stack: errorObj.stack,
+              }
+            );
+          } catch {
+            /* ignored */
+          }
 
-        // mark this file as failed in UI
-        get().updateAttachmentProgress(roomId, messageId, att._id, 0, "failed");
-        perFileResults.push({
-          success: false,
-          error: err,
-          index: i,
-          id: att._id,
-        });
-        // continue with next file
-      }
-    }
+          // Mark failed
+          get().updateAttachmentProgress(
+            roomId,
+            messageId,
+            att._id,
+            0,
+            "failed"
+          );
 
-    // Build updated attachments array based on per-file results
+          // Quan trọng: luôn resolve, không throw -> Promise.all sẽ không reject
+          return {
+            success: false as const,
+            error: err,
+            index,
+            id: att._id,
+          };
+        })
+    );
+
+    // Promise.all luôn resolve vì từng promise đã catch rồi
+    const perFileResults = await Promise.all(uploadPromises);
+
+    // Build updated attachments array dựa theo perFileResults
     const updatedAttachments = attachments.map((att) => {
       const fileIdx = filesToUpload.findIndex((f) => f._id === att._id);
-      if (fileIdx === -1) return att; // untouched
+      if (fileIdx === -1) return att; // attachment không upload (ví dụ: đã uploaded từ trước)
 
       const res = perFileResults.find((r) => r.id === att._id);
       if (!res) {
@@ -788,13 +837,15 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       }
 
       if (!res.success) {
-        // Build a compact structured error for the attachment so caller can
-        // decide whether to retry and see server response details.
-        const errObj = res.error as any;
+        const errObj = res.error as Record<string, unknown>;
         const uploadError = {
-          message: errObj?.message || String(errObj),
-          responseData: errObj?.response?.data,
-          responseStatus: errObj?.response?.status,
+          message: (errObj?.message as string | undefined) || String(errObj),
+          responseData: (
+            errObj?.response as Record<string, unknown> | undefined
+          )?.data,
+          responseStatus: (
+            errObj?.response as Record<string, unknown> | undefined
+          )?.status,
         };
 
         return {
@@ -808,10 +859,12 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       const uploadResult = res.result;
 
       // Revoke old blob URL
-      if (att.url && att.url.startsWith("blob:")) {
+      if (att.url?.startsWith("blob:")) {
         try {
           URL.revokeObjectURL(att.url);
-        } catch {}
+        } catch {
+          // ignore
+        }
       }
 
       return {
@@ -825,7 +878,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         mimeType: uploadResult.mimeType || att.mimeType,
         status: "uploaded",
         uploadProgress: 100,
-        file: undefined,
       } as FilePreview;
     });
 
@@ -844,13 +896,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       },
     });
-
-    // Log summary
-    const successCount = perFileResults.filter((r) => r.success).length;
-    const failCount = perFileResults.length - successCount;
-    console.log(
-      `✅ Upload summary: ${successCount} succeeded, ${failCount} failed`
-    );
 
     return updatedAttachments;
   },
@@ -881,8 +926,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     }
 
     try {
-      console.log(`🌐 Loading older messages before ID: ${oldestMessageId}`);
-
       // Gọi API để lấy tin nhắn cũ hơn
       const result: any = await MessageService.getMessages({
         roomId,
@@ -922,13 +965,8 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           await upsertOne(db.messages, sanitizeMessageForDB(msg));
         }
 
-        console.log(
-          `✅ Loaded ${olderMessages.length} older messages from API`
-        );
-
         return olderMessages; // Return messages for caller to check
       } else {
-        console.log("📭 No more older messages from server");
         return []; // Return empty array if no messages
       }
     } catch (error) {
@@ -963,7 +1001,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
         // Update IndexedDB
         await deleteOne(db.messages, messageId);
-        console.log("✅ Message deleted:", messageId);
       }
     } catch (error) {
       console.error("❌ Error deleting message:", error);
@@ -1013,7 +1050,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
             })
           );
         }
-        console.log("✅ Message recalled:", messageId);
       }
     } catch (error) {
       console.error("❌ Error recalling message:", error);
@@ -1021,7 +1057,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
   },
 
   setReplyMessage: (roomId: string, message: MessageType | null) => {
-    console.log("🚀 ~ message:", message);
     const currentRoom = get().messagesRoom[roomId] || {
       messages: [],
       input: null,
@@ -1076,6 +1111,248 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       },
     });
+  },
+  upsetMsgError: (payload: {
+    message: string;
+    error: string;
+    data: {
+      userId?: string;
+      roomId: string;
+      type: string;
+      content: string;
+      attachments?: Array<string>;
+      replyTo: string;
+      id?: string;
+    };
+  }) => {
+    const { roomId, id } = payload.data;
+
+    if (!roomId || !id) return false;
+
+    const state = get();
+    const prevRoom = state.messagesRoom[roomId] || {
+      messages: [] as MessageType[],
+      reply: null,
+    };
+
+    const prevMessages = prevRoom.messages || [];
+    const existingIndex = prevMessages.findIndex((m) => m.id === id);
+
+    // Nếu không tìm thấy message → không làm gì
+    if (existingIndex === -1) {
+      console.warn(
+        "[upsetMsgError] message not found for id:",
+        id,
+        "room:",
+        roomId
+      );
+      return false;
+    }
+
+    const prevMsg = prevMessages[existingIndex];
+
+    // Cập nhật attachments bị lỗi (nếu có truyền lên)
+    let nextAttachments = prevMsg.attachments;
+    if (
+      payload.data.attachments &&
+      payload.data.attachments.length > 0 &&
+      prevMsg.attachments
+    ) {
+      const errorIds = new Set(payload.data.attachments);
+
+      nextAttachments = prevMsg.attachments.map((file) => {
+        // so sánh theo _id (hoặc nếu bạn dùng field khác thì sửa lại)
+        const key = file._id || file.name;
+        if (key && errorIds.has(key)) {
+          return {
+            ...file,
+            status: "failed",
+            uploadError: "Upload failed", // có thể truyền msgError thật từ BE
+          };
+        }
+        return file;
+      });
+    }
+
+    const updatedMsg: MessageType = {
+      ...prevMsg,
+      // nếu BE sửa content/type, thì ưu tiên cái mới
+      content: payload.data.content ?? prevMsg.content,
+      type: (payload.data.type as MessageType["type"]) ?? prevMsg.type,
+      status: "failed",
+      attachments: nextAttachments,
+      // optional: nếu muốn lưu thời gian fail riêng thì thêm field khác
+    };
+
+    const updatedMessages = prevMessages.map((m, idx) =>
+      idx === existingIndex ? updatedMsg : m
+    );
+
+    // update state
+    set({
+      messagesRoom: {
+        ...state.messagesRoom,
+        [roomId]: {
+          ...prevRoom,
+          messages: updatedMessages,
+        },
+      },
+    });
+
+    // update IndexedDB
+    try {
+      upsertOne(db.messages, sanitizeMessageForDB(updatedMsg)).catch(
+        (error) => {
+          console.error("[upsetMsgError] IndexedDB upsert error:", error);
+        }
+      );
+      return true;
+    } catch (error) {
+      console.error("[upsetMsgError] IndexedDB upsert error:", error);
+      return false;
+    }
+  },
+  autoMarkMessageSent: (roomId: string, messageId: string, delayMs = 3000) => {
+    setTimeout(() => {
+      const state = get();
+      const currentRoom = state.messagesRoom[roomId];
+      if (!currentRoom) return;
+
+      const updatedMessages = (currentRoom.messages || []).map((msg) => {
+        if (msg.id !== messageId) return msg;
+
+        // Nếu đã failed thì giữ nguyên
+        if (msg.status === "failed") return msg;
+
+        // Chỉ auto-set sent nếu vẫn pending / uploading / undefined
+        if (
+          msg.status === "pending" ||
+          msg.status === "uploading" ||
+          !msg.status
+        ) {
+          return { ...msg, status: "sent" as const };
+        }
+        upsertOne(db.messages, msg);
+        return msg;
+      });
+
+      set({
+        messagesRoom: {
+          ...state.messagesRoom,
+          [roomId]: {
+            ...currentRoom,
+            messages: updatedMessages,
+          },
+        },
+      });
+    }, delayMs);
+  },
+  fetchRoomGallery: async (
+    roomId: string,
+    type: "media" | "docs" | "links"
+  ) => {
+    const state = get();
+    const roomData = state.messagesRoom[roomId] || {
+      messages: [],
+      input: null,
+      attachments: null,
+      reply: null,
+    };
+
+    const gallery = roomData.gallery || {
+      media: [],
+      docs: [],
+      links: [],
+      isLoadingMedia: false,
+      isLoadingDocs: false,
+      isLoadingLinks: false,
+      hasMoreMedia: true,
+      hasMoreDocs: true,
+      hasMoreLinks: true,
+    };
+
+    // Check if already loading or has data (optional: implement pagination check here)
+    if (
+      (type === "media" && gallery.isLoadingMedia) ||
+      (type === "docs" && gallery.isLoadingDocs) ||
+      (type === "links" && gallery.isLoadingLinks)
+    ) {
+      return;
+    }
+
+    // Set loading state
+    set({
+      messagesRoom: {
+        ...state.messagesRoom,
+        [roomId]: {
+          ...roomData,
+          gallery: {
+            ...gallery,
+            isLoadingMedia: type === "media" ? true : gallery.isLoadingMedia,
+            isLoadingDocs: type === "docs" ? true : gallery.isLoadingDocs,
+            isLoadingLinks: type === "links" ? true : gallery.isLoadingLinks,
+          },
+        },
+      },
+    });
+
+    try {
+      const res = await MessageService.getDocuments({
+        roomId,
+        type: type === "links" ? "link" : type, // Map 'links' to 'link' if needed by API
+      });
+
+      const newData = (res.data || []) as GalleryItem[];
+
+      set((currentState) => {
+        const currentRoomData = currentState.messagesRoom[roomId];
+        const currentGallery = currentRoomData?.gallery || gallery;
+
+        return {
+          messagesRoom: {
+            ...currentState.messagesRoom,
+            [roomId]: {
+              ...currentRoomData,
+              gallery: {
+                ...currentGallery,
+                media: type === "media" ? newData : currentGallery.media,
+                docs: type === "docs" ? newData : currentGallery.docs,
+                links: type === "links" ? newData : currentGallery.links,
+                isLoadingMedia:
+                  type === "media" ? false : currentGallery.isLoadingMedia,
+                isLoadingDocs:
+                  type === "docs" ? false : currentGallery.isLoadingDocs,
+                isLoadingLinks:
+                  type === "links" ? false : currentGallery.isLoadingLinks,
+              },
+            },
+          },
+        };
+      });
+    } catch (error) {
+      console.error(`Error fetching ${type} for room ${roomId}:`, error);
+      set((currentState) => {
+        const currentRoomData = currentState.messagesRoom[roomId];
+        const currentGallery = currentRoomData?.gallery || gallery;
+        return {
+          messagesRoom: {
+            ...currentState.messagesRoom,
+            [roomId]: {
+              ...currentRoomData,
+              gallery: {
+                ...currentGallery,
+                isLoadingMedia:
+                  type === "media" ? false : currentGallery.isLoadingMedia,
+                isLoadingDocs:
+                  type === "docs" ? false : currentGallery.isLoadingDocs,
+                isLoadingLinks:
+                  type === "links" ? false : currentGallery.isLoadingLinks,
+              },
+            },
+          },
+        };
+      });
+    }
   },
 }));
 

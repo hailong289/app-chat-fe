@@ -10,15 +10,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Validate URL
     const validUrl = new URL(url);
 
-    // Fetch the page
     const response = await fetch(validUrl.toString(), {
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; LinkPreviewBot/1.0)",
       },
-      next: { revalidate: 3600 }, // Cache for 1 hour
+      // với dynamic = "force-dynamic" thì cái này chỉ là cache hint, không bắt buộc
+      next: { revalidate: 3600 },
     });
 
     if (!response.ok) {
@@ -28,7 +27,6 @@ export async function GET(request: NextRequest) {
     const html = await response.text();
     const $ = cheerio.load(html);
 
-    // Extract metadata
     const metadata = {
       url: validUrl.toString(),
       title:
@@ -55,7 +53,6 @@ export async function GET(request: NextRequest) {
         `${validUrl.origin}/favicon.ico`,
     };
 
-    // Convert relative URLs to absolute
     if (metadata.image && !metadata.image.startsWith("http")) {
       metadata.image = new URL(metadata.image, validUrl.origin).toString();
     }

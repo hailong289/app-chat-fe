@@ -1,6 +1,7 @@
 import { ContactType } from "@/store/types/contact.type";
 import { MessageType } from "@/store/types/message.state";
 import { roomType } from "@/store/types/room.state";
+import { User } from "@/types/auth.type";
 import Dexie, { Table } from "dexie";
 
 /**
@@ -10,7 +11,6 @@ import Dexie, { Table } from "dexie";
 export const clearIndexedDB = async () => {
   try {
     await Dexie.delete("app-chat-db");
-    console.log("✅ IndexedDB cleared successfully. Please refresh the page.");
     return true;
   } catch (error) {
     console.error("❌ Failed to clear IndexedDB:", error);
@@ -47,6 +47,7 @@ export class AppDB extends Dexie {
         contacts: "id, fullname, email, status, createdAt, updatedAt", // indexed fields only
         messages: "id, roomId, type, createdAt, pinned", // indexed fields only
       })
+
       .upgrade(async (trans) => {
         // Clear all old data on upgrade to avoid encryption conflicts
         await trans.table("rooms").clear();
@@ -71,7 +72,6 @@ export class AppDB extends Dexie {
       .upgrade(async (trans) => {
         // Clear messages to remove encrypted data
         await trans.table("messages").clear();
-        console.log("🔄 Cleared encrypted messages, will reload from API");
       });
 
     // Version 5: Disable room name/content encryption to support emoji
@@ -84,7 +84,6 @@ export class AppDB extends Dexie {
       .upgrade(async (trans) => {
         // Clear rooms to remove encrypted data
         await trans.table("rooms").clear();
-        console.log("🔄 Cleared encrypted rooms, will reload from API");
       });
 
     // Version 6: DISABLE ALL ENCRYPTION - Support full emoji and special characters

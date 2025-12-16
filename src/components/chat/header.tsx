@@ -30,10 +30,12 @@ import { roomMembers, RoomsState } from "@/store/types/room.state";
 import { useSocket } from "../providers/SocketProvider";
 import useCallStore from "@/store/useCallStore";
 import useAuthStore from "@/store/useAuthStore";
+import useContactStore from "@/store/useContactStore";
+import { useTranslation } from "react-i18next";
 
 interface ChatHeaderProps {
   // chatName?: string;
-  isOnline?: boolean;
+  // isOnline?: boolean;
   // avatarUrl?: string;
   callback?: () => void;
   noAction?: boolean;
@@ -42,10 +44,11 @@ interface ChatHeaderProps {
 
 const ChatHeader: React.FC<ChatHeaderProps> = ({
   noAction = false,
-  isOnline = true,
+
   callback = () => {},
   setScrollto = () => {},
 }) => {
+  const { t } = useTranslation();
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const {
     isOpen: isOpenPinned,
@@ -53,11 +56,18 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     onOpenChange: onOpenChangePinned,
   } = useDisclosure();
   const [showSearch, setShowSearch] = React.useState(false);
+  const [isOnline, setIsOnline] = React.useState(true);
   const [searchValue, setSearchValue] = React.useState("");
   const roomState = useRoomStore((state) => state);
   const { socket } = useSocket();
   const { openCall } = useCallStore();
   const { user } = useAuthStore();
+  const contactState = useContactStore((state) => state);
+  const onlineMembers = React.useMemo(() => {
+    return contactState.online.filter((contact) =>
+      roomState.room?.members.some((member) => member.id === contact.id)
+    );
+  }, [contactState.online, roomState.room?.members]);
 
   const handleStartCall = (room: RoomsState, mode: 'audio' | 'video') => {
     const roomData = room.room;
@@ -77,10 +87,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   };
 
   return (
-    <div className="w-full h-[80px]">
+    <div className="w-full h-[80px] dark:bg-slate-900 bg-white shadow-md z-10">
       <Navbar
         isBordered
-        className="bg-primary border-b border-cyan-200 h-[70px]"
+        className="bg-primary border-b border-cyan-200 h-full"
         maxWidth="full"
       >
         <NavbarContent justify="start" className="flex-grow">
@@ -101,11 +111,13 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                     <Chip
                       size="sm"
                       variant="dot"
-                      color={isOnline ? "success" : "default"}
+                      color={onlineMembers.length > 0 ? "success" : "default"}
                       className="p-0 border-none bg-transparent"
                     >
                       <span className="text-xs text-white">
-                        {isOnline ? "Online" : "Offline"}
+                        {onlineMembers.length > 0
+                          ? t("chat.header.online")
+                          : t("chat.header.offline")}
                       </span>
                     </Chip>
                   </div>
@@ -115,7 +127,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           ) : (
             <NavbarItem className="flex-1 w-full">
               <Input
-                placeholder="Tìm kiếm tin nhắn..."
+                placeholder={t("chat.header.searchPlaceholder")}
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
                 startContent={
@@ -161,11 +173,14 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               </Button>
             </NavbarItem> */}
             {useRoomStore.getState().room?.pinned_messages &&
-              (useRoomStore.getState().room?.pinned_messages?.length ?? 0) > 0 && (
+              (useRoomStore.getState().room?.pinned_messages?.length ?? 0) >
+                0 && (
                 <NavbarItem>
                   <Badge
                     color="danger"
-                    content={useRoomStore.getState().room?.pinned_messages?.length || 0}
+                    content={
+                      useRoomStore.getState().room?.pinned_messages?.length || 0
+                    }
                     size="sm"
                     placement="top-left"
                   >
@@ -253,35 +268,41 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           {(onClosePPinned) => (
             <>
               <ModalHeader className="flex flex-col items-center gap-1">
-                Danh sách gim tin nhắn
+                {t("chat.header.pinned.title")}
               </ModalHeader>
               <ModalBody>
                 {useRoomStore.getState().room?.pinned_messages &&
-                (useRoomStore.getState().room?.pinned_messages?.length ?? 0) > 0 ? (
+                (useRoomStore.getState().room?.pinned_messages?.length ?? 0) >
+                  0 ? (
                   <div className="flex flex-col gap-4">
-                    {useRoomStore.getState().room?.pinned_messages?.map?.((msg) => (
-                      <Button
-                        key={msg.id}
-                        variant="bordered"
-                        className="justify-start"
-                        onPress={() => {
-                          onClosePPinned();
-                          setScrollto(msg.id);
-                        }}
-                      >
-                        <p className="text-sm text-gray-700 line-clamp-2">
-                          {msg.type === "text" && msg.content}
-                          {msg.type === "image" && "📷 Ảnh"}
-                          {msg.type === "video" && "🎥 Video"}
-                          {msg.type === "file" && "📎 File"}
-                          {msg.type === "gif" && "🎬 GIF"}
-                        </p>
-                      </Button>
-                    ))}
+                    {useRoomStore
+                      .getState()
+                      .room?.pinned_messages?.map?.((msg) => (
+                        <Button
+                          key={msg.id}
+                          variant="bordered"
+                          className="justify-start"
+                          onPress={() => {
+                            onClosePPinned();
+                            setScrollto(msg.id);
+                          }}
+                        >
+                          <p className="text-sm text-gray-700 line-clamp-2">
+                            {msg.type === "text" && msg.content}
+                            {msg.type === "image" &&
+                              t("chat.header.pinned.image")}
+                            {msg.type === "video" &&
+                              t("chat.header.pinned.video")}
+                            {msg.type === "file" &&
+                              t("chat.header.pinned.file")}
+                            {msg.type === "gif" && t("chat.header.pinned.gif")}
+                          </p>
+                        </Button>
+                      ))}
                   </div>
                 ) : (
                   <p className="text-center text-gray-500">
-                    Chưa có tin nhắn nào được gim.
+                    {t("chat.header.pinned.empty")}
                   </p>
                 )}
               </ModalBody>

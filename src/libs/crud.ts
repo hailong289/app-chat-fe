@@ -82,10 +82,6 @@ export async function upsertMany<T extends WithStringId>(
 
     // Log sample data để debug
     if (items.length > 0) {
-      console.log(
-        "Sample item causing error:",
-        JSON.stringify(items[0], null, 2)
-      );
     }
 
     // Nếu là lỗi UTF-8, thử từng item một để tìm item lỗi
@@ -112,9 +108,6 @@ export async function upsertMany<T extends WithStringId>(
         }
       }
 
-      console.log(
-        `✅ Bulk upsert completed: ${successCount} success, ${errorCount} skipped`
-      );
       return;
     }
 

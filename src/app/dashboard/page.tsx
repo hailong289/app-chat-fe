@@ -23,7 +23,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useRouter } from "next/navigation";
 import useAuthStore from "@/store/useAuthStore";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -108,20 +108,20 @@ export default function DashboardPage() {
       role: "Sinh viên CNTT - ĐH Bách Khoa",
       content:
         "App giúp nhóm em quản lý bài tập tốt hơn. Flashcards AI rất hữu ích cho việc ôn thi!",
-      avatar: "�‍🎓",
+      avatar: "👩‍🎓",
     },
     {
       name: "Trần Văn Nam",
       role: "Giảng viên - ĐH Khoa học Tự nhiên",
       content:
         "Tính năng tóm tắt hội thoại giúp tôi nắm bắt nhanh câu hỏi của sinh viên. Rất tiện lợi!",
-      avatar: "�‍🏫",
+      avatar: "👨‍🏫",
     },
     {
       name: "Lê Minh Tuấn",
       role: "Team Lead - Startup EdTech",
       content:
-        "Docs + ToDoList + Chat trong một nền tảng giúp team phối hợp hiệu quả hơn 30%!",
+        "Docs + ToDoList + Chat trong một nền tảng giúp team phối hợp hiệu quả hơn 30%.",
       avatar: "👨‍💼",
     },
   ];
@@ -150,19 +150,45 @@ export default function DashboardPage() {
     },
   ];
 
+  const featureColorStyles = useMemo(
+    () =>
+      ({
+        primary:
+          "bg-primary/10 text-primary-700 dark:text-primary-300 dark:bg-primary/15",
+        secondary:
+          "bg-secondary/10 text-secondary-700 dark:text-secondary-300 dark:bg-secondary/15",
+        success:
+          "bg-success/10 text-success-700 dark:text-success-300 dark:bg-success/15",
+        warning:
+          "bg-warning/10 text-warning-700 dark:text-warning-300 dark:bg-warning/15",
+        danger:
+          "bg-danger/10 text-danger-700 dark:text-danger-300 dark:bg-danger/15",
+        default:
+          "bg-slate-100 text-slate-700 dark:bg-default/15 dark:text-default-300",
+      } as Record<string, string>),
+    []
+  );
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-secondary-50 to-success-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
       {/* Navigation Bar */}
-      <nav className="sticky top-0 z-50 backdrop-blur-lg bg-background/80 border-b border-default-200">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+      <nav className="sticky top-0 z-50 backdrop-blur-lg bg-white/80 border-b border-slate-200 dark:bg-slate-900/90 dark:border-slate-800">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Image src="/logo.png" alt="Logo" width={40} height={40} />
-            <span className="text-xl font-bold">
-              EduChat - Học tập thông minh
+            <span className="text-xl font-bold text-slate-900 dark:text-slate-50">
+              EduChat <span className="text-primary-500">·</span>{" "}
+              <span className="text-slate-500 dark:text-slate-300">
+                Học tập thông minh
+              </span>
             </span>
           </div>
           <div className="flex gap-3">
-            <Button variant="flat" onPress={() => router.push("/auth")}>
+            <Button
+              variant="bordered"
+              className="border-slate-300 text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+              onPress={() => router.push("/auth")}
+            >
               Đăng nhập
             </Button>
             <Button
@@ -176,49 +202,59 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto px-4 py-10 space-y-16">
         {/* Header Section */}
-        <div className="text-center mb-12">
-          <div className="flex justify-center mb-6">
+        <section className="text-center">
+          <div className="flex justify-center mb-8">
             <div className="relative">
-              <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl"></div>
+              <div className="absolute inset-0 bg-primary/20 rounded-full blur-3xl dark:bg-primary/30" />
               <Image
                 src="/logo.png"
                 alt="Chat App Logo"
                 width={120}
                 height={120}
-                className="relative z-10 drop-shadow-2xl"
+                className="relative z-10 drop-shadow-2xl rounded-3xl"
               />
             </div>
           </div>
 
-          <h1 className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent mb-4">
+          <h1 className="text-4xl md:text-6xl font-extrabold mb-4 bg-gradient-to-r from-primary-500 via-sky-500 to-secondary-500 bg-clip-text text-transparent">
             Học tập và cộng tác với AI
           </h1>
 
-          <p className="text-xl text-default-600 mb-8 max-w-2xl mx-auto">
-            Nền tảng chat đa nền tảng tích hợp AI, Docs và ToDoList - Được thiết
-            kế đặc biệt cho sinh viên, nhóm học tập và giảng viên với kiến trúc
-            Microservices.
+          <p className="text-lg md:text-xl text-slate-600 dark:text-slate-300 mb-8 max-w-3xl mx-auto">
+            Nền tảng chat đa nền tảng tích hợp AI, Docs và ToDoList — thiết kế
+            cho sinh viên, nhóm học tập và giảng viên trên kiến trúc
+            Microservices hiện đại.
           </p>
 
           {/* Stats Banner */}
-          <div className="flex justify-center gap-8 mb-8 flex-wrap">
+          <div className="flex justify-center gap-8 mb-10 flex-wrap">
             <div className="text-center">
-              <div className="text-3xl font-bold text-primary">1000+</div>
-              <div className="text-sm text-default-500">Kết nối đồng thời</div>
+              <div className="text-3xl font-bold text-primary-500">1000+</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                Kết nối đồng thời
+              </div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-secondary">&lt; 1s</div>
-              <div className="text-sm text-default-500">Độ trễ tin nhắn</div>
+              <div className="text-3xl font-bold text-secondary-500">
+                &lt; 1s
+              </div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                Độ trễ tin nhắn
+              </div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-success">8+ AI</div>
-              <div className="text-sm text-default-500">Tính năng AI</div>
+              <div className="text-3xl font-bold text-emerald-500">8+ AI</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                Tính năng AI
+              </div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-warning">99.9%</div>
-              <div className="text-sm text-default-500">Uptime</div>
+              <div className="text-3xl font-bold text-amber-500">99.9%</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                Uptime hệ thống
+              </div>
             </div>
           </div>
 
@@ -236,7 +272,7 @@ export default function DashboardPage() {
             <Button
               variant="bordered"
               size="lg"
-              className="font-semibold"
+              className="font-semibold border-slate-300 text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800"
               onPress={() => {
                 document
                   .getElementById("features")
@@ -246,99 +282,119 @@ export default function DashboardPage() {
               Tìm hiểu thêm
             </Button>
           </div>
-        </div>
+        </section>
 
         {/* Features Grid */}
-        <div id="features" className="mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-default-800">
-            Tính năng toàn diện
-          </h2>
-          <p className="text-center text-default-600 mb-8 max-w-2xl mx-auto">
-            Chat + Docs + Tasks + AI - Tất cả trong một nền tảng duy nhất cho
-            học tập và cộng tác
-          </p>
+        <section id="features" className="space-y-6">
+          <div className="text-center space-y-3">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-slate-50">
+              Tính năng toàn diện
+            </h2>
+            <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
+              Chat · Docs · Tasks · AI — tất cả trong một nền tảng duy nhất cho
+              học tập và cộng tác.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((feature, index) => (
               <Card
                 key={index}
-                className="border-none bg-background/60 dark:bg-default-100/50 backdrop-blur-sm hover:scale-105 transition-transform"
-                shadow="sm"
+                className="border border-slate-200 bg-white shadow-sm hover:border-primary/60 hover:shadow-lg hover:shadow-primary/10 transition-all dark:border-slate-800 dark:bg-slate-900/70"
+                shadow="none"
               >
                 <CardHeader className="flex gap-3">
                   <div
-                    className={`p-3 rounded-lg bg-${feature.color}/10 text-${feature.color}`}
+                    className={`p-3 rounded-lg ${
+                      featureColorStyles[feature.color] ||
+                      featureColorStyles.default
+                    }`}
                   >
                     <feature.icon className="w-6 h-6" />
                   </div>
                   <div className="flex flex-col">
-                    <p className="text-lg font-bold">{feature.title}</p>
+                    <p className="text-lg font-semibold text-slate-900 dark:text-slate-50">
+                      {feature.title}
+                    </p>
                   </div>
                 </CardHeader>
                 <CardBody>
-                  <p className="text-default-600">{feature.description}</p>
+                  <p className="text-slate-600 dark:text-slate-300 text-sm">
+                    {feature.description}
+                  </p>
                 </CardBody>
               </Card>
             ))}
           </div>
-        </div>
+        </section>
 
         {/* AI Features Section */}
-        <Card className="bg-gradient-to-br from-purple-100 via-pink-100 to-blue-100 dark:from-purple-900/20 dark:via-pink-900/20 dark:to-blue-900/20 border-none mb-16">
-          <CardHeader className="flex flex-col items-center pb-0 pt-8">
-            <SparklesIcon className="w-12 h-12 text-purple-600 mb-4" />
-            <h2 className="text-3xl font-bold text-center mb-2">
-              Trí tuệ nhân tạo hỗ trợ học tập
-            </h2>
-            <p className="text-default-600 text-center max-w-2xl">
-              8+ tính năng AI giúp tối ưu hóa quá trình học tập và cộng tác
-            </p>
-          </CardHeader>
-          <CardBody className="pt-8 pb-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-              {aiFeatures.map((feature, index) => (
-                <div key={index} className="text-center">
-                  <div className="flex justify-center mb-3">
-                    <div className="p-4 rounded-full bg-white/80 dark:bg-gray-800/80">
-                      <feature.icon className="w-8 h-8 text-purple-600" />
+        <section>
+          <Card className="bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 border border-purple-200 dark:from-purple-900/40 dark:via-pink-900/30 dark:to-blue-900/40 dark:border-purple-700/40">
+            <CardHeader className="flex flex-col items-center pb-0 pt-8">
+              <SparklesIcon className="w-12 h-12 text-purple-500 dark:text-purple-300 mb-4" />
+              <h2 className="text-3xl font-bold text-center mb-2 text-slate-900 dark:text-slate-50">
+                Trí tuệ nhân tạo hỗ trợ học tập
+              </h2>
+              <p className="text-slate-600 dark:text-slate-300 text-center max-w-2xl">
+                Hơn 8 tính năng AI giúp tối ưu hóa quá trình học tập và cộng tác
+                cho cả sinh viên và giảng viên.
+              </p>
+            </CardHeader>
+            <CardBody className="pt-8 pb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+                {aiFeatures.map((feature, index) => (
+                  <div key={index} className="text-center">
+                    <div className="flex justify-center mb-3">
+                      <div className="p-4 rounded-full bg-white shadow-sm border border-purple-100 dark:bg-slate-900/70 dark:border-purple-500/40">
+                        <feature.icon className="w-8 h-8 text-purple-500 dark:text-purple-300" />
+                      </div>
                     </div>
+                    <h3 className="font-semibold mb-2 text-slate-900 dark:text-slate-100">
+                      {feature.title}
+                    </h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      {feature.description}
+                    </p>
                   </div>
-                  <h3 className="font-bold mb-2">{feature.title}</h3>
-                  <p className="text-sm text-default-600">
-                    {feature.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </CardBody>
-        </Card>
+                ))}
+              </div>
+            </CardBody>
+          </Card>
+        </section>
 
         {/* Testimonials */}
-        <div className="mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-default-800">
-            Đánh giá từ cộng đồng
-          </h2>
-          <p className="text-center text-default-600 mb-8 max-w-2xl mx-auto">
-            Sinh viên, giảng viên và các nhóm học tập đang sử dụng EduChat
-          </p>
+        <section className="space-y-6">
+          <div className="text-center space-y-3">
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-slate-50">
+              Đánh giá từ cộng đồng
+            </h2>
+            <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
+              Sinh viên, giảng viên và các nhóm học tập đang sử dụng EduChat mỗi
+              ngày.
+            </p>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {testimonials.map((testimonial, index) => (
               <Card
                 key={index}
-                className="border-none bg-background/60 dark:bg-default-100/50"
-                shadow="sm"
+                className="border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80"
+                shadow="none"
               >
                 <CardBody>
                   <div className="flex flex-col gap-4">
                     <div className="flex items-center gap-3">
                       <div className="text-4xl">{testimonial.avatar}</div>
                       <div>
-                        <p className="font-bold">{testimonial.name}</p>
-                        <p className="text-sm text-default-500">
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">
+                          {testimonial.name}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
                           {testimonial.role}
                         </p>
                       </div>
                     </div>
-                    <p className="text-default-600 italic">
+                    <p className="text-slate-600 dark:text-slate-300 text-sm italic">
                       &quot;{testimonial.content}&quot;
                     </p>
                   </div>
@@ -346,21 +402,21 @@ export default function DashboardPage() {
               </Card>
             ))}
           </div>
-        </div>
+        </section>
 
         {/* Use Cases Section */}
-        <div className="mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-default-800">
+        <section className="space-y-6">
+          <h2 className="text-3xl md:text-4xl font-bold text-center text-slate-900 dark:text-slate-50">
             Dành cho ai?
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-            <Card className="bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/20 dark:to-cyan-900/20 border-none">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-100 dark:from-blue-900/60 dark:to-cyan-900/60 dark:border-blue-700/40">
               <CardBody className="p-6">
                 <div className="text-4xl mb-4">👨‍🎓</div>
-                <h3 className="text-xl font-bold mb-2">
+                <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-slate-50">
                   Sinh viên & Nhóm học tập
                 </h3>
-                <ul className="text-sm text-default-600 space-y-2">
+                <ul className="text-sm text-slate-700 dark:text-slate-200 space-y-2">
                   <li>✅ Chat nhóm, chia sẻ tài liệu học tập</li>
                   <li>✅ Tóm tắt bài giảng bằng AI</li>
                   <li>✅ Quản lý deadline bài tập</li>
@@ -369,11 +425,13 @@ export default function DashboardPage() {
               </CardBody>
             </Card>
 
-            <Card className="bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/20 border-none">
+            <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 dark:from-green-900/60 dark:to-emerald-900/60 dark:border-emerald-700/40">
               <CardBody className="p-6">
                 <div className="text-4xl mb-4">👨‍🏫</div>
-                <h3 className="text-xl font-bold mb-2">Giảng viên</h3>
-                <ul className="text-sm text-default-600 space-y-2">
+                <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-slate-50">
+                  Giảng viên
+                </h3>
+                <ul className="text-sm text-slate-700 dark:text-slate-200 space-y-2">
                   <li>✅ Tương tác với sinh viên realtime</li>
                   <li>✅ Chia sẻ tài liệu giảng dạy</li>
                   <li>✅ Tạo Quiz kiểm tra nhanh</li>
@@ -382,11 +440,13 @@ export default function DashboardPage() {
               </CardBody>
             </Card>
 
-            <Card className="bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/20 dark:to-pink-900/20 border-none">
+            <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-100 dark:from-purple-900/60 dark:to-pink-900/60 dark:border-purple-700/40">
               <CardBody className="p-6">
                 <div className="text-4xl mb-4">👨‍💼</div>
-                <h3 className="text-xl font-bold mb-2">Doanh nghiệp nhỏ</h3>
-                <ul className="text-sm text-default-600 space-y-2">
+                <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-slate-50">
+                  Doanh nghiệp nhỏ
+                </h3>
+                <ul className="text-sm text-slate-700 dark:text-slate-200 space-y-2">
                   <li>✅ Quản lý dự án với Tasks</li>
                   <li>✅ Lưu trữ tài liệu với Docs</li>
                   <li>✅ Cộng tác nhóm hiệu quả</li>
@@ -395,132 +455,139 @@ export default function DashboardPage() {
               </CardBody>
             </Card>
           </div>
-        </div>
+        </section>
 
         {/* Tech Stack Section */}
-        <Card className="bg-gradient-to-br from-primary-100 to-secondary-100 dark:from-primary-900/20 dark:to-secondary-900/20 border-none mb-16">
-          <CardHeader className="flex flex-col items-center pb-0 pt-8">
-            <ShieldCheckIcon className="w-12 h-12 text-primary mb-4" />
-            <h2 className="text-3xl font-bold text-center mb-2">
-              Kiến trúc Microservices
-            </h2>
-            <p className="text-default-600 text-center max-w-2xl">
-              Xây dựng trên nền tảng hiện đại, khả năng mở rộng cao
-            </p>
-          </CardHeader>
-          <CardBody className="pt-8 pb-8">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 max-w-6xl mx-auto">
-              {[
-                { name: "Node.js", color: "success" },
-                { name: "NestJS", color: "danger" },
-                { name: "MongoDB", color: "success" },
-                { name: "Redis", color: "danger" },
-                { name: "Socket.IO", color: "primary" },
-                { name: "Kafka", color: "warning" },
-                { name: "Docker", color: "primary" },
-                { name: "Next.js 15", color: "default" },
-                { name: "React Native", color: "primary" },
-                { name: "OpenAI API", color: "success" },
-                { name: "Google AI", color: "warning" },
-                { name: "Hugging Face", color: "secondary" },
-                { name: "Firebase", color: "danger" },
-                { name: "TypeScript", color: "primary" },
-                { name: "Tailwind v4", color: "secondary" },
-              ].map((tech, index) => (
-                <Chip
-                  key={index}
-                  color={tech.color as any}
-                  variant="flat"
-                  className="w-full justify-center py-5 font-semibold"
-                >
-                  {tech.name}
-                </Chip>
-              ))}
-            </div>
+        <section>
+          <Card className="bg-gradient-to-br from-slate-100 to-slate-50 border border-slate-200 dark:from-slate-900 dark:to-slate-950 dark:border-slate-700/60">
+            <CardHeader className="flex flex-col items-center pb-0 pt-8">
+              <ShieldCheckIcon className="w-12 h-12 text-primary-500 dark:text-primary-300 mb-4" />
+              <h2 className="text-3xl font-bold text-center mb-2 text-slate-900 dark:text-slate-50">
+                Kiến trúc Microservices hiện đại
+              </h2>
+              <p className="text-slate-600 dark:text-slate-300 text-center max-w-2xl">
+                Xây dựng trên nền tảng Node.js / NestJS, tối ưu cho realtime, mở
+                rộng ngang với Kafka & Docker.
+              </p>
+            </CardHeader>
+            <CardBody className="pt-8 pb-8">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 max-w-6xl mx-auto">
+                {[
+                  { name: "Node.js", color: "success" },
+                  { name: "NestJS", color: "danger" },
+                  { name: "MongoDB", color: "success" },
+                  { name: "Redis", color: "danger" },
+                  { name: "Socket.IO", color: "primary" },
+                  { name: "Kafka", color: "warning" },
+                  { name: "Docker", color: "primary" },
+                  { name: "Next.js 15", color: "default" },
+                  { name: "React Native", color: "primary" },
+                  { name: "OpenAI API", color: "success" },
+                  { name: "Google AI", color: "warning" },
+                  { name: "Hugging Face", color: "secondary" },
+                  { name: "Firebase", color: "danger" },
+                  { name: "TypeScript", color: "primary" },
+                  { name: "Tailwind v4", color: "secondary" },
+                ].map((tech, index) => (
+                  <Chip
+                    key={index}
+                    color={tech.color as any}
+                    variant="flat"
+                    className="w-full justify-center py-4 font-semibold bg-white text-slate-800 border border-slate-200 dark:bg-slate-900/70 dark:text-slate-100 dark:border-slate-700/60"
+                  >
+                    {tech.name}
+                  </Chip>
+                ))}
+              </div>
 
-            {/* Architecture Highlight */}
-            <div className="mt-8 max-w-4xl mx-auto">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-                <div className="p-4 bg-white/50 dark:bg-gray-800/50 rounded-lg">
-                  <div className="text-2xl font-bold text-primary mb-1">8+</div>
-                  <div className="text-sm text-default-600">Microservices</div>
-                  <div className="text-xs text-default-500 mt-1">
-                    User, Message, Docs, Tasks, AI...
+              {/* Architecture Highlight */}
+              <div className="mt-8 max-w-4xl mx-auto">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                  <div className="p-4 bg-white rounded-lg border border-slate-200 dark:bg-slate-900/80 dark:border-slate-700">
+                    <div className="text-2xl font-bold text-primary-500 dark:text-primary-300 mb-1">
+                      8+
+                    </div>
+                    <div className="text-sm text-slate-700 dark:text-slate-300">
+                      Microservices độc lập
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-500 mt-1">
+                      User, Message, Docs, Tasks, AI...
+                    </div>
                   </div>
-                </div>
-                <div className="p-4 bg-white/50 dark:bg-gray-800/50 rounded-lg">
-                  <div className="text-2xl font-bold text-secondary mb-1">
-                    1000+
+                  <div className="p-4 bg-white rounded-lg border border-slate-200 dark:bg-slate-900/80 dark:border-slate-700">
+                    <div className="text-2xl font-bold text-secondary-500 dark:text-secondary-300 mb-1">
+                      1000+
+                    </div>
+                    <div className="text-sm text-slate-700 dark:text-slate-300">
+                      Concurrent connections
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-500 mt-1">
+                      Horizontal scaling với Kafka
+                    </div>
                   </div>
-                  <div className="text-sm text-default-600">
-                    Concurrent Connections
-                  </div>
-                  <div className="text-xs text-default-500 mt-1">
-                    Horizontal scaling với Kafka
-                  </div>
-                </div>
-                <div className="p-4 bg-white/50 dark:bg-gray-800/50 rounded-lg">
-                  <div className="text-2xl font-bold text-success mb-1">
-                    &lt; 1s
-                  </div>
-                  <div className="text-sm text-default-600">
-                    Message Latency
-                  </div>
-                  <div className="text-xs text-default-500 mt-1">
-                    Realtime với Socket.IO
+                  <div className="p-4 bg-white rounded-lg border border-slate-200 dark:bg-slate-900/80 dark:border-slate-700">
+                    <div className="text-2xl font-bold text-emerald-500 dark:text-emerald-300 mb-1">
+                      &lt; 1s
+                    </div>
+                    <div className="text-sm text-slate-700 dark:text-slate-300">
+                      Message latency trung bình
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-500 mt-1">
+                      Realtime với Socket.IO
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </CardBody>
-        </Card>
+            </CardBody>
+          </Card>
+        </section>
 
         {/* Final CTA */}
-        <Card className="bg-gradient-to-r from-primary-500 to-secondary-500 border-none">
-          <CardBody className="py-12 text-center">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              Bắt đầu học tập thông minh hơn
-            </h2>
-            <p className="text-white/90 mb-8 max-w-xl mx-auto">
-              Tham gia EduChat - Nền tảng chat tích hợp AI được thiết kế đặc
-              biệt cho sinh viên và nhóm học tập
-            </p>
-            <div className="flex justify-center gap-4 flex-wrap">
-              <Button
-                size="lg"
-                className="bg-white text-primary font-semibold"
-                startContent={<RocketLaunchIcon className="w-5 h-5" />}
-                onPress={() => router.push("/auth/register")}
-              >
-                Đăng ký miễn phí
-              </Button>
-              <Button
-                size="lg"
-                variant="bordered"
-                className="border-white text-white font-semibold hover:bg-white/10"
-                startContent={<AcademicCapIcon className="w-5 h-5" />}
-                onPress={() => router.push("/auth")}
-              >
-                Dùng thử ngay
-              </Button>
-            </div>
-          </CardBody>
-        </Card>
+        <section>
+          <Card className="bg-gradient-to-r from-primary-600 to-secondary-600 border-none">
+            <CardBody className="py-10 text-center">
+              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+                Bắt đầu học tập thông minh hơn
+              </h2>
+              <p className="text-white/90 mb-8 max-w-xl mx-auto text-sm md:text-base">
+                Tham gia EduChat — Nền tảng chat tích hợp AI được thiết kế riêng
+                cho sinh viên, nhóm học tập và giảng viên.
+              </p>
+              <div className="flex justify-center gap-4 flex-wrap">
+                <Button
+                  size="lg"
+                  className="bg-white text-primary-700 font-semibold"
+                  startContent={<RocketLaunchIcon className="w-5 h-5" />}
+                  onPress={() => router.push("/auth/register")}
+                >
+                  Đăng ký miễn phí
+                </Button>
+                <Button
+                  size="lg"
+                  variant="bordered"
+                  className="border-white text-white font-semibold hover:bg-white/10"
+                  startContent={<AcademicCapIcon className="w-5 h-5" />}
+                  onPress={() => router.push("/auth")}
+                >
+                  Dùng thử ngay
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        </section>
 
         {/* Footer */}
-        <div className="text-center mt-12 text-default-500">
-          <p className="mb-2">
-            🎓 EduChat - Nền tảng học tập thông minh với AI
-          </p>
-          <p className="text-sm">
-            Kiến trúc Microservices • 1000+ Concurrent Users • &lt;1s Latency •
+        <footer className="text-center pt-4 pb-8 text-slate-500 dark:text-slate-500 text-sm space-y-1">
+          <p>🎓 EduChat — Nền tảng học tập thông minh với AI</p>
+          <p>
+            Kiến trúc Microservices · 1000+ Concurrent Users · &lt;1s Latency ·
             8+ AI Features
           </p>
-          <p className="text-sm mt-2">
+          <p className="text-xs text-slate-500 dark:text-slate-600">
             © 2025 EduChat. Đề tài nghiên cứu ứng dụng chat đa nền tảng tích hợp
             AI phục vụ học tập.
           </p>
-        </div>
+        </footer>
       </div>
     </div>
   );

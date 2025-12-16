@@ -5,7 +5,8 @@ import { toast } from "@/store/useToastStore";
 import { useEffect, useRef } from "react";
 
 export default function SocketStatusIndicator() {
-  const { status, reconnectCount, lastError, forceReconnect } = useSocket();
+  const { status, reconnectCount, lastError, forceReconnect } =
+    useSocket("/chat");
   const prevStatusRef = useRef(status);
   const hasShownErrorRef = useRef(false);
 

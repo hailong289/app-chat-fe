@@ -10,8 +10,10 @@ import React, {
   useCallback,
 } from "react";
 import { io, Socket } from "socket.io-client";
-import useAuthStore from "@/store/useAuthStore";
 import { getCookie } from "cookies-next";
+import useAuthStore from "@/store/useAuthStore";
+
+/* ================= TYPES ================= */
 
 export type SocketStatus =
   | "idle"
@@ -20,286 +22,288 @@ export type SocketStatus =
   | "reconnecting"
   | "error";
 
-type SocketCtx = {
-  socket: Socket | null;
+interface SocketDetailState {
   status: SocketStatus;
-  reconnectCount: number;
   lastError: string | null;
-  forceReconnect: () => void;
-  disconnect: () => void;
-};
+  reconnectCount: number;
+}
 
-const Ctx = createContext<SocketCtx>({
-  socket: null,
-  status: "idle",
-  reconnectCount: 0,
-  lastError: null,
-  forceReconnect: () => {},
-  disconnect: () => {},
-});
+interface SocketContextValue {
+  sockets: Record<string, Socket>;
+  socketStates: Record<string, SocketDetailState>;
+  disconnectAll: () => void;
+}
 
-/**
- * Tạo hoặc lấy client ID duy nhất cho sticky session
- * Giúp load balancer route về đúng server instance
- */
-function getOrCreateClientId(): string {
-  if (globalThis.window === undefined) return "";
+const SocketContext = createContext<SocketContextValue | null>(null);
 
-  const key = "socket_client_id";
-  let clientId = localStorage.getItem(key);
+/* ================= HELPERS ================= */
 
-  if (!clientId) {
-    clientId = `client_${Date.now()}_${Math.random()
-      .toString(36)
-      .substring(2, 9)}`;
-    localStorage.setItem(key, clientId);
+function normalizeNs(ns: string) {
+  return ns.startsWith("/") ? ns : `/${ns}`;
+}
+
+function getAccessToken(): string | null {
+  try {
+    const raw = getCookie("tokens");
+    if (!raw) return null;
+    const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return data?.accessToken ?? null;
+  } catch {
+    return null;
   }
-
-  return clientId;
 }
 
-/**
- * Lấy accessToken:
- * - Ưu tiên từ Zustand store
- * - Fallback từ cookie "tokens" (JSON) khi mới reload (rehydration chưa xong)
- */
-function useAccessToken(): string | null {
-  const access = useAuthStore((s) => s.tokens?.accessToken ?? null);
-  const [fallbackAccess, setFallbackAccess] = useState<string | null>(null);
+function getOrCreateClientId(namespace: string) {
+  const key = `socket_cid_${namespace.replace(/\//g, "_")}`;
+  if (typeof window === "undefined") return "";
 
-  useEffect(() => {
-    if (access) {
-      setFallbackAccess(null);
-      return;
-    }
-    // chỉ đọc cookie một lần khi không có token trong store
-    try {
-      const raw = getCookie("tokens");
-      if (typeof raw === "string" && raw.length > 0) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.accessToken) {
-          setFallbackAccess(parsed.accessToken as string);
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, [access]);
-
-  return access ?? fallbackAccess;
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = `cid_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    localStorage.setItem(key, id);
+  }
+  return id;
 }
+
+/* ================= PROVIDER ================= */
 
 export function SocketProvider({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
-  const token = useAccessToken();
-  const [status, setStatus] = useState<SocketStatus>("idle");
-  const [reconnectCount, setReconnectCount] = useState(0);
-  const [lastError, setLastError] = useState<string | null>(null);
-  const socketRef = useRef<Socket | null>(null);
-  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
+  namespaces,
+  url,
+}: Readonly<{
+  children: React.ReactNode;
+  namespaces: string[];
+  url?: string;
+}>) {
+  const baseUrl = url || process.env.NEXT_PUBLIC_SOCKET_URL!;
+  const isLoggedOut = useAuthStore((s) => !s.tokens);
 
-  const url = process.env.NEXT_PUBLIC_SOCKET_URL!;
+  const socketsRef = useRef<Record<string, Socket>>({});
+  const [socketStates, setSocketStates] = useState<
+    Record<string, SocketDetailState>
+  >({});
 
-  // Enhanced socket options for Auto Scaling environments
-  const opts = useMemo(
-    () => ({
-      transports: ["websocket", "polling"], // Fallback to polling if websocket fails
-      auth: token ? { token } : undefined,
-      reconnection: true,
-      reconnectionAttempts: Infinity, // Thử reconnect vô hạn
-      reconnectionDelay: 1000, // Delay ban đầu 1s
-      reconnectionDelayMax: 10000, // Tối đa 10s giữa các lần thử
-      timeout: 20_000, // Tăng timeout cho load balancer
-      // Cho phép upgrade từ polling lên websocket
-      upgrade: true,
-      // Quan trọng cho Auto Scaling: enable sticky session
-      forceNew: false,
-      // Gửi heartbeat để giữ connection alive qua load balancer
-      pingInterval: 25000,
-      pingTimeout: 60000,
-      // Custom query params có thể dùng cho sticky session
-      query: {
-        clientId: getOrCreateClientId(),
-        version: "1.0.0",
-      },
-    }),
-    [token]
+  const updateState = useCallback(
+    (ns: string, patch: Partial<SocketDetailState>) => {
+      setSocketStates((prev) => ({
+        ...prev,
+        [ns]: {
+          ...prev[ns],
+          ...patch,
+        },
+      }));
+    },
+    []
   );
 
-  // Force reconnect function
-  const forceReconnect = useCallback(() => {
-    console.log("🔄 [Socket] Force reconnect requested");
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current.connect();
-    }
-  }, []);
-
-  // Disconnect function - sử dụng khi logout
-  const disconnect = useCallback(() => {
-    console.log("🔌 [Socket] Manual disconnect requested");
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
-    setStatus("idle");
-    setReconnectCount(0);
-    setLastError(null);
-  }, []);
-
+  /* ========= 1️⃣ INIT SOCKET NGAY KHI MOUNT ========= */
   useEffect(() => {
-    // Cleanup timer on unmount
-    return () => {
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-      }
-    };
-  }, []);
+    namespaces.forEach((rawNs) => {
+      const ns = normalizeNs(rawNs);
+      if (socketsRef.current[ns]) return;
 
-  useEffect(() => {
-    // Mỗi lần token đổi (login/logout), ngắt kết nối cũ & kết nối lại nếu có token
-    socketRef.current?.disconnect();
-    socketRef.current = null;
-
-    if (!token) {
-      setStatus("idle");
-      setReconnectCount(0);
-      setLastError(null);
-      return;
-    }
-
-    console.log("🔌 [Socket] Initializing connection to:", url);
-    setStatus("connecting");
-    const s = io(url, opts);
-
-    s.on("connect", () => {
-      console.log(
-        "✅ [Socket] Connected! ID:",
-        s.id,
-        "Transport:",
-        s.io.engine.transport.name
-      );
-      setStatus("connected");
-      setReconnectCount(0);
-      setLastError(null);
-
-      // Log server instance info (if provided by backend)
-      s.emit("client:info", {
-        clientId: getOrCreateClientId(),
-        userAgent:
-          typeof navigator === "undefined" ? "Unknown" : navigator.userAgent,
-        timestamp: Date.now(),
+      const socket = io(`${baseUrl}${ns}`, {
+        transports: ["websocket", "polling"],
+        autoConnect: false,
+        auth: { token: getAccessToken() },
+        query: {
+          clientId: getOrCreateClientId(ns),
+          version: "1.1.0",
+        },
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 10000,
+        timeout: 20000,
+        upgrade: true,
+        forceNew: false,
+        multiplex: true,
       });
+
+      socket.on("connect", () => {
+        updateState(ns, {
+          status: "connected",
+          lastError: null,
+          reconnectCount: 0,
+        });
+
+        // Log server instance info
+        socket.emit("client:info", {
+          clientId: getOrCreateClientId(ns),
+          userAgent:
+            typeof navigator === "undefined" ? "Unknown" : navigator.userAgent,
+          timestamp: Date.now(),
+        });
+      });
+
+      socket.on("disconnect", (reason) => {
+        console.warn(`⚠️ [${ns}] Disconnected:`, reason);
+        updateState(ns, {
+          status: reason === "io server disconnect" ? "idle" : "reconnecting",
+        });
+      });
+
+      socket.on("connect_error", (err) => {
+        console.error(`❌ [${ns}] Connect Error:`, err.message);
+        const msg = err?.message || "Connection error";
+
+        // Check for auth errors to prevent infinite reconnect loops
+        const lowerMsg = msg.toLowerCase();
+        if (
+          lowerMsg.includes("unauthorized") ||
+          lowerMsg.includes("jwt") ||
+          lowerMsg.includes("forbidden")
+        ) {
+          console.warn(`🔒 [${ns}] Auth failed, stopping reconnect.`);
+          socket.disconnect();
+        }
+
+        updateState(ns, {
+          status: "error",
+          lastError: msg,
+        });
+      });
+
+      socket.on("error", (err: any) => {
+        console.error(`❌ [${ns}] Socket Error Raw:`, err);
+        let msg = "Socket error";
+
+        if (err instanceof Error) {
+          msg = err.message;
+        } else if (typeof err === "string") {
+          msg = err;
+        } else if (err && typeof err === "object") {
+          try {
+            msg = JSON.stringify(err);
+            if (msg === "{}") {
+              // Try getting own property names if it's a custom error object
+              const props = Object.getOwnPropertyNames(err);
+              if (props.length > 0) {
+                const obj: any = {};
+                props.forEach((p) => (obj[p] = (err as any)[p]));
+                msg = JSON.stringify(obj);
+              } else {
+                msg = "Unknown error object (empty)";
+              }
+            }
+          } catch {
+            msg = "Non-serializable error";
+          }
+        }
+
+        console.error(`❌ [${ns}] Socket Error Parsed:`, msg);
+
+        const lowerMsg = msg.toLowerCase();
+        if (lowerMsg.includes("unauthorized") || lowerMsg.includes("jwt") || lowerMsg.includes("forbidden")) {
+             console.warn(`🔒 [${ns}] Auth failed (error event), stopping reconnect.`);
+             socket.disconnect(); 
+        }
+
+        updateState(ns, {
+          status: "error",
+          lastError: msg,
+        });
+      });
+
+      socket.io.on("reconnect_attempt", (attempt) => {
+        updateState(ns, {
+          status: "reconnecting",
+          reconnectCount: attempt,
+        });
+      });
+
+      socket.io.on("reconnect_error", (err) => {
+        console.error(`💥 [${ns}] Reconnect error:`, err.message);
+      });
+
+      socketsRef.current[ns] = socket;
+      updateState(ns, { status: "idle" });
     });
+  }, [namespaces, baseUrl, updateState]);
 
-    s.on("disconnect", (reason) => {
-      console.log("❌ [Socket] Disconnected. Reason:", reason);
+  /* ========= 2️⃣ TOKEN READY → CONNECT ALL ========= */
+  useEffect(() => {
+    const token = getAccessToken();
+    if (!token) return;
 
-      // Different handling based on disconnect reason
-      if (reason === "io server disconnect") {
-        // Server intentionally disconnected, need manual reconnect
-        console.log(
-          "⚠️ [Socket] Server disconnected, attempting manual reconnect..."
-        );
-        setStatus("reconnecting");
-        reconnectTimerRef.current = setTimeout(() => {
-          s.connect();
-        }, 2000);
-      } else if (reason === "transport close" || reason === "ping timeout") {
-        // Network issue or timeout, auto reconnect will handle
-        setStatus("reconnecting");
-      } else {
-        setStatus("idle");
+    Object.entries(socketsRef.current).forEach(([ns, socket]) => {
+      socket.auth = { token };
+      if (!socket.connected) {
+        updateState(ns, { status: "connecting" });
+        socket.connect();
       }
     });
+  }, [isLoggedOut, updateState]);
 
-    // Transport upgrade (polling -> websocket)
-    s.io.engine.on("upgrade", (transport: any) => {
-      console.log("⬆️ [Socket] Transport upgraded to:", transport.name);
-    });
-
-    s.io.on("reconnect_attempt", (attempt) => {
-      console.log(`🔄 [Socket] Reconnect attempt #${attempt}...`);
-      setStatus("reconnecting");
-      setReconnectCount(attempt);
-    });
-
-    s.io.on("reconnect", (attempt) => {
-      console.log(`✅ [Socket] Reconnected after ${attempt} attempts`);
-      setStatus("connected");
-      setReconnectCount(0);
-      setLastError(null);
-    });
-
-    s.io.on("reconnect_error", (err) => {
-      console.error("💥 [Socket] Reconnect error:", err.message);
-      setLastError(err.message);
-    });
-
-    s.io.on("reconnect_failed", () => {
-      console.error("❌ [Socket] Reconnect failed after all attempts");
-      setStatus("error");
-      setLastError("Reconnection failed after all attempts");
-    });
-
-    s.on("connect_error", (err: any) => {
-      console.error("💥 [Socket] Connect error:", err.message);
-      setLastError(err.message);
-
-      // Nếu server trả unauthorized, đừng spam reconnect vô nghĩa
-      const msg = String(err?.message || "").toLowerCase();
-      if (
-        msg.includes("unauthorized") ||
-        msg.includes("jwt") ||
-        msg.includes("forbidden") ||
-        err?.code === 401
-      ) {
-        setStatus("error");
-        setLastError("Authentication failed. Please login again.");
-        // Ngắt hẳn; user cần login lại để có token mới
-        s.disconnect();
-        return;
-      }
-      setStatus("error");
-    });
-
-    // Handle server scaling events
-    s.on("server:scaling", (data: any) => {
-      console.log("📊 [Socket] Server scaling event:", data);
-      // Backend có thể emit event này khi scaling
-      // Client có thể prepare cho disconnect/reconnect
-    });
-
-    s.on("server:maintenance", (data: any) => {
-      console.log("🔧 [Socket] Server maintenance:", data);
-      // Graceful disconnect when server going to maintenance
-    });
-
-    socketRef.current = s;
-
-    return () => {
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current);
-      }
+  /* ========= 3️⃣ LOGOUT → DISCONNECT ========= */
+  const disconnectAll = useCallback(() => {
+    Object.values(socketsRef.current).forEach((s) => {
+      s.removeAllListeners();
       s.disconnect();
-      socketRef.current = null;
-    };
-  }, [url, opts, token, forceReconnect]);
+    });
+    socketsRef.current = {};
+    setSocketStates({});
+  }, []);
 
-  const value = useMemo<SocketCtx>(
+  useEffect(() => {
+    if (isLoggedOut) disconnectAll();
+  }, [isLoggedOut, disconnectAll]);
+
+  const value = useMemo(
     () => ({
-      socket: socketRef.current,
-      status,
-      reconnectCount,
-      lastError,
-      forceReconnect,
-      disconnect,
+      sockets: socketsRef.current,
+      socketStates,
+      disconnectAll,
     }),
-    [status, reconnectCount, lastError, forceReconnect, disconnect]
+    [socketStates, disconnectAll]
   );
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <SocketContext.Provider value={value}>{children}</SocketContext.Provider>
+  );
 }
 
-export const useSocket = () => useContext(Ctx);
+/* ================= HOOK ================= */
+
+export function useSocket(namespace: string = "/") {
+  const ctx = useContext(SocketContext);
+  if (!ctx) throw new Error("useSocket must be used inside SocketProvider");
+
+  const ns = normalizeNs(namespace);
+  const socket = ctx.sockets[ns];
+
+  const currentState = ctx.socketStates[ns] || {
+    status: "idle",
+    lastError: null,
+    reconnectCount: 0,
+  };
+
+  const connect = useCallback(() => {
+    if (!socket) return;
+    if (!socket.connected && getAccessToken()) {
+      socket.connect();
+    }
+  }, [socket]);
+
+  const disconnect = useCallback(() => {
+    if (socket?.connected) socket.disconnect();
+  }, [socket]);
+
+  const forceReconnect = useCallback(() => {
+    if (!socket) return;
+    socket.disconnect();
+    if (getAccessToken()) socket.connect();
+  }, [socket]);
+
+  return {
+    socket,
+    status: currentState.status,
+    isConnected: currentState.status === "connected",
+    lastError: currentState.lastError,
+    reconnectCount: currentState.reconnectCount,
+    connect,
+    disconnect,
+    forceReconnect,
+  };
+}

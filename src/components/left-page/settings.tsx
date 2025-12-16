@@ -1,69 +1,62 @@
-import React from "react";
-import Image from "next/image";
-import { XMarkIcon } from "@heroicons/react/24/solid";
-import { Card, CardBody, Avatar, Button, Input } from "@heroui/react";
-import { LockClosedIcon, ShareIcon } from "@heroicons/react/24/outline";
-import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
-import { DocumentArrowDownIcon } from "@heroicons/react/24/outline";
-import { ArrowDownCircleIcon } from "@heroicons/react/24/outline";
-import { MagnifyingGlassIcon } from "@heroicons/react/16/solid";
-import { ArrowRightCircleIcon } from "@heroicons/react/24/outline";
+"use client";
 
-interface DocumentItem {
-  id: string;
-  name: string;
-  link: string;
-  size: string;
-  date: string;
-}
+import React from "react";
+import { XMarkIcon, ArrowRightCircleIcon } from "@heroicons/react/24/outline";
+import { Card, CardBody, Button } from "@heroui/react";
+import { usePathname, useRouter } from "next/navigation";
 
 const Settings: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
-  const handleClose = () => () => {
+
+  const handleClose = () => {
     router.push(pathname || "/");
   };
+
   return (
-    <Card className="bg-white w-full shadow-none border-none rounded-none">
-      <CardBody>
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+    <Card className="w-full h-full shadow-none border-none rounded-none bg-background text-foreground">
+      <CardBody className="p-0 flex flex-col h-full">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-4 border-b border-default-200 bg-background">
           <div className="flex items-center">
-            <div className="ml-3">
-              <h2 className="text-xl font-semibold">Tài liệu</h2>
-              <p className="text-gray-500 text-sm">Tìm kiếm tài liệu của bạn</p>
+            <div className="ml-1">
+              <h2 className="text-lg font-semibold">Cài đặt</h2>
+              <p className="text-sm text-foreground-500">
+                Quản lý tài khoản và trải nghiệm chat của bạn
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Button
               isIconOnly
               variant="light"
-              className="text-gray-500"
-              onPress={handleClose()}
+              className="text-foreground-500 hover:text-foreground hover:bg-default-100"
+              onPress={handleClose}
             >
               <XMarkIcon className="w-5 h-5" />
             </Button>
           </div>
         </div>
-        <div>
-          <Card className="mb-2 shadow-none border-b border-gray-200 rounded-none">
-            <CardBody className="flex items-start justify-between px-4 py-6 flex-row">
+
+        {/* List */}
+        <div className="flex-1 bg-background">
+          {/* Cài đặt tài khoản */}
+          <Card className="mb-0 shadow-none border-b border-default-200 rounded-none bg-background">
+            <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
               <div className="flex items-start gap-4 w-full">
                 <div className="w-10/12 flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium leading-tight">
-                      Cài đặt tài khoản
-                    </span>
-                  </div>
-                  <div className="text-gray-400 font-semibold leading-tight">
-                    Cập nhật thông tin
-                  </div>
+                  <span className="font-medium leading-tight">
+                    Cài đặt tài khoản
+                  </span>
+                  <span className="text-sm text-foreground-500 leading-tight mt-1">
+                    Cập nhật thông tin cá nhân và bảo mật
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
                     isIconOnly
                     variant="light"
-                    className="text-gray-500"
+                    className="text-foreground-500 hover:text-foreground hover:bg-default-100"
                     onPress={() => router.push("/settings/account")}
                   >
                     <ArrowRightCircleIcon className="w-5 h-5" />
@@ -72,24 +65,24 @@ const Settings: React.FC = () => {
               </div>
             </CardBody>
           </Card>
-          <Card className="mb-2 shadow-none border-b border-gray-200 rounded-none">
-            <CardBody className="flex items-start justify-between px-4 py-6 flex-row">
+
+          {/* Cài đặt tin nhắn */}
+          <Card className="mb-0 shadow-none border-b border-default-200 rounded-none bg-background">
+            <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
               <div className="flex items-start gap-4 w-full">
                 <div className="w-10/12 flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium leading-tight">
-                      Cài đặt tin nhắn
-                    </span>
-                  </div>
-                  <div className="text-gray-400 font-semibold leading-tight">
-                    Thiết lập cài đặt tin nhắn
-                  </div>
+                  <span className="font-medium leading-tight">
+                    Cài đặt tin nhắn
+                  </span>
+                  <span className="text-sm text-foreground-500 leading-tight mt-1">
+                    Thiết lập thông báo, âm thanh, quyền riêng tư
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
                     isIconOnly
                     variant="light"
-                    className="text-gray-500"
+                    className="text-foreground-500 hover:text-foreground hover:bg-default-100"
                     onPress={() => router.push("/settings/chat")}
                   >
                     <ArrowRightCircleIcon className="w-5 h-5" />
@@ -98,22 +91,22 @@ const Settings: React.FC = () => {
               </div>
             </CardBody>
           </Card>
-          <Card className="mb-2 shadow-none border-b border-gray-200 rounded-none">
-            <CardBody className="flex items-start justify-between px-4 py-6 flex-row">
+
+          {/* Tích hợp */}
+          <Card className="mb-0 shadow-none border-b border-default-200 rounded-none bg-background">
+            <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
               <div className="flex items-start gap-4 w-full">
                 <div className="w-10/12 flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium leading-tight">Tích hợp</span>
-                  </div>
-                  <div className="text-gray-400 font-semibold leading-tight">
-                    Thiết lập tích hợp
-                  </div>
+                  <span className="font-medium leading-tight">Tích hợp</span>
+                  <span className="text-sm text-foreground-500 leading-tight mt-1">
+                    Quản lý các dịch vụ và ứng dụng được kết nối
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
                     isIconOnly
                     variant="light"
-                    className="text-gray-500"
+                    className="text-foreground-500 hover:text-foreground hover:bg-default-100"
                     onPress={() => router.push("/settings/intergation")}
                   >
                     <ArrowRightCircleIcon className="w-5 h-5" />
@@ -122,22 +115,22 @@ const Settings: React.FC = () => {
               </div>
             </CardBody>
           </Card>
-          <Card className="mb-2 shadow-none border-b border-gray-200 rounded-none">
-            <CardBody className="flex items-start justify-between px-4 py-6 flex-row">
+
+          {/* Hỗ trợ */}
+          <Card className="mb-0 shadow-none border-b border-default-200 rounded-none bg-background">
+            <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
               <div className="flex items-start gap-4 w-full">
                 <div className="w-10/12 flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium leading-tight">Hỗ trợ</span>
-                  </div>
-                  <div className="text-gray-400 font-semibold leading-tight">
-                    Gửi phản hồi
-                  </div>
+                  <span className="font-medium leading-tight">Hỗ trợ</span>
+                  <span className="text-sm text-foreground-500 leading-tight mt-1">
+                    Gửi phản hồi, báo lỗi hoặc cần trợ giúp
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
                     isIconOnly
                     variant="light"
-                    className="text-gray-500"
+                    className="text-foreground-500 hover:text-foreground hover:bg-default-100"
                     onPress={() => router.push("/settings/support")}
                   >
                     <ArrowRightCircleIcon className="w-5 h-5" />

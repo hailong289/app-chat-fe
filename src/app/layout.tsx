@@ -8,12 +8,10 @@ import { Providers } from "./providers";
 import "@/styles/main.scss";
 import { ClientLayout } from "./client-layout";
 import { FirebaseProvider } from "@/components/providers/firebase.provider";
-import { SocketProvider } from "@/components/providers/SocketProvider";
-import { SocketEventGlobal } from "@/components/socketEventGlobal";
-import SocketStatusIndicator from "@/components/socket/SocketStatusIndicator";
 import NotificationPermission from "@/components/notifications/NotificationPermission";
-import { InitApp } from "@/components/providers/initApp.provider";
-
+import { SocketProvider } from "@/components/providers/SocketProvider";
+import { SocketEventChatGlobal } from "@/components/chat/socketChatEventGlobal";
+import { InitAppChat } from "@/components/chat/initAppChat.provider";
 export const metadata: Metadata = {
   title: "ChatApp",
   description: "Ứng dụng chat hiện đại",
@@ -27,17 +25,16 @@ export default function RootLayout({
   return (
     <html lang="vi" suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <Providers>
-          <FirebaseProvider>
-            <SocketProvider>
-              <SocketEventGlobal />
-              <SocketStatusIndicator />
+        <SocketProvider namespaces={["/chat", "/doc"]}>
+          <Providers>
+            <FirebaseProvider>
               <NotificationPermission />
-              <InitApp />
+              <SocketEventChatGlobal />
+              <InitAppChat />
               <ClientLayout>{children}</ClientLayout>
-            </SocketProvider>
-          </FirebaseProvider>
-        </Providers>
+            </FirebaseProvider>
+          </Providers>
+        </SocketProvider>
       </body>
     </html>
   );

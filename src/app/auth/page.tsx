@@ -12,43 +12,52 @@ import {
   Divider,
 } from "@heroui/react";
 import Image from "next/image";
-import { InboxIcon, PhoneIcon } from '@heroicons/react/24/solid'
+import { InboxIcon, PhoneIcon } from "@heroicons/react/24/solid";
 import { PayloadLogin } from "@/types/auth.type";
 import useAuthStore from "@/store/useAuthStore";
 import useToast from "@/hooks/useToast";
 import { useRouter } from "next/navigation";
 import Joi from "joi";
 import { useFirebase } from "@/components/providers/firebase.provider";
-
-const loginSchema = Joi.object({
-  username: Joi.string().required().messages({ 
-    'any.required': 'Tên đăng nhập không được để trống',
-    'string.empty': 'Tên đăng nhập không được để trống',
-  }).custom((value, helpers) => {
-    // Kiểm tra email
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (emailPattern.test(value)) return value;
-    // Kiểm tra số điện thoại Việt Nam
-    const phonePattern = /^(\+84|84|0)(3|5|7|8|9)\d{8}$/;
-    if (phonePattern.test(value.replace(/\s/g, ""))) return value;
-    return helpers.message({ 'custom': 'Vui lòng nhập email hợp lệ hoặc số điện thoại' });
-  }),
-  password: Joi.string().required().messages({ 
-    'any.required': 'Mật khẩu không được để trống',
-    'string.empty': 'Mật khẩu không được để trống',
-  }),
-  fcmToken: Joi.string().optional().allow(null),
-});
+import { useTranslation } from "react-i18next";
 
 export default function LoginPage() {
+  const { t } = useTranslation();
+  const loginSchema = Joi.object({
+    username: Joi.string()
+      .required()
+      .messages({
+        "any.required": t("auth.validation.required"),
+        "string.empty": t("auth.validation.required"),
+      })
+      .custom((value, helpers) => {
+        // Kiểm tra email
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (emailPattern.test(value)) return value;
+        // Kiểm tra số điện thoại Việt Nam
+        const phonePattern = /^(\+84|84|0)(3|5|7|8|9)\d{8}$/;
+        if (phonePattern.test(value.replace(/\s/g, ""))) return value;
+        return helpers.message({
+          custom: t("auth.validation.usernameInvalid"),
+        });
+      }),
+    password: Joi.string()
+      .required()
+      .messages({
+        "any.required": t("auth.validation.required"),
+        "string.empty": t("auth.validation.required"),
+      }),
+    fcmToken: Joi.string().optional().allow(null),
+  });
+
   const firebase = useFirebase();
   const [mounted, setMounted] = useState(false);
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState<PayloadLogin>({
-    username: '',
-    password: '',
+    username: "",
+    password: "",
     fcmToken: null,
   });
   const router = useRouter();
@@ -73,7 +82,7 @@ export default function LoginPage() {
     const { error } = fieldSchema.validate(value);
     setFieldErrors((prev) => ({
       ...prev,
-      [field]: error ? error.details[0].message : '',
+      [field]: error ? error.details[0].message : "",
     }));
   };
 
@@ -83,7 +92,6 @@ export default function LoginPage() {
     setFieldErrors({});
     // Validate form with Zod
     const { error, value } = loginSchema.validate(form, { abortEarly: false });
-    console.log('Validation result:', { error, value });
     if (error) {
       const errors: Record<string, string> = {};
       error.details.forEach((detail) => {
@@ -94,18 +102,17 @@ export default function LoginPage() {
       return;
     }
 
-    console.log('Submitting login with values:', { ...value, fcmToken: firebase.token });
-
     await login({
-      ...value, callback: (error) => {
+      ...value,
+      callback: (error) => {
         if (error) {
           console.error("Login failed:", error);
-          showError(error.message || "Đăng nhập thất bại. Vui lòng thử lại.");
+          showError(error.message || t("auth.login.failed"));
         } else {
-          success("Đăng nhập thành công!");
+          success(t("auth.login.success"));
           router.push("/"); // Redirect to home page after successful login
         }
-      }
+      },
     });
   }
 
@@ -142,17 +149,17 @@ export default function LoginPage() {
             className="object-contain"
             priority
           />
-          <h1 className="text-2xl font-semibold">Đăng nhập</h1>
+          <h1 className="text-2xl font-semibold">{t("auth.login.title")}</h1>
         </CardHeader>
         <CardBody>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
               type="text"
-              label="Email hoặc Số điện thoại"
-              placeholder="Nhập email hoặc số điện thoại"
+              label={t("auth.login.usernamePlaceholder")}
+              placeholder={t("auth.login.usernamePlaceholder")}
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
-              onBlur={(e) => validateField('username', e.target.value)}
+              onBlur={(e) => validateField("username", e.target.value)}
               isRequired
               isInvalid={!!fieldErrors.username}
               errorMessage={fieldErrors.username}
@@ -160,25 +167,29 @@ export default function LoginPage() {
 
             <Input
               type="password"
-              label="Mật khẩu"
-              placeholder="Nhập mật khẩu"
+              label={t("auth.login.passwordPlaceholder")}
+              placeholder={t("auth.login.passwordPlaceholder")}
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
-              onBlur={(e) => validateField('password', e.target.value)}
+              onBlur={(e) => validateField("password", e.target.value)}
               isRequired
               isInvalid={!!fieldErrors.password}
               errorMessage={fieldErrors.password}
             />
 
             <div className="flex items-center justify-between">
-              <Checkbox isSelected={remember} onValueChange={setRemember} color="secondary">
-                Ghi nhớ tôi
+              <Checkbox
+                isSelected={remember}
+                onValueChange={setRemember}
+                color="secondary"
+              >
+                {t("auth.login.rememberMe")}
               </Checkbox>
               <Link
                 href="/auth/forgot"
                 className="text-small hover:underline font-bold text-primary"
               >
-                Quên mật khẩu?
+                {t("auth.login.forgotPassword")}
               </Link>
             </div>
 
@@ -210,16 +221,19 @@ export default function LoginPage() {
                 disabled={loading}
                 color="primary"
               >
-                Đăng nhập
+                {t("auth.login.submit")}
               </Button>
             </div>
 
             <Divider className="my-2" />
 
             <p className="text-small text-center">
-              Chưa có tài khoản?{" "}
-              <Link href="/auth/register" className="text-primary hover:underline">
-                Đăng ký
+              {t("auth.login.noAccount")}{" "}
+              <Link
+                href="/auth/register"
+                className="text-primary hover:underline"
+              >
+                {t("auth.login.registerNow")}
               </Link>
             </p>
           </form>

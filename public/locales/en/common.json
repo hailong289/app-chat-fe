@@ -1,0 +1,427 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "success": "Success",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "confirmDelete": "Confirm Delete",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "send": "Send",
+    "or": "Or",
+    "ok": "OK"
+  },
+  "docs": {
+    "renameSuccess": "Document renamed successfully",
+    "renameError": "Failed to rename document",
+    "deleteSuccess": "Document deleted",
+    "deleteError": "Failed to delete document",
+    "copySuccess": "Copy created",
+    "copyError": "Failed to copy document",
+    "status": {
+      "saved": "Saved",
+      "offline": "Offline"
+    },
+    "menu": {
+      "file": {
+        "title": "File",
+        "copy": "Make a copy",
+        "download": "Download PDF",
+        "print": "Print",
+        "delete": "Delete"
+      },
+      "edit": {
+        "title": "Edit",
+        "undo": "Undo",
+        "redo": "Redo",
+        "cut": "Cut",
+        "copy": "Copy",
+        "paste": "Paste"
+      },
+      "view": {
+        "title": "View",
+        "mode": "Mode: Editing",
+        "outline": "Show outline"
+      },
+      "help": {
+        "title": "Help",
+        "shortcuts": "Keyboard shortcuts",
+        "support": "Help & Support"
+      }
+    },
+    "you": "You",
+    "typing": "Typing...",
+    "share": "Share",
+    "actions": {
+      "export": "Export to PDF",
+      "delete": "Delete document"
+    },
+    "deleteModal": {
+      "title": "Delete Document",
+      "content": "Are you sure you want to delete {{title}}? This action cannot be undone."
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Login",
+      "subtitle": "Welcome back! Please login to continue.",
+      "usernamePlaceholder": "Email or phone number",
+      "passwordPlaceholder": "Password",
+      "rememberMe": "Remember me",
+      "forgotPassword": "Forgot password?",
+      "submit": "Login",
+      "noAccount": "Don't have an account?",
+      "registerNow": "Register now",
+      "success": "Login successful!",
+      "failed": "Login failed. Please check your credentials."
+    },
+    "register": {
+      "title": "Create Account",
+      "subtitle": "Create an account to connect with everyone.",
+      "emailTab": "Email",
+      "phoneTab": "Phone Number",
+      "fullnamePlaceholder": "Full Name",
+      "emailPlaceholder": "Email",
+      "phonePlaceholder": "Phone Number",
+      "passwordPlaceholder": "Password",
+      "confirmPasswordPlaceholder": "Confirm Password",
+      "dobLabel": "Date of Birth",
+      "genderLabel": "Gender",
+      "genderMale": "Male",
+      "genderFemale": "Female",
+      "genderOther": "Other",
+      "submit": "Register",
+      "hasAccount": "Already have an account?",
+      "loginNow": "Login now",
+      "success": "Registration successful!",
+      "failed": "Registration failed."
+    },
+    "validation": {
+      "required": "This field is required",
+      "emailInvalid": "Please enter a valid email",
+      "phoneInvalid": "Please enter a valid phone number",
+      "usernameInvalid": "Please enter a valid email or phone number",
+      "passwordMin": "Password must be at least 6 characters",
+      "passwordMatch": "Passwords do not match"
+    }
+  },
+  "chat": {
+    "input": {
+      "placeholder": "Type a message...",
+      "replyingTo": "Replying to {{name}}",
+      "you": "yourself",
+      "image": "Image",
+      "video": "Video",
+      "file": "File",
+      "gif": "GIF",
+      "audio": "Audio",
+      "searchEmoji": "Search emoji...",
+      "searchGif": "Search GIF...",
+      "noGifFound": "No GIF found",
+      "enterToSearchGif": "Type to search GIF...",
+      "tooltipMedia": "Insert images or videos up to {{maxFiles}} files and max size {{maxSize}}MB per file",
+      "tooltipFile": "Insert documents up to {{maxFiles}} files and max size {{maxSize}}MB per file"
+    },
+    "emoji": {
+      "recent": "Recent",
+      "smileys": "Smileys",
+      "animals": "Animals",
+      "food": "Food",
+      "activities": "Activities",
+      "travel": "Travel",
+      "objects": "Objects",
+      "symbols": "Symbols",
+      "flags": "Flags"
+    },
+    "typing": {
+      "many": "Several people are typing...",
+      "two": "{{name1}} & {{name2}} are typing",
+      "one": "{{name}} is typing"
+    },
+    "voice": {
+      "record": "Record",
+      "pause": "Pause",
+      "stop": "Stop",
+      "resume": "Resume",
+      "useFile": "Use this file",
+      "cancel": "Cancel"
+    },
+    "messages": {
+      "you": "You",
+      "empty": {
+        "title": "No messages yet",
+        "subtitle": "Start the conversation!"
+      },
+      "loading": {
+        "server": "Loading from server...",
+        "older": "Loading older messages...",
+        "new": "Loading new messages...",
+        "general": "Loading..."
+      },
+      "scroll": {
+        "more": "Still have {{count}} older messages • Scroll up to load",
+        "loadMore": "more..."
+      },
+      "actions": {
+        "pin": "Pin",
+        "unpin": "Unpin",
+        "copy": "Copy",
+        "recall": "Recall",
+        "deleteForMe": "Delete for me",
+        "react": "React"
+      },
+      "bubble": {
+        "deleted": {
+          "me": "You deleted this message",
+          "other": "Message deleted"
+        },
+        "recalled": {
+          "me": "You recalled this message",
+          "other": "Message recalled"
+        },
+        "collapse": "Collapse",
+        "seeMore": "See more"
+      },
+      "item": {
+        "pinned": "Pinned message",
+        "unread": "Unread messages",
+        "resend": "Resend",
+        "seen": "Seen",
+        "sent": "Sent",
+        "sending": "Sending...",
+        "uploading": "Uploading..."
+      },
+      "reply": {
+        "image": "📷 Image",
+        "video": "🎥 Video",
+        "file": "📎 File",
+        "gif": "🎬 GIF",
+        "audio": "🎵 Audio",
+        "deleted": "Message deleted",
+        "recalled": {
+          "me": "You recalled this message",
+          "other": "Message recalled"
+        },
+        "attachment": "Attachment"
+      },
+      "date": {
+        "today": "Today",
+        "yesterday": "Yesterday"
+      }
+    },
+    "modal": {
+      "addMember": {
+        "title": "Add members",
+        "selected": "Selected friends: {{count}}/{{total}}",
+        "placeholder": "Enter friend's name",
+        "cancel": "Cancel",
+        "add": "Add"
+      },
+      "call": {
+        "incoming": "Incoming Call",
+        "inProgress": "Call in Progress",
+        "calling": "Calling..."
+      },
+      "changeName": {
+        "title": "Change chat name",
+        "description": "Everyone will know when the chat name is changed",
+        "label": "Chat name",
+        "cancel": "Cancel",
+        "confirm": "Confirm"
+      },
+      "changeNickName": {
+        "title": "Nicknames",
+        "description": "Everyone will know when the nickname is changed",
+        "cancel": "Cancel"
+      },
+      "deleteMember": {
+        "title": "Confirm remove member",
+        "description": "Are you sure you want to remove {{name}}?",
+        "cancel": "Cancel",
+        "confirm": "Remove"
+      },
+      "leaveGroup": {
+        "title": "Confirm leave group",
+        "description": "Are you sure you want to leave this group?",
+        "cancel": "Cancel",
+        "confirm": "Confirm"
+      },
+      "createRoom": {
+        "title": "Create",
+        "types": {
+          "group": "Group",
+          "channel": "Channel"
+        },
+        "nameLabel": "Chat name",
+        "namePlaceholder": "Enter chat name",
+        "nameError": "Chat name must be at least 3 characters.",
+        "membersLabel": "Members {{count}}/{{total}}",
+        "membersPlaceholder": "Enter member name",
+        "cancel": "Cancel",
+        "create": "Create"
+      }
+    },
+    "file": {
+      "gallery": {
+        "seeMore": "See {{count}} more files",
+        "collapse": "Collapse",
+        "uploading": "Uploading...",
+        "failed": "❌ Upload failed",
+        "failedRetry": "❌ Upload failed. Please try again.",
+        "noPreview": "Cannot preview this file",
+        "noPreviewType": "Cannot preview this file type.",
+        "download": "Download"
+      },
+      "preview": {
+        "selected": "{{count}} files selected",
+        "removeAll": "Remove all",
+        "uploading": "Uploading...",
+        "failed": "Upload failed",
+        "close": "Close",
+        "notSupported": "This format is not supported for preview.",
+        "openNewTab": "Open in new tab / Download",
+        "prev": "Prev",
+        "next": "Next"
+      },
+      "audio": {
+        "play": "Play",
+        "pause": "Pause"
+      }
+    },
+    "drawer": {
+      "roles": {
+        "admin": "Admin",
+        "member": "Member",
+        "owner": "Owner",
+        "guest": "Guest"
+      },
+      "customize": {
+        "title": "Customize chat",
+        "changeName": "Change chat name",
+        "changePhoto": "Change photo",
+        "editNickname": "Edit nickname"
+      },
+      "members": {
+        "title": "Chat members",
+        "sendPrivateMessage": "Send private message",
+        "viewProfile": "View profile",
+        "removeFromGroup": "Remove from group",
+        "addMember": "Add members"
+      },
+      "media": {
+        "title": "Media, files and links",
+        "tabs": {
+          "media": "Media",
+          "link": "Link",
+          "docs": "Docs"
+        }
+      },
+      "privacy": {
+        "title": "Privacy and support",
+        "report": "Report",
+        "reportDesc": "Give feedback about conversation",
+        "leaveGroup": "Leave group",
+        "block": "Block",
+        "unblock": "Unblock"
+      },
+      "history": {
+        "title": "Activity history"
+      },
+      "chatWith": "Chat with"
+    },
+    "header": {
+      "online": "Online",
+      "offline": "Offline",
+      "searchPlaceholder": "Search messages...",
+      "pinned": {
+        "title": "Pinned messages list",
+        "empty": "No pinned messages yet.",
+        "image": "📷 Image",
+        "video": "🎥 Video",
+        "file": "📎 File",
+        "gif": "🎬 GIF"
+      }
+    },
+    "hooks": {
+      "delete": {
+        "success": "Message deleted",
+        "error": "Cannot delete message",
+        "connectionError": "Cannot connect to server. Delete failed."
+      },
+      "recall": {
+        "placeholder": "message has been recalled",
+        "success": "Message recalled",
+        "error": "Cannot recall message",
+        "connectionError": "Cannot connect to server. Recall failed."
+      },
+      "pin": {
+        "pinned": "Message pinned",
+        "unpinned": "Message unpinned",
+        "error": "Cannot change pin status",
+        "connectionError": "Cannot connect to server. Operation failed."
+      }
+    },
+    "user": "User"
+  },
+  "documents": {
+    "title": "Documents",
+    "subtitle": "Manage and collaborate on your documents",
+    "search": "Search documents",
+    "create": "Create",
+    "createNew": "Create New Document",
+    "loading": "Loading documents...",
+    "empty": {
+      "title": "No documents yet",
+      "desc": "Create your first document to get started",
+      "button": "Create Document"
+    },
+    "visibility": {
+      "private": "Private",
+      "shared": "Shared",
+      "public": "Public"
+    },
+    "owner": "Owner",
+    "shared": "Shared",
+    "delete": "Delete",
+    "deleteConfirm": "Are you sure you want to delete this document?",
+    "modal": {
+      "title": "Create New Document",
+      "placeholder": "Document name",
+      "cancel": "Cancel",
+      "create": "Create",
+      "creating": "Creating..."
+    }
+  },
+  "share": {
+    "title": "Share \"{{title}}\"",
+    "generalAccess": "General Access",
+    "generalAccessDesc": "Control who can view this document",
+    "restricted": "Restricted (Only added people)",
+    "public": "Anyone with the link",
+    "addPeople": "Add people",
+    "searchPlaceholder": "Search by name or email",
+    "noUsersFound": "No users found",
+    "peopleWithAccess": "People with access",
+    "owner": "Owner",
+    "you": "(You)",
+    "roleOwner": "Owner",
+    "add": "Add",
+    "done": "Done"
+  },
+  "sidebar": {
+    "chats": "Chats",
+    "contacts": "Contacts",
+    "notifications": "Notifications",
+    "files": "Files",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "home": {
+    "welcome": "Welcome to Chat App",
+    "description": "A modern chat application that helps you connect and chat with friends and colleagues easily and conveniently."
+  }
+}

@@ -2,13 +2,19 @@ import { useCallback } from "react";
 import { MessageType } from "@/store/types/message.state";
 import useMessageStore from "@/store/useMessageStore";
 import useToast from "@/hooks/useToast";
-import { emitWithAck, canRecallMessage } from "../utils/messageHelpers";
+import { emitWithAck, canRecallMessage } from "../../../utils/messageHelpers";
+import { socketEvent } from "@/types/socketEvent.type";
+import { useTranslation } from "react-i18next";
 
 interface UseMessageHandlersProps {
   chatId: string;
   socket: any;
   messageState: any;
-  emitWithAckHelper: (event: string, payload: any, timeout?: number) => Promise<any>;
+  emitWithAckHelper: (
+    event: string,
+    payload: any,
+    timeout?: number
+  ) => Promise<any>;
 }
 
 export function useMessageHandlers({
@@ -18,6 +24,7 @@ export function useMessageHandlers({
   emitWithAckHelper,
 }: UseMessageHandlersProps) {
   const toast = useToast();
+  const { t } = useTranslation();
 
   const handleReply = useCallback(
     (msg: MessageType) => {
@@ -32,7 +39,7 @@ export function useMessageHandlers({
       if (!socket || !socket.connected) return;
 
       socket.emit(
-        "message:emoji",
+        socketEvent.MSGREACT,
         {
           roomId: chatId,
           msgId: msg.id,
@@ -63,25 +70,29 @@ export function useMessageHandlers({
       messageState.upsetMsg(updated);
 
       // Emit and reconcile on ack/error
-      emitWithAckHelper("message:delete", { roomId: chatId, msgId: msg.id }, 5000)
+      emitWithAckHelper(
+        socketEvent.MSGDELETE,
+        { roomId: chatId, msgId: msg.id },
+        5000
+      )
         .then((ack) => {
           console.debug("emit:message:delete ack:", ack, "msgId:", msg.id);
           if (!ack || ack?.ok === false) {
             // rollback
             messageState.upsetMsg(original);
-            toast.error(ack?.reason || "Không thể xoá tin nhắn");
+            toast.error(ack?.reason || t("chat.hooks.delete.error"));
           } else {
-            toast.success("Đã xoá tin nhắn");
+            toast.success(t("chat.hooks.delete.success"));
           }
         })
         .catch((err) => {
           console.error("delete ack error", err);
           // rollback optimistic change
           messageState.upsetMsg(original);
-          toast.error("Không thể kết nối tới máy chủ. Xoá không thành công.");
+          toast.error(t("chat.hooks.delete.connectionError"));
         });
     },
-    [chatId, socket, emitWithAckHelper, messageState, toast]
+    [chatId, socket, emitWithAckHelper, messageState, toast, t]
   );
 
   const handleRecall = useCallback(
@@ -101,11 +112,11 @@ export function useMessageHandlers({
       messageState.upsetMsg(updated);
 
       emitWithAckHelper(
-        "message:recall",
+        socketEvent.MSGRECALL,
         {
           roomId: chatId,
           msgId: msg.id,
-          placeholder: "tin nhắn đã được thu hồi",
+          placeholder: t("chat.hooks.recall.placeholder"),
         },
         5000
       )
@@ -114,20 +125,18 @@ export function useMessageHandlers({
           if (!ack || ack?.ok === false) {
             // rollback
             messageState.upsetMsg(original);
-            toast.error(ack?.reason || "Không thể thu hồi tin nhắn");
+            toast.error(ack?.reason || t("chat.hooks.recall.error"));
           } else {
-            toast.success("Đã thu hồi tin nhắn");
+            toast.success(t("chat.hooks.recall.success"));
           }
         })
         .catch((err) => {
           console.error("recall ack error", err);
           messageState.upsetMsg(original);
-          toast.error(
-            "Không thể kết nối tới máy chủ. Thu hồi không thành công."
-          );
+          toast.error(t("chat.hooks.recall.connectionError"));
         });
     },
-    [chatId, emitWithAckHelper, messageState, toast]
+    [chatId, emitWithAckHelper, messageState, toast, t]
   );
 
   const handleTogglePin = useCallback(
@@ -146,7 +155,7 @@ export function useMessageHandlers({
         messageState.upsetMsg(updated);
 
         emitWithAckHelper(
-          "message:pinned",
+          socketEvent.MSGPINNED,
           {
             roomId: chatId,
             msgId: msg.id,
@@ -158,21 +167,25 @@ export function useMessageHandlers({
             console.debug("emit:message:pin ack:", ack, "msgId:", msg.id);
             if (!ack || ack?.ok === false) {
               messageState.upsetMsg(original);
-              toast.error(ack?.reason || "Không thể thay đổi trạng thái gim");
+              toast.error(ack?.reason || t("chat.hooks.pin.error"));
+            } else {
+              toast.success(
+                !msg.pinned
+                  ? t("chat.hooks.pin.pinned")
+                  : t("chat.hooks.pin.unpinned")
+              );
             }
           })
           .catch((err) => {
             console.error("pin ack error", err);
             messageState.upsetMsg(original);
-            toast.error(
-              "Không thể kết nối tới máy chủ. Thao tác không thành công."
-            );
+            toast.error(t("chat.hooks.pin.connectionError"));
           });
       } catch (err) {
         console.error("❌ Error toggling pin:", err);
       }
     },
-    [chatId, emitWithAckHelper, messageState, toast]
+    [chatId, emitWithAckHelper, messageState, toast, t]
   );
 
   return {
@@ -184,4 +197,3 @@ export function useMessageHandlers({
     handleTogglePin,
   };
 }
-

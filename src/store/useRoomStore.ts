@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { RoomsState, roomType } from "./types/room.state";
+import { RoomsState, roomType, User } from "./types/room.state";
 import RoomService from "@/service/room.service";
 import { QueryRooms } from "@/types/room.type";
 import { db } from "@/libs/db";
@@ -10,6 +10,7 @@ import {
   upsertMany,
   upsertOne,
 } from "@/libs/crud";
+
 const useRoomStore = create<RoomsState>()((set, get) => ({
   isLoading: false,
   rooms: [],
@@ -17,6 +18,7 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
   room: null,
   type: "all",
   readedRooms: {},
+  roomTypingUsers: {},
   // last_message_id: null,
   setType: (type: "group" | "private" | "channel" | "all") => set({ type }),
 
@@ -32,7 +34,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
 
     try {
       await upsertMany(db.rooms, rooms);
-      console.log("✅ Saved rooms to IndexedDB with emoji support");
     } catch (error) {
       console.error("❌ Error saving rooms to IndexedDB:", error);
       // Continue anyway, data is already in state
@@ -57,14 +58,14 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
   setRooms: (rooms) => set({ rooms }),
   // get room by id
   getRoomById: async (id: string) => {
-    const room = await getOne(db.rooms, id);
+    let room = get().rooms.find((r) => r.id === id);
+    room ??= await getOne(db.rooms, id);
     set({ room });
     return room;
   },
   getRoomsByType: async (type: string) => {
     let rooms;
     if (type == "all") {
-      console.log("🚀 ~ type:", type);
       rooms = await db.rooms.toArray();
     } else {
       rooms = await db.rooms.where("type").equals(type).toArray();
@@ -104,7 +105,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       roomId: room.id || "",
     };
     const response: any = await RoomService.leaveRoom(body);
-    console.log("🚀 ~ response:", response.data.statusCode == 200);
     if (response.data.statusCode != 200) {
       set({ isLoading: false, error: "Failed to leave room" });
       return false;
@@ -113,7 +113,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     await deleteOne(db.rooms, room.id);
     const rooms = get().rooms.filter((r) => r.id !== room.id);
     get().getRoomsByType(get().type);
-    console.log("🚀 ~ rooms:", rooms);
     set({
       room: rooms.length > 0 ? rooms[0] : null,
     });
@@ -168,13 +167,11 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     };
 
     const result: any = await RoomService.changeNickName(body);
-    console.log("🚀 ~ result:", result);
     if (result.data.statusCode !== 200) {
       set({ isLoading: false, error: "Failed to change nickname" });
       return;
     }
 
-    console.log("🚀 ~ room:", room);
     await updateOne(db.rooms, room.id, { ...room });
     set({
       room: { ...room },
@@ -195,7 +192,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       link: link,
     };
     const result: any = await RoomService.changeAvatar(body);
-    console.log("🚀 ~ result:", result);
     if (result.data.statusCode !== 200) {
       set({ isLoading: false, error: "Failed to change avatar" });
       return;
@@ -247,7 +243,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
   },
   // handel socket
   updateRoomSocket: (data: roomType) => {
-    console.log("🚀 updateRoomSocket ~ data:", data);
     // Nếu id của data bằng id của room hiện tại thì cập nhật luôn room
     if (get().room?.id === data.id) {
       set({ room: data });
@@ -276,7 +271,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     // Luôn update vào IndexedDB và refresh lại state từ db
     upsertOne(db.rooms, data)
       .then(() => {
-        console.log("✅ Updated room in IndexedDB from socket:", data.id);
         get().getRoomsByType(currentType);
       })
       .catch((error) => {
@@ -293,11 +287,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
         is_read: true,
         unread_count: 0,
       });
-
-      console.log("✅ Updated room read status in IndexedDB:", {
-        roomId: data.roomId,
-        lastMessageId: data.lastMessageId,
-      });
     } catch (error) {
       console.error("❌ Error updating room read status in IndexedDB:", error);
     }
@@ -311,11 +300,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     }
   },
   markMessageAsRead: (roomId: string, messageId: string, socket: any) => {
-    console.log("📖 Marking message as read:", {
-      roomId,
-      messageId,
-    });
-
     // Emit socket event
     socket?.emit("mark:read", {
       roomId,
@@ -327,6 +311,60 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       lastMessageId: messageId,
       roomId: roomId,
     });
+  },
+  roomDeleteSocket: (data: { roomId: string }) => {
+    set((state) => ({
+      rooms: state.rooms.filter((r) => r.id !== data.roomId),
+      room: state.room?.id === data.roomId ? null : state.room,
+    }));
+    // Delete room from IndexedDB
+    deleteOne(db.rooms, data.roomId).catch(() => {});
+    // Delete room messages from IndexedDB
+    if (db.messages?.where && typeof db.messages.where === "function") {
+      db.messages
+        .where("roomId")
+        .equals(data.roomId)
+        .delete()
+        .catch(() => {});
+    }
+  },
+  roomTypingSocket: (data: { isTyping: boolean; socket: any }) => {
+    const roomId = get().room?.roomId;
+    if (!roomId) return;
+    data.socket.emit("user:typing", {
+      roomId,
+      typing: data.isTyping,
+    });
+  },
+  handleTypingEvent: ({
+    user,
+    typing,
+    roomId,
+  }: {
+    user: User;
+    typing: boolean;
+    roomId: string;
+  }) => {
+    const currentTypingUsers = get().roomTypingUsers[roomId] || [];
+
+    let updatedTypingUsers: User[];
+    if (typing) {
+      // Thêm user vào danh sách nếu chưa có
+      if (currentTypingUsers.some((u) => u.id === user.id)) {
+        updatedTypingUsers = currentTypingUsers;
+      } else {
+        updatedTypingUsers = [...currentTypingUsers, user];
+      }
+    } else {
+      // Xóa user khỏi danh sách nếu có
+      updatedTypingUsers = currentTypingUsers.filter((u) => u.id !== user.id);
+    }
+    set((state) => ({
+      roomTypingUsers: {
+        ...state.roomTypingUsers,
+        [roomId]: updatedTypingUsers,
+      },
+    }));
   },
 }));
 

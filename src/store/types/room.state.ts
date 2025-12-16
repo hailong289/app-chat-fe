@@ -1,11 +1,16 @@
 import { QueryRooms } from "@/types/room.type";
-
+export type User = {
+  id: string;
+  name: string | null;
+  avatar: string | null;
+};
 export interface RoomsState {
   type: "group" | "private" | "channel" | "all";
   isLoading: boolean;
   rooms: roomType[];
   error: string | null;
   room: roomType | null;
+  roomTypingUsers: Record<string, User[]>;
   // last_message_id: string | null;
   getRooms: (queryParams?: QueryRooms) => Promise<roomType[]>;
   clearRooms: () => void;
@@ -30,6 +35,13 @@ export interface RoomsState {
     roomId: string;
   }) => Promise<void>;
   markMessageAsRead: (roomId: string, messageId: string, socket: any) => void;
+  roomDeleteSocket: (data: { roomId: string }) => void;
+  roomTypingSocket: (data: { isTyping: boolean; socket: any }) => void;
+  handleTypingEvent: (data: {
+    user: User;
+    typing: boolean;
+    roomId: string;
+  }) => void;
 }
 
 export type roomType = {
@@ -60,6 +72,14 @@ export type roomType = {
   pinned_count: number;
   isBlocked: boolean;
   blockByMine: boolean;
+  roomEvents: roomEventsType[];
+};
+export type roomEventsType = {
+  timestamp: string;
+  title: string;
+  description: string;
+  status: string;
+  id: string;
 };
 export type pinned_messagesType = {
   id: string;
@@ -70,6 +90,6 @@ export type pinned_messagesType = {
 export type roomMembers = {
   id: string;
   name: string | null;
-  role: string | null;
+  role: "admin" | "member" | "owner" | "guest" | null;
   avatar: string | null;
 };

@@ -85,7 +85,6 @@ export function useReadProgress(opts: {
       const newIdx = indexOf.get(id) ?? -1;
 
       if (newIdx > currentIdx) {
-        console.log("📖 Mark as read:", id);
         setLastReadId(id);
         debouncedCommit(id);
       }
@@ -107,7 +106,6 @@ export function useReadProgress(opts: {
       if (!hasScroll()) {
         const lastId = getLastReadableMessageId();
         if (lastId) {
-          console.log("📭 No scroll detected - marking all messages as read");
           updateLastRead(lastId);
         }
         return true;
