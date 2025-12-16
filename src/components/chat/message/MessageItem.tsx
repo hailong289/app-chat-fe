@@ -367,7 +367,7 @@ export function MessageItem({
                   isSameSenderAsNext={isSameSenderAsNext}
                   isExpanded={isExpanded}
                   onToggleExpanded={onToggleExpanded}
-                  type={msg.type}
+                  type={msg.type as any}
                   callHistory={msg.call_history ?? null}
                 />
 
