@@ -35,6 +35,8 @@ import {
   ScissorsIcon,
   DocumentDuplicateIcon,
   ClipboardDocumentIcon,
+  ArrowUturnLeftIcon,
+  ArrowUturnRightIcon,
 } from "@heroicons/react/24/outline";
 
 export interface BlockNoteEditorProps {
@@ -46,6 +48,40 @@ export interface BlockNoteEditorProps {
   readonly userColor?: string;
   readonly userAvatar?: string;
 }
+
+const UndoButton = () => {
+  const editor = useBlockNoteEditor();
+  const handleClick = () => {
+    if (editor) {
+      editor.undo();
+      editor.focus();
+    }
+  };
+  return (
+    <Tooltip content="Undo (Ctrl+Z)">
+      <Button isIconOnly variant="light" size="sm" onPress={handleClick}>
+        <ArrowUturnLeftIcon className="w-4 h-4" />
+      </Button>
+    </Tooltip>
+  );
+};
+
+const RedoButton = () => {
+  const editor = useBlockNoteEditor();
+  const handleClick = () => {
+    if (editor) {
+      editor.redo();
+      editor.focus();
+    }
+  };
+  return (
+    <Tooltip content="Redo (Ctrl+Y)">
+      <Button isIconOnly variant="light" size="sm" onPress={handleClick}>
+        <ArrowUturnRightIcon className="w-4 h-4" />
+      </Button>
+    </Tooltip>
+  );
+};
 
 const CutButton = () => {
   const editor = useBlockNoteEditor();
@@ -229,6 +265,8 @@ export default function BlockNoteEditorBase({
         <FormattingToolbarController
           formattingToolbar={(props) => (
             <FormattingToolbar {...props}>
+              <UndoButton />
+              <RedoButton />
               <CutButton />
               <CopyButton />
               <PasteButton />

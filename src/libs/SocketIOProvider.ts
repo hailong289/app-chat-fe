@@ -1,8 +1,9 @@
 import { Doc, encodeStateAsUpdate, applyUpdate } from "yjs";
 import { Socket } from "socket.io-client";
 import * as awarenessProtocol from "y-protocols/awareness";
+import { Observable } from "lib0/observable";
 
-export class SocketIOProvider {
+export class SocketIOProvider extends Observable<string> {
   public awareness: awarenessProtocol.Awareness;
   private readonly socket: Socket;
   private readonly doc: Doc;
@@ -14,6 +15,7 @@ export class SocketIOProvider {
     null;
 
   constructor(docId: string, doc: Doc, socket: Socket) {
+    super();
     this.docId = docId;
     this.doc = doc;
     this.socket = socket;
@@ -22,6 +24,9 @@ export class SocketIOProvider {
     this.setupUpdateListener();
     this.setupSocketListeners();
     this.setupAwarenessSync();
+
+    // Emit synced status
+    this.emit("status", [{ status: "connected" }]);
   }
 
   private setupUpdateListener() {
@@ -334,6 +339,7 @@ export class SocketIOProvider {
     this.socket.off("user:left");
     this.socket.off("user:typing");
     this.awareness.destroy();
+    super.destroy();
   }
 
   public sendTyping(isTyping: boolean) {
