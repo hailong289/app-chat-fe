@@ -14,6 +14,8 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
+  Card,
+  CardBody,
 } from "@heroui/react";
 import {
   PencilIcon,
@@ -22,13 +24,20 @@ import {
   PhoneIcon,
   EllipsisVerticalIcon,
   XMarkIcon,
+  ChatBubbleLeftEllipsisIcon,
+  PhotoIcon,
+  DocumentIcon,
+  SparklesIcon,
+  MapPinIcon,
+  MusicalNoteIcon,
 } from "@heroicons/react/24/outline";
 import ChatDrawer from "./drawer/chat-drawer";
 import { CallModal } from "./modals/call.modal";
 import useRoomStore from "@/store/useRoomStore";
-import { EyeDropperIcon } from "@heroicons/react/16/solid";
+// import { EyeDropperIcon } from "@heroicons/react/16/solid";
 import useContactStore from "@/store/useContactStore";
 import { useTranslation } from "react-i18next";
+import { ChevronDownIcon } from "@heroicons/react/16/solid";
 
 interface ChatHeaderProps {
   // chatName?: string;
@@ -83,10 +92,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   };
 
   return (
-    <div className="w-full h-[80px] dark:bg-slate-900 bg-white shadow-md z-10">
+    <div className="w-full h-auto min-h-[80px] dark:bg-slate-900 bg-white shadow-md z-10 flex flex-col">
       <Navbar
         isBordered
-        className="bg-primary border-b border-cyan-200 h-full"
+        className="bg-primary border-b border-cyan-200 h-[80px]"
         maxWidth="full"
       >
         <NavbarContent justify="start" className="flex-grow">
@@ -168,30 +177,6 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 <PencilIcon className="w-5 h-5" />
               </Button>
             </NavbarItem> */}
-            {useRoomStore.getState().room?.pinned_messages &&
-              (useRoomStore.getState().room?.pinned_messages?.length ?? 0) >
-                0 && (
-                <NavbarItem>
-                  <Badge
-                    color="danger"
-                    content={
-                      useRoomStore.getState().room?.pinned_messages?.length || 0
-                    }
-                    size="sm"
-                    placement="top-left"
-                  >
-                    <Button
-                      isIconOnly
-                      variant="light"
-                      className="rounded-full hover:bg-cyan-100 text-white"
-                      size="sm"
-                      onPress={onOpenPinned}
-                    >
-                      <EyeDropperIcon className="w-5 h-5" />
-                    </Button>
-                  </Badge>
-                </NavbarItem>
-              )}
 
             <NavbarItem>
               <Button
@@ -259,6 +244,73 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </Navbar>
 
+      {roomState.room?.pinned_messages &&
+        roomState.room.pinned_messages.length > 0 && (
+          <div className="w-full bg-orange-50 dark:bg-orange-900/20 px-4 py-2 flex items-center justify-between cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-all group border-b border-orange-100 dark:border-orange-800/50">
+            <div
+              role="button"
+              tabIndex={0}
+              className="flex items-center gap-3 min-w-0"
+              onClick={() => {
+                if (roomState.room?.pinned_messages) {
+                  setScrollto(
+                    roomState.room.pinned_messages[
+                      roomState.room.pinned_messages.length - 1
+                    ].id
+                  );
+                }
+              }}
+              onKeyDown={(e) => {
+                if (
+                  (e.key === "Enter" || e.key === " ") &&
+                  roomState.room?.pinned_messages
+                ) {
+                  setScrollto(
+                    roomState.room.pinned_messages[
+                      roomState.room.pinned_messages.length - 1
+                    ].id
+                  );
+                }
+              }}
+            >
+              <div className="flex-shrink-0 text-orange-500 dark:text-orange-400">
+                <MapPinIcon className="w-5 h-5" />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold text-orange-700 dark:text-orange-300 uppercase">
+                    {t("chat.header.pinned.title")}
+                  </p>
+                  {/* Badge đếm số lượng tin ghim */}
+                  {roomState.room.pinned_messages.length > 1 && (
+                    <span className="bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 text-[10px] px-1.5 rounded-full font-bold">
+                      +{roomState.room.pinned_messages.length - 1}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                  {(() => {
+                    const lastMsg =
+                      roomState.room.pinned_messages[
+                        roomState.room.pinned_messages.length - 1
+                      ];
+                    return lastMsg.type === "text"
+                      ? lastMsg.content
+                      : t(`chat.header.pinned.${lastMsg.type}`);
+                  })()}
+                </p>
+              </div>
+            </div>
+
+            {/* Mũi tên chỉ xuống (Visual Cue) */}
+            <div
+              className="text-orange-400 dark:text-orange-500 group-hover:translate-y-0.5 transition-transform"
+              onClick={onOpenPinned}
+            >
+              <ChevronDownIcon className="w-5 h-5" />
+            </div>
+          </div>
+        )}
       <ChatDrawer isOpen={isOpen} onClose={onOpenChange} noAction={noAction} />
       <CallModal
         isOpen={formModalCall.isOpen}
@@ -269,7 +321,6 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
         onDecline={() => {}}
         caller={formModalCall.caller}
       />
-
       <Modal
         isOpen={isOpenPinned}
         placement="top"
@@ -282,40 +333,60 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               <ModalHeader className="flex flex-col items-center gap-1">
                 {t("chat.header.pinned.title")}
               </ModalHeader>
-              <ModalBody>
-                {useRoomStore.getState().room?.pinned_messages &&
-                (useRoomStore.getState().room?.pinned_messages?.length ?? 0) >
-                  0 ? (
-                  <div className="flex flex-col gap-4">
-                    {useRoomStore
-                      .getState()
-                      .room?.pinned_messages?.map?.((msg) => (
-                        <Button
-                          key={msg.id}
-                          variant="bordered"
-                          className="justify-start"
-                          onPress={() => {
-                            onClosePPinned();
-                            setScrollto(msg.id);
-                          }}
-                        >
-                          <p className="text-sm text-gray-700 line-clamp-2">
-                            {msg.type === "text" && msg.content}
-                            {msg.type === "image" &&
-                              t("chat.header.pinned.image")}
-                            {msg.type === "video" &&
-                              t("chat.header.pinned.video")}
-                            {msg.type === "file" &&
-                              t("chat.header.pinned.file")}
-                            {msg.type === "gif" && t("chat.header.pinned.gif")}
-                          </p>
-                        </Button>
-                      ))}
+              <ModalBody className="px-4 py-2">
+                {roomState.room?.pinned_messages &&
+                (roomState.room?.pinned_messages?.length ?? 0) > 0 ? (
+                  <div className="flex flex-col gap-3 max-h-[60vh] overflow-y-auto pr-1">
+                    {roomState.room?.pinned_messages?.map((msg) => (
+                      <Card
+                        key={msg.id}
+                        isPressable
+                        onPress={() => {
+                          onClosePPinned();
+                          setScrollto(msg.id);
+                        }}
+                        className="w-full border border-gray-200 dark:border-gray-700 bg-transparent hover:bg-gray-100 dark:hover:bg-slate-800 transition-all shadow-none"
+                      >
+                        <CardBody className="flex flex-row items-center gap-3 p-3">
+                          <div className="flex-shrink-0 p-2 rounded-xl bg-primary/10 text-primary">
+                            {msg.type === "text" && (
+                              <ChatBubbleLeftEllipsisIcon className="w-5 h-5" />
+                            )}
+                            {msg.type === "image" && (
+                              <PhotoIcon className="w-5 h-5" />
+                            )}
+                            {msg.type === "video" && (
+                              <VideoCameraIcon className="w-5 h-5" />
+                            )}
+                            {msg.type === "file" && (
+                              <DocumentIcon className="w-5 h-5" />
+                            )}
+                            {msg.type === "gif" && (
+                              <SparklesIcon className="w-5 h-5" />
+                            )}
+                            {msg.type === "audio" && (
+                              <MusicalNoteIcon className="w-5 h-5" />
+                            )}
+                          </div>
+                          <div className="flex flex-col flex-grow min-w-0 items-start">
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate w-full text-left">
+                              {msg.type === "text"
+                                ? msg.content
+                                : t(`chat.header.pinned.${msg.type}`)}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate w-full text-left">
+                              {t("common.view")}
+                            </p>
+                          </div>
+                        </CardBody>
+                      </Card>
+                    ))}
                   </div>
                 ) : (
-                  <p className="text-center text-gray-500">
-                    {t("chat.header.pinned.empty")}
-                  </p>
+                  <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                    <ChatBubbleLeftEllipsisIcon className="w-12 h-12 mb-2 opacity-20" />
+                    <p>{t("chat.header.pinned.empty")}</p>
+                  </div>
                 )}
               </ModalBody>
               <ModalFooter></ModalFooter>

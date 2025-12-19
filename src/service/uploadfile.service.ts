@@ -46,7 +46,7 @@ export default class UploadService {
     form.append("folder", folder);
 
     // ApiService đã tự set Content-Type + Authorization
-    return apiService.post<UploadSingleResp>("/filesystem/upload-single", form);
+    return apiService.post<any>("/filesystem/upload-single", form);
   }
 
   static getAttachments(params: {

@@ -946,26 +946,39 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         })) || [];
 
       if (olderMessages && olderMessages.length > 0) {
+        // Get fresh state to avoid race conditions
+        const freshRoom = get().messagesRoom[roomId];
+        const freshMessages = freshRoom?.messages || [];
+
+        // Filter out duplicates that might already exist in freshMessages
+        const uniqueOlderMessages = olderMessages.filter(
+          (oldMsg) => !freshMessages.some((msg) => msg.id === oldMsg.id)
+        );
+
+        if (uniqueOlderMessages.length === 0) {
+          return [];
+        }
+
         // Prepend messages cũ vào đầu array
-        const updatedMessages = [...olderMessages, ...currentRoom.messages];
+        const updatedMessages = [...uniqueOlderMessages, ...freshMessages];
 
         // Cập nhật state
         set({
           messagesRoom: {
             ...get().messagesRoom,
             [roomId]: {
-              ...currentRoom,
+              ...freshRoom,
               messages: updatedMessages,
             },
           },
         });
 
         // Lưu vào IndexedDB
-        for (const msg of olderMessages) {
+        for (const msg of uniqueOlderMessages) {
           await upsertOne(db.messages, sanitizeMessageForDB(msg));
         }
 
-        return olderMessages; // Return messages for caller to check
+        return uniqueOlderMessages; // Return messages for caller to check
       } else {
         return []; // Return empty array if no messages
       }

@@ -44,7 +44,7 @@ export const ChatMessages = memo(
       }
     });
 
-    const { socket } = useSocket('/chat');
+    const { socket } = useSocket("/chat");
     const roomState = useRoomStore((state) => state);
     const messageState = useMessageStore((state) => state);
     const messages =
@@ -281,7 +281,7 @@ export const ChatMessages = memo(
           <ScrollShadow
             ref={state.containerRef}
             className={`
-              p-4 overflow-y-auto w-full max-h-[calc(100vh-200px)]
+              p-4 overflow-y-auto w-full max-h-[calc(100vh-250px)]
               transition-all duration-200 
               ${
                 state.isFetchingNewMessages

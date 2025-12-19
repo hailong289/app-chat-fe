@@ -189,6 +189,78 @@ const useAuthStore = create<AuthState>()(
           set({ isLoading: false });
         }
       },
+      updateProfile: async (payload) => {
+        set({ isLoading: true });
+        try {
+          const response = await AuthService.updateProfile(payload);
+          const metadata = response.data.metadata as any;
+
+          if (metadata?.user) {
+            set({ user: metadata.user, isLoading: false });
+          } else {
+            // Nếu backend không trả về user mới, tự update local state
+            const currentUser = get().user;
+            if (currentUser) {
+              set({
+                user: {
+                  ...currentUser,
+                  fullname: payload.fullname ?? currentUser.fullname,
+                  gender: payload.gender ?? currentUser.gender,
+                  dateOfBirth: payload.dateOfBirth ?? currentUser.dateOfBirth,
+                  address: payload.address ?? currentUser.address,
+                  email: payload.email ?? currentUser.email,
+                  phone: payload.phone ?? currentUser.phone,
+                },
+                isLoading: false,
+              });
+            } else {
+              set({ isLoading: false });
+            }
+          }
+          payload.callback?.();
+        } catch (error) {
+          set({ isLoading: false });
+          payload.callback?.(error);
+        }
+      },
+      updateAvatar: async (payload) => {
+        set({ isLoading: true });
+        try {
+          const response = await AuthService.updateAvatar(payload);
+          const metadata = response.data.metadata as any;
+
+          if (metadata?.user) {
+            set({ user: metadata.user, isLoading: false });
+          } else if (metadata?.url) {
+            const currentUser = get().user;
+            if (currentUser) {
+              set({
+                user: { ...currentUser, avatar: metadata.url },
+                isLoading: false,
+              });
+            } else {
+              set({ isLoading: false });
+            }
+          } else {
+            set({ isLoading: false });
+          }
+          payload.callback?.();
+        } catch (error) {
+          set({ isLoading: false });
+          payload.callback?.(error);
+        }
+      },
+      updatePassword: async (payload) => {
+        set({ isLoading: true });
+        try {
+          await AuthService.updatePassword(payload);
+          set({ isLoading: false });
+          payload.callback?.();
+        } catch (error) {
+          set({ isLoading: false });
+          payload.callback?.(error);
+        }
+      },
       setAuth: (isAuthenticated) => set({ isAuthenticated }),
     }),
     {

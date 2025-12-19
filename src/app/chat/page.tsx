@@ -53,6 +53,7 @@ function ChatPageContent() {
         h-screen ${widthClass}
         bg-light 
         dark:bg-slate-900
+        flex flex-col
       `}
     >
       <ChatHeader
@@ -60,7 +61,7 @@ function ChatPageContent() {
         noAction={noAction}
         setScrollto={setScrollto}
       />
-      <main className="w-full h-[calc(100vh-80px)] relative overflow-hidden dark:bg-slate-900">
+      <main className="w-full flex-1 relative overflow-hidden dark:bg-slate-900">
         <ChatMessages
           chatId={chatId}
           noAction={noAction}

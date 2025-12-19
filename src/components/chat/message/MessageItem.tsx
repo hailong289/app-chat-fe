@@ -274,6 +274,7 @@ export function MessageItem({
         ease: "easeOut",
       }}
       className={messageSpacing}
+      style={{ contentVisibility: "auto", containIntrinsicSize: "50px" }}
     >
       <UnreadDivider />
 

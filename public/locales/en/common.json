@@ -12,7 +12,8 @@
     "search": "Search",
     "send": "Send",
     "or": "Or",
-    "ok": "OK"
+    "ok": "OK",
+    "view": "View message"
   },
   "docs": {
     "renameSuccess": "Document renamed successfully",
@@ -44,7 +45,8 @@
       "view": {
         "title": "View",
         "mode": "Mode: Editing",
-        "outline": "Show outline"
+        "showOutline": "Show Outline",
+        "hideOutline": "Hide Outline"
       },
       "help": {
         "title": "Help",
@@ -62,6 +64,15 @@
     "deleteModal": {
       "title": "Delete Document",
       "content": "Are you sure you want to delete {{title}}? This action cannot be undone."
+    },
+    "visibilityUpdated": "Visibility updated",
+    "visibilityError": "Failed to update visibility",
+    "toc": "Table of Contents",
+    "noHeadings": "No headings yet",
+    "visibility": {
+      "private": "Private",
+      "shared": "Shared",
+      "public": "Public"
     }
   },
   "auth": {
@@ -337,12 +348,13 @@
       "offline": "Offline",
       "searchPlaceholder": "Search messages...",
       "pinned": {
-        "title": "Pinned messages list",
+        "title": "Pinned Messages",
         "empty": "No pinned messages yet.",
         "image": "📷 Image",
         "video": "🎥 Video",
         "file": "📎 File",
-        "gif": "🎬 GIF"
+        "gif": "🎬 GIF",
+        "audio": "🎵 Audio"
       }
     },
     "hooks": {

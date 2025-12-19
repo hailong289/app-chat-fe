@@ -53,6 +53,7 @@ export function MessageGroup({
     <div
       key={`message-group-${group.dateLabel}-${groupIdx}`}
       className="space-y-4"
+      style={{ contentVisibility: "auto", containIntrinsicSize: "1000px" }}
     >
       {/* Date divider */}
       <motion.div
