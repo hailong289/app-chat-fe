@@ -258,8 +258,10 @@ export default function RegisterPage() {
 
                 <DatePicker
                   label={t("auth.register.dobLabel")}
-                  onChange={(date) => setForm({ ...form, dateOfBirth: date })}
-                  defaultValue={Helpers.getDefaultDate()}
+                  onChange={(date) =>
+                    setForm({ ...form, dateOfBirth: date as any })
+                  }
+                  defaultValue={Helpers.getDefaultDate() as any}
                   isRequired
                   errorMessage={fieldErrors.dateOfBirth}
                   isInvalid={!!fieldErrors.dateOfBirth}
