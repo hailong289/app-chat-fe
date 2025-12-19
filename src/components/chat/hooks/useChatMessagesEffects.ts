@@ -277,8 +277,6 @@ export function useChatMessagesEffects({
     handleLoadMore,
   ]);
 
-
-
   // Effect: Handle new messages added to local store
   useEffect(() => {
     if (isSwitchingChat) return;
