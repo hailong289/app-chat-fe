@@ -8,9 +8,7 @@ import {
   handleDropFactory,
   handleFilePickFactory,
   handlePasteFactory,
-  buildInputAccept,
   FileAcceptConfig,
-  documentOnlyConfig,
 } from "@/libs/file-handlers";
 import {
   FaceSmileIcon,
@@ -57,7 +55,6 @@ import { useTranslation } from "react-i18next";
 import { DocumentPickerModal } from "../modals/DocumentPickerModal";
 import { Document } from "@/service/document.service";
 import FileGalleryModal from "../../modals/FileGalleryModal";
-import { FolderIcon } from "@heroicons/react/24/outline";
 
 const maxFiles = 20;
 
@@ -383,7 +380,6 @@ export default function ChatInputBar({
     }
 
     setToggleInput(!toggleInput);
-
     if (replyToId) {
       setReplyMessage(chatId, null);
     }
@@ -398,6 +394,7 @@ export default function ChatInputBar({
     socket,
     setToggleInput,
     toggleInput,
+   
   ]);
 
   // ====== VOICE CHAT ======
@@ -516,10 +513,9 @@ export default function ChatInputBar({
         documentId: doc._id,
       });
 
-      setScrollto("bottom");
       setShowDocPicker(false);
     },
-    [chatId, socket, auth, sendMessage, setScrollto]
+    [chatId, socket, auth, sendMessage]
   );
 
   // ====== BLOCKED / NO ACTION ======
@@ -997,7 +993,9 @@ export default function ChatInputBar({
                 >
                   <TrashIcon className="w-5 h-5" />
                 </Button>
-                <audio controls src={preview.url} className="w-full" />
+                <audio controls src={preview.url} className="w-full">
+                  <track kind="captions" />
+                </audio>
               </div>
             )}
           </div>

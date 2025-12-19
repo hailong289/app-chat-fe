@@ -1,0 +1,7 @@
+
+export interface UpdatePasswordPayload {
+  oldPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+  callback?: (error?: any) => void;
+}

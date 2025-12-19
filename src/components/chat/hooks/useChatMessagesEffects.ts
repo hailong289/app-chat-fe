@@ -93,6 +93,7 @@ export function useChatMessagesEffects({
       setIsSwitchingChat(true);
       setShouldAnimate(false);
       prevChatIdRef.current = chatId;
+      prevMessageCountRef.current = 0;
       renderedMessageIds.current.clear();
       setDisplayedMessagesCount(MESSAGES_PER_GROUP);
       setHasMoreOnServer(true);
@@ -277,24 +278,6 @@ export function useChatMessagesEffects({
     handleLoadMore,
   ]);
 
-  // Effect: Auto scroll on new messages
-  useEffect(() => {
-    if (isSwitchingChat) return;
-
-    const hasNewMessages = messages.length > prevMessageCountRef.current;
-
-    if (hasNewMessages && isBottomVisible && bottomRef.current) {
-      requestAnimationFrame(() => {
-        bottomRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "end",
-        });
-      });
-    }
-
-    prevMessageCountRef.current = messages.length;
-  }, [messages.length, isBottomVisible, isSwitchingChat, bottomRef]);
-
   // Effect: Handle new messages added to local store
   useEffect(() => {
     if (isSwitchingChat) return;
@@ -306,15 +289,21 @@ export function useChatMessagesEffects({
       const newMessage = messages.at(-1);
 
       if (displayedMessagesCount < currentMessageCount) {
-        setDisplayedMessagesCount(
-          Math.max(currentMessageCount, MESSAGES_PER_GROUP)
-        );
+        if (prevMessageCountRef.current > 0) {
+          const diff = currentMessageCount - prevMessageCountRef.current;
+          setDisplayedMessagesCount((prev) =>
+            Math.min(prev + diff, currentMessageCount)
+          );
+        }
       }
 
       if (newMessage?.isMine) {
         setTimeout(() => {
           if (containerRef.current) {
-            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+            containerRef.current.scrollTo({
+              top: containerRef.current.scrollHeight,
+              behavior: "smooth",
+            });
           } else if (bottomRef.current) {
             bottomRef.current.scrollIntoView({
               behavior: "smooth",
@@ -325,7 +314,10 @@ export function useChatMessagesEffects({
       } else if (isBottomVisible && bottomRef.current) {
         requestAnimationFrame(() => {
           if (containerRef.current) {
-            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+            containerRef.current.scrollTo({
+              top: containerRef.current.scrollHeight,
+              behavior: "smooth",
+            });
           } else if (bottomRef.current) {
             bottomRef.current.scrollIntoView({
               behavior: "smooth",
@@ -350,6 +342,9 @@ export function useChatMessagesEffects({
   // Memoized: Visible messages
   const visibleMessages = useMemo(() => {
     const visible = messages || [];
+    // Only render the last displayedMessagesCount messages
+    // This is a simple windowing approach where we only render what's needed
+    // plus a buffer.
     return visible.slice(-displayedMessagesCount);
   }, [messages, displayedMessagesCount]);
 

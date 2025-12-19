@@ -39,6 +39,7 @@ import {
 
 export interface BlockNoteEditorProps {
   readonly onEditorReady?: (editor: any) => void;
+  readonly onChange?: (editor: any) => void;
   readonly ydoc: Doc;
   readonly provider: SocketIOProvider | null;
   readonly userId?: string;
@@ -117,6 +118,7 @@ const PasteButton = () => {
 
 export default function BlockNoteEditorBase({
   onEditorReady,
+  onChange,
   ydoc,
   provider,
   userId = "anonymous",
@@ -222,6 +224,7 @@ export default function BlockNoteEditorBase({
     >
       <BlockNoteView
         editor={editor}
+        onChange={() => onChange && onChange(editor)}
         theme={resolvedTheme === "dark" ? "dark" : "light"}
         className="min-h-[500px]"
         formattingToolbar={false}
