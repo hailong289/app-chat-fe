@@ -277,23 +277,7 @@ export function useChatMessagesEffects({
     handleLoadMore,
   ]);
 
-  // Effect: Auto scroll on new messages
-  useEffect(() => {
-    if (isSwitchingChat) return;
 
-    const hasNewMessages = messages.length > prevMessageCountRef.current;
-
-    if (hasNewMessages && isBottomVisible && bottomRef.current) {
-      requestAnimationFrame(() => {
-        bottomRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "end",
-        });
-      });
-    }
-
-    prevMessageCountRef.current = messages.length;
-  }, [messages.length, isBottomVisible, isSwitchingChat, bottomRef]);
 
   // Effect: Handle new messages added to local store
   useEffect(() => {
@@ -314,7 +298,10 @@ export function useChatMessagesEffects({
       if (newMessage?.isMine) {
         setTimeout(() => {
           if (containerRef.current) {
-            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+            containerRef.current.scrollTo({
+              top: containerRef.current.scrollHeight,
+              behavior: "smooth",
+            });
           } else if (bottomRef.current) {
             bottomRef.current.scrollIntoView({
               behavior: "smooth",
@@ -325,7 +312,10 @@ export function useChatMessagesEffects({
       } else if (isBottomVisible && bottomRef.current) {
         requestAnimationFrame(() => {
           if (containerRef.current) {
-            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+            containerRef.current.scrollTo({
+              top: containerRef.current.scrollHeight,
+              behavior: "smooth",
+            });
           } else if (bottomRef.current) {
             bottomRef.current.scrollIntoView({
               behavior: "smooth",
