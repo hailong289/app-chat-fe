@@ -4,6 +4,9 @@ import {
   PayloadLogin,
   PayloadRegister,
   ResetPasswordPayload,
+  UpdateAvatarPayload,
+  UpdateProfilePayload,
+  UpdatePasswordPayload,
 } from "@/types/auth.type";
 import apiService from "./api.service";
 
@@ -52,5 +55,17 @@ export default class AuthService {
         },
       }
     );
+  }
+
+  static updateProfile(data: UpdateProfilePayload) {
+    return apiService.post<AuthResponse>("/auth/update-profile", data);
+  }
+
+  static updateAvatar(data: UpdateAvatarPayload) {
+    return apiService.post<AuthResponse>("/auth/update-avatar", data);
+  }
+
+  static updatePassword(data: UpdatePasswordPayload) {
+    return apiService.post<AuthResponse>("/auth/update-password", data);
   }
 }

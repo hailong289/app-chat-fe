@@ -93,6 +93,7 @@ export function useChatMessagesEffects({
       setIsSwitchingChat(true);
       setShouldAnimate(false);
       prevChatIdRef.current = chatId;
+      prevMessageCountRef.current = 0;
       renderedMessageIds.current.clear();
       setDisplayedMessagesCount(MESSAGES_PER_GROUP);
       setHasMoreOnServer(true);
@@ -288,9 +289,12 @@ export function useChatMessagesEffects({
       const newMessage = messages.at(-1);
 
       if (displayedMessagesCount < currentMessageCount) {
-        setDisplayedMessagesCount(
-          Math.max(currentMessageCount, MESSAGES_PER_GROUP)
-        );
+        if (prevMessageCountRef.current > 0) {
+          const diff = currentMessageCount - prevMessageCountRef.current;
+          setDisplayedMessagesCount((prev) =>
+            Math.min(prev + diff, currentMessageCount)
+          );
+        }
       }
 
       if (newMessage?.isMine) {
@@ -338,6 +342,9 @@ export function useChatMessagesEffects({
   // Memoized: Visible messages
   const visibleMessages = useMemo(() => {
     const visible = messages || [];
+    // Only render the last displayedMessagesCount messages
+    // This is a simple windowing approach where we only render what's needed
+    // plus a buffer.
     return visible.slice(-displayedMessagesCount);
   }, [messages, displayedMessagesCount]);
 

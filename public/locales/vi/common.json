@@ -12,7 +12,8 @@
     "search": "Tìm kiếm",
     "send": "Gửi",
     "or": "Hoặc",
-    "ok": "Đồng ý"
+    "ok": "Đồng ý",
+    "view": "Xem tin nhắn"
   },
   "docs": {
     "renameSuccess": "Đổi tên tài liệu thành công",
@@ -44,7 +45,8 @@
       "view": {
         "title": "Xem",
         "mode": "Chế độ: Đang chỉnh sửa",
-        "outline": "Hiện mục lục"
+        "showOutline": "Hiện mục lục",
+        "hideOutline": "Ẩn mục lục"
       },
       "help": {
         "title": "Trợ giúp",
@@ -62,6 +64,15 @@
     "deleteModal": {
       "title": "Xóa tài liệu",
       "content": "Bạn có chắc chắn muốn xóa {{title}}? Hành động này không thể hoàn tác."
+    },
+    "visibilityUpdated": "Đã cập nhật quyền truy cập",
+    "visibilityError": "Cập nhật quyền truy cập thất bại",
+    "toc": "Mục lục",
+    "noHeadings": "Chưa có mục lục",
+    "visibility": {
+      "private": "Riêng tư",
+      "shared": "Đã chia sẻ",
+      "public": "Công khai"
     }
   },
   "auth": {
@@ -337,12 +348,13 @@
       "offline": "Offline",
       "searchPlaceholder": "Tìm kiếm tin nhắn...",
       "pinned": {
-        "title": "Danh sách ghim tin nhắn",
+        "title": "Tin nhắn đã ghim",
         "empty": "Chưa có tin nhắn nào được ghim.",
         "image": "📷 Ảnh",
         "video": "🎥 Video",
         "file": "📎 File",
-        "gif": "🎬 GIF"
+        "gif": "🎬 GIF",
+        "audio": "🎵 Audio"
       }
     },
     "hooks": {

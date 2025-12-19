@@ -112,6 +112,7 @@ export default function ShareModal({
   };
 
   const sharedUsers = document.sharedWith || [];
+  const docOwner = (document as any).owner;
 
   return (
     <Modal isOpen={isOpen} onOpenChange={onClose} size="2xl">
@@ -214,15 +215,19 @@ export default function ShareModal({
                     {/* Owner */}
                     <div className="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800/50">
                       <div className="flex items-center gap-3">
-                        <Avatar className="w-8 h-8" />
+                        <Avatar
+                          className="w-8 h-8"
+                          src={docOwner?.usr_avatar}
+                          name={docOwner?.usr_fullname}
+                        />
                         <div className="flex flex-col">
                           <span className="text-sm font-medium">
-                            {t("share.owner")}
+                            {docOwner?.usr_fullname || t("share.owner")}
+                            {document.ownerId === currentUser?._id &&
+                              ` (${t("share.you")})`}
                           </span>
                           <span className="text-xs text-gray-500">
-                            {document.ownerId === currentUser?._id
-                              ? t("share.you")
-                              : ""}
+                            {docOwner?.usr_email}
                           </span>
                         </div>
                       </div>
@@ -232,18 +237,26 @@ export default function ShareModal({
                     </div>
 
                     {/* Shared Users */}
-                    {sharedUsers.map((share) => (
+                    {sharedUsers.map((share: any) => (
                       <div
                         key={share.userId}
                         className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50"
                       >
                         <div className="flex items-center gap-3">
-                          <Avatar className="w-8 h-8" />
+                          <Avatar
+                            className="w-8 h-8"
+                            src={share.user?.usr_avatar}
+                            name={share.user?.usr_fullname}
+                          />
                           <div className="flex flex-col">
                             <span className="text-sm font-medium">
-                              User {share.userId.slice(0, 8)}...
+                              {share.user?.usr_fullname ||
+                                `User ${share.userId.slice(0, 8)}...`}
                             </span>
-                            <span className="text-xs text-gray-500 capitalize">
+                            <span className="text-xs text-gray-500">
+                              {share.user?.usr_email}
+                            </span>
+                            <span className="text-xs text-gray-400 capitalize">
                               {share.role}
                             </span>
                           </div>

@@ -38,8 +38,9 @@ import {
   PencilIcon,
   TrashIcon,
   DocumentDuplicateIcon,
-  PrinterIcon,
-  ArrowDownTrayIcon,
+  ListBulletIcon,
+  GlobeAltIcon,
+  LockClosedIcon,
 } from "@heroicons/react/24/outline";
 
 import { useTranslation } from "react-i18next";
@@ -52,11 +53,14 @@ export default function DocumentEditorPage() {
   const docId = params?.id as string;
   const { socket, status } = useSocket("/doc");
   const currentUser = useAuthStore((s) => s.user);
-  const { updateTitle, deleteDocument, duplicateDocument } = useDocumentStore();
+  const { updateTitle, deleteDocument, duplicateDocument, updateVisibility } =
+    useDocumentStore();
   const toast = useToast();
 
   // Editor instance
   const [editor, setEditor] = useState<any>(null);
+  const [toc, setToc] = useState<any[]>([]);
+  const [showToc, setShowToc] = useState(false);
 
   // Create Y.Doc instance (stable reference)
   const [ydoc] = useState(() => new Doc());
@@ -154,8 +158,28 @@ export default function DocumentEditorPage() {
     }
   };
 
-  const handleExportPDF = () => {
-    globalThis.print();
+  const handleVisibilityChange = async (key: string) => {
+    try {
+      const updatedDoc = await updateVisibility(docId, key);
+      if (updatedDoc) {
+        setDocument((prev) =>
+          prev ? { ...prev, visibility: updatedDoc.visibility } : null
+        );
+        toast.success(t("docs.visibilityUpdated"));
+      }
+    } catch (error) {
+      console.error("Failed to update visibility:", error);
+      toast.error(t("docs.visibilityError"));
+    }
+  };
+
+  const handleEditorChange = (editor: any) => {
+    if (editor && editor.document) {
+      const headings = editor.document.filter(
+        (block: any) => block.type === "heading"
+      );
+      setToc(headings);
+    }
   };
 
   const handleMakeCopy = async () => {
@@ -267,7 +291,7 @@ export default function DocumentEditorPage() {
           <Button
             isIconOnly
             variant="light"
-            onPress={() => router.push("/docs")}
+            onPress={() => router.back()}
             className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
           >
             <ArrowLeftIcon className="w-5 h-5" />
@@ -335,20 +359,6 @@ export default function DocumentEditorPage() {
                     {t("docs.menu.file.copy")}
                   </DropdownItem>
                   <DropdownItem
-                    key="export"
-                    startContent={<ArrowDownTrayIcon className="w-4 h-4" />}
-                    onPress={handleExportPDF}
-                  >
-                    {t("docs.menu.file.download")}
-                  </DropdownItem>
-                  <DropdownItem
-                    key="print"
-                    startContent={<PrinterIcon className="w-4 h-4" />}
-                    onPress={() => globalThis.print()}
-                  >
-                    {t("docs.menu.file.print")}
-                  </DropdownItem>
-                  <DropdownItem
                     key="delete"
                     className="text-danger"
                     color="danger"
@@ -403,8 +413,14 @@ export default function DocumentEditorPage() {
                   <DropdownItem key="mode">
                     {t("docs.menu.view.mode")}
                   </DropdownItem>
-                  <DropdownItem key="sidebar">
-                    {t("docs.menu.view.outline")}
+                  <DropdownItem
+                    key="sidebar"
+                    onPress={() => setShowToc(!showToc)}
+                    startContent={<ListBulletIcon className="w-4 h-4" />}
+                  >
+                    {showToc
+                      ? t("docs.menu.view.hideOutline") || "Hide Outline"
+                      : t("docs.menu.view.showOutline") || "Show Outline"}
                   </DropdownItem>
                 </DropdownMenu>
               </Dropdown>
@@ -500,6 +516,51 @@ export default function DocumentEditorPage() {
             {t("docs.share")}
           </Button>
 
+          {/* Visibility Dropdown */}
+          <Dropdown>
+            <DropdownTrigger>
+              <Button
+                isIconOnly
+                variant="light"
+                size="sm"
+                className="text-gray-500"
+              >
+                {document.visibility === "public" ? (
+                  <GlobeAltIcon className="w-5 h-5" />
+                ) : document.visibility === "shared" ? (
+                  <UserGroupIcon className="w-5 h-5" />
+                ) : (
+                  <LockClosedIcon className="w-5 h-5" />
+                )}
+              </Button>
+            </DropdownTrigger>
+            <DropdownMenu
+              aria-label="Visibility"
+              onAction={(key) => handleVisibilityChange(key as string)}
+              selectedKeys={new Set([document.visibility || "private"])}
+              selectionMode="single"
+            >
+              <DropdownItem
+                key="private"
+                startContent={<LockClosedIcon className="w-4 h-4" />}
+              >
+                {t("docs.visibility.private") || "Private"}
+              </DropdownItem>
+              <DropdownItem
+                key="shared"
+                startContent={<UserGroupIcon className="w-4 h-4" />}
+              >
+                {t("docs.visibility.shared") || "Shared"}
+              </DropdownItem>
+              <DropdownItem
+                key="public"
+                startContent={<GlobeAltIcon className="w-4 h-4" />}
+              >
+                {t("docs.visibility.public") || "Public"}
+              </DropdownItem>
+            </DropdownMenu>
+          </Dropdown>
+
           <Dropdown placement="bottom-end">
             <DropdownTrigger>
               <Button isIconOnly variant="light" size="sm">
@@ -507,13 +568,6 @@ export default function DocumentEditorPage() {
               </Button>
             </DropdownTrigger>
             <DropdownMenu aria-label="Document actions">
-              <DropdownItem
-                key="export"
-                startContent={<ArrowDownTrayIcon className="w-4 h-4" />}
-                onPress={handleExportPDF}
-              >
-                {t("docs.actions.export")}
-              </DropdownItem>
               <DropdownItem
                 key="copy"
                 startContent={<DocumentDuplicateIcon className="w-4 h-4" />}
@@ -536,13 +590,14 @@ export default function DocumentEditorPage() {
       </Navbar>
 
       {/* Main Editor Area */}
-      <main className="flex-1 w-full max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
-        <Card className="min-h-[calc(100vh-8rem)] shadow-sm border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+      <main className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 flex gap-6">
+        <Card className="flex-1 min-h-[calc(100vh-8rem)] shadow-sm border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
           <CardBody className="p-0">
             <div className="editor-wrapper h-full min-h-[500px] p-4 sm:p-8 lg:p-12">
               <DynamicEditor
                 key={`${document._id}-${provider ? "online" : "offline"}`}
                 onEditorReady={setEditor}
+                onChange={handleEditorChange}
                 ydoc={ydoc}
                 provider={provider}
                 userName={currentUser?.fullname || "Anonymous"}
@@ -555,6 +610,60 @@ export default function DocumentEditorPage() {
             </div>
           </CardBody>
         </Card>
+
+        {/* Table of Contents Sidebar */}
+        {showToc && (
+          <div className="w-64 hidden lg:block shrink-0">
+            <div className="sticky top-24">
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-4 px-2">
+                {t("docs.toc") || "Table of Contents"}
+              </h3>
+              <div className="space-y-1">
+                {toc.length === 0 ? (
+                  <p className="text-sm text-gray-500 px-2">
+                    {t("docs.noHeadings") || "No headings yet"}
+                  </p>
+                ) : (
+                  toc.map((heading) => (
+                    <button
+                      key={heading.id}
+                      onClick={() => {
+                        if (editor) {
+                          // BlockNote specific: scroll to block
+                          // We need to find the block element in DOM or use editor API if available
+                          // editor.getTextCursorPosition() is for cursor
+                          // editor.focus() focuses editor
+                          // For now, we can try to scroll the element into view if we can find it by ID
+                          const element = globalThis.document.querySelector(
+                            `[data-id="${heading.id}"]`
+                          );
+                          element?.scrollIntoView({
+                            behavior: "smooth",
+                            block: "center",
+                          });
+                        }
+                      }}
+                      className={`block w-full text-left px-2 py-1.5 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors truncate ${
+                        heading.type === "heading" && heading.props.level === 1
+                          ? "font-medium text-gray-900 dark:text-white"
+                          : heading.type === "heading" &&
+                            heading.props.level === 2
+                          ? "pl-4 text-gray-600 dark:text-gray-400"
+                          : "pl-8 text-gray-500 dark:text-gray-500"
+                      }`}
+                    >
+                      {/* BlockNote stores content in 'content' array usually */}
+                      {heading.content?.[0]?.text ||
+                        (typeof heading.content === "string"
+                          ? heading.content
+                          : "Untitled")}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Delete Confirmation Modal */}

@@ -31,7 +31,7 @@ class LinkPreviewService {
       const response = await apiService.get<{
         success: boolean;
         data: LinkPreviewData;
-      }>(`/social/preview-link?url=${encodeURIComponent(url)}`);
+      }>(`/gateway/preview-link?url=${encodeURIComponent(url)}`);
 
       if (response.data.success && response.data.data) {
         return response.data.data;
