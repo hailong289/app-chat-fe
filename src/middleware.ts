@@ -50,6 +50,7 @@ export const config = {
     "/chat/:path*",
     "/settings/:path*",
     "/contacts/:path*",
+    "/call/:path*",
     "/docs/:path*",
   ],
 };

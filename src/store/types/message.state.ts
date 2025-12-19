@@ -1,4 +1,5 @@
 import { SendMessageArgs } from "../useMessageStore";
+import { CallMember } from "./call.state";
 
 export type MessageSender = {
   _id: string;
@@ -89,8 +90,23 @@ export type MessageType = {
     | "uploading"
     | "uploaded"
     | "recalled";
+  call_history?: CallHistoryType | null;
 };
 
+export interface CallHistoryType {
+  _id: string;
+  call_id: string;
+  room_id: string;
+  call_type: "audio" | "video";
+  message_id: string;
+  members: CallMember[];
+  started_at: string;
+  ended_at: string;
+  duration: number;
+  // Additional fields used in components
+  caller_id?: string;
+  callee_id?: string;
+}
 export interface GalleryItem {
   _id: string;
   msg_roomId: string;

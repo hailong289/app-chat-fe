@@ -1,12 +1,10 @@
 "use client";
+
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, Suspense, useState } from "react";
-import { usePathname } from "next/navigation";
 import { Header } from "@/components/intro/header";
 import { LeftSide } from "@/components/intro/left-side";
 import { useFirebase } from "@/components/providers/firebase.provider";
-import { Socket } from "socket.io-client";
-import { SocketProvider } from "@/components/providers/SocketProvider";
-import { InitAppChat } from "@/components/chat/initAppChat.provider";
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const firebase = useFirebase();
@@ -40,16 +38,16 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
     requestPermission();
   }, [firebase]);
-
-  if (!mounted) return null;
-
-  // Layout đơn giản: auth / 404 / intro khác
-  if (useSimpleLayout) {
-    return (
-      <main className="w-full h-screen bg-slate-900 text-foreground">
-        {children}
-      </main>
-    );
+  // Define valid routes
+  const validRoutes = ["/", "/chat", "/settings", "/contacts"];
+  const isValidRoute =
+    !validRoutes.some(
+      (route) => path === route || path.startsWith(route + "/")
+    ) || isAuthPage || path.startsWith("/call");
+    
+  if (isValidRoute) {
+    // layout cho trang login/register/404
+    return <main className="w-full h-screen">{children}</main>;
   }
 
   // Layout chính của app chat

@@ -32,8 +32,12 @@ import {
   MusicalNoteIcon,
 } from "@heroicons/react/24/outline";
 import ChatDrawer from "./drawer/chat-drawer";
-import { CallModal } from "./modals/call.modal";
 import useRoomStore from "@/store/useRoomStore";
+import { EyeDropperIcon } from "@heroicons/react/16/solid";
+import { roomMembers, RoomsState } from "@/store/types/room.state";
+import { useSocket } from "../providers/SocketProvider";
+import useCallStore from "@/store/useCallStore";
+import useAuthStore from "@/store/useAuthStore";
 // import { EyeDropperIcon } from "@heroicons/react/16/solid";
 import useContactStore from "@/store/useContactStore";
 import { useTranslation } from "react-i18next";
@@ -64,13 +68,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const [showSearch, setShowSearch] = React.useState(false);
   const [isOnline, setIsOnline] = React.useState(true);
   const [searchValue, setSearchValue] = React.useState("");
-  const [formModalCall, setFormModalCall] = React.useState({
-    isOpen: false,
-    isVideo: false,
-    isIncoming: false,
-    caller: { id: "", name: "", avatar: "" },
-  });
   const roomState = useRoomStore((state) => state);
+  const { socket } = useSocket("/chat");
+  const { openCall } = useCallStore();
+  const { user } = useAuthStore();
   const contactState = useContactStore((state) => state);
   const onlineMembers = React.useMemo(() => {
     return contactState.online.filter((contact) =>
@@ -78,16 +79,20 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     );
   }, [contactState.online, roomState.room?.members]);
 
-  const handleShowModalCall = (
-    isVideo: boolean,
-    isIncoming: boolean,
-    caller: { id: string; name: string; avatar: string }
-  ) => {
-    setFormModalCall({
-      isOpen: true,
-      isVideo,
-      isIncoming,
-      caller,
+  const handleStartCall = (room: RoomsState, mode: 'audio' | 'video') => {
+    const roomData = room.room;
+    if (!roomData) return;
+    openCall({
+      roomId: roomData.roomId || "",
+      mode,
+      members: roomData.members.map((m: roomMembers) => ({
+        id: m.id,
+        fullname: m.name,
+        avatar: m.avatar,
+        is_caller: true,
+      })),
+      currentUser: user,
+      socket
     });
   };
 
@@ -196,15 +201,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 variant="light"
                 className="rounded-full hover:bg-cyan-100 text-white"
                 size="sm"
-                onPress={() =>
-                  handleShowModalCall(true, false, {
-                    id: roomState.room?.roomId || "0",
-                    name: roomState.room?.name || "Unknown",
-                    avatar:
-                      roomState.room?.avatar ||
-                      "https://avatar.iran.liara.run/public",
-                  })
-                }
+                onPress={() => handleStartCall(roomState, 'video')}
               >
                 <VideoCameraIcon className="w-5 h-5" />
               </Button>
@@ -215,15 +212,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 variant="light"
                 className="rounded-full hover:bg-cyan-100 text-white"
                 size="sm"
-                onPress={() =>
-                  handleShowModalCall(false, false, {
-                    id: roomState.room?.roomId || "0",
-                    name: roomState.room?.name || "Unknown",
-                    avatar:
-                      roomState.room?.avatar ||
-                      "https://avatar.iran.liara.run/public",
-                  })
-                }
+                onPress={() => handleStartCall(roomState, 'audio')}
               >
                 <PhoneIcon className="w-5 h-5" />
               </Button>
@@ -312,7 +301,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
           </div>
         )}
       <ChatDrawer isOpen={isOpen} onClose={onOpenChange} noAction={noAction} />
-      <CallModal
+      {/* <CallModal
         isOpen={formModalCall.isOpen}
         onClose={() => setFormModalCall((prev) => ({ ...prev, isOpen: false }))}
         isIncoming={formModalCall.isIncoming}
@@ -320,7 +309,8 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
         onAccept={() => {}}
         onDecline={() => {}}
         caller={formModalCall.caller}
-      />
+      /> */}
+
       <Modal
         isOpen={isOpenPinned}
         placement="top"
