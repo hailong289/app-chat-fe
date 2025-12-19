@@ -69,7 +69,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const [isOnline, setIsOnline] = React.useState(true);
   const [searchValue, setSearchValue] = React.useState("");
   const roomState = useRoomStore((state) => state);
-  const { socket } = useSocket();
+  const { socket } = useSocket("/chat");
   const { openCall } = useCallStore();
   const { user } = useAuthStore();
   const contactState = useContactStore((state) => state);

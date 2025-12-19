@@ -21,7 +21,7 @@ import { CallMember } from "@/store/types/call.state";
 function CallPageContentInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { socket } = useSocket();
+  const { socket } = useSocket("/chat");
   const currentUser = useAuthStore((state) => state.user);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
