@@ -952,7 +952,8 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
         // Filter out duplicates that might already exist in freshMessages
         const uniqueOlderMessages = olderMessages.filter(
-          (oldMsg) => !freshMessages.some((msg) => msg.id === oldMsg.id)
+          (oldMsg: MessageType) =>
+            !freshMessages.some((msg) => msg.id === oldMsg.id)
         );
 
         if (uniqueOlderMessages.length === 0) {
