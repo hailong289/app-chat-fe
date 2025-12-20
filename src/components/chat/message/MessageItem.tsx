@@ -38,7 +38,9 @@ interface MessageItemProps {
   messageState: any;
 }
 
-export function MessageItem({
+import { memo } from "react";
+
+export const MessageItem = memo(function MessageItem({
   msg,
   prevMsg,
   nextMsg,
@@ -274,7 +276,6 @@ export function MessageItem({
         ease: "easeOut",
       }}
       className={messageSpacing}
-      style={{ contentVisibility: "auto", containIntrinsicSize: "50px" }}
     >
       <UnreadDivider />
 
@@ -397,4 +398,4 @@ export function MessageItem({
       </fieldset>
     </motion.div>
   );
-}
+});

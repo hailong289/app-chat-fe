@@ -13,9 +13,16 @@
     "send": "Send",
     "or": "Or",
     "ok": "OK",
-    "view": "View message"
+    "view": "View message",
+    "back": "Back"
   },
   "docs": {
+    "untitled": "Untitled Document",
+    "click_to_open": "Click to open",
+    "accessDenied": "Access Denied",
+    "accessDeniedDesc": "You don't have permission to view this document.",
+    "editTitle": "Edit title",
+    "pasteError": "Please use Ctrl+V to paste",
     "renameSuccess": "Document renamed successfully",
     "renameError": "Failed to rename document",
     "deleteSuccess": "Document deleted",
@@ -57,6 +64,8 @@
     "you": "You",
     "typing": "Typing...",
     "share": "Share",
+    "members": "Members",
+    "viewer": "Viewer",
     "actions": {
       "export": "Export to PDF",
       "delete": "Delete document"
@@ -420,6 +429,8 @@
     "owner": "Owner",
     "you": "(You)",
     "roleOwner": "Owner",
+    "roleViewer": "Viewer",
+    "roleEditor": "Editor",
     "add": "Add",
     "done": "Done"
   },
@@ -435,5 +446,21 @@
   "home": {
     "welcome": "Welcome to Chat App",
     "description": "A modern chat application that helps you connect and chat with friends and colleagues easily and conveniently."
+  },
+  "call": {
+    "status": {
+      "ended": "Call ended",
+      "waiting": "Waiting...",
+      "ongoing": "Ongoing",
+      "missed": "Missed call",
+      "cancelled": "Cancelled",
+      "busy": "User busy"
+    },
+    "type": {
+      "group": "Group call",
+      "video": "Video Call",
+      "voice": "Voice Call"
+    },
+    "members_count": "with {{count}} others"
   }
 }

@@ -42,6 +42,13 @@ export interface RoomsState {
     typing: boolean;
     roomId: string;
   }) => void;
+  updateBlockStatus: (
+    roomId: string,
+    isBlocked: boolean,
+    blockByMine: boolean
+  ) => void;
+  pinnedRoom: (roomId: string, pinned: boolean) => Promise<void>;
+  mutedRoom: (roomId: string, muted: boolean) => Promise<void>;
 }
 
 export type roomType = {

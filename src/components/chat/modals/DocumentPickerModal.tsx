@@ -26,7 +26,12 @@ interface Props {
   roomId?: string;
 }
 
-export const DocumentPickerModal = ({ isOpen, onClose, onSelect, roomId }: Props) => {
+export const DocumentPickerModal = ({
+  isOpen,
+  onClose,
+  onSelect,
+  roomId,
+}: Props) => {
   const { t, i18n } = useTranslation();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,9 +49,9 @@ export const DocumentPickerModal = ({ isOpen, onClose, onSelect, roomId }: Props
   const fetchDocuments = async () => {
     try {
       setLoading(true);
-      // Fetch all documents or filter by room if needed. 
+      // Fetch all documents or filter by room if needed.
       // For now, let's fetch all user documents to allow sharing across rooms.
-      const docs = await documentService.getDocuments(); 
+      const docs = await documentService.getDocuments();
       setDocuments(docs);
     } catch (error) {
       console.error("Failed to fetch documents", error);
@@ -78,7 +83,9 @@ export const DocumentPickerModal = ({ isOpen, onClose, onSelect, roomId }: Props
         <ModalBody>
           <Input
             placeholder={t("common.search", "Search...")}
-            startContent={<MagnifyingGlassIcon className="w-4 h-4 text-gray-400" />}
+            startContent={
+              <MagnifyingGlassIcon className="w-4 h-4 text-gray-400" />
+            }
             value={searchTerm}
             onValueChange={setSearchTerm}
             className="mb-4"
@@ -119,8 +126,13 @@ export const DocumentPickerModal = ({ isOpen, onClose, onSelect, roomId }: Props
                             locale: i18n.language === "vi" ? vi : enUS,
                           })}
                       </span>
-                      {doc.roomId && (
-                        <Chip size="sm" variant="flat" color="secondary" className="h-5 text-[10px]">
+                      {doc.roomIds && doc.roomIds.length > 0 && (
+                        <Chip
+                          size="sm"
+                          variant="flat"
+                          color="secondary"
+                          className="h-5 text-[10px]"
+                        >
                           Room
                         </Chip>
                       )}

@@ -15,7 +15,11 @@ import {
   SelectItem,
 } from "@heroui/react";
 import Image from "next/image";
-import { CalendarDate } from "@internationalized/date";
+import {
+  CalendarDate,
+  CalendarDateTime,
+  ZonedDateTime,
+} from "@internationalized/date";
 import { PayloadRegister } from "@/types/auth.type";
 import Helpers from "@/libs/helpers";
 import useToast from "@/hooks/useToast";
@@ -116,7 +120,11 @@ export default function RegisterPage() {
     password: "",
     confirm: "",
     gender: "male" as "male" | "female" | "other",
-    dateOfBirth: Helpers.getDefaultDate() as CalendarDate | null,
+    dateOfBirth: Helpers.getDefaultDate() as
+      | CalendarDate
+      | CalendarDateTime
+      | ZonedDateTime
+      | null,
     type: "email" as "email" | "phone",
     fcmToken: null as string | null,
   });
@@ -258,9 +266,7 @@ export default function RegisterPage() {
 
                 <DatePicker
                   label={t("auth.register.dobLabel")}
-                  onChange={(date) =>
-                    setForm({ ...form, dateOfBirth: date as any })
-                  }
+                  onChange={(date) => setForm({ ...form, dateOfBirth: date })}
                   defaultValue={Helpers.getDefaultDate() as any}
                   isRequired
                   errorMessage={fieldErrors.dateOfBirth}
@@ -371,7 +377,7 @@ export default function RegisterPage() {
                 <DatePicker
                   label={t("auth.register.dobLabel")}
                   onChange={(date) => setForm({ ...form, dateOfBirth: date })}
-                  defaultValue={Helpers.getDefaultDate()}
+                  defaultValue={Helpers.getDefaultDate() as any}
                   isRequired
                   errorMessage={fieldErrors.dateOfBirth}
                   isInvalid={!!fieldErrors.dateOfBirth}

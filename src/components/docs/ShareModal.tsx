@@ -14,13 +14,13 @@ import {
   Spinner,
 } from "@heroui/react";
 import { useState, useEffect, useCallback } from "react";
-import useContactStore from "@/store/useContactStore";
 import useDocumentStore from "@/store/useDocumentStore";
 import { Document } from "@/service/document.service";
 import { MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import useAuthStore from "@/store/useAuthStore";
 import { debounce } from "lodash";
 import { useTranslation } from "react-i18next";
+import AuthService from "@/service/auth.service";
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -38,26 +38,48 @@ export default function ShareModal({
   const { t } = useTranslation();
   const { shareDocument, unshareDocument, updateVisibility } =
     useDocumentStore();
-  const { search, searchResults, isLoading: isSearching } = useContactStore();
   const currentUser = useAuthStore((s) => s.user);
+  const isOwner = document.ownerId === currentUser?._id;
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedRole, setSelectedRole] = useState<string>("editor");
   const [visibility, setVisibility] = useState<string>(
     document.visibility || "private"
   );
   const [loading, setLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setVisibility(document.visibility || "private");
       setSearchQuery("");
+      setSearchResults([]);
     }
   }, [isOpen, document]);
 
   const handleSearch = useCallback(
-    debounce((query: string) => {
+    debounce(async (query: string) => {
       if (query.trim()) {
-        search(query);
+        setIsSearching(true);
+        try {
+          const response: any = await AuthService.searchUser({
+            keyword: query,
+            limit: 5,
+          });
+          if (response.data && response.data.metadata) {
+            setSearchResults(response.data.metadata);
+          } else {
+            setSearchResults([]);
+          }
+        } catch (error) {
+          console.error("Search failed", error);
+          setSearchResults([]);
+        } finally {
+          setIsSearching(false);
+        }
+      } else {
+        setSearchResults([]);
       }
     }, 500),
     []
@@ -112,7 +134,7 @@ export default function ShareModal({
   };
 
   const sharedUsers = document.sharedWith || [];
-  const docOwner = (document as any).owner;
+  const docOwner = document.owner;
 
   return (
     <Modal isOpen={isOpen} onOpenChange={onClose} size="2xl">
@@ -139,7 +161,8 @@ export default function ShareModal({
                     onChange={(e) => handleVisibilityChange(e.target.value)}
                     className="max-w-xs"
                     size="sm"
-                    isDisabled={loading}
+                    isDisabled={loading || !isOwner}
+                    aria-label={t("share.generalAccess")}
                   >
                     <SelectItem key="private">
                       {t("share.restricted")}
@@ -149,62 +172,90 @@ export default function ShareModal({
                 </div>
 
                 {/* Add People Section */}
-                <div className="space-y-2">
-                  <span className="text-sm font-medium">
-                    {t("share.addPeople")}
-                  </span>
-                  <Input
-                    placeholder={t("share.searchPlaceholder")}
-                    value={searchQuery}
-                    onValueChange={setSearchQuery}
-                    startContent={
-                      <MagnifyingGlassIcon className="w-4 h-4 text-gray-400" />
-                    }
-                  />
+                {isOwner && (
+                  <div className="space-y-2">
+                    <span className="text-sm font-medium">
+                      {t("share.addPeople")}
+                    </span>
+                    <div className="flex gap-2">
+                      <Input
+                        className="flex-1"
+                        placeholder={t("share.searchPlaceholder")}
+                        value={searchQuery}
+                        onValueChange={setSearchQuery}
+                        startContent={
+                          <MagnifyingGlassIcon className="w-4 h-4 text-gray-400" />
+                        }
+                      />
+                      <Select
+                        className="w-36"
+                        selectedKeys={[selectedRole]}
+                        onChange={(e) => setSelectedRole(e.target.value)}
+                        aria-label="Select role"
+                        size="sm"
+                        disallowEmptySelection
+                      >
+                        <SelectItem key="viewer">
+                          {t("share.roleViewer") || "Viewer"}
+                        </SelectItem>
+                        <SelectItem key="editor">
+                          {t("share.roleEditor") || "Editor"}
+                        </SelectItem>
+                      </Select>
+                    </div>
 
-                  {/* Search Results */}
-                  {searchQuery &&
-                    (() => {
-                      let searchContent;
-                      if (isSearching) {
-                        searchContent = (
-                          <div className="p-4 flex justify-center">
-                            <Spinner size="sm" />
+                    {/* Search Results */}
+                    {searchQuery &&
+                      (() => {
+                        let searchContent;
+                        if (isSearching) {
+                          searchContent = (
+                            <div className="p-4 flex justify-center">
+                              <Spinner size="sm" />
+                            </div>
+                          );
+                          console.log(
+                            "🚀 ~ ShareModal ~ searchResults:",
+                            searchResults
+                          );
+                        } else if (searchResults.length > 0) {
+                          searchContent = searchResults.map((user: any) => (
+                            <div
+                              key={user._id}
+                              className="w-full flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                              onClick={() =>
+                                handleShare(user._id, selectedRole)
+                              }
+                              role="button"
+                              tabIndex={0}
+                            >
+                              <User
+                                name={user.fullname}
+                                description={user.email || user.phone}
+                                avatarProps={{
+                                  src: user.avatar,
+                                }}
+                              />
+                              <Button size="sm" variant="flat" color="primary">
+                                {t("share.add")}
+                              </Button>
+                            </div>
+                          ));
+                        } else {
+                          searchContent = (
+                            <div className="p-2 text-center text-gray-500 text-sm">
+                              {t("share.noUsersFound")}
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="border rounded-lg divide-y max-h-40 overflow-y-auto">
+                            {searchContent}
                           </div>
                         );
-                      } else if (searchResults.length > 0) {
-                        searchContent = searchResults.map((user: any) => (
-                          <button
-                            key={user.id}
-                            className="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                            onClick={() => handleShare(user.id)}
-                          >
-                            <User
-                              name={user.fullname}
-                              description={user.email}
-                              avatarProps={{
-                                src: user.avatar,
-                              }}
-                            />
-                            <Button size="sm" variant="flat" color="primary">
-                              {t("share.add")}
-                            </Button>
-                          </button>
-                        ));
-                      } else {
-                        searchContent = (
-                          <div className="p-2 text-center text-gray-500 text-sm">
-                            {t("share.noUsersFound")}
-                          </div>
-                        );
-                      }
-                      return (
-                        <div className="border rounded-lg divide-y max-h-40 overflow-y-auto">
-                          {searchContent}
-                        </div>
-                      );
-                    })()}
-                </div>
+                      })()}
+                  </div>
+                )}
 
                 {/* Shared Users List */}
                 <div className="space-y-2">

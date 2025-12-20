@@ -68,13 +68,20 @@ interface DocumentMetadata {
   _id: string;
   ownerId: string;
   title: string;
-  roomId: string;
+  roomIds: string[];
   visibility: string;
   yjsSnapshot?: number[] | Uint8Array;
   plainText?: string;
-  sharedWith?: Array<{ userId: string; role: string }>;
+  sharedWith?: Array<{
+    userId: string;
+    role: string;
+    sharedAt: string;
+    user: any;
+  }>;
+  attachmentIds?: string[];
   createdAt?: string;
   updatedAt?: string;
+  owner?: any;
 }
 
 interface UserPresence {

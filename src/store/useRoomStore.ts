@@ -45,7 +45,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     set({
       isLoading: false,
       error: null,
-      rooms,
     });
 
     return rooms;
@@ -70,13 +69,17 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     } else {
       rooms = await db.rooms.where("type").equals(type).toArray();
     }
-    set({
-      rooms: rooms.toSorted(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      ),
+    const sortedRooms = rooms.toSorted((a, b) => {
+      // Prioritize pinned rooms
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      // Then sort by updatedAt
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
-    return rooms;
+    set({
+      rooms: sortedRooms,
+    });
+    return sortedRooms;
   },
   // change room name
   changeRoomName: async (id: string, name: string) => {
@@ -261,10 +264,13 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
         }
         return {
           ...state,
-          rooms: rooms.toSorted(
-            (a, b) =>
+          rooms: rooms.toSorted((a, b) => {
+            if (a.pinned && !b.pinned) return -1;
+            if (!a.pinned && b.pinned) return 1;
+            return (
               new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-          ),
+            );
+          }),
         };
       });
     }
@@ -365,6 +371,100 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
         [roomId]: updatedTypingUsers,
       },
     }));
+  },
+  updateBlockStatus: (
+    roomId: string,
+    isBlocked: boolean,
+    blockByMine: boolean
+  ) => {
+    set((state) => {
+      const updatedRooms = state.rooms.map((r) => {
+        if (r.id === roomId) {
+          return { ...r, isBlocked, blockByMine };
+        }
+        return r;
+      });
+
+      let updatedRoom = state.room;
+      if (state.room?.id === roomId) {
+        updatedRoom = { ...state.room, isBlocked, blockByMine };
+      }
+
+      // Update IndexedDB
+      getOne(db.rooms, roomId).then((room) => {
+        if (room) {
+          room.isBlocked = isBlocked;
+          room.blockByMine = blockByMine;
+          upsertOne(db.rooms, room);
+        }
+      });
+
+      return { rooms: updatedRooms, room: updatedRoom };
+    });
+  },
+  pinnedRoom: async (roomId: string, pinned: boolean) => {
+    set({ isLoading: true });
+    const body = { roomId, pinned };
+    const result: any = await RoomService.pinnedRoom(body);
+    if (result.data.statusCode !== 200) {
+      set({ isLoading: false, error: "Failed to pin room" });
+      return;
+    }
+
+    set((state) => {
+      const updatedRooms = state.rooms.map((r) => {
+        if (r.id === roomId) {
+          return { ...r, pinned };
+        }
+        return r;
+      });
+      let updatedRoom = state.room;
+      if (state.room?.id === roomId) {
+        updatedRoom = { ...state.room, pinned };
+      }
+
+      // Update IndexedDB
+      getOne(db.rooms, roomId).then((room) => {
+        if (room) {
+          room.pinned = pinned;
+          upsertOne(db.rooms, room);
+        }
+      });
+
+      return { rooms: updatedRooms, room: updatedRoom, isLoading: false };
+    });
+  },
+  mutedRoom: async (roomId: string, muted: boolean) => {
+    set({ isLoading: true });
+    const body = { roomId, muted };
+    const result: any = await RoomService.mutedRoom(body);
+    if (result.data.statusCode !== 200) {
+      set({ isLoading: false, error: "Failed to mute room" });
+      return;
+    }
+
+    set((state) => {
+      const updatedRooms = state.rooms.map((r) => {
+        if (r.id === roomId) {
+          return { ...r, muted };
+        }
+        return r;
+      });
+      let updatedRoom = state.room;
+      if (state.room?.id === roomId) {
+        updatedRoom = { ...state.room, muted };
+      }
+
+      // Update IndexedDB
+      getOne(db.rooms, roomId).then((room) => {
+        if (room) {
+          room.muted = muted;
+          upsertOne(db.rooms, room);
+        }
+      });
+
+      return { rooms: updatedRooms, room: updatedRoom, isLoading: false };
+    });
   },
 }));
 

@@ -13,9 +13,16 @@
     "send": "Gửi",
     "or": "Hoặc",
     "ok": "Đồng ý",
-    "view": "Xem tin nhắn"
+    "view": "Xem tin nhắn",
+    "back": "Quay lại"
   },
   "docs": {
+    "untitled": "Tài liệu không tên",
+    "click_to_open": "Nhấn để mở",
+    "accessDenied": "Truy cập bị từ chối",
+    "accessDeniedDesc": "Bạn không có quyền xem tài liệu này.",
+    "editTitle": "Chỉnh sửa tiêu đề",
+    "pasteError": "Vui lòng sử dụng Ctrl+V để dán",
     "renameSuccess": "Đổi tên tài liệu thành công",
     "renameError": "Đổi tên tài liệu thất bại",
     "deleteSuccess": "Đã xóa tài liệu",
@@ -57,6 +64,8 @@
     "you": "Bạn",
     "typing": "Đang nhập...",
     "share": "Chia sẻ",
+    "members": "Thành viên",
+    "viewer": "Người xem",
     "actions": {
       "export": "Xuất ra PDF",
       "delete": "Xóa tài liệu"
@@ -420,6 +429,8 @@
     "owner": "Chủ sở hữu",
     "you": "(Bạn)",
     "roleOwner": "Chủ sở hữu",
+    "roleViewer": "Người xem",
+    "roleEditor": "Người chỉnh sửa",
     "add": "Thêm",
     "done": "Xong"
   },
@@ -435,5 +446,21 @@
   "home": {
     "welcome": "Chào mừng đến với Chat App",
     "description": "Ứng dụng chat hiện đại giúp bạn kết nối và trò chuyện với bạn bè, đồng nghiệp một cách dễ dàng và tiện lợi."
+  },
+  "call": {
+    "status": {
+      "ended": "Cuộc gọi đã kết thúc",
+      "waiting": "Đang chờ...",
+      "ongoing": "Đang diễn ra",
+      "missed": "Cuộc gọi nhỡ",
+      "cancelled": "Đã hủy",
+      "busy": "Người dùng bận"
+    },
+    "type": {
+      "group": "Cuộc gọi nhóm",
+      "video": "Video Call",
+      "voice": "Voice Call"
+    },
+    "members_count": "với {{count}} người khác"
   }
 }

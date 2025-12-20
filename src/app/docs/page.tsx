@@ -80,6 +80,16 @@ export default function DocsPage() {
     await duplicateDocument(id);
   };
 
+  // Hydration fix: only render content after mount
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-4 sm:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -136,9 +146,8 @@ export default function DocsPage() {
             {filteredDocuments.map((doc) => (
               <Card
                 key={doc._id}
-                isPressable
-                onPress={() => router.push(`/docs/${doc._id}`)}
-                className="border border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500 transition-colors"
+                className="border border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500 transition-colors cursor-pointer"
+                onClick={() => router.push(`/docs/${doc._id}`)}
               >
                 <CardBody className="p-6 h-40 flex flex-col justify-between">
                   <div className="flex justify-between items-start">
@@ -146,7 +155,10 @@ export default function DocsPage() {
                       <DocumentTextIcon className="w-8 h-8 text-blue-500" />
                     </div>
                     <div
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                      }}
                       onKeyDown={(e) => e.stopPropagation()}
                     >
                       <Dropdown>

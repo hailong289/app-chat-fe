@@ -159,6 +159,7 @@ export interface MessageState {
     }
   ) => Promise<MessageType[]>;
   loadOlderMessages: (roomId: string, limit?: number) => Promise<any[]>;
+  findMessage: (roomId: string, messageId: string) => Promise<boolean>;
   deleteMessage: (roomId: string, messageId: string) => Promise<void>;
   recallMessage: (roomId: string, messageId: string) => Promise<void>;
   fetchNewMessages: (roomId: string, lastMessageId?: string) => Promise<void>;

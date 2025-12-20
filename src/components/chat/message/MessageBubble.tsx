@@ -1,11 +1,16 @@
-import { EyeDropperIcon, DocumentIcon, PhoneIcon, VideoCameraIcon, UserIcon, UsersIcon } from "@heroicons/react/16/solid";
+import {
+  EyeDropperIcon,
+  DocumentIcon,
+  PhoneIcon,
+  VideoCameraIcon,
+  ArrowTopRightOnSquareIcon,
+} from "@heroicons/react/16/solid";
 import { LinkPreview } from "./LinkPreview";
 import { extractFirstUrl } from "@/libs/url-helpers";
 import { MAX_MESSAGE_LENGTH } from "../constants/messageConstants";
 import { CallHistoryType, MessageType } from "@/store/types/message.state";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "next/navigation";
-import { Button } from "@heroui/react";
 import Helpers from "@/libs/helpers";
 import useAuthStore from "@/store/useAuthStore";
 
@@ -15,7 +20,15 @@ interface MessageBubbleProps {
   isSameSenderAsNext: boolean;
   isExpanded: boolean;
   onToggleExpanded: (id: string) => void;
-  type: "text" | "image" | "file" | "system" | "video" | "audio" | "gif" | "call"
+  type:
+    | "text"
+    | "image"
+    | "file"
+    | "system"
+    | "video"
+    | "audio"
+    | "gif"
+    | "call";
   callHistory: CallHistoryType | null;
 }
 
@@ -62,14 +75,21 @@ function DocumentMessageBubble({ msg }: Readonly<{ msg: MessageType }>) {
   const { t } = useTranslation();
 
   return (
-    <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
+    <div className="relative max-w-xs md:max-w-sm lg:max-w-md group">
       <div
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            router.push(`/docs/${msg.documentId}`);
+          }
+        }}
         className={`
-          relative p-3 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer
-          transition-colors border
+          relative p-3 rounded-2xl shadow-sm border flex items-center gap-3 cursor-pointer
+          transition-all hover:shadow-md outline-none focus:ring-2 focus:ring-blue-500
           ${
             msg.isMine
-              ? "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800"
+              ? "bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800"
               : "bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700"
           }
         `}
@@ -77,40 +97,46 @@ function DocumentMessageBubble({ msg }: Readonly<{ msg: MessageType }>) {
           router.push(`/docs/${msg.documentId}`);
         }}
       >
+        {/* Icon Box */}
         <div
-          className={`p-2 rounded-lg ${
+          className={`p-2.5 rounded-lg flex-shrink-0 ${
             msg.isMine
-              ? "bg-blue-100 dark:bg-blue-800"
-              : "bg-gray-100 dark:bg-gray-700"
+              ? "bg-blue-100 text-blue-600 dark:bg-blue-800 dark:text-blue-300"
+              : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
           }`}
         >
-          <DocumentIcon
-            className={`w-6 h-6 ${
-              msg.isMine
-                ? "text-blue-600 dark:text-blue-400"
-                : "text-gray-600 dark:text-gray-400"
-            }`}
-          />
+          <DocumentIcon className="w-6 h-6" />
         </div>
+
+        {/* Content */}
         <div className="flex-1 min-w-0">
-          <p
-            className={`text-sm font-medium truncate ${
+          <h4
+            className={`text-sm font-semibold truncate mb-0.5 ${
               msg.isMine
                 ? "text-blue-900 dark:text-blue-100"
                 : "text-gray-900 dark:text-gray-100"
             }`}
           >
-            {msg.content || t("documents.untitled", "Untitled Document")}
-          </p>
-          <p
-            className={`text-xs truncate ${
-              msg.isMine
-                ? "text-blue-700 dark:text-blue-300"
-                : "text-gray-500 dark:text-gray-400"
-            }`}
-          >
-            {t("documents.click_to_open", "Click to open")}
-          </p>
+            {msg.content || t("docs.untitled", "Untitled Document")}
+          </h4>
+          <div className="flex items-center justify-between">
+            <p
+              className={`text-xs truncate ${
+                msg.isMine
+                  ? "text-blue-700/80 dark:text-blue-200/70"
+                  : "text-gray-500 dark:text-gray-400"
+              }`}
+            >
+              {t("docs.click_to_open", "Click to open")}
+            </p>
+            <ArrowTopRightOnSquareIcon
+              className={`w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity ${
+                msg.isMine
+                  ? "text-blue-600 dark:text-blue-300"
+                  : "text-gray-500 dark:text-gray-400"
+              }`}
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -231,58 +257,119 @@ function CallMessageBubble({
   isSameSenderAsNext: boolean;
   callHistory: CallHistoryType;
 }>) {
+  const { t } = useTranslation();
   const { user } = useAuthStore();
+
   const totalMembers = callHistory.members.length;
   const isGroupCall = totalMembers > 2;
   const isVideoCall = callHistory.call_type === "video";
-  const callTypeLabel = isVideoCall ? "video" : "gọi thoại";
-  const currentUser = callHistory.members.find((member) => member.id === user?.id);
-  const otherUser = callHistory.members.find((member) => member.id !== user?.id);
-  const isCaller = currentUser?.is_caller === true ? true : false;
-  let status = "Đã kết thúc";
-  if (["initiated", "started", "pending"].includes(currentUser?.status || "")) {
-    status = "Đang chờ";
-  } else if (["started", "accepted"].includes(otherUser?.status || "")) {
-    status = "Đang diễn ra";
-  } else if (currentUser?.status === "ended") {
-    status = isCaller ? "Bạn đã kết thúc cuộc gọi" : "Cuộc gọi đã kết thúc";
-  } else if (currentUser?.status === "cancelled") {
-    status = isCaller ? "Bạn đã hủy cuộc gọi" : "Cuộc gọi đã bị hủy";
-  } else if (currentUser?.status === "rejected") {
-    status = isCaller ? "Bạn đã từ chối cuộc gọi" : "Cuộc gọi đã bị từ chối";
+
+  const currentUser = callHistory.members.find(
+    (member) => member.id === user?.id
+  );
+  const otherUser = callHistory.members.find(
+    (member) => member.id !== user?.id
+  );
+  const isCaller = currentUser?.is_caller;
+
+  // Determine status
+  let statusLabel = t("call.status.ended", "Cuộc gọi đã kết thúc");
+  let statusColor = "text-gray-500 dark:text-gray-400";
+  let iconColor =
+    "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400";
+
+  const myStatus = currentUser?.status;
+  const otherStatus = otherUser?.status;
+
+  if (["initiated", "started", "pending"].includes(myStatus || "")) {
+    statusLabel = t("call.status.waiting", "Đang chờ...");
+    statusColor = "text-yellow-600 dark:text-yellow-400";
+    iconColor =
+      "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400";
+  } else if (["started", "accepted"].includes(otherStatus || "")) {
+    statusLabel = t("call.status.ongoing", "Đang diễn ra");
+    statusColor = "text-green-600 dark:text-green-400";
+    iconColor =
+      "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400";
+  } else if (
+    myStatus === "missed" ||
+    myStatus === "rejected" ||
+    (isCaller && otherStatus === "missed")
+  ) {
+    statusLabel = t("call.status.missed", "Cuộc gọi nhỡ");
+    statusColor = "text-red-600 dark:text-red-400";
+    iconColor = "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400";
+  } else if (myStatus === "cancelled") {
+    statusLabel = t("call.status.cancelled", "Đã hủy");
   }
+
+  let title = t("call.type.voice", "Voice Call");
+  if (isGroupCall) {
+    title = t("call.type.group", "Cuộc gọi nhóm");
+  } else if (isVideoCall) {
+    title = t("call.type.video", "Video Call");
+  }
+
+  const subtitle = isGroupCall
+    ? t("call.members_count", {
+        count: totalMembers - 1,
+        defaultValue: `với ${totalMembers - 1} người khác`,
+      })
+    : otherUser?.fullname || t("common.unknown_user", "Người dùng");
 
   return (
     <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
-      <div className={getBubbleClasses(msg, isSameSenderAsPrev, isSameSenderAsNext)}>
-        {isGroupCall ? (
-          <div className="flex items-center">
-            <UsersIcon className="w-4 h-4 inline-block mr-2 text-green-500" />
-            <span className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-              Cuộc gọi nhóm với {totalMembers - 1} người khác
-            </span>
+      <div
+        className={`
+        relative p-3 rounded-2xl shadow-sm border flex items-center gap-3
+        ${
+          msg.isMine
+            ? "bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800"
+            : "bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700"
+        }
+      `}
+      >
+        {/* Icon Box */}
+        <div className={`p-2.5 rounded-full flex-shrink-0 ${iconColor}`}>
+          {isVideoCall ? (
+            <VideoCameraIcon className="w-5 h-5" />
+          ) : (
+            <PhoneIcon className="w-5 h-5" />
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <h4
+            className={`font-semibold text-sm truncate ${
+              msg.isMine
+                ? "text-blue-900 dark:text-blue-100"
+                : "text-gray-900 dark:text-gray-100"
+            }`}
+          >
+            {title}
+          </h4>
+          <p
+            className={`text-xs truncate mb-0.5 ${
+              msg.isMine
+                ? "text-blue-700/80 dark:text-blue-200/70"
+                : "text-gray-500 dark:text-gray-400"
+            }`}
+          >
+            {subtitle}
+          </p>
+          <div className="flex items-center gap-2 text-xs">
+            <span className={`font-medium ${statusColor}`}>{statusLabel}</span>
+            {callHistory.duration > 0 && (
+              <>
+                <span className="text-gray-300 dark:text-gray-600">•</span>
+                <span className="text-gray-500 dark:text-gray-400">
+                  {Helpers.formatDuration(callHistory.duration)}
+                </span>
+              </>
+            )}
           </div>
-        ) : (
-          <>
-            <div className="flex items-center border-b border-gray-200 pb-2">
-              <UserIcon className="w-4 h-4 inline-block mr-2 text-green-500" />
-              <span className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                {`Cuộc gọi ${callTypeLabel} với ${otherUser?.fullname}`}
-              </span>
-            </div>
-            <div className="flex items-center pt-2">
-              {isVideoCall ? <VideoCameraIcon className="w-4 h-4 inline-block mr-2 text-green-500" /> : <PhoneIcon className="w-4 h-4 inline-block mr-2 text-green-500" />}
-              <span className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                {status}
-              </span>
-            </div>
-            <div className="flex items-center">
-              <span className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                Thời gian: {Helpers.formatDuration(callHistory.duration)}
-              </span>
-            </div>
-          </>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -322,9 +409,15 @@ export function MessageBubble({
   }
 
   if (type === "call" && callHistory) {
-    return <CallMessageBubble msg={msg} isSameSenderAsPrev={isSameSenderAsPrev} isSameSenderAsNext={isSameSenderAsNext} callHistory={callHistory} />;
+    return (
+      <CallMessageBubble
+        msg={msg}
+        isSameSenderAsPrev={isSameSenderAsPrev}
+        isSameSenderAsNext={isSameSenderAsNext}
+        callHistory={callHistory}
+      />
+    );
   }
-
 
   return null;
 }

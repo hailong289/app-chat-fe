@@ -34,7 +34,7 @@ export const Header = () => {
 
   const { logout: handleLogout, user } = useAuthStore();
   const { isToggled, tab, setToggleState, setTab } = useCounterStore();
-  const { disconnect: disconnectSocket } = useSocket('/chat');
+  const { disconnect: disconnectSocket } = useSocket("/chat");
 
   const changeToggle = useCallback(() => {
     setToggleState(!isToggled);
@@ -114,7 +114,9 @@ export const Header = () => {
             onPress={() => handleLink("", "/")}
           >
             <ChatBubbleLeftRightIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
-            <span className="truncate">{t("sidebar.chats")}</span>
+            <span className="truncate" suppressHydrationWarning>
+              {t("sidebar.chats")}
+            </span>
           </Button>
 
           <Button
@@ -128,7 +130,9 @@ export const Header = () => {
             onPress={() => handleLink("contacts", "/contacts")}
           >
             <UserPlusIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
-            <span className="truncate">{t("sidebar.contacts")}</span>
+            <span className="truncate" suppressHydrationWarning>
+              {t("sidebar.contacts")}
+            </span>
           </Button>
 
           <Button
@@ -143,7 +147,10 @@ export const Header = () => {
             <Badge color="danger" content="5">
               <BellIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
             </Badge>
-            <span className="text-white dark:text-gray-100 truncate">
+            <span
+              className="text-white dark:text-gray-100 truncate"
+              suppressHydrationWarning
+            >
               {t("sidebar.notifications")}
             </span>
           </Button>
@@ -159,7 +166,9 @@ export const Header = () => {
             onPress={() => handleLink("documents")}
           >
             <BookmarkIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
-            <span className="truncate">{t("sidebar.files")}</span>
+            <span className="truncate" suppressHydrationWarning>
+              {t("sidebar.files")}
+            </span>
           </Button>
         </div>
 
