@@ -1,0 +1,33 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SOCKET_URL: http://localhost:5000/chat
+    image: app-chat-fe
+    container_name: app-chat-fe
+    ports:
+      - "8083:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+    env_file:
+      - .env.local
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080/",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

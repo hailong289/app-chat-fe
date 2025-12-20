@@ -1,21 +1,14 @@
 "use client";
 
 import ChatHeader from "@/components/chat/header";
-import { Input } from "@heroui/input";
-import { Button } from "@heroui/button";
-import {
-  MicrophoneIcon,
-  Bars3Icon,
-  FaceSmileIcon,
-  PaperAirplaneIcon,
-} from "@heroicons/react/24/outline";
-import { Avatar } from "@heroui/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import useRoomStore from "@/store/useRoomStore";
 import { useSearchParams } from "next/navigation";
-// import { useRouter } from "next/router";
+import ChatInputBar from "@/components/chat/input/inputBar";
+import useAuthStore from "@/store/useAuthStore";
+import { ChatMessages } from "@/components/chat/message/ChatMessages";
 
-export default function ChatPage() {
+function ChatPageContent() {
   const [widthClass, setWidthClass] = useState("w-full");
   const callbackSetSize = () => {
     if (widthClass === "w-full") {
@@ -24,115 +17,87 @@ export default function ChatPage() {
       setWidthClass("w-full");
     }
   };
+
   const roomState = useRoomStore((state) => state);
+  const authState = useAuthStore((state) => state);
   const searchParams = useSearchParams();
-  const [room, setRoom] = useState<any>(undefined);
-  const chatId = searchParams.get("chatId") || "";
-  const isLoading = useRoomStore((s) => s.isLoading);
-  console.log("Chat ID:", chatId);
+  const [chatId, setChatId] = useState<string>("");
+  const [noAction, setNoAction] = useState<boolean>(false);
+  const [scrollto, setScrollto] = useState<string | null>(null);
+  const [toggleInput, setToggleInput] = useState<boolean>(false);
+
   useEffect(() => {
-    roomState.getRoomById(chatId);
-  }, [chatId]);
+    if (roomState.room?.id) {
+      setChatId(roomState.room.id);
+    } else {
+      const id = searchParams.get("chatId") || "";
+      setChatId(id);
+      roomState.getRoomById(id);
+    }
+
+    const user = roomState.room?.members.find(
+      (m) => m.id == authState.user?.id
+    );
+    setNoAction(user?.role === "guest");
+
+    if (roomState.room?.name) {
+      document.title = `${roomState.room.name} - Nhắn tin - Ichat`;
+    } else {
+      document.title = "Nhắn tin - Ichat";
+    }
+  }, [roomState.room, authState.user, searchParams, roomState]);
+
   return (
-    <div className={`bg-light h-screen ${widthClass}`}>
-      <ChatHeader callback={callbackSetSize} />
-      <main className="w-full h-[calc(100vh-80px)] relative">
-        {/* Chat messages would go here */}
-        <div className="p-4 space-y-4 overflow-y-auto h-full">
-          {/* Example message */}
-          <div className="flex justify-start">
-            <Avatar
-              src="https://avatar.iran.liara.run/public"
-              name="Rohini Sharma"
-              size="sm"
-              className="w-8 h-8 mr-2"
-            />
-            <div className="bg-white p-3 rounded-lg shadow max-w-xs">
-              Hello! How are you?
-            </div>
-          </div>
-          <div className="flex justify-end">
-            <div className="bg-primary text-white p-3 rounded-lg shadow max-w-xs">
-              I'm good, thanks! And you?
-            </div>
-            <Avatar
-              src="https://avatar.iran.liara.run/public"
-              name="You"
-              size="sm"
-              className="w-8 h-8 ml-2"
-            />
-          </div>
-          {/* More messages... */}
-        </div>
+    <div
+      className={`
+        h-screen ${widthClass}
+        bg-light 
+        dark:bg-slate-900
+        flex flex-col
+      `}
+    >
+      <ChatHeader
+        callback={callbackSetSize}
+        noAction={noAction}
+        setScrollto={setScrollto}
+      />
+      <main className="w-full flex-1 relative overflow-hidden dark:bg-slate-900">
+        <ChatMessages
+          chatId={chatId}
+          noAction={noAction}
+          scrollto={scrollto}
+          toggleInput={toggleInput}
+        />
 
-        {/* Message input area */}
-        <div className="absolute bottom-8 left-[5%] bg-white w-[90%] p-4 rounded-2xl">
-          <div className="flex items-center gap-3">
-            {/* Left icons */}
-            <div className="flex items-center gap-2">
-              <Button
-                isIconOnly
-                color="primary"
-                className="bg-teal-500 hover:bg-teal-600"
-                size="sm"
-              >
-                <MicrophoneIcon className="w-5 h-5" />
-              </Button>
-              <Button
-                isIconOnly
-                color="primary"
-                className="bg-teal-500 hover:bg-teal-600"
-                size="sm"
-              >
-                <Bars3Icon className="w-5 h-5" />
-              </Button>
-              <Button
-                isIconOnly
-                color="primary"
-                className="bg-teal-500 hover:bg-teal-600"
-                size="sm"
-              >
-                <FaceSmileIcon className="w-5 h-5" />
-              </Button>
-            </div>
-
-            {/* Message input */}
-            <div className="flex-1">
-              <Input
-                placeholder="Write your message..."
-                classNames={{
-                  input: "bg-white",
-                  inputWrapper:
-                    "bg-white border-gray-200 hover:border-teal-500 focus-within:border-teal-500",
-                }}
-                size="lg"
-              />
-            </div>
-
-            {/* Right icons */}
-            <div className="flex items-center gap-2">
-              <Button
-                isIconOnly
-                color="primary"
-                className="bg-teal-500 hover:bg-teal-600"
-                size="sm"
-                radius="full"
-              >
-                <MicrophoneIcon className="w-5 h-5" />
-              </Button>
-              <Button
-                isIconOnly
-                color="primary"
-                className="bg-teal-500 hover:bg-teal-600"
-                size="sm"
-                radius="full"
-              >
-                <PaperAirplaneIcon className="w-5 h-5" />
-              </Button>
-            </div>
-          </div>
-        </div>
+        <ChatInputBar
+          chatId={chatId}
+          noAction={noAction}
+          setToggleInput={setToggleInput}
+          toggleInput={toggleInput}
+          setScrollto={setScrollto}
+        />
       </main>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          className="
+            h-screen w-full flex items-center justify-center
+            bg-light dark:bg-slate-900
+          "
+        >
+          <p className="text-gray-500 dark:text-gray-400">
+            Đang tải cuộc trò chuyện...
+          </p>
+        </div>
+      }
+    >
+      <ChatPageContent />
+    </Suspense>
   );
 }

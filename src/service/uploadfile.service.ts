@@ -1,4 +1,4 @@
-import { UploadSingleResp } from "@/types/upload.type";
+import { UploadSingleResp, UploadApiResponse } from "@/types/upload.type";
 import apiService from "./api.service";
 
 export type UploadMultipleItem = UploadSingleResp & { index?: number };
@@ -8,6 +8,36 @@ export type UploadMultipleResp =
   | any; // fallback nếu schema khác
 
 export default class UploadService {
+  /**
+   * Transform API response về format chuẩn
+   * Xử lý MongoDB Long type và normalize fields
+   */
+  private static transformUploadResponse(
+    apiResp: UploadApiResponse
+  ): UploadSingleResp {
+    const metadata = apiResp.metadata;
+
+    // Convert MongoDB Long type về number
+    let size: number | undefined;
+    if (metadata.size) {
+      if (typeof metadata.size === "number") {
+        size = metadata.size;
+      } else if (typeof metadata.size === "object" && "low" in metadata.size) {
+        // MongoDB Long type: { low: number, high: number, unsigned: boolean }
+        size = metadata.size.low;
+      }
+    }
+
+    return {
+      _id: metadata._id,
+      url: metadata.url,
+      kind: metadata.kind,
+      name: metadata.name,
+      size,
+      mimeType: metadata.mimeType,
+      status: metadata.status,
+    };
+  }
   // === BASIC APIs (cùng style với RoomService) ===
 
   static uploadSingle(file: File | Blob, folder = "avatar") {
@@ -16,12 +46,24 @@ export default class UploadService {
     form.append("folder", folder);
 
     // ApiService đã tự set Content-Type + Authorization
-    return apiService.post<UploadSingleResp>("/filesystem/upload-single", form);
+    return apiService.post<any>("/filesystem/upload-single", form);
   }
 
-  static uploadMultiple(files: Array<File | Blob>, folder = "avatar") {
+  static getAttachments(params: {
+    roomId?: string;
+    userId?: string;
+    type?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    return apiService.get("/filesystem/attachments", { params });
+  }
+
+  static uploadMultiple(files: Array<File | Blob>, folder = "message") {
     const form = new FormData();
-    files.forEach((f) => form.append("files", f)); // tên field: "files" khớp cURL của bạn
+    for (const f of files) {
+      form.append("files", f); // tên field: "files" khớp cURL của bạn
+    }
     form.append("folder", folder);
 
     return apiService.post<UploadMultipleResp>(
@@ -30,13 +72,33 @@ export default class UploadService {
     );
   }
 
+  static uploadMultipleByUser(
+    files: Array<File | Blob>,
+    roomId: string,
+    messageId?: string
+  ) {
+    const form = new FormData();
+    for (const f of files) {
+      form.append("files", f);
+    }
+    form.append("roomId", roomId);
+    if (messageId) form.append("messageId", messageId);
+
+    return apiService.post<UploadMultipleResp>(
+      "/filesystem/upload-multiple-user",
+      form
+    );
+  }
+
   // === ADVANCED (cần progress / cancel) ===
   // dùng thẳng axios instance để truyền onUploadProgress + signal
 
-  static uploadSingleWithProgress(
+  static async uploadSingleWithProgress(
     file: File | Blob,
     options?: {
-      folder?: string;
+      roomId?: string;
+      id?: string;
+      messageId?: string;
       onProgress?: (pct: number) => void;
       signal?: AbortSignal; // dùng AbortController để hủy
       endpoint?: string; // override nếu cần
@@ -44,10 +106,12 @@ export default class UploadService {
   ) {
     const form = new FormData();
     form.append("file", file);
-    form.append("folder", options?.folder ?? "avatar");
+    form.append("roomId", options?.roomId ?? "avatar");
+    form.append("id", options?.id ?? "");
+    form.append("messageId", options?.messageId ?? "");
 
-    return apiService.axios.post<UploadSingleResp>(
-      options?.endpoint ?? "/filesystem/upload-single",
+    const response = await apiService.axios.post<UploadApiResponse>(
+      options?.endpoint ?? "/filesystem/upload-single-user",
       form,
       {
         signal: options?.signal,
@@ -59,6 +123,14 @@ export default class UploadService {
         },
       }
     );
+
+    // Transform response về format chuẩn
+    const transformed = this.transformUploadResponse(response.data);
+
+    return {
+      ...response,
+      data: transformed,
+    };
   }
 
   /**
@@ -68,7 +140,8 @@ export default class UploadService {
   static async uploadMultipleSequential(
     files: Array<File | Blob>,
     options?: {
-      folder?: string;
+      roomId?: string;
+      id?: string | string[]; // Hỗ trợ ID riêng cho từng file hoặc ID chung
       onProgress?: (currentIndex: number, pct: number) => void;
       onItemDone?: (index: number, result: UploadSingleResp) => void;
       signal?: AbortSignal;
@@ -77,8 +150,14 @@ export default class UploadService {
     const out: UploadSingleResp[] = [];
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
+      // Lấy ID cho file hiện tại
+      const fileId = Array.isArray(options?.id)
+        ? options.id[i] ?? ""
+        : options?.id ?? "";
+
       const { data } = await this.uploadSingleWithProgress(f, {
-        folder: options?.folder ?? "avatar",
+        roomId: options?.roomId ?? "avatar",
+        id: fileId,
         signal: options?.signal,
         onProgress: (pct) => options?.onProgress?.(i, pct),
       });
@@ -95,18 +174,25 @@ export default class UploadService {
   static async uploadMultipleParallel(
     files: Array<File | Blob>,
     options?: {
-      folder?: string;
+      roomId?: string;
+      id?: string | string[]; // Hỗ trợ ID riêng cho từng file hoặc ID chung
       onEachProgress?: (index: number, pct: number) => void;
       signal?: AbortSignal;
     }
   ) {
-    const tasks = files.map((f, idx) =>
-      this.uploadSingleWithProgress(f, {
-        folder: options?.folder ?? "avatar",
+    const tasks = files.map((f, idx) => {
+      // Lấy ID cho file hiện tại
+      const fileId = Array.isArray(options?.id)
+        ? options.id[idx] ?? ""
+        : options?.id ?? "";
+
+      return this.uploadSingleWithProgress(f, {
+        roomId: options?.roomId ?? "avatar",
+        id: fileId,
         signal: options?.signal,
         onProgress: (pct) => options?.onEachProgress?.(idx, pct),
-      }).then((res) => res.data)
-    );
+      }).then((res) => res.data);
+    });
     return Promise.all(tasks);
   }
 }

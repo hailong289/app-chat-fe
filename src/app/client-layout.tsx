@@ -1,50 +1,71 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, Suspense, useState } from "react";
 import { Header } from "@/components/intro/header";
 import { LeftSide } from "@/components/intro/left-side";
 import { useFirebase } from "@/components/providers/firebase.provider";
-import { useEffect } from "react";
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const firebase = useFirebase();
   const path = usePathname();
-  const isAuthPage = path.startsWith("/auth");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const handleRequestPermission = async () => {
+    setMounted(true);
+  }, []);
+
+  // Trang auth: /auth, /auth/login, /auth/register, ...
+  const isAuthPage = path.startsWith("/auth");
+
+  // Những route dùng layout app chính
+  const appRoutes = ["/", "/chat", "/settings", "/contacts", "/docs"];
+  const isInAppRoute = appRoutes.some(
+    (route) => path === route || path.startsWith(`${route}/`)
+  );
+
+  // Dùng layout đơn giản cho: auth + các route không thuộc appRoutes (kiểu 404 / intro riêng)
+  const useSimpleLayout = isAuthPage || !isInAppRoute;
+
+  useEffect(() => {
+    const requestPermission = async () => {
       try {
         await firebase.requestPermission();
-        console.log("🚀 Thông báo quyền đã được cấp.");
       } catch (err) {
         console.error("🚫 Không thể cấp quyền thông báo.", err);
       }
     };
 
-    handleRequestPermission();
+    requestPermission();
   }, [firebase]);
-
   // Define valid routes
-  const validRoutes = ["/", "/chat", "/settings"];
+  const validRoutes = ["/", "/chat", "/settings", "/contacts"];
   const isValidRoute =
     !validRoutes.some(
       (route) => path === route || path.startsWith(route + "/")
-    ) || isAuthPage;
-
+    ) || isAuthPage || path.startsWith("/call");
+    
   if (isValidRoute) {
     // layout cho trang login/register/404
     return <main className="w-full h-screen">{children}</main>;
   }
 
-  // layout mặc định cho app
+  // Layout chính của app chat
   return (
-    <div className="flex h-screen w-full">
-      <nav className="relative">
-        <Header />
+    <div className="flex h-screen w-full bg-slate-900 text-foreground">
+      <nav className="relative h-full">
+        <Suspense fallback={<div className="w-[60px] h-full" />}>
+          <Header />
+        </Suspense>
       </nav>
-      <main className="w-full h-screen flex">
-        <LeftSide />
-        <div className="w-full overflow-y-auto">{children}</div>
+      <main className="flex-1 h-screen flex overflow-hidden">
+        {/* Global socket listener / toasts / events */}
+
+        <Suspense fallback={<div className={`h-full`} />}>
+          <LeftSide />
+        </Suspense>
+
+        <div className="flex-1 overflow-y-auto h-screen">{children}</div>
       </main>
     </div>
   );

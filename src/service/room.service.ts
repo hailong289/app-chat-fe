@@ -2,7 +2,6 @@ import { QueryRooms } from "@/types/room.type";
 import apiService from "./api.service";
 export default class RoomService {
   static getRooms(queryParams: QueryRooms) {
-    console.log("🚀 ~ RoomService ~ getRooms ~ queryParams:", queryParams);
     return apiService.get("/chat/rooms", queryParams);
   }
   static changeRoomName(body: { roomId: string; name: string }) {
@@ -25,8 +24,11 @@ export default class RoomService {
   static changeAvatar(body: { roomId: string; link: string }) {
     return apiService.patch("/chat/rooms/avatar", body);
   }
+  static changeRole(body: { roomId: string; memberId: string; role: string }) {
+    return apiService.patch("/chat/rooms/role", body);
+  }
   static addMembers(body: { roomId: string; memberIds: string[] }) {
-    return apiService.patch("/chat/rooms/members/add", body);
+    return apiService.patch("/chat/rooms/add", body);
   }
 
   static createRoom(body: {
@@ -35,5 +37,11 @@ export default class RoomService {
     memberIds: string[];
   }) {
     return apiService.post("/chat/rooms", body);
+  }
+  static pinnedRoom(body: { roomId: string; pinned: boolean }) {
+    return apiService.patch("/chat/rooms/pinned", body);
+  }
+  static mutedRoom(body: { roomId: string; muted: boolean }) {
+    return apiService.patch("/chat/rooms/muted", body);
   }
 }

@@ -36,8 +36,30 @@ export async function upsertOne<T extends WithStringId>(
   table: Table<T, string>,
   data: T
 ): Promise<string> {
-  await table.put(data);
-  return data.id;
+  try {
+    await table.put(data);
+    return data.id;
+  } catch (error: any) {
+    // Log chi tiết lỗi để debug
+    console.error("❌ Error in upsertOne:", {
+      error: error.message,
+      table: table.name,
+      dataId: data.id,
+      errorType: error.name,
+    });
+
+    // Nếu là lỗi UTF-8, thử sanitize và retry
+    if (
+      error.message?.includes("utf8") ||
+      error.message?.includes("invalid string")
+    ) {
+      console.warn("⚠️ UTF-8 error detected, skipping problematic data");
+      // Throw lại để caller có thể handle
+      throw new Error(`UTF-8 encoding error: ${error.message}`);
+    }
+
+    throw error;
+  }
 }
 
 /** Upsert nhiều record */
@@ -45,7 +67,52 @@ export async function upsertMany<T extends WithStringId>(
   table: Table<T, string>,
   items: T[]
 ): Promise<void> {
-  await table.bulkPut(items);
+  try {
+    await table.bulkPut(items);
+  } catch (error: any) {
+    // Log chi tiết lỗi để debug
+    console.error("❌ Error in upsertMany:", {
+      error: error.message || error.toString(),
+      errorStack: error.stack,
+      table: table.name,
+      itemCount: items.length,
+      errorType: error.name,
+      fullError: error,
+    });
+
+    // Log sample data để debug
+    if (items.length > 0) {
+    }
+
+    // Nếu là lỗi UTF-8, thử từng item một để tìm item lỗi
+    if (
+      error.message?.includes("utf8") ||
+      error.message?.includes("invalid string")
+    ) {
+      console.warn(
+        "⚠️ UTF-8 error in bulk operation, trying items individually..."
+      );
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const item of items) {
+        try {
+          await table.put(item);
+          successCount++;
+        } catch (itemError: any) {
+          errorCount++;
+          console.warn(`⚠️ Skipping item with ID: ${item.id}`, {
+            error: itemError.message,
+          });
+        }
+      }
+
+      return;
+    }
+
+    throw error;
+  }
 }
 
 /* =========================

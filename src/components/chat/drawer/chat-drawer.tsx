@@ -45,60 +45,58 @@ import { ChangeNickNameModal } from "../modals/changeNickName.model";
 import UploadFileButton from "@/components/upload/UploadFileButton";
 import UploadService from "@/service/uploadfile.service";
 import { AddMemberModal } from "../modals/add-member.model";
-import { u } from "framer-motion/client";
 import { useRouter } from "next/navigation";
+import Timeline from "@/components/ui/timeline";
+import { useTranslation } from "react-i18next";
+import useContactStore from "@/store/useContactStore";
+import useMessageStore from "@/store/useMessageStore";
+import RoomService from "@/service/room.service";
+import { useEffect } from "react";
 
 export default function ChatDrawer({
   isOpen,
   onClose,
+  noAction,
 }: Readonly<{
   isOpen: boolean;
   onClose: () => void;
+  noAction: boolean;
 }>) {
-  const files = [
-    {
-      id: 1,
-      name: "Messenger.Html",
-      date: "2, October 2024",
-      icon: DocumentTextIcon,
-      color: "bg-red-100 text-red-500",
-    },
-    {
-      id: 2,
-      name: "Chapter1.MP4",
-      date: "3, October 2024",
-      icon: FilmIcon,
-      color: "bg-green-100 text-green-500",
-    },
-    {
-      id: 3,
-      name: "Salary.Xlsx",
-      date: "5, October 2024",
-      icon: TableCellsIcon,
-      color: "bg-teal-100 text-teal-500",
-    },
-    {
-      id: 4,
-      name: "Document.Pdf",
-      date: "7, October 2024",
-      icon: DocumentIcon,
-      color: "bg-yellow-100 text-yellow-500",
-    },
-    {
-      id: 5,
-      name: "Details.Txt",
-      date: "20, October 2024",
-      icon: DocumentTextIcon,
-      color: "bg-pink-100 text-pink-500",
-    },
-    {
-      id: 6,
-      name: "Messenger.Html",
-      date: "2, October 2024",
-      icon: DocumentTextIcon,
-      color: "bg-green-100 text-green-500",
-    },
-  ];
+  const { t } = useTranslation();
+  const { BlockUser, UnlockBlockedUser } = useContactStore();
+  const [selectedKeys, setSelectedKeys] = useState(new Set(["1"]));
+  const [selectedTab, setSelectedTab] = useState("media");
+  const { room: currentRoom } = useRoomStore();
+  const fetchRoomGallery = useMessageStore((state) => state.fetchRoomGallery);
+  const messagesRoom = useMessageStore((state) => state.messagesRoom);
+
+  const roomData = currentRoom?.id ? messagesRoom[currentRoom.id] : null;
+  const documents = roomData?.gallery?.docs || [];
+  const media = roomData?.gallery?.media || [];
+
+  useEffect(() => {
+    if (isOpen && currentRoom?.id) {
+      if (selectedTab === "docs") {
+        fetchRoomGallery(currentRoom.id, "docs");
+      } else if (selectedTab === "media") {
+        fetchRoomGallery(currentRoom.id, "media");
+      }
+    }
+  }, [isOpen, currentRoom?.id, selectedTab, fetchRoomGallery]);
+
+  const handleChangeRole = async (memberId: string, role: string) => {
+    if (!currentRoom?.id) return;
+    try {
+      await RoomService.changeRole({
+        roomId: currentRoom.id,
+        memberId,
+        role,
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   const [openChangeNameModal, setOpenChangeNameModal] = useState(false);
   const [openChangeLeavingModal, setOpenChangeLeavingModal] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -111,15 +109,18 @@ export default function ChatDrawer({
   const isAdmin = roomState.room?.members?.some(
     (member) => member.id === user?.id && member.role === "admin"
   );
+  const isGuest = roomState.room?.members?.some(
+    (member) => member.id === user?.id && member.role === "guest"
+  );
   const role: Record<string, string> = {
-    admin: "Quản trị viên",
-    member: "Thành viên",
-    owner: "chủ sở hữu",
-    guest: "Khách",
+    admin: t("chat.drawer.roles.admin"),
+    member: t("chat.drawer.roles.member"),
+    owner: t("chat.drawer.roles.owner"),
+    guest: t("chat.drawer.roles.guest"),
   };
   const router = useRouter();
   const handleChatPrivate = (id: string) => {
-    roomState.createRoom("private", `Chat với ${id}`, [id]);
+    roomState.createRoom("private", `${t("chat.drawer.chatWith")} ${id}`, [id]);
     router.push(`/chat?chatId=${id}`);
   };
   return (
@@ -128,7 +129,7 @@ export default function ChatDrawer({
         isOpen={isOpen}
         onOpenChange={onClose}
         backdrop="transparent"
-        className="w-[400px]"
+        className=""
       >
         <DrawerContent>
           {(onClose) => (
@@ -139,7 +140,7 @@ export default function ChatDrawer({
               </div>
             </DrawerHeader> */}
               <DrawerBody className="p-6 pt-0">
-                <Card className="py-4 flex flex-col items-center justify-center mb-6 shadow-none border border-none">
+                <Card className="mt-20 flex flex-col items-center justify-center mb-6 shadow-none border border-none">
                   <CardHeader className="pb-0 pt-2 px-4 flex justify-center items-center flex-col gap-1 text-center">
                     <Avatar
                       size="lg"
@@ -153,284 +154,473 @@ export default function ChatDrawer({
                     </h3>
                   </CardBody>
                 </Card>
-                <Accordion selectionMode="multiple">
-                  <AccordionItem
-                    key="1"
-                    aria-label="Accordion 1"
-                    title="Tuỳ chỉnh về đoạn chat"
+                <div className="h-[calc(100vh-200px)] overflow-hidden overflow-y-auto">
+                  <Accordion
+                    selectedKeys={selectedKeys}
+                    onSelectionChange={(keys) =>
+                      setSelectedKeys(
+                        new Set(
+                          typeof keys === "string"
+                            ? [keys]
+                            : Array.from(keys, String)
+                        )
+                      )
+                    }
                   >
-                    <div className="w-full">
-                      {roomState.room?.type !== "private" && (
-                        <>
-                          <Button
-                            className="w-full justify-start"
-                            variant="light"
-                            onPress={() => setOpenChangeNameModal(true)}
-                            startContent={
-                              <PencilIcon className="w-4 h-4 text-gray-400" />
-                            }
-                          >
-                            Thay đổi trên đoạn chat
-                          </Button>
-                          <UploadFileButton
-                            service={(file, folder) =>
-                              UploadService.uploadSingle(
-                                Array.isArray(file) ? file[0] : file,
-                                folder
-                              )
-                            }
-                            icon={
-                              <PhotoIcon className="w-4 h-4 text-gray-400" />
-                            }
-                            onDone={(urls) => roomState.updateAvatar(urls[0])}
-                            accept="image/*"
-                            folder="avatar"
-                            label="Thay đổi ảnh"
-                            className="w-full justify-start"
-                            variant="light"
-                          />
-                        </>
-                      )}
-                      <Button
-                        className="w-full justify-start"
-                        variant="light"
-                        onPress={() => setOpenChangeNickNameModal(true)}
-                        startContent={
-                          <PencilIcon className="w-4 h-4 text-gray-400" />
-                        }
-                      >
-                        Chỉnh sửa biệt danh
-                      </Button>
-                    </div>
-                  </AccordionItem>
-                  {roomState.room?.type === "group" ||
-                  roomState.room?.type === "channel" ? (
-                    <AccordionItem
-                      key="2"
-                      aria-label="Accordion 2"
-                      title="Thành viên trong đoạn chat"
-                    >
-                      {roomState.room?.members?.map((member) => (
-                        <div
-                          key={member.id}
-                          className="flex p-2 justify-between items-center gap-4 border border-gray-100 rounded-lg mb-2 hover:bg-gray-50"
+                    {[
+                      noAction ? null : (
+                        <AccordionItem
+                          key="1"
+                          aria-label="Accordion 1"
+                          title={t("chat.drawer.customize.title")}
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <Avatar
-                              size="md"
-                              src={member.avatar ?? undefined}
-                              name={member.name ?? undefined}
-                            />
-                            <div className="flex flex-col">
-                              <span className="font-medium text-gray-800">
-                                {member.name}
-                              </span>
-                              <span className="text-sm">
-                                {member.role ? role[member.role] : ""}
-                              </span>
-                            </div>
-                          </div>
-                          {user?.id != member.id && (
-                            <Dropdown>
-                              <DropdownTrigger>
+                          <div className="w-full">
+                            {roomState.room?.type !== "private" && !isGuest && (
+                              <>
                                 <Button
-                                  className=""
+                                  className="w-full justify-start"
                                   variant="light"
+                                  onPress={() => setOpenChangeNameModal(true)}
                                   startContent={
-                                    <EllipsisVerticalIcon className="w-5 h-5 text-gray-400" />
+                                    <PencilIcon className="w-4 h-4 text-gray-400" />
                                   }
-                                ></Button>
-                              </DropdownTrigger>
-                              <DropdownMenu aria-label="Member options">
-                                <DropdownItem key="1">
-                                  <Button
-                                    className="w-full justify-start"
-                                    variant="light"
-                                    onPress={() => handleChatPrivate(member.id)}
-                                    startContent={
-                                      <ChatBubbleLeftIcon className="w-5 h-5 text-gray-400" />
-                                    }
-                                  >
-                                    Gửi tin nhắn riêng tư
-                                  </Button>
-                                </DropdownItem>
-                                <DropdownItem key="2">
-                                  <Button
-                                    className="w-full justify-start"
-                                    variant="light"
-                                    startContent={
-                                      <UserIcon className="w-5 h-5 text-gray-400" />
-                                    }
-                                  >
-                                    Xem trang cá nhân
-                                  </Button>
-                                </DropdownItem>
-                                {isAdmin ? (
-                                  <DropdownItem key="3">
+                                >
+                                  {t("chat.drawer.customize.changeName")}
+                                </Button>
+                                <UploadFileButton
+                                  service={(file, folder) =>
+                                    UploadService.uploadSingle(
+                                      Array.isArray(file) ? file[0] : file,
+                                      folder
+                                    )
+                                  }
+                                  icon={
+                                    <PhotoIcon className="w-4 h-4 text-gray-400" />
+                                  }
+                                  onDone={(urls) =>
+                                    roomState.updateAvatar(urls[0])
+                                  }
+                                  accept="image/*"
+                                  folder="avatar"
+                                  label={t("chat.drawer.customize.changePhoto")}
+                                  className="w-full justify-start"
+                                  variant="light"
+                                />
+                              </>
+                            )}
+                            {!isGuest && (
+                              <Button
+                                className="w-full justify-start"
+                                variant="light"
+                                onPress={() => setOpenChangeNickNameModal(true)}
+                                startContent={
+                                  <PencilIcon className="w-4 h-4 text-gray-400" />
+                                }
+                              >
+                                {t("chat.drawer.customize.editNickname")}
+                              </Button>
+                            )}
+                          </div>
+                        </AccordionItem>
+                      ),
+                      roomState.room?.type === "group" ||
+                      roomState.room?.type === "channel" ? (
+                        <AccordionItem
+                          key="2"
+                          aria-label="Accordion 2"
+                          title={t("chat.drawer.members.title")}
+                        >
+                          {roomState.room?.members?.map((member) => (
+                            <div
+                              key={member.id + member.role}
+                              className="flex p-2 justify-between items-center gap-4 border border-gray-100 rounded-lg mb-2 hover:bg-gray-50"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <Avatar
+                                  size="md"
+                                  src={member.avatar ?? undefined}
+                                  name={member.name ?? undefined}
+                                />
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-gray-800">
+                                    {member.name}
+                                  </span>
+                                  <span className="text-sm">
+                                    {member.role ? role[member.role] : ""}
+                                  </span>
+                                </div>
+                              </div>
+                              {user?.id != member.id && (
+                                <Dropdown>
+                                  <DropdownTrigger>
                                     <Button
-                                      className="w-full justify-start text-red-500"
+                                      className=""
                                       variant="light"
                                       startContent={
-                                        <TrashIcon className="w-5 h-5 text-red-400" />
+                                        <EllipsisVerticalIcon className="w-5 h-5 text-gray-400" />
                                       }
-                                      onPress={() => {
-                                        setIsDeleteModalOpen(true);
-                                        setMemberIdToDelete(member.id);
-                                      }}
-                                    >
-                                      Xoá khỏi nhóm
-                                    </Button>
-                                  </DropdownItem>
-                                ) : null}
-                              </DropdownMenu>
-                            </Dropdown>
+                                    ></Button>
+                                  </DropdownTrigger>
+                                  <DropdownMenu aria-label="Member options">
+                                    <DropdownItem key="1">
+                                      <Button
+                                        className="w-full justify-start"
+                                        variant="light"
+                                        onPress={() =>
+                                          handleChatPrivate(member.id)
+                                        }
+                                        startContent={
+                                          <ChatBubbleLeftIcon className="w-5 h-5 text-gray-400" />
+                                        }
+                                      >
+                                        {t(
+                                          "chat.drawer.members.sendPrivateMessage"
+                                        )}
+                                      </Button>
+                                    </DropdownItem>
+                                    <DropdownItem key="2">
+                                      <Button
+                                        className="w-full justify-start"
+                                        variant="light"
+                                        startContent={
+                                          <UserIcon className="w-5 h-5 text-gray-400" />
+                                        }
+                                      >
+                                        {t("chat.drawer.members.viewProfile")}
+                                      </Button>
+                                    </DropdownItem>
+                                    {isAdmin ? (
+                                      <>
+                                        <DropdownItem key="set-admin">
+                                          <Button
+                                            className="w-full justify-start"
+                                            variant="light"
+                                            onPress={() =>
+                                              handleChangeRole(
+                                                member.id,
+                                                "admin"
+                                              )
+                                            }
+                                          >
+                                            {t("chat.drawer.roles.admin")}
+                                          </Button>
+                                        </DropdownItem>
+                                        <DropdownItem key="set-member">
+                                          <Button
+                                            className="w-full justify-start"
+                                            variant="light"
+                                            onPress={() =>
+                                              handleChangeRole(
+                                                member.id,
+                                                "member"
+                                              )
+                                            }
+                                          >
+                                            {t("chat.drawer.roles.member")}
+                                          </Button>
+                                        </DropdownItem>
+                                        <DropdownItem key="set-guest">
+                                          <Button
+                                            className="w-full justify-start"
+                                            variant="light"
+                                            onPress={() =>
+                                              handleChangeRole(
+                                                member.id,
+                                                "guest"
+                                              )
+                                            }
+                                          >
+                                            {t("chat.drawer.roles.guest")}
+                                          </Button>
+                                        </DropdownItem>
+                                        <DropdownItem key="3">
+                                          <Button
+                                            className="w-full justify-start text-red-500"
+                                            variant="light"
+                                            startContent={
+                                              <TrashIcon className="w-5 h-5 text-red-400" />
+                                            }
+                                            onPress={() => {
+                                              setIsDeleteModalOpen(true);
+                                              setMemberIdToDelete(member.id);
+                                            }}
+                                          >
+                                            {t(
+                                              "chat.drawer.members.removeFromGroup"
+                                            )}
+                                          </Button>
+                                        </DropdownItem>
+                                      </>
+                                    ) : null}
+                                  </DropdownMenu>
+                                </Dropdown>
+                              )}
+                            </div>
+                          ))}
+                          {!noAction && !isGuest && (
+                            <Button
+                              className="w-full justify-start"
+                              variant="light"
+                              onPress={() => setOpenAddMemberModal(true)}
+                              startContent={
+                                <UserPlusIcon className="w-4 h-4 text-gray-400" />
+                              }
+                            >
+                              {t("chat.drawer.members.addMember")}
+                            </Button>
                           )}
+                        </AccordionItem>
+                      ) : null,
+                      <AccordionItem
+                        key="3"
+                        aria-label="Accordion 3"
+                        title={t("chat.drawer.media.title")}
+                      >
+                        <div className="mb-6">
+                          <Tabs
+                            selectedKey={selectedTab}
+                            onSelectionChange={(key) =>
+                              setSelectedTab(key as string)
+                            }
+                            color="primary"
+                            variant="solid"
+                            fullWidth
+                            classNames={{
+                              tabList:
+                                "gap-0 w-full relative rounded-lg bg-gray-100 p-1",
+                              cursor: "w-full bg-primary !rounded-md",
+                              tab: "w-full px-4 h-10 !bg-transparent data-[selected=true]:!bg-primary !rounded-md",
+                              tabContent:
+                                "group-data-[selected=true]:!text-white !font-medium !opacity-100",
+                            }}
+                          >
+                            <Tab
+                              key="media"
+                              title={t("chat.drawer.media.tabs.media")}
+                            />
+                            <Tab
+                              key="link"
+                              title={t("chat.drawer.media.tabs.link")}
+                            />
+                            <Tab
+                              key="docs"
+                              title={t("chat.drawer.media.tabs.docs")}
+                            />
+                          </Tabs>
                         </div>
-                      ))}
-                      <Button
-                        className="w-full justify-start"
-                        variant="light"
-                        onPress={() => setOpenAddMemberModal(true)}
-                        startContent={
-                          <UserPlusIcon className="w-4 h-4 text-gray-400" />
-                        }
-                      >
-                        Thêm thành viên
-                      </Button>
-                    </AccordionItem>
-                  ) : null}
-                  <AccordionItem
-                    key="3"
-                    aria-label="Accordion 3"
-                    title="file phương tiện file liên kết"
-                  >
-                    <div className="mb-6">
-                      <Tabs
-                        defaultSelectedKey="docs"
-                        color="primary"
-                        variant="solid"
-                        fullWidth
-                        classNames={{
-                          tabList:
-                            "gap-0 w-full relative rounded-lg bg-gray-100 p-1",
-                          cursor: "w-full bg-primary !rounded-md",
-                          tab: "w-full px-4 h-10 !bg-transparent data-[selected=true]:!bg-primary !rounded-md",
-                          tabContent:
-                            "group-data-[selected=true]:!text-white !font-medium !opacity-100",
-                        }}
-                      >
-                        <Tab key="media" title="Media" />
-                        <Tab key="link" title="Link" />
-                        <Tab key="docs" title="Docs" />
-                      </Tabs>
-                    </div>
 
-                    <div className="space-y-4">
-                      {files.map((file) => (
-                        <Card
-                          key={file.id}
-                          className="shadow-none border border-gray-100"
-                        >
-                          <CardBody className="flex flex-row items-center justify-between p-4">
-                            <div className="flex items-center gap-4">
-                              <div
-                                className={`w-12 h-12 rounded-full flex items-center justify-center ${file.color}`}
-                              >
-                                <file.icon className="w-6 h-6" />
-                              </div>
-                              <div>
-                                <h3 className="font-semibold text-gray-800">
-                                  {file.name}
-                                </h3>
-                                <p className="text-sm text-gray-500">
-                                  {file.date}
+                        <div className="space-y-4">
+                          {(() => {
+                            let content;
+                            if (selectedTab === "docs") {
+                              if (documents.length > 0) {
+                                content = documents.map((doc) => (
+                                  <Card
+                                    key={doc._id}
+                                    className="shadow-none border border-gray-100"
+                                  >
+                                    <CardBody className="flex flex-row items-center justify-between p-4">
+                                      <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-full flex items-center justify-center bg-blue-100 text-blue-500">
+                                          <DocumentIcon className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                          <h3 className="font-semibold text-gray-800">
+                                            {doc.msg_content || "Document"}
+                                          </h3>
+                                          <p className="text-sm text-gray-500">
+                                            {new Date(
+                                              doc.createdAt
+                                            ).toLocaleDateString()}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          isIconOnly
+                                          variant="light"
+                                          size="sm"
+                                          className="text-gray-400 hover:text-gray-600"
+                                        >
+                                          <ArrowDownTrayIcon className="w-5 h-5" />
+                                        </Button>
+                                      </div>
+                                    </CardBody>
+                                  </Card>
+                                ));
+                              } else {
+                                content = (
+                                  <p className="text-center text-gray-500 py-4">
+                                    No documents found
+                                  </p>
+                                );
+                              }
+                            } else if (media.length > 0) {
+                              content = media.flatMap((msg) =>
+                                (msg.attachments || []).map(
+                                  (att: any, idx: number) => (
+                                    <Card
+                                      key={`${msg._id}-${idx}`}
+                                      className="shadow-none border border-gray-100"
+                                    >
+                                      <CardBody className="flex flex-row items-center justify-between p-4">
+                                        <div className="flex items-center gap-4">
+                                          <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+                                            {att.kind === "image" ||
+                                            att.kind === "photo" ? (
+                                              <img
+                                                src={att.url}
+                                                className="w-full h-full object-cover"
+                                                alt={att.name}
+                                              />
+                                            ) : (
+                                              <FilmIcon className="w-6 h-6 text-gray-500" />
+                                            )}
+                                          </div>
+                                          <div>
+                                            <h3 className="font-semibold text-gray-800 truncate max-w-[150px]">
+                                              {att.name || "Media"}
+                                            </h3>
+                                            <p className="text-sm text-gray-500">
+                                              {new Date(
+                                                msg.createdAt
+                                              ).toLocaleDateString()}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <Button
+                                            isIconOnly
+                                            variant="light"
+                                            size="sm"
+                                            className="text-gray-400 hover:text-gray-600"
+                                            onPress={() =>
+                                              window.open(att.url, "_blank")
+                                            }
+                                          >
+                                            <ArrowDownTrayIcon className="w-5 h-5" />
+                                          </Button>
+                                        </div>
+                                      </CardBody>
+                                    </Card>
+                                  )
+                                )
+                              );
+                            } else {
+                              content = (
+                                <p className="text-center text-gray-500 py-4">
+                                  No media found
                                 </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                isIconOnly
-                                variant="light"
-                                size="sm"
-                                className="text-gray-400 hover:text-gray-600"
-                              >
-                                <ArrowDownTrayIcon className="w-5 h-5" />
-                              </Button>
-                            </div>
-                          </CardBody>
-                        </Card>
-                      ))}
-                    </div>
-                  </AccordionItem>
-                  <AccordionItem
-                    key="4"
-                    aria-label="Accordion 4"
-                    title="Quyền riêng tư và hỗ trợ"
-                  >
-                    <Button
-                      className="w-full justify-start"
-                      variant="light"
-                      startContent={
-                        <ShieldExclamationIcon className="w-5 h-5 text-red-400" />
-                      }
-                    >
-                      <div className="flex flex-col items-start justify-start">
-                        <h2 className="font-bold">Báo cáo</h2>
-                        <span className="text-gray-400">
-                          Đóng góp về cuộc trò truy
-                        </span>
-                      </div>
-                    </Button>
-                    {roomState.room?.type !== "private" && (
-                      <>
+                              );
+                            }
+                            return content;
+                          })()}
+                        </div>
+                      </AccordionItem>,
+                      <AccordionItem
+                        key="4"
+                        aria-label="Accordion 4"
+                        title={t("chat.drawer.privacy.title")}
+                      >
                         <Button
                           className="w-full justify-start"
                           variant="light"
                           startContent={
-                            <ArrowRightEndOnRectangleIcon className="w-5 h-5 text-gray-400" />
+                            <ShieldExclamationIcon className="w-5 h-5 text-red-400" />
                           }
-                          onPress={() => setOpenChangeLeavingModal(true)}
                         >
-                          Rời nhóm
+                          <div className="flex flex-col items-start justify-start">
+                            <h2 className="font-bold">
+                              {t("chat.drawer.privacy.report")}
+                            </h2>
+                            <span className="text-gray-400">
+                              {t("chat.drawer.privacy.reportDesc")}
+                            </span>
+                          </div>
                         </Button>
-                        <ConfirmLeavingModal
-                          isOpen={openChangeLeavingModal}
-                          onClose={() => setOpenChangeLeavingModal(false)}
-                        />
-                      </>
-                    )}
+                        {roomState.room?.type !== "private" && (
+                          <>
+                            <Button
+                              className="w-full justify-start"
+                              variant="light"
+                              startContent={
+                                <ArrowRightEndOnRectangleIcon className="w-5 h-5 text-gray-400" />
+                              }
+                              onPress={() => setOpenChangeLeavingModal(true)}
+                            >
+                              {t("chat.drawer.privacy.leaveGroup")}
+                            </Button>
+                            <ConfirmLeavingModal
+                              isOpen={openChangeLeavingModal}
+                              onClose={() => setOpenChangeLeavingModal(false)}
+                            />
+                          </>
+                        )}
 
-                    {roomState.room?.type === "private" && (
-                      <Button
-                        className="w-full justify-start"
-                        variant="light"
-                        startContent={
-                          <NoSymbolIcon className="w-5 h-5 text-gray-400" />
-                        }
+                        {roomState.room?.type === "private" && (
+                          <Button
+                            className="w-full justify-start"
+                            variant="light"
+                            startContent={
+                              <NoSymbolIcon className="w-5 h-5 text-gray-400" />
+                            }
+                            onPress={async () => {
+                              const otherMember = roomState.room?.members?.find(
+                                (m) => m.id !== user?.id
+                              );
+                              if (otherMember && roomState.room?.id) {
+                                if (roomState.room?.blockByMine) {
+                                  await UnlockBlockedUser(otherMember.id);
+                                  roomState.updateBlockStatus(
+                                    roomState.room.id,
+                                    false,
+                                    false
+                                  );
+                                } else {
+                                  await BlockUser(otherMember.id);
+                                  roomState.updateBlockStatus(
+                                    roomState.room.id,
+                                    true,
+                                    true
+                                  );
+                                }
+                              }
+                            }}
+                          >
+                            {roomState.room?.blockByMine
+                              ? t("chat.drawer.privacy.unblock")
+                              : t("chat.drawer.privacy.block")}
+                          </Button>
+                        )}
+                      </AccordionItem>,
+                      <AccordionItem
+                        key="5"
+                        aria-label="Accordion 5"
+                        title={t("chat.drawer.history.title")}
                       >
-                        Chặn
-                      </Button>
-                    )}
-                  </AccordionItem>
-                </Accordion>
-
-                {/* Floating action buttons
-                            <div className="fixed bottom-6 right-6 flex flex-col gap-3">
-                                <Button 
-                                    isIconOnly 
-                                    color="success" 
-                                    className="rounded-full w-12 h-12 shadow-lg"
-                                >
-                                    <ShareIcon className="w-6 h-6" />
-                                </Button>
-                                <Button 
-                                    isIconOnly 
-                                    color="primary" 
-                                    className="rounded-full w-12 h-12 shadow-lg"
-                                >
-                                    <ArrowDownTrayIcon className="w-6 h-6" />
-                                </Button>
-                            </div> */}
+                        <Timeline
+                          events={roomState.room?.roomEvents?.map((event) => ({
+                            ...event,
+                            status: ([
+                              "danger",
+                              "default",
+                              "primary",
+                              "success",
+                              "warning",
+                            ].includes(event.status)
+                              ? event.status
+                              : "default") as
+                              | "danger"
+                              | "default"
+                              | "primary"
+                              | "success"
+                              | "warning",
+                          }))}
+                        />
+                      </AccordionItem>,
+                    ].filter(Boolean)}
+                  </Accordion>
+                </div>
               </DrawerBody>
             </>
           )}

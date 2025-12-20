@@ -7,6 +7,7 @@ import {
   ModalFooter,
   ModalHeader,
 } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export const DelelteMD = ({ isOpen, onClose, memberId }: Props) => {
+  const { t } = useTranslation();
   const roomState = useRoomStore((state) => state);
   const member = roomState.room?.members.find((m) => m.id === memberId);
   const handleChange = async () => {
@@ -29,20 +31,21 @@ export const DelelteMD = ({ isOpen, onClose, memberId }: Props) => {
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col items-center gap-1">
-              Xác Nhận Xoá Thành Viên
+              {t("chat.modal.deleteMember.title")}
             </ModalHeader>
             <ModalBody>
               <p>
-                Bạn có chắc chắn muốn xoá{" "}
-                <span className="font-semibold">{member?.name}</span> không?
+                {t("chat.modal.deleteMember.description", {
+                  name: member?.name,
+                })}
               </p>
             </ModalBody>
             <ModalFooter className="w-full justify-center gap-5">
               <Button color="danger" variant="light" onPress={onClose}>
-                Huỷ
+                {t("chat.modal.deleteMember.cancel")}
               </Button>
               <Button color="danger" onPress={handleChange}>
-                Xoá
+                {t("chat.modal.deleteMember.confirm")}
               </Button>
             </ModalFooter>
           </>

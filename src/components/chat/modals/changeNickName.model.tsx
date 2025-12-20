@@ -11,6 +11,7 @@ import {
   ModalHeader,
 } from "@heroui/react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface CallModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export const ChangeNickNameModal: React.FC<CallModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const roomState = useRoomStore((state) => state);
   const [members, setMembers] = useState(
     roomState.room?.members.map((member) => ({
@@ -41,9 +43,7 @@ export const ChangeNickNameModal: React.FC<CallModalProps> = ({
 
   const handleDoubleClick = (memberId: string) => {
     const findMember = members.find((member) => member.id === memberId);
-    console.log("🚀 ~ handleDoubleClick ~ findMember:", findMember);
     if (findMember?.isChange) {
-      console.log("change");
       // call api change nick name
       roomState.changeNickName(memberId, findMember?.name?.trim() || "");
     }
@@ -69,11 +69,11 @@ export const ChangeNickNameModal: React.FC<CallModalProps> = ({
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col items-center gap-1">
-              Biệt Danh
+              {t("chat.modal.changeNickName.title")}
             </ModalHeader>
             <ModalBody>
               <span className="text-sm">
-                Mọi người để biết khi thay đổi tên đoạn chat
+                {t("chat.modal.changeNickName.description")}
               </span>
 
               {members.map((member) => (
@@ -103,7 +103,7 @@ export const ChangeNickNameModal: React.FC<CallModalProps> = ({
             </ModalBody>
             <ModalFooter className="flex justify-center gap-5">
               <Button color="danger" variant="light" onPress={onClose}>
-                Huỷ
+                {t("chat.modal.changeNickName.cancel")}
               </Button>
             </ModalFooter>
           </>

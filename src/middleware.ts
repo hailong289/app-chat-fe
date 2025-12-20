@@ -1,38 +1,56 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-const publicPaths = ['/auth', '/auth/login', '/auth/register'];
-// This function can be marked `async` if using `await` inside
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+// Public paths: không cần authentication
+const publicPaths = ["/auth", "/auth/login", "/auth/register", "/dashboard"];
+
 export function middleware(request: NextRequest) {
-  console.log('Middleware is running');
   const tokens = request.cookies.get("tokens")?.value;
+  const { pathname } = request.nextUrl;
+
   if (tokens) {
     const dateNow = Math.floor(Date.now() / 1000);
     const { accessToken, refreshToken, expiredAt } = JSON.parse(tokens);
-    if (!accessToken || !refreshToken || Number(expiredAt) < dateNow) { // Token hết hạn hoặc không tồn tại
-      return NextResponse.redirect(new URL('/auth', request.url));
+
+    if (!accessToken || !refreshToken || Number(expiredAt) < dateNow) {
+      // Token hết hạn hoặc không tồn tại → redirect về dashboard
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     } else {
-       const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + '/'));
-       if (isPublicPath) { // Đã đăng nhập mà vẫn vào trang auth
-         return NextResponse.redirect(new URL('/', request.url));
-       }
+      // Đã đăng nhập
+      const isAuthPath = pathname === "/auth" || pathname.startsWith("/auth/");
+      const isDashboard = pathname === "/dashboard";
+
+      if (isAuthPath || isDashboard) {
+        // Đã đăng nhập mà vẫn vào trang auth/dashboard → redirect về chat
+        return NextResponse.redirect(new URL("/chat", request.url));
+      }
     }
-  } else { // Không có token
-    const isPublicPath = publicPaths.some((path) => request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + '/'));
+  } else {
+    // Không có token
+    const isPublicPath = publicPaths.some(
+      (path) => pathname === path || pathname.startsWith(path + "/")
+    );
+
     if (!isPublicPath) {
-      return NextResponse.redirect(new URL('/auth', request.url));
+      // Chưa đăng nhập và truy cập protected route → redirect về dashboard
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     }
   }
 
   return NextResponse.next();
 }
- 
+
 // See "Matching Paths" below to learn more
 export const config = {
   matcher: [
-    '/', 
-    '/me/:path*', 
-    '/auth/:path*', 
-    '/chat/:path*',
-    '/settings/:path*'
+    "/",
+    "/dashboard",
+    "/me/:path*",
+    "/auth/:path*",
+    "/chat/:path*",
+    "/settings/:path*",
+    "/contacts/:path*",
+    "/call/:path*",
+    "/docs/:path*",
   ],
-}
+};
