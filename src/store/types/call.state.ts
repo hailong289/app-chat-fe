@@ -24,7 +24,13 @@ export interface CallState {
   members: CallMember[];
   error: string | null;
   isWindowOpen: boolean;
-  iceServers: RTCIceServer[];
+  configPeerConnection: {
+    iceServers: RTCIceServer[];
+    iceCandidatePoolSize: number;
+    iceTransportPolicy: 'all' | 'public' | 'relay';
+    bundlePolicy: 'max-bundle' | 'max-compat' | 'balanced';
+    rtcpMuxPolicy: 'negotiate' | 'require';
+  };
   stream: {
     localStream: MediaStream | null;
     remoteStreams: Map<string, MediaStream>;
