@@ -12,6 +12,8 @@ export default function NotificationPermission() {
     // Kiểm tra xem đã có quyền thông báo chưa
     if (globalThis.window === undefined) return;
 
+    let timeoutId: NodeJS.Timeout;
+
     const checkPermission = async () => {
       // Kiểm tra localStorage xem user đã dismiss chưa
       const dismissed = localStorage.getItem("notification-prompt-dismissed");
@@ -31,7 +33,7 @@ export default function NotificationPermission() {
 
       // Nếu chưa có quyền (default = chưa hỏi), hiển thị prompt sau 3 giây
       if (permission === "default") {
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
           setShowPrompt(true);
         }, 3000);
       } else if (permission === "granted") {
@@ -42,6 +44,10 @@ export default function NotificationPermission() {
     };
 
     checkPermission();
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [token, requestPermission]);
 
   const handleAllow = async () => {
