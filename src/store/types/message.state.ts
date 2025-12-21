@@ -91,6 +91,7 @@ export type MessageType = {
     | "uploaded"
     | "recalled";
   call_history?: CallHistoryType | null;
+  summary?: string | null;
 };
 
 export interface CallHistoryType {

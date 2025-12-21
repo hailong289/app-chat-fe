@@ -452,13 +452,15 @@ export const Home = () => {
                                 ? "font-bold text-foreground"
                                 : "text-default-500"
                             }`}
-                            title={chat?.last_message?.content || ""}
+                            title={
+                              chat?.last_message?.content?.slice(0, 10) || ""
+                            }
                           >
                             {chat?.last_message?.isMine ? "Bạn: " : ""}
                             {!chat?.last_message?.isMine &&
                               chat?.last_message?.sender?.name &&
                               `${chat?.last_message?.sender?.name}: `}
-                            {chat?.last_message?.content ||
+                            {chat?.last_message?.content?.slice(0, 10) ||
                               (chat?.last_message?.id
                                 ? "Đã gửi một tin nhắn"
                                 : "")}
