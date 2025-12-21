@@ -55,6 +55,7 @@ import { useTranslation } from "react-i18next";
 import { DocumentPickerModal } from "../modals/DocumentPickerModal";
 import { Document } from "@/service/document.service";
 import FileGalleryModal from "../../modals/FileGalleryModal";
+import { aiService } from "@/service/ai.service";
 
 const maxFiles = 20;
 
@@ -85,6 +86,13 @@ export default function ChatInputBar({
   const [micro, setMicro] = useState(false);
   const [showDocPicker, setShowDocPicker] = useState(false);
   const [showFileGallery, setShowFileGallery] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestedEmojis, setSuggestedEmojis] = useState<string[]>([]);
+  const [suggestedGifs, setSuggestedGifs] = useState<string[]>([]);
+
+  const messages = useMessageStore(
+    (state) => state.messagesRoom[chatId]?.messages || []
+  );
 
   const emojiTab = useMemo(
     () => [
@@ -118,6 +126,33 @@ export default function ChatInputBar({
   );
 
   const auth = useAuthStore((state) => state.user);
+
+  const lastMessage = useMemo(() => messages.at(-1), [messages]);
+
+  useEffect(() => {
+    if (!lastMessage || lastMessage.sender._id === auth?.id) {
+      setSuggestions([]);
+      return;
+    }
+
+    const fetchSuggestions = async () => {
+      try {
+        const context = messages
+          .slice(-10)
+          .map((m) => `${m.sender.fullname}: ${m.content}`);
+        const res = await aiService.suggestReplies(context);
+        if (res) {
+          setSuggestions(res.suggestions || []);
+          setSuggestedEmojis(res.emojis || []);
+          setSuggestedGifs(res.gif_keywords || []);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    fetchSuggestions();
+  }, [lastMessage?.id, auth?.id]);
 
   const room = useRoomStore((state) => state.room);
   const roomTypingUsers = useRoomStore((state) => state.roomTypingUsers);
@@ -394,7 +429,6 @@ export default function ChatInputBar({
     socket,
     setToggleInput,
     toggleInput,
-   
   ]);
 
   // ====== VOICE CHAT ======
@@ -610,6 +644,72 @@ export default function ChatInputBar({
               isSelected={!compressImages}
               onValueChange={setCompressImages}
             />
+          </div>
+        )}
+
+        {(suggestions?.length > 0 ||
+          suggestedEmojis?.length > 0 ||
+          suggestedGifs?.length > 0) && (
+          <div className="flex flex-col gap-2 px-1 pb-2">
+            {suggestions?.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                {suggestions.map((suggestion, index) => (
+                  <Chip
+                    key={`text-${index}`}
+                    className="cursor-pointer hover:bg-teal-100 dark:hover:bg-teal-900/40 transition-colors border-teal-200 dark:border-teal-800 shrink-0"
+                    color="primary"
+                    variant="flat"
+                    size="sm"
+                    onClick={() => {
+                      setMessage(suggestion);
+                      setSuggestions([]);
+                      setSuggestedEmojis([]);
+                      setSuggestedGifs([]);
+                      inputRef.current?.focus();
+                    }}
+                  >
+                    {suggestion}
+                  </Chip>
+                ))}
+              </div>
+            )}
+
+            {(suggestedEmojis?.length > 0 || suggestedGifs?.length > 0) && (
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                {suggestedEmojis.map((emoji, index) => (
+                  <Chip
+                    key={`emoji-${index}`}
+                    className="cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors border-orange-200 dark:border-orange-800 shrink-0"
+                    color="warning"
+                    variant="flat"
+                    size="sm"
+                    onClick={() => {
+                      setMessage((prev) => prev + emoji);
+                      inputRef.current?.focus();
+                    }}
+                  >
+                    {emoji}
+                  </Chip>
+                ))}
+                {suggestedGifs.map((keyword, index) => (
+                  <Chip
+                    key={`gif-${index}`}
+                    className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors border-purple-200 dark:border-purple-800 shrink-0"
+                    color="secondary"
+                    variant="flat"
+                    size="sm"
+                    startContent={<GifIcon className="w-3 h-3" />}
+                    onClick={() => {
+                      setGifSearchQuery(keyword);
+                      searchGifs(keyword);
+                      setIsGifPickerOpen(true);
+                    }}
+                  >
+                    {keyword}
+                  </Chip>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

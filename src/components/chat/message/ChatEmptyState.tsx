@@ -1,8 +1,19 @@
 import { FaceSmileIcon } from "@heroicons/react/16/solid";
 import { useTranslation } from "react-i18next";
+import { useEffect, useState } from "react";
 
 export function ChatEmptyState() {
   const { t } = useTranslation();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
+
   return (
     <div className="text-center text-gray-500 dark:text-gray-400 mt-10">
       <div className="mb-4">

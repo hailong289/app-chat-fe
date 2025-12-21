@@ -41,6 +41,7 @@ import {
   ListBulletIcon,
   GlobeAltIcon,
   LockClosedIcon,
+  EyeIcon,
 } from "@heroicons/react/24/outline";
 
 import { useTranslation } from "react-i18next";
@@ -76,6 +77,16 @@ export default function DocumentEditorPage() {
 
   const activeUsers = Array.from(usersPresence.values());
   const isOnline = status === "connected";
+  const isOwner = document?.ownerId === currentUser?._id;
+  const userPermission = document?.sharedWith?.find(
+    (u: any) => u.userId === currentUser?._id
+  );
+  const canEdit = isOwner || userPermission?.role === "editor";
+  const hasAccess =
+    isOwner ||
+    !!userPermission ||
+    document?.visibility === "public" ||
+    document?.visibility === "shared";
 
   // Title Editing State
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -109,6 +120,7 @@ export default function DocumentEditorPage() {
   }, [isEditingTitle]);
 
   const handleTitleSave = async () => {
+    if (!isOwner) return;
     if (!titleInput.trim() || titleInput === document?.title) {
       setIsEditingTitle(false);
       setTitleInput(document?.title || "");
@@ -148,6 +160,7 @@ export default function DocumentEditorPage() {
   };
 
   const handleDelete = async () => {
+    if (!isOwner) return;
     try {
       await deleteDocument(docId);
       toast.success(t("docs.deleteSuccess"));
@@ -159,6 +172,7 @@ export default function DocumentEditorPage() {
   };
 
   const handleVisibilityChange = async (key: string) => {
+    if (!isOwner) return;
     try {
       const updatedDoc = await updateVisibility(docId, key);
       if (updatedDoc) {
@@ -174,7 +188,7 @@ export default function DocumentEditorPage() {
   };
 
   const handleEditorChange = (editor: any) => {
-    if (editor && editor.document) {
+    if (editor?.document) {
       const headings = editor.document.filter(
         (block: any) => block.type === "heading"
       );
@@ -202,19 +216,49 @@ export default function DocumentEditorPage() {
   // Edit Handlers
   const handleUndo = () => {
     if (editor) {
-      console.log("Executing Undo", editor);
-      editor.focus();
       editor.undo();
+      editor.focus();
     }
   };
 
   const handleRedo = () => {
     if (editor) {
-      console.log("Executing Redo", editor);
-      editor.focus();
       editor.redo();
+      editor.focus();
     }
   };
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!editor) return;
+
+      // Undo: Ctrl+Z / Cmd+Z
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        !e.shiftKey &&
+        e.key.toLowerCase() === "z"
+      ) {
+        e.preventDefault();
+        editor.undo();
+        editor.focus();
+      }
+
+      // Redo: Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y / Cmd+Y
+      if (
+        ((e.ctrlKey || e.metaKey) &&
+          e.shiftKey &&
+          e.key.toLowerCase() === "z") ||
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y")
+      ) {
+        e.preventDefault();
+        editor.redo();
+        editor.focus();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editor]);
 
   const handleCut = () => {
     if (editor) {
@@ -250,6 +294,26 @@ export default function DocumentEditorPage() {
     }
   };
 
+  const getVisibilityIcon = () => {
+    if (document?.visibility === "public")
+      return <GlobeAltIcon className="w-5 h-5" />;
+    if (document?.visibility === "shared")
+      return <UserGroupIcon className="w-5 h-5" />;
+    return <LockClosedIcon className="w-5 h-5" />;
+  };
+
+  const getHeadingClass = (heading: any) => {
+    const base =
+      "block w-full text-left px-2 py-1.5 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors truncate";
+    if (heading.type === "heading" && heading.props.level === 1) {
+      return `${base} font-medium text-gray-900 dark:text-white`;
+    }
+    if (heading.type === "heading" && heading.props.level === 2) {
+      return `${base} pl-4 text-gray-600 dark:text-gray-400`;
+    }
+    return `${base} pl-8 text-gray-500 dark:text-gray-500`;
+  };
+
   if (!document || !isSnapshotApplied) {
     return (
       <div className="h-screen w-full flex flex-col bg-gray-50 dark:bg-gray-950">
@@ -275,6 +339,24 @@ export default function DocumentEditorPage() {
             </CardBody>
           </Card>
         </div>
+      </div>
+    );
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-950 gap-4">
+        <LockClosedIcon className="w-16 h-16 text-gray-400" />
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          {t("docs.accessDenied") || "Access Denied"}
+        </h1>
+        <p className="text-gray-500">
+          {t("docs.accessDeniedDesc") ||
+            "You don't have permission to view this document."}
+        </p>
+        <Button color="primary" onPress={() => router.push("/docs")}>
+          {t("common.back") || "Back to Docs"}
+        </Button>
       </div>
     );
   }
@@ -312,13 +394,19 @@ export default function DocumentEditorPage() {
                 <button
                   type="button"
                   aria-label={t("docs.editTitle")}
-                  className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 px-2 py-1 rounded transition-colors bg-transparent border-none focus:outline-none"
-                  onClick={() => setIsEditingTitle(true)}
+                  className={`flex items-center gap-2 px-2 py-1 rounded transition-colors bg-transparent border-none focus:outline-none ${
+                    isOwner
+                      ? "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                      : "cursor-default"
+                  }`}
+                  onClick={() => isOwner && setIsEditingTitle(true)}
                 >
                   <h1 className="text-lg font-semibold text-gray-900 dark:text-white truncate max-w-[200px] sm:max-w-md select-none">
                     {document.title}
                   </h1>
-                  <PencilIcon className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100" />
+                  {isOwner && (
+                    <PencilIcon className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100" />
+                  )}
                 </button>
               )}
 
@@ -358,15 +446,17 @@ export default function DocumentEditorPage() {
                   >
                     {t("docs.menu.file.copy")}
                   </DropdownItem>
-                  <DropdownItem
-                    key="delete"
-                    className="text-danger"
-                    color="danger"
-                    startContent={<TrashIcon className="w-4 h-4" />}
-                    onPress={onDeleteOpen}
-                  >
-                    {t("docs.menu.file.delete")}
-                  </DropdownItem>
+                  {isOwner ? (
+                    <DropdownItem
+                      key="delete"
+                      className="text-danger"
+                      color="danger"
+                      startContent={<TrashIcon className="w-4 h-4" />}
+                      onPress={onDeleteOpen}
+                    >
+                      {t("docs.menu.file.delete")}
+                    </DropdownItem>
+                  ) : null}
                 </DropdownMenu>
               </Dropdown>
 
@@ -510,28 +600,35 @@ export default function DocumentEditorPage() {
             variant="solid"
             size="sm"
             className="font-medium shadow-lg shadow-blue-500/20"
-            startContent={<ShareIcon className="w-4 h-4" />}
+            startContent={
+              isOwner ? (
+                <ShareIcon className="w-4 h-4" />
+              ) : canEdit ? (
+                <UserGroupIcon className="w-4 h-4" />
+              ) : (
+                <EyeIcon className="w-4 h-4" />
+              )
+            }
             onPress={handleShare}
           >
-            {t("docs.share")}
+            {isOwner
+              ? t("docs.share")
+              : canEdit
+              ? t("docs.members") || "Members"
+              : t("docs.viewer") || "Viewer"}
           </Button>
 
           {/* Visibility Dropdown */}
-          <Dropdown>
+          <Dropdown isDisabled={!isOwner}>
             <DropdownTrigger>
               <Button
                 isIconOnly
                 variant="light"
                 size="sm"
                 className="text-gray-500"
+                isDisabled={!isOwner}
               >
-                {document.visibility === "public" ? (
-                  <GlobeAltIcon className="w-5 h-5" />
-                ) : document.visibility === "shared" ? (
-                  <UserGroupIcon className="w-5 h-5" />
-                ) : (
-                  <LockClosedIcon className="w-5 h-5" />
-                )}
+                {getVisibilityIcon()}
               </Button>
             </DropdownTrigger>
             <DropdownMenu
@@ -575,15 +672,17 @@ export default function DocumentEditorPage() {
               >
                 {t("docs.menu.file.copy")}
               </DropdownItem>
-              <DropdownItem
-                key="delete"
-                className="text-danger"
-                color="danger"
-                startContent={<TrashIcon className="w-4 h-4" />}
-                onPress={onDeleteOpen}
-              >
-                {t("docs.actions.delete")}
-              </DropdownItem>
+              {isOwner ? (
+                <DropdownItem
+                  key="delete"
+                  className="text-danger"
+                  color="danger"
+                  startContent={<TrashIcon className="w-4 h-4" />}
+                  onPress={onDeleteOpen}
+                >
+                  {t("docs.actions.delete")}
+                </DropdownItem>
+              ) : null}
             </DropdownMenu>
           </Dropdown>
         </NavbarContent>
@@ -606,6 +705,8 @@ export default function DocumentEditorPage() {
                     ?.color || "#0066ff"
                 }
                 userAvatar={currentUser?.avatar}
+                sharedWith={document?.sharedWith}
+                editable={canEdit}
               />
             </div>
           </CardBody>
@@ -643,14 +744,7 @@ export default function DocumentEditorPage() {
                           });
                         }
                       }}
-                      className={`block w-full text-left px-2 py-1.5 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors truncate ${
-                        heading.type === "heading" && heading.props.level === 1
-                          ? "font-medium text-gray-900 dark:text-white"
-                          : heading.type === "heading" &&
-                            heading.props.level === 2
-                          ? "pl-4 text-gray-600 dark:text-gray-400"
-                          : "pl-8 text-gray-500 dark:text-gray-500"
-                      }`}
+                      className={getHeadingClass(heading)}
                     >
                       {/* BlockNote stores content in 'content' array usually */}
                       {heading.content?.[0]?.text ||

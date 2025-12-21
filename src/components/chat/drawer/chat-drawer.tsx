@@ -48,6 +48,7 @@ import { AddMemberModal } from "../modals/add-member.model";
 import { useRouter } from "next/navigation";
 import Timeline from "@/components/ui/timeline";
 import { useTranslation } from "react-i18next";
+import useContactStore from "@/store/useContactStore";
 import useMessageStore from "@/store/useMessageStore";
 import RoomService from "@/service/room.service";
 import { useEffect } from "react";
@@ -62,6 +63,7 @@ export default function ChatDrawer({
   noAction: boolean;
 }>) {
   const { t } = useTranslation();
+  const { BlockUser, UnlockBlockedUser } = useContactStore();
   const [selectedKeys, setSelectedKeys] = useState(new Set(["1"]));
   const [selectedTab, setSelectedTab] = useState("media");
   const { room: currentRoom } = useRoomStore();
@@ -562,8 +564,30 @@ export default function ChatDrawer({
                             startContent={
                               <NoSymbolIcon className="w-5 h-5 text-gray-400" />
                             }
+                            onPress={async () => {
+                              const otherMember = roomState.room?.members?.find(
+                                (m) => m.id !== user?.id
+                              );
+                              if (otherMember && roomState.room?.id) {
+                                if (roomState.room?.blockByMine) {
+                                  await UnlockBlockedUser(otherMember.id);
+                                  roomState.updateBlockStatus(
+                                    roomState.room.id,
+                                    false,
+                                    false
+                                  );
+                                } else {
+                                  await BlockUser(otherMember.id);
+                                  roomState.updateBlockStatus(
+                                    roomState.room.id,
+                                    true,
+                                    true
+                                  );
+                                }
+                              }
+                            }}
                           >
-                            {roomState.room?.isBlocked
+                            {roomState.room?.blockByMine
                               ? t("chat.drawer.privacy.unblock")
                               : t("chat.drawer.privacy.block")}
                           </Button>

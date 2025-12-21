@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { app, messaging } from "@/libs/firebase";
 import { getToken, onMessage, Messaging } from "firebase/messaging";
 import type { FirebaseApp } from "firebase/app";
@@ -163,7 +163,7 @@ export const FirebaseProvider = ({
   }, [isBrowser, messaging]);
 
   // Hàm xin quyền và lấy token
-  async function requestPermission() {
+  const requestPermission = useCallback(async () => {
     try {
       if (!isBrowser) return;
       if (!messaging) {
@@ -209,7 +209,7 @@ export const FirebaseProvider = ({
         type: "error",
       });
     }
-  }
+  }, [isBrowser, messaging]);
 
   const value: FirebaseContextType = {
     app,

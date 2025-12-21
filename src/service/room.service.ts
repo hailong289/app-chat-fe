@@ -38,4 +38,10 @@ export default class RoomService {
   }) {
     return apiService.post("/chat/rooms", body);
   }
+  static pinnedRoom(body: { roomId: string; pinned: boolean }) {
+    return apiService.patch("/chat/rooms/pinned", body);
+  }
+  static mutedRoom(body: { roomId: string; muted: boolean }) {
+    return apiService.patch("/chat/rooms/muted", body);
+  }
 }

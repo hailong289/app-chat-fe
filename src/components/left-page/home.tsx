@@ -11,11 +11,6 @@ import formatTimeAgo from "@/libs/forrmattime";
 import useRoomStore from "@/store/useRoomStore";
 import { MagnifyingGlassIcon, XCircleIcon } from "@heroicons/react/16/solid";
 import {
-  PencilSquareIcon,
-  ChevronDoubleLeftIcon,
-  ChevronDoubleRightIcon,
-} from "@heroicons/react/24/outline";
-import {
   Button,
   Card,
   CardBody,
@@ -26,6 +21,10 @@ import {
   Tab,
   Input,
   Tooltip,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
 } from "@heroui/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CreateRoomModal } from "../chat/modals/createRoom.modal";
@@ -34,6 +33,17 @@ import useContactStore from "@/store/useContactStore";
 import useAuthStore from "@/store/useAuthStore";
 import TypingIndicator from "../chat/input/TypingIndicator";
 import useCounterStore from "@/store/useCounterStore";
+import {
+  PencilSquareIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
+  EllipsisHorizontalIcon,
+  BellSlashIcon,
+  BellIcon,
+  StarIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline";
+import { StarIcon as StarIconSolid } from "@heroicons/react/24/solid";
 
 export const Home = () => {
   const { socket } = useSocket("/chat");
@@ -365,115 +375,187 @@ export const Home = () => {
         id="list-chat"
         className="flex-1 overflow-y-auto scroll-smooth w-full shadow-[4px_0_10px_-2px_rgba(0,0,0,0.15)] bg-background"
       >
-        <div className="divide-y divide-default-200 w-full">
+        <div className="divide-y divide-default-100 w-full">
           {roomState.rooms.map((chat) => (
-            <Card
+            <div
               key={chat.id}
-              isPressable
-              className={`w-full rounded-none shadow-none cursor-pointer transition-colors bg-background hover:bg-default-100 ${
-                tab === chat.id ? "bg-default-100" : ""
-              } dark:bg-slate-900 dark:hover:bg-slate-800 ${
-                tab === chat.id ? "dark:bg-slate-800" : ""
+              className={`group relative w-full cursor-pointer transition-all duration-200 hover:bg-default-100 dark:hover:bg-white/5 ${
+                tab === chat.id
+                  ? "bg-default-100 dark:bg-white/10"
+                  : "bg-background dark:bg-transparent"
               }`}
-              onPress={() => handleChatClick(chat)}
+              onClick={() => handleChatClick(chat)}
             >
-              <CardBody
+              <div
                 className={`w-full ${
                   countState.collapsedSidebar
                     ? "p-2 flex items-center justify-center"
-                    : "p-4 flex flex-row items-center justify-between gap-3"
+                    : "p-3 flex flex-row items-center justify-between gap-3"
                 }`}
               >
+                {/* Avatar Section */}
                 <div
-                  className={`flex items-center ${
-                    countState.collapsedSidebar
-                      ? ""
-                      : "space-x-3 flex-1 min-w-0"
+                  className={`relative ${
+                    countState.collapsedSidebar ? "" : "flex-shrink-0"
                   }`}
                 >
-                  {countState.collapsedSidebar &&
-                    (() => {
-                      let badgeContent: string | number | undefined;
-                      if (chat.unread_count > 0) {
-                        badgeContent =
-                          chat.unread_count > 99 ? "99+" : chat.unread_count;
-                      } else {
-                        badgeContent = undefined;
-                      }
-                      return (
-                        <Badge
-                          content={badgeContent}
-                          color={chat.unread_count > 0 ? "danger" : undefined}
-                          placement="top-right"
-                        >
-                          <Avatar
-                            src={chat.avatar ?? undefined}
-                            name={chat.name ?? undefined}
-                            size="md"
-                            className={
-                              countState.collapsedSidebar ? "" : "flex-shrink-0"
-                            }
-                          />
-                        </Badge>
-                      );
-                    })()}
-
-                  {!countState.collapsedSidebar && (
-                    <>
-                      <Avatar
-                        src={chat.avatar ?? undefined}
-                        name={chat.name ?? undefined}
-                        size="md"
-                        className={
-                          countState.collapsedSidebar ? "" : "flex-shrink-0"
-                        }
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-foreground truncate">
-                          {chat.name}
-                        </h3>
-
-                        <p
-                          className={`text-sm text-default-600 truncate ${
-                            chat.is_read ? "" : "font-semibold"
-                          }`}
-                          title={chat?.last_message?.content || ""}
-                        >
-                          {chat?.last_message?.isMine ? "Bạn: " : ""}
-                          {!chat?.last_message?.isMine &&
-                            chat?.last_message?.sender?.name &&
-                            `${chat?.last_message?.sender?.name}: `}
-
-                          {chat?.last_message?.content?.slice(0, 30) || ""}
-                          {chat?.last_message?.content &&
-                            chat?.last_message?.content.length > 30 &&
-                            "..."}
-                        </p>
-                      </div>
-
-                      <TypingIndicator
-                        users={roomState.roomTypingUsers[chat.roomId] || []}
-                      />
-                    </>
+                  <Badge
+                    content={
+                      countState.collapsedSidebar && chat.unread_count > 0
+                        ? chat.unread_count > 99
+                          ? "99+"
+                          : chat.unread_count
+                        : undefined
+                    }
+                    color="danger"
+                    placement="top-right"
+                    isInvisible={
+                      !countState.collapsedSidebar || chat.unread_count === 0
+                    }
+                  >
+                    <Avatar
+                      src={chat.avatar ?? undefined}
+                      name={chat.name ?? undefined}
+                      size="md"
+                      isBordered={tab === chat.id}
+                      color={tab === chat.id ? "primary" : "default"}
+                    />
+                  </Badge>
+                  {chat.pinned && countState.collapsedSidebar && (
+                    <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-0.5 shadow-sm">
+                      <StarIconSolid className="w-3 h-3 text-warning" />
+                    </div>
                   )}
                 </div>
 
+                {/* Content Section */}
                 {!countState.collapsedSidebar && (
-                  <div className="text-right flex-shrink-0 ml-2">
-                    <p className="text-xs text-default-400 whitespace-nowrap">
-                      {chat.updatedAt ? formatTimeAgo(chat.updatedAt) : ""}
-                    </p>
-                    {chat.unread_count > 0 && (
-                      <div className="flex justify-end mt-1">
-                        <Chip size="sm" color="danger" variant="solid">
-                          {chat.unread_count > 99 ? "99+" : chat.unread_count}
-                        </Chip>
+                  <>
+                    <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-semibold text-sm text-foreground truncate flex items-center gap-1 max-w-[70%]">
+                          {chat.name}
+                          {chat.muted && (
+                            <BellSlashIcon className="w-3 h-3 text-default-400 flex-shrink-0" />
+                          )}
+                        </h3>
+                        <span className="text-[10px] text-default-400 whitespace-nowrap ml-2">
+                          {chat.updatedAt ? formatTimeAgo(chat.updatedAt) : ""}
+                        </span>
                       </div>
-                    )}
-                  </div>
+
+                      <div className="flex justify-between items-center">
+                        <div className="flex-1 min-w-0 mr-2">
+                          <p
+                            className={`text-xs truncate ${
+                              !chat.is_read
+                                ? "font-bold text-foreground"
+                                : "text-default-500"
+                            }`}
+                            title={
+                              chat?.last_message?.content?.slice(0, 10) || ""
+                            }
+                          >
+                            {chat?.last_message?.isMine ? "Bạn: " : ""}
+                            {!chat?.last_message?.isMine &&
+                              chat?.last_message?.sender?.name &&
+                              `${chat?.last_message?.sender?.name}: `}
+                            {chat?.last_message?.content?.slice(0, 10) ||
+                              (chat?.last_message?.id
+                                ? "Đã gửi một tin nhắn"
+                                : "")}
+                          </p>
+                          <TypingIndicator
+                            users={roomState.roomTypingUsers[chat.roomId] || []}
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {chat.pinned && (
+                            <StarIconSolid className="w-3 h-3 text-warning" />
+                          )}
+                          {chat.unread_count > 0 && (
+                            <Chip
+                              size="sm"
+                              color="danger"
+                              variant="solid"
+                              className="h-4 min-w-4 px-1 text-[10px]"
+                            >
+                              {chat.unread_count > 99
+                                ? "99+"
+                                : chat.unread_count}
+                            </Chip>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions Dropdown */}
+                    <div
+                      className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-1/2 -translate-y-1/2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Dropdown placement="bottom-end">
+                        <DropdownTrigger>
+                          <Button
+                            isIconOnly
+                            variant="light"
+                            size="sm"
+                            radius="full"
+                            className="w-8 h-8 bg-background/80 backdrop-blur-sm shadow-sm hover:bg-default-200"
+                          >
+                            <EllipsisHorizontalIcon className="w-5 h-5 text-default-500" />
+                          </Button>
+                        </DropdownTrigger>
+                        <DropdownMenu aria-label="Chat actions">
+                          <DropdownItem
+                            key="pin"
+                            startContent={
+                              chat.pinned ? (
+                                <StarIcon className="w-4 h-4" />
+                              ) : (
+                                <StarIconSolid className="w-4 h-4" />
+                              )
+                            }
+                            onPress={() =>
+                              roomState.pinnedRoom(chat.id, !chat.pinned)
+                            }
+                          >
+                            {chat.pinned ? "Bỏ ghim" : "Ghim hội thoại"}
+                          </DropdownItem>
+                          <DropdownItem
+                            key="mute"
+                            startContent={
+                              chat.muted ? (
+                                <BellIcon className="w-4 h-4" />
+                              ) : (
+                                <BellSlashIcon className="w-4 h-4" />
+                              )
+                            }
+                            onPress={() =>
+                              roomState.mutedRoom(chat.id, !chat.muted)
+                            }
+                          >
+                            {chat.muted ? "Bật thông báo" : "Tắt thông báo"}
+                          </DropdownItem>
+                          <DropdownItem
+                            key="delete"
+                            className="text-danger"
+                            color="danger"
+                            startContent={<TrashIcon className="w-4 h-4" />}
+                            onPress={() => {
+                              // Handle delete/leave
+                            }}
+                          >
+                            Xóa hội thoại
+                          </DropdownItem>
+                        </DropdownMenu>
+                      </Dropdown>
+                    </div>
+                  </>
                 )}
-              </CardBody>
-            </Card>
+              </div>
+            </div>
           ))}
 
           <div

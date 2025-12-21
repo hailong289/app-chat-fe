@@ -952,7 +952,8 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
         // Filter out duplicates that might already exist in freshMessages
         const uniqueOlderMessages = olderMessages.filter(
-          (oldMsg) => !freshMessages.some((msg) => msg.id === oldMsg.id)
+          (oldMsg: MessageType) =>
+            !freshMessages.some((msg) => msg.id === oldMsg.id)
         );
 
         if (uniqueOlderMessages.length === 0) {
@@ -985,6 +986,63 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     } catch (error) {
       console.error("❌ Error loading older messages:", error);
       throw error;
+    }
+  },
+
+  /**
+   * Find a message by ID in DB or API
+   * Used for jumping to a specific message
+   */
+  findMessage: async (roomId: string, messageId: string): Promise<boolean> => {
+    try {
+      // 1. Check IndexedDB
+      const msgInDB = await db.messages.get(messageId);
+      if (msgInDB && msgInDB.roomId === roomId) {
+        // Found in DB, reload room messages to ensure consistency
+        await get().getMessageByRoomId(roomId);
+        return true;
+      }
+
+      // 2. Fetch from API
+      // Try to fetch the specific message
+      const result: any = await MessageService.getMessages({
+        roomId,
+        queryParams: {
+          msgId: messageId,
+          limit: 50, // Fetch context around the message
+          type: "around", // Try to get context around the message
+        },
+      });
+
+      const rawMessages = result.data.metadata;
+
+      if (rawMessages && rawMessages.length > 0) {
+        // Sanitize and save all fetched messages
+        const sanitizedMessages = rawMessages.map((msg: MessageType) => ({
+          ...msg,
+          attachments: sanitizeAttachmentsFromAPI(msg.attachments),
+        }));
+
+        // Save to IndexedDB
+        for (const msg of sanitizedMessages) {
+          await upsertOne(db.messages, sanitizeMessageForDB(msg));
+        }
+
+        // Reload state from DB
+        await get().getMessageByRoomId(roomId);
+
+        // Check if our target message is in the fetched batch
+        return sanitizedMessages.some((m: MessageType) => m.id === messageId);
+      }
+
+      return false;
+    } catch (error: any) {
+      console.error(
+        "Error finding message:",
+        error?.message || error,
+        error?.response?.data
+      );
+      return false;
     }
   },
 

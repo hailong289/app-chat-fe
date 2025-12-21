@@ -67,7 +67,7 @@ export function useMessageHandlers({
       };
 
       // Optimistic update
-      messageState.upsetMsg(updated);
+      useMessageStore.getState().upsetMsg(updated);
 
       // Emit and reconcile on ack/error
       emitWithAckHelper(
@@ -79,7 +79,7 @@ export function useMessageHandlers({
           console.debug("emit:message:delete ack:", ack, "msgId:", msg.id);
           if (!ack || ack?.ok === false) {
             // rollback
-            messageState.upsetMsg(original);
+            useMessageStore.getState().upsetMsg(original);
             toast.error(ack?.reason || t("chat.hooks.delete.error"));
           } else {
             toast.success(t("chat.hooks.delete.success"));
@@ -88,11 +88,11 @@ export function useMessageHandlers({
         .catch((err) => {
           console.error("delete ack error", err);
           // rollback optimistic change
-          messageState.upsetMsg(original);
+          useMessageStore.getState().upsetMsg(original);
           toast.error(t("chat.hooks.delete.connectionError"));
         });
     },
-    [chatId, socket, emitWithAckHelper, messageState, toast, t]
+    [chatId, socket, emitWithAckHelper, toast, t]
   );
 
   const handleRecall = useCallback(

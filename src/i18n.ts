@@ -22,7 +22,7 @@ i18n
   .init({
     resources,
     fallbackLng: "vi", // Ngôn ngữ dự phòng nếu không tìm thấy ngôn ngữ trình duyệt
-    debug: process.env.NODE_ENV === "development",
+    debug: false,
 
     // --- QUAN TRỌNG: Cấu hình namespace ---
     // Khai báo tên file ông đang dùng (common.json)

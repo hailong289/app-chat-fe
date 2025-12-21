@@ -43,6 +43,15 @@ export default class AuthService {
       { newPassword: data.newPassword }
     );
   }
+
+  static searchUser(params: {
+    keyword: string;
+    page?: number;
+    limit?: number;
+  }) {
+    return apiService.get("/auth/search", params);
+  }
+
   static refreshToken(token: string) {
     // Sử dụng axios instance trực tiếp để custom header cho request này
     return apiService.axios.post<AuthResponse>(

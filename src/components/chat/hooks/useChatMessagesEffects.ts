@@ -350,8 +350,10 @@ export function useChatMessagesEffects({
 
   // Memoized: Visible groups
   const visibleGroups = useMemo(() => {
+    // Use a stable key for grouping to prevent re-renders when only content changes
+    // but the structure remains the same
     return groupMessagesByDate(visibleMessages, lastMsgId, t);
-  }, [visibleMessages, lastMsgId, t]);
+  }, [visibleMessages, lastMsgId, t]); // Ensure dependencies are correct
 
   return {
     visibleMessages,

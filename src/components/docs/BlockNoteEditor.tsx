@@ -4,8 +4,11 @@
 import { useEffect, useMemo } from "react";
 import {
   useCreateBlockNote,
+  createReactInlineContentSpec,
   FormattingToolbar,
   FormattingToolbarController,
+  SuggestionMenuController,
+  getDefaultReactSlashMenuItems,
   BlockTypeSelect,
   FileCaptionButton,
   FileReplaceButton,
@@ -30,12 +33,70 @@ import {
   DefaultThreadStoreAuth,
   YjsThreadStore,
 } from "@blocknote/core/comments";
+import {
+  BlockNoteSchema,
+  defaultBlockSpecs,
+  defaultInlineContentSpecs,
+} from "@blocknote/core";
 import { Button, Tooltip } from "@heroui/react";
 import {
   ScissorsIcon,
   DocumentDuplicateIcon,
   ClipboardDocumentIcon,
 } from "@heroicons/react/24/outline";
+
+const Mention = createReactInlineContentSpec(
+  {
+    type: "mention",
+    propSchema: {
+      user: {
+        default: "Unknown User",
+      },
+      email: {
+        default: "",
+      },
+      avatar: {
+        default: "",
+      },
+    },
+    content: "none",
+  },
+  {
+    render: (props) => {
+      const { user, email, avatar } = props.inlineContent.props;
+      return (
+        <Tooltip
+          content={
+            <div className="flex items-center gap-3 px-1 py-2">
+              <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200">
+                <img
+                  src={
+                    avatar ||
+                    `https://ui-avatars.com/api/?name=${user}&background=random`
+                  }
+                  alt={user}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-bold text-small">{user}</span>
+                <span className="text-tiny text-gray-500">{email}</span>
+              </div>
+            </div>
+          }
+        >
+          <span className="text-blue-600 font-bold cursor-pointer bg-blue-50 px-1 rounded mx-0.5">
+            @{user}
+          </span>
+        </Tooltip>
+      );
+    },
+  }
+);
+
+import { SharedWithItem } from "@/service/document.service";
+
+// ... existing imports ...
 
 export interface BlockNoteEditorProps {
   readonly onEditorReady?: (editor: any) => void;
@@ -46,6 +107,8 @@ export interface BlockNoteEditorProps {
   readonly userName?: string;
   readonly userColor?: string;
   readonly userAvatar?: string;
+  readonly sharedWith?: SharedWithItem[];
+  readonly editable?: boolean;
 }
 
 const CutButton = () => {
@@ -125,6 +188,8 @@ export default function BlockNoteEditorBase({
   userName = "Anonymous",
   userColor = "#ff0000",
   userAvatar,
+  sharedWith = [],
+  editable = true,
 }: BlockNoteEditorProps) {
   const { resolvedTheme } = useTheme();
   const { i18n } = useTranslation();
@@ -159,14 +224,25 @@ export default function BlockNoteEditorBase({
     );
   }, [provider, ydoc, userId]);
 
+  const schema = useMemo(() => {
+    return BlockNoteSchema.create({
+      blockSpecs: defaultBlockSpecs,
+      inlineContentSpecs: {
+        ...defaultInlineContentSpecs,
+        mention: Mention,
+      },
+    });
+  }, []);
+
   const editor = useCreateBlockNote({
+    schema,
     dictionary,
     uploadFile: async (file: File) => {
       try {
         const response = await UploadService.uploadSingle(file, "docs");
         // The API returns { metadata: { url: ... } } but typed as UploadSingleResp in service
         // We cast to any to safely access metadata based on actual API response structure
-        const data = response.data as any;
+        const data = response.data;
 
         // Try to find the URL in various places
         const url = data.url || data.metadata?.url || data.data?.url;
@@ -198,8 +274,8 @@ export default function BlockNoteEditorBase({
           threadStore,
         }
       : undefined,
-    resolveUsers: async (userIds) => {
-      return userIds.map((id) => ({
+    resolveUsers: async (userIds: string[]) => {
+      return userIds.map((id: string) => ({
         id,
         username: id === userId ? userName : "User " + id.slice(0, 4),
         avatarUrl: id === userId ? userAvatar || "" : "",
@@ -219,12 +295,13 @@ export default function BlockNoteEditorBase({
       role="application"
       onContextMenu={(e) => {
         e.preventDefault();
-        editor?.openSuggestionMenu("/");
+        (editor as any)?.openSuggestionMenu("/");
       }}
     >
       <BlockNoteView
+        editable={editable}
         editor={editor}
-        onChange={() => onChange && onChange(editor)}
+        onChange={() => onChange?.(editor)}
         theme={resolvedTheme === "dark" ? "dark" : "light"}
         className="min-h-[500px]"
         formattingToolbar={false}
@@ -272,6 +349,60 @@ export default function BlockNoteEditorBase({
               <AddCommentButton key={"addCommentButton"} />
             </FormattingToolbar>
           )}
+        />
+        <SuggestionMenuController
+          triggerCharacter={"/"}
+          getItems={async (query) =>
+            getDefaultReactSlashMenuItems(editor).filter((item) =>
+              item.title.toLowerCase().includes(query.toLowerCase())
+            )
+          }
+        />
+        <SuggestionMenuController
+          triggerCharacter={"@"}
+          getItems={async (query) =>
+            (sharedWith || [])
+              .filter((item: any) =>
+                (item.user?.usr_fullname || "")
+                  .toLowerCase()
+                  .includes(query.toLowerCase())
+              )
+              .map((item: any) => ({
+                title: item.user?.usr_fullname || "Unknown User",
+                subtext: item.user?.usr_email,
+                icon: (
+                  <div className="w-6 h-6 rounded-full overflow-hidden border border-gray-200">
+                    <img
+                      src={
+                        item.user?.usr_avatar ||
+                        `https://ui-avatars.com/api/?name=${
+                          item.user?.usr_fullname || "User"
+                        }&background=random`
+                      }
+                      alt={item.user?.usr_fullname}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ),
+                onItemClick: () => {
+                  editor.insertInlineContent([
+                    {
+                      type: "mention",
+                      props: {
+                        user: item.user?.usr_fullname || "Unknown User",
+                        email: item.user?.usr_email,
+                        avatar: item.user?.usr_avatar,
+                      },
+                    },
+                    {
+                      type: "text",
+                      text: " ",
+                      styles: {},
+                    },
+                  ]);
+                },
+              }))
+          }
         />
       </BlockNoteView>
     </div>

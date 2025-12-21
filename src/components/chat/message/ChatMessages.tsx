@@ -2,7 +2,7 @@
 import { useReadProgress } from "@/libs/useReadProgress";
 import useMessageStore from "@/store/useMessageStore";
 import { ScrollShadow, Skeleton } from "@heroui/react";
-import { useEffect, useRef, useMemo, useCallback, memo, use } from "react";
+import { useEffect, useRef, useMemo, useCallback, memo } from "react";
 import useRoomStore from "@/store/useRoomStore";
 import { useSocket } from "../../providers/SocketProvider";
 import { motion, AnimatePresence } from "framer-motion";
@@ -19,6 +19,8 @@ import { ChatLoadingIndicator } from "./ChatLoadingIndicator";
 import { ScrollToBottomButton } from "./ScrollToBottomButton";
 import { MessageGroup } from "./MessageGroup";
 import { useTranslation } from "react-i18next";
+
+const EMPTY_MESSAGES: MessageType[] = [];
 
 export const ChatMessages = memo(
   ({
@@ -46,9 +48,82 @@ export const ChatMessages = memo(
 
     const { socket } = useSocket("/chat");
     const roomState = useRoomStore((state) => state);
-    const messageState = useMessageStore((state) => state);
-    const messages =
-      useMessageStore.getState().messagesRoom[chatId]?.messages || [];
+
+    // Optimize store subscription
+    const messages = useMessageStore(
+      useCallback(
+        (state) => state.messagesRoom[chatId]?.messages || EMPTY_MESSAGES,
+        [chatId]
+      )
+    );
+    const isLoadingMessage = useMessageStore((state) => state.isLoading);
+    const fetchMessagesFromAPI = useMessageStore(
+      (state) => state.fetchMessagesFromAPI
+    );
+    const getMessageByRoomId = useMessageStore(
+      (state) => state.getMessageByRoomId
+    );
+    const loadOlderMessages = useMessageStore(
+      (state) => state.loadOlderMessages
+    );
+    const findMessage = useMessageStore((state) => state.findMessage);
+
+    // Create a stable messageState object for hooks that need it
+    // This avoids re-rendering when unrelated parts of the store change
+    const messageState = useMemo(
+      () => ({
+        isLoading: isLoadingMessage,
+        messagesRoom: { [chatId]: { messages } },
+        fetchMessagesFromAPI,
+        getMessageByRoomId,
+        loadOlderMessages,
+        findMessage,
+      }),
+      [
+        isLoadingMessage,
+        messages,
+        chatId,
+        fetchMessagesFromAPI,
+        getMessageByRoomId,
+        loadOlderMessages,
+        findMessage,
+      ]
+    );
+
+    // Memoize handlers to prevent re-creation on every render
+    const emitWithAckHelper = useCallback(
+      (event: string, payload: any, timeout = 5000) => {
+        return emitWithAck(socket, event, payload, timeout);
+      },
+      [socket]
+    );
+
+    const handlers = useMessageHandlers({
+      chatId,
+      socket,
+      messageState,
+      emitWithAckHelper,
+    });
+
+    // Memoize handlers object passed to MessageGroup
+    const memoizedHandlers = useMemo(
+      () => ({
+        onReply: handlers.handleReply,
+        onReact: handlers.handleReact,
+        onDelete: handlers.handleDelete,
+        onRecall: handlers.handleRecall,
+        onTogglePin: handlers.handleTogglePin,
+        onCopy: handlers.handleCopy,
+      }),
+      [
+        handlers.handleReply,
+        handlers.handleReact,
+        handlers.handleDelete,
+        handlers.handleRecall,
+        handlers.handleTogglePin,
+        handlers.handleCopy,
+      ]
+    );
 
     // Compute the most up-to-date message id to use for grouping/scrolling
     const lastMsgId =
@@ -84,22 +159,6 @@ export const ChatMessages = memo(
         scrollToMessage(scrollto);
       }
     }, [scrollto, scrollToMessage]);
-
-    // Emit with ack helper
-    const emitWithAckHelper = useCallback(
-      (event: string, payload: any, timeout = 5000) => {
-        return emitWithAck(socket, event, payload, timeout);
-      },
-      [socket]
-    );
-
-    // Message handlers
-    const handlers = useMessageHandlers({
-      chatId,
-      socket,
-      messageState,
-      emitWithAckHelper,
-    });
 
     // Toggle expanded state for long messages
     const toggleExpanded = useCallback(
@@ -163,14 +222,31 @@ export const ChatMessages = memo(
           state.setIsLoadingFromAPI(true);
           state.hasTriedLoadingFromServer.current = true;
 
+          const container = state.containerRef.current;
+          const scrollHeightBefore = container ? container.scrollHeight : 0;
+
           try {
             const result: any = await messageState.loadOlderMessages(chatId);
-            state.setIsLoadingOlder(false);
-            state.setIsLoadingFromAPI(false);
 
-            if (!result || (Array.isArray(result) && result.length === 0)) {
-              state.setHasMoreOnServer(false);
-            }
+            // Wait for render to update scrollHeight
+            setTimeout(() => {
+              state.setIsLoadingOlder(false);
+              state.setIsLoadingFromAPI(false);
+
+              if (!result || (Array.isArray(result) && result.length === 0)) {
+                state.setHasMoreOnServer(false);
+              }
+
+              if (container) {
+                requestAnimationFrame(() => {
+                  const scrollHeightAfter = container.scrollHeight;
+                  const scrollDiff = scrollHeightAfter - scrollHeightBefore;
+                  if (scrollDiff > 0) {
+                    container.scrollTop += scrollDiff;
+                  }
+                });
+              }
+            }, 50);
           } catch (error: any) {
             console.error("Failed to load older messages:", error);
             state.setIsLoadingOlder(false);
@@ -382,11 +458,10 @@ export const ChatMessages = memo(
                 )}
 
               {/* Message groups */}
-              {visibleGroups.map((group, groupIdx) => (
+              {visibleGroups.map((group) => (
                 <MessageGroup
-                  key={`message-group-${group.dateLabel}-${groupIdx}`}
+                  key={`message-group-${group.dateLabel}`}
                   group={group}
-                  groupIdx={groupIdx}
                   shouldAnimate={state.shouldAnimate}
                   expandedMessages={state.expandedMessages}
                   lastMsgId={lastMsgId}
@@ -395,12 +470,12 @@ export const ChatMessages = memo(
                   noAction={noAction}
                   renderedMessageIds={state.renderedMessageIds}
                   onToggleExpanded={toggleExpanded}
-                  onReply={handlers.handleReply}
-                  onReact={handlers.handleReact}
-                  onDelete={handlers.handleDelete}
-                  onRecall={handlers.handleRecall}
-                  onTogglePin={handlers.handleTogglePin}
-                  onCopy={handlers.handleCopy}
+                  onReply={memoizedHandlers.onReply}
+                  onReact={memoizedHandlers.onReact}
+                  onDelete={memoizedHandlers.onDelete}
+                  onRecall={memoizedHandlers.onRecall}
+                  onTogglePin={memoizedHandlers.onTogglePin}
+                  onCopy={memoizedHandlers.onCopy}
                   onJumpToMessage={scrollToMessage}
                   setMessageRef={setMessageRef}
                   messageState={messageState}

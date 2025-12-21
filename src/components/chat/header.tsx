@@ -8,7 +8,6 @@ import {
   Chip,
   Input,
   useDisclosure,
-  Badge,
   Modal,
   ModalContent,
   ModalHeader,
@@ -16,9 +15,11 @@ import {
   ModalFooter,
   Card,
   CardBody,
+  Listbox,
+  ListboxItem,
+  Spinner,
 } from "@heroui/react";
 import {
-  PencilIcon,
   MagnifyingGlassIcon,
   VideoCameraIcon,
   PhoneIcon,
@@ -33,15 +34,14 @@ import {
 } from "@heroicons/react/24/outline";
 import ChatDrawer from "./drawer/chat-drawer";
 import useRoomStore from "@/store/useRoomStore";
-import { EyeDropperIcon } from "@heroicons/react/16/solid";
 import { roomMembers, RoomsState } from "@/store/types/room.state";
 import { useSocket } from "../providers/SocketProvider";
 import useCallStore from "@/store/useCallStore";
 import useAuthStore from "@/store/useAuthStore";
-// import { EyeDropperIcon } from "@heroicons/react/16/solid";
 import useContactStore from "@/store/useContactStore";
 import { useTranslation } from "react-i18next";
 import { ChevronDownIcon } from "@heroicons/react/16/solid";
+import { aiService, SearchResult } from "@/service/ai.service";
 
 interface ChatHeaderProps {
   // chatName?: string;
@@ -66,8 +66,9 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     onOpenChange: onOpenChangePinned,
   } = useDisclosure();
   const [showSearch, setShowSearch] = React.useState(false);
-  const [isOnline, setIsOnline] = React.useState(true);
   const [searchValue, setSearchValue] = React.useState("");
+  const [searchResults, setSearchResults] = React.useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = React.useState(false);
   const roomState = useRoomStore((state) => state);
   const { socket } = useSocket("/chat");
   const { openCall } = useCallStore();
@@ -79,7 +80,25 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     );
   }, [contactState.online, roomState.room?.members]);
 
-  const handleStartCall = (room: RoomsState, mode: 'audio' | 'video') => {
+  const handleSearch = async (query: string) => {
+    setSearchValue(query);
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const res = await aiService.search(query);
+      setSearchResults(res.results || []);
+    } catch (error) {
+      console.error("Search failed", error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleStartCall = (room: RoomsState, mode: "audio" | "video") => {
     const roomData = room.room;
     if (!roomData) return;
     openCall({
@@ -92,7 +111,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
         is_caller: true,
       })),
       currentUser: user,
-      socket
+      socket,
     });
   };
 
@@ -135,26 +154,31 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               </div>
             </NavbarItem>
           ) : (
-            <NavbarItem className="flex-1 w-full">
+            <NavbarItem className="flex-1 w-full relative">
               <Input
                 placeholder={t("chat.header.searchPlaceholder")}
                 value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
+                onChange={(e) => handleSearch(e.target.value)}
                 startContent={
                   <MagnifyingGlassIcon className="w-4 h-4 text-gray-400" />
                 }
                 endContent={
-                  <Button
-                    isIconOnly
-                    variant="light"
-                    size="sm"
-                    onClick={() => {
-                      setShowSearch(false);
-                      setSearchValue("");
-                    }}
-                  >
-                    <XMarkIcon className="w-4 h-4 text-gray-400" />
-                  </Button>
+                  isSearching ? (
+                    <Spinner size="sm" color="current" />
+                  ) : (
+                    <Button
+                      isIconOnly
+                      variant="light"
+                      size="sm"
+                      onClick={() => {
+                        setShowSearch(false);
+                        setSearchValue("");
+                        setSearchResults([]);
+                      }}
+                    >
+                      <XMarkIcon className="w-4 h-4 text-gray-400" />
+                    </Button>
+                  )
                 }
                 variant="faded"
                 classNames={{
@@ -166,6 +190,29 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 }}
                 autoFocus
               />
+              {searchResults.length > 0 && (
+                <div className="absolute top-full left-0 w-full bg-white dark:bg-slate-800 shadow-lg rounded-b-lg z-50 max-h-[300px] overflow-y-auto border border-gray-200 dark:border-gray-700">
+                  <Listbox aria-label="Search Results">
+                    {searchResults.map((result, index) => (
+                      <ListboxItem
+                        key={result.contextId || index}
+                        description={`Score: ${(result.score * 100).toFixed(
+                          0
+                        )}%`}
+                        startContent={
+                          <DocumentIcon className="w-5 h-5 text-primary" />
+                        }
+                        onClick={() => {
+                          console.log("Navigate to", result.contextId);
+                          // TODO: Implement navigation to message or document
+                        }}
+                      >
+                        {result.text}
+                      </ListboxItem>
+                    ))}
+                  </Listbox>
+                </div>
+              )}
             </NavbarItem>
           )}
         </NavbarContent>
@@ -201,7 +248,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 variant="light"
                 className="rounded-full hover:bg-cyan-100 text-white"
                 size="sm"
-                onPress={() => handleStartCall(roomState, 'video')}
+                onPress={() => handleStartCall(roomState, "video")}
               >
                 <VideoCameraIcon className="w-5 h-5" />
               </Button>
@@ -212,7 +259,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 variant="light"
                 className="rounded-full hover:bg-cyan-100 text-white"
                 size="sm"
-                onPress={() => handleStartCall(roomState, 'audio')}
+                onPress={() => handleStartCall(roomState, "audio")}
               >
                 <PhoneIcon className="w-5 h-5" />
               </Button>
@@ -243,9 +290,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               onClick={() => {
                 if (roomState.room?.pinned_messages) {
                   setScrollto(
-                    roomState.room.pinned_messages[
-                      roomState.room.pinned_messages.length - 1
-                    ].id
+                    roomState.room.pinned_messages.at(-1)?.id || null
                   );
                 }
               }}
@@ -255,9 +300,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                   roomState.room?.pinned_messages
                 ) {
                   setScrollto(
-                    roomState.room.pinned_messages[
-                      roomState.room.pinned_messages.length - 1
-                    ].id
+                    roomState.room.pinned_messages.at(-1)?.id || null
                   );
                 }
               }}
@@ -279,10 +322,8 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </div>
                 <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
                   {(() => {
-                    const lastMsg =
-                      roomState.room.pinned_messages[
-                        roomState.room.pinned_messages.length - 1
-                      ];
+                    const lastMsg = roomState.room.pinned_messages.at(-1);
+                    if (!lastMsg) return "";
                     return lastMsg.type === "text"
                       ? lastMsg.content
                       : t(`chat.header.pinned.${lastMsg.type}`);
@@ -293,8 +334,15 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
 
             {/* Mũi tên chỉ xuống (Visual Cue) */}
             <div
+              role="button"
+              tabIndex={0}
               className="text-orange-400 dark:text-orange-500 group-hover:translate-y-0.5 transition-transform"
               onClick={onOpenPinned}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  onOpenPinned();
+                }
+              }}
             >
               <ChevronDownIcon className="w-5 h-5" />
             </div>

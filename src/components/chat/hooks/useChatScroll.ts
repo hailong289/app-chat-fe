@@ -2,6 +2,7 @@ import { useCallback, useRef, useEffect } from "react";
 import { MESSAGES_PER_GROUP } from "../constants/messageConstants";
 import { MessageType } from "@/store/types/message.state";
 import { useToastStore } from "@/store/useToastStore";
+import useMessageStore from "@/store/useMessageStore";
 
 interface UseChatScrollProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -89,7 +90,7 @@ export function useChatScroll({
         }, 1000);
       };
 
-      // Kiểm tra element đã tồn tại chưa
+      // 1. Check DOM (Rendered?)
       const el = document.querySelector(`[data-mid="${id}"]`);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -97,87 +98,73 @@ export function useChatScroll({
         return;
       }
 
-      // Element chưa render - tìm index trong messages
+      // 2. Check State (Loaded but not rendered?)
       let messageIndex = messages.findIndex((msg) => msg.id === id);
 
-      // CASE 1: Tin nhắn chưa có trong local → load từ server
+      // 3. If not in state, try to find it (DB -> API)
       if (messageIndex === -1) {
-        if (containerRef.current) {
-          containerRef.current.scrollTop = 0;
-        }
-
         setIsLoadingOlder(true);
         addToast({
           type: "info",
-          message: "Đang tìm tin nhắn cũ...",
-          duration: 3000,
+          message: "Đang tìm tin nhắn...",
+          duration: 2000,
         });
 
         try {
-          let attempts = 0;
-          const MAX_ATTEMPTS = 5;
+          // Use findMessage from store (checks DB then API)
+          const found = await messageState.findMessage(chatId, id);
 
-          while (attempts < MAX_ATTEMPTS) {
-            // Stop if user interacted
-            if (isUserInteracting.current) {
-              setIsLoadingOlder(false);
-              return;
-            }
-
-            const result = await messageState.loadOlderMessages(chatId, 100);
-
-            if (!result || (Array.isArray(result) && result.length === 0)) {
-              setIsLoadingOlder(false);
-              setHasMoreOnServer(false);
-              addToast({
-                type: "error",
-                message: "Không tìm thấy tin nhắn",
-              });
-              return;
-            }
-
-            const currentMessages =
-              messageState.messagesRoom[chatId]?.messages || [];
-            messageIndex = currentMessages.findIndex(
-              (msg: MessageType) => msg.id === id
-            );
-
-            if (messageIndex !== -1) {
-              break;
-            }
-
-            attempts++;
-            addToast({
-              type: "info",
-              message: `Đang tải thêm tin nhắn... (${attempts}/${MAX_ATTEMPTS})`,
-              duration: 2000,
-            });
-          }
-
-          setIsLoadingOlder(false);
-
-          if (messageIndex === -1) {
+          if (!found) {
+            setIsLoadingOlder(false);
+            setHasMoreOnServer(false);
             addToast({
               type: "error",
-              message: "Không tìm thấy tin nhắn sau khi tải thêm",
+              message: "Không tìm thấy tin nhắn",
             });
             return;
           }
+
+          // Get fresh messages from store
+          const currentMessages =
+            useMessageStore.getState().messagesRoom[chatId]?.messages || [];
+          messageIndex = currentMessages.findIndex(
+            (msg: MessageType) => msg.id === id
+          );
+
+          if (messageIndex === -1) {
+            setIsLoadingOlder(false);
+            addToast({
+              type: "error",
+              message: "Lỗi hiển thị tin nhắn",
+            });
+            return;
+          }
+
+          setIsLoadingOlder(false);
         } catch (error) {
           setIsLoadingOlder(false);
           addToast({
             type: "error",
-            message: "Lỗi khi tải tin nhắn",
+            message: "Lỗi khi tìm tin nhắn",
           });
           return;
         }
       }
 
-      // CASE 2: Tin nhắn có trong local nhưng chưa render
-      const currentMessages =
-        messageState.messagesRoom[chatId]?.messages || messages;
+      // 4. Render and Scroll
+      // At this point, message is in state (either initially or after fetch)
+      // We need to ensure it's within displayedMessagesCount
 
-      // Fix: Calculate required count based on distance from end (since we slice from end)
+      const currentMessages =
+        useMessageStore.getState().messagesRoom[chatId]?.messages || messages;
+
+      // Recalculate index in case it changed
+      messageIndex = currentMessages.findIndex(
+        (msg: MessageType) => msg.id === id
+      );
+
+      if (messageIndex === -1) return; // Should not happen
+
       const messagesFromEnd = currentMessages.length - messageIndex;
       const requiredCount = messagesFromEnd + MESSAGES_PER_GROUP;
 
@@ -262,6 +249,7 @@ export function useChatScroll({
       setIsLoadingOlder,
       setHasMoreOnServer,
       setDisplayedMessagesCount,
+      addToast,
     ]
   );
 
