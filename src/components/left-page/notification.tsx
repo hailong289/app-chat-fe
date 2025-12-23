@@ -2,8 +2,9 @@
 
 import React, { useState } from "react";
 import { XMarkIcon } from "@heroicons/react/24/solid";
-import { Card, CardBody, Avatar, Button } from "@heroui/react";
+import { Card, CardBody, Avatar, Button, Tooltip } from "@heroui/react";
 import { usePathname, useRouter } from "next/navigation";
+import useCounterStore from "@/store/useCounterStore";
 
 interface NotificationItem {
   id: string;
@@ -18,6 +19,7 @@ interface NotificationItem {
 const Notification: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
+  const isCollapsed = useCounterStore((state) => state.collapsedSidebar);
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([
     {
@@ -69,6 +71,53 @@ const Notification: React.FC = () => {
   const handleClose = () => {
     router.push(pathname || "/");
   };
+
+  if (isCollapsed) {
+    return (
+      <Card className="w-full h-full shadow-none border-none rounded-none bg-background/80 text-foreground">
+        <CardBody className="flex flex-col items-center gap-4 py-4">
+          <Tooltip content="Đóng danh sách" placement="right">
+            <Button
+              isIconOnly
+              variant="light"
+              className="text-foreground-500"
+              onPress={handleClose}
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </Button>
+          </Tooltip>
+          <div className="flex flex-col items-center gap-3">
+            {notifications.slice(0, 8).map((item) => (
+              <Tooltip key={item.id} content={item.name} placement="right">
+                {item.avatar ? (
+                  <Avatar
+                    src={item.avatar}
+                    size="md"
+                    className="cursor-pointer"
+                  />
+                ) : (
+                  <div
+                    className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-semibold cursor-pointer ${
+                      item.badgeColor || "bg-primary"
+                    }`}
+                  >
+                    {(
+                      item.badgeText ||
+                      item.name
+                        .split(" ")
+                        .map((w) => w[0])
+                        .join("")
+                        .toUpperCase()
+                    ).slice(0, 2)}
+                  </div>
+                )}
+              </Tooltip>
+            ))}
+          </div>
+        </CardBody>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full h-full shadow-none border-none rounded-none bg-background text-foreground">

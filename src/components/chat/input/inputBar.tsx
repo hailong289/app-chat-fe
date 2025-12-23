@@ -56,6 +56,7 @@ import { DocumentPickerModal } from "../modals/DocumentPickerModal";
 import { Document } from "@/service/document.service";
 import FileGalleryModal from "../../modals/FileGalleryModal";
 import { aiService } from "@/service/ai.service";
+import { logError } from "@/utils/errorUtils";
 
 const maxFiles = 20;
 
@@ -149,7 +150,7 @@ export default function ChatInputBar({
           setSuggestedGifs(res.gif_keywords || []);
         }
       } catch (e) {
-        console.error(e);
+        logError("[ChatInput] Failed to fetch AI suggestions", e);
       }
     };
 

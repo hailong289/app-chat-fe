@@ -5,6 +5,7 @@ import { GlobeAltIcon } from "@heroicons/react/24/outline";
 import LinkPreviewService, {
   LinkPreviewData,
 } from "@/service/link-preview.service";
+import { logError, normalizeError } from "@/utils/errorUtils";
 
 /* ---------------------------- Types ---------------------------- */
 interface LinkPreviewProps {
@@ -73,15 +74,16 @@ export const LinkPreview = ({
           setPreview(data);
           setError(false);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (!ignore && !isTimeout) {
-          // Log error nhưng không throw
-          if (error?.statusCode === 404) {
+          const normalized = normalizeError(error);
+
+          if (normalized.statusCode === 404) {
             console.warn("Link preview not found for:", url);
-          } else if (error?.statusCode === 503) {
+          } else if (normalized.statusCode === 503) {
             console.warn("Link preview service unavailable for:", url);
           } else {
-            console.error("Error fetching link preview:", error);
+            logError("Error fetching link preview", error);
           }
           setError(true);
         }

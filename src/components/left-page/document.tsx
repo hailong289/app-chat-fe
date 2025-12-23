@@ -5,8 +5,6 @@ import {
   DocumentArrowDownIcon,
   PlusIcon,
   TrashIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import { MagnifyingGlassIcon } from "@heroicons/react/16/solid";
 import {
@@ -25,7 +23,8 @@ import useDocumentStore from "@/store/useDocumentStore";
 import useAuthStore from "@/store/useAuthStore";
 import useAlertStore from "@/store/useAlertStore";
 import { useTranslation } from "react-i18next";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import useCounterStore from "@/store/useCounterStore";
 import { useSocket } from "../providers/SocketProvider";
 
 const Document: React.FC = () => {
@@ -48,7 +47,7 @@ const Document: React.FC = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [newDocTitle, setNewDocTitle] = useState("");
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const isCollapsed = useCounterStore((state) => state.collapsedSidebar);
   const { socket } = useSocket("/doc");
   useEffect(() => {
     if (!socket) return;
@@ -67,7 +66,7 @@ const Document: React.FC = () => {
     return () => {
       socket.off("connect", handleReconnect);
     };
-  }, [socket]);
+  }, [socket, loadDocuments]);
 
   // Debounce search + query changes
 
@@ -77,8 +76,13 @@ const Document: React.FC = () => {
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, []);
-  useEffect(() => {}, []);
+  }, [loadDocuments]);
+
+  useEffect(() => {
+    if (isCollapsed) {
+      setShowSearch(false);
+    }
+  }, [isCollapsed]);
 
   const handleCreateDocument = async () => {
     if (!newDocTitle.trim()) return;
@@ -112,222 +116,222 @@ const Document: React.FC = () => {
     const q = searchValue.toLowerCase();
     return documents.filter((d) => d.title.toLowerCase().includes(q));
   }, [documents, searchValue]);
+  const titleText = t("documents.title");
+  const collapsedLabel = t("documents.shortTitle", { defaultValue: titleText });
 
-  return (
-    <>
-      <motion.div
-        initial={{ width: 320 }}
-        animate={{ width: isCollapsed ? 60 : 320 }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="h-full bg-background border-r border-default-200 flex flex-col overflow-hidden relative"
-      >
-        {/* Header */}
-        <div
-          className={`flex items-center ${
-            isCollapsed ? "justify-center" : "justify-between"
-          } px-3 py-3 border-b border-default-200 bg-background h-[60px]`}
-        >
-          {!isCollapsed && (
-            <div className="flex flex-col overflow-hidden">
-              <h2 className="text-lg font-bold truncate">
-                {t("documents.title")}
-              </h2>
-              <p className="text-xs text-foreground-500 truncate">
-                {t("documents.subtitle")}
-              </p>
-            </div>
-          )}
-          <div className="flex items-center gap-1">
-            {!isCollapsed && (
-              <>
-                <Tooltip content={t("documents.search")}>
-                  <Button
-                    isIconOnly
-                    variant="light"
-                    size="sm"
-                    onPress={() => setShowSearch((v) => !v)}
-                  >
-                    <MagnifyingGlassIcon className="w-4 h-4" />
-                  </Button>
-                </Tooltip>
-                <Tooltip content={t("documents.create")}>
-                  <Button isIconOnly variant="light" size="sm" onPress={onOpen}>
-                    <PlusIcon className="w-5 h-5" />
-                  </Button>
-                </Tooltip>
-              </>
-            )}
+  const collapsedView = (
+    <div className="h-full w-full bg-background border-r border-default-200 flex flex-col">
+      <div className="flex items-center justify-center h-[60px] border-b border-default-200 bg-background">
+        <Tooltip content={titleText} placement="right">
+          <span className="text-sm font-semibold text-foreground">
+            {collapsedLabel}
+          </span>
+        </Tooltip>
+      </div>
+      <div className="flex-1 overflow-y-auto flex flex-col items-center gap-3 py-4">
+        {loading ? (
+          <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        ) : filteredDocuments.length === 0 ? (
+          <span className="text-xs text-foreground-400 px-2 text-center">
+            {t("documents.empty.title")}
+          </span>
+        ) : (
+          filteredDocuments.map((item) => {
+            const isActive = pathname === `/docs/${item._id}`;
+            return (
+              <Tooltip key={item._id} content={item.title} placement="right">
+                <Button
+                  isIconOnly
+                  variant={isActive ? "solid" : "light"}
+                  color={isActive ? "primary" : "default"}
+                  size="sm"
+                  className="w-10 h-10"
+                  onPress={() => router.push(`/docs/${item._id}`)}
+                >
+                  <DocumentArrowDownIcon className="w-5 h-5" />
+                </Button>
+              </Tooltip>
+            );
+          })
+        )}
+      </div>
+      <div className="p-2 border-t border-default-200 flex justify-center">
+        <Tooltip content={t("documents.create")} placement="right">
+          <Button
+            isIconOnly
+            variant="flat"
+            color="primary"
+            size="sm"
+            onPress={onOpen}
+          >
+            <PlusIcon className="w-5 h-5" />
+          </Button>
+        </Tooltip>
+      </div>
+    </div>
+  );
+
+  const expandedView = (
+    <div className="h-full w-full bg-background border-r border-default-200 flex flex-col overflow-hidden relative">
+      <div className="flex items-center justify-between px-3 py-3 border-b border-default-200 bg-background h-[60px]">
+        <div className="flex flex-col overflow-hidden">
+          <h2 className="text-lg font-bold truncate">{titleText}</h2>
+          <p className="text-xs text-foreground-500 truncate">
+            {t("documents.subtitle")}
+          </p>
+        </div>
+        <div className="flex items-center gap-1">
+          <Tooltip content={t("documents.search")}>
             <Button
               isIconOnly
               variant="light"
               size="sm"
-              onPress={() => setIsCollapsed(!isCollapsed)}
+              onPress={() => setShowSearch((v) => !v)}
             >
-              {isCollapsed ? (
-                <ChevronRightIcon className="w-4 h-4" />
-              ) : (
-                <ChevronLeftIcon className="w-4 h-4" />
-              )}
+              <MagnifyingGlassIcon className="w-4 h-4" />
             </Button>
-          </div>
+          </Tooltip>
+          <Tooltip content={t("documents.create")}>
+            <Button isIconOnly variant="light" size="sm" onPress={onOpen}>
+              <PlusIcon className="w-5 h-5" />
+            </Button>
+          </Tooltip>
         </div>
+      </div>
 
-        {/* Search Bar */}
-        <AnimatePresence>
-          {!isCollapsed && showSearch && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="px-3 py-2 border-b border-default-200 bg-background overflow-hidden"
-            >
-              <Input
-                size="sm"
-                placeholder={t("documents.modal.placeholder")}
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-                autoFocus
-                variant="bordered"
-                startContent={
-                  <MagnifyingGlassIcon className="w-4 h-4 text-foreground-400" />
-                }
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+      <AnimatePresence>
+        {showSearch && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="px-3 py-2 border-b border-default-200 bg-background overflow-hidden"
+          >
+            <Input
+              size="sm"
+              placeholder={t("documents.modal.placeholder")}
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              autoFocus
+              variant="bordered"
+              startContent={
+                <MagnifyingGlassIcon className="w-4 h-4 text-foreground-400" />
+              }
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        {/* Document List */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden">
-          {(() => {
-            let content;
-            if (loading) {
-              content = (
-                <div className="flex items-center justify-center h-20">
-                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                </div>
-              );
-            } else if (filteredDocuments.length === 0 && !isCollapsed) {
-              content = (
-                <div className="flex flex-col items-center justify-center py-10 gap-3 px-4 text-center">
-                  <p className="text-sm text-foreground-500">
-                    {t("documents.empty.title")}
-                  </p>
-                  <Button color="primary" size="sm" onPress={onOpen}>
-                    {t("documents.empty.button")}
-                  </Button>
-                </div>
-              );
-            } else {
-              content = (
-                <div className="flex flex-col">
-                  {filteredDocuments.map((item) => {
-                    const isActive = pathname === `/docs/${item._id}`;
-                    return (
-                      <div
-                        role="button"
-                        key={item._id}
-                        tabIndex={0}
-                        className={`
-                          group relative flex items-center
-                          ${
-                            isCollapsed
-                              ? "justify-center px-2 py-3"
-                              : "px-3 py-3"
-                          }
-                          cursor-pointer transition-all duration-200
-                          border-b border-default-100
-                          ${
-                            isActive
-                              ? "bg-primary/10 border-l-4 border-l-primary"
-                              : "hover:bg-default-100 border-l-4 border-l-transparent"
-                          }
-                          outline-none focus-visible:ring-2 focus-visible:ring-primary
-                        `}
-                        onClick={() => router.push(`/docs/${item._id}`)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            router.push(`/docs/${item._id}`);
-                          }
-                        }}
-                      >
-                        {/* Icon */}
-                        <div
-                          className={`
-                          flex items-center justify-center rounded-lg p-2 transition-colors
-                          ${
-                            isActive
-                              ? "bg-primary text-white shadow-md"
-                              : "bg-default-100 text-foreground-500 group-hover:bg-white group-hover:shadow-sm"
-                          }
-                        `}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        {(() => {
+          if (loading) {
+            return (
+              <div className="flex items-center justify-center h-20">
+                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            );
+          }
+
+          if (filteredDocuments.length === 0) {
+            return (
+              <div className="flex flex-col items-center justify-center py-10 gap-3 px-4 text-center">
+                <p className="text-sm text-foreground-500">
+                  {t("documents.empty.title")}
+                </p>
+                <Button color="primary" size="sm" onPress={onOpen}>
+                  {t("documents.empty.button")}
+                </Button>
+              </div>
+            );
+          }
+
+          return (
+            <div className="flex flex-col">
+              {filteredDocuments.map((item) => {
+                const isActive = pathname === `/docs/${item._id}`;
+                return (
+                  <div
+                    role="button"
+                    key={item._id}
+                    tabIndex={0}
+                    className={`
+                      group relative flex items-center px-3 py-3
+                      cursor-pointer transition-all duration-200
+                      border-b border-default-100
+                      ${
+                        isActive
+                          ? "bg-primary/10 border-l-4 border-l-primary"
+                          : "hover:bg-default-100 border-l-4 border-l-transparent"
+                      }
+                      outline-none focus-visible:ring-2 focus-visible:ring-primary
+                    `}
+                    onClick={() => router.push(`/docs/${item._id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        router.push(`/docs/${item._id}`);
+                      }
+                    }}
+                  >
+                    <div
+                      className={`
+                      flex items-center justify-center rounded-lg p-2 transition-colors
+                      ${
+                        isActive
+                          ? "bg-primary text-white shadow-md"
+                          : "bg-default-100 text-foreground-500 group-hover:bg-white group-hover:shadow-sm"
+                      }
+                    `}
+                    >
+                      <DocumentArrowDownIcon className="w-5 h-5" />
+                    </div>
+
+                    <div className="ml-3 flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`text-sm font-medium truncate ${
+                            isActive ? "text-primary" : "text-foreground"
+                          }`}
                         >
-                          <DocumentArrowDownIcon className="w-5 h-5" />
-                        </div>
-
-                        {/* Content (Hidden when collapsed) */}
-                        {!isCollapsed && (
-                          <div className="ml-3 flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <span
-                                className={`text-sm font-medium truncate ${
-                                  isActive ? "text-primary" : "text-foreground"
-                                }`}
-                              >
-                                {item.title}
-                              </span>
-                              {item.ownerId === currentUser?._id && (
-                                <Button
-                                  isIconOnly
-                                  variant="light"
-                                  size="sm"
-                                  className="opacity-0 group-hover:opacity-100 text-danger -mr-2"
-                                  onPress={() => handleDeleteDocument(item._id)}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <TrashIcon className="w-4 h-4" />
-                                </Button>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[10px] text-foreground-400">
-                                {new Date(
-                                  item.updatedAt || item.createdAt || ""
-                                ).toLocaleDateString()}
-                              </span>
-                              <span className="text-[10px] px-1.5 py-0.5 bg-default-200/50 rounded text-foreground-500 capitalize">
-                                {t(`documents.visibility.${item.visibility}`)}
-                              </span>
-                            </div>
-                          </div>
+                          {item.title}
+                        </span>
+                        {item.ownerId === currentUser?._id && (
+                          <Button
+                            isIconOnly
+                            variant="light"
+                            size="sm"
+                            className="opacity-0 group-hover:opacity-100 text-danger -mr-2"
+                            onPress={() => handleDeleteDocument(item._id)}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </Button>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-              );
-            }
-            return content;
-          })()}
-        </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-foreground-400">
+                          {new Date(
+                            item.updatedAt || item.createdAt || ""
+                          ).toLocaleDateString()}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.5 bg-default-200/50 rounded text-foreground-500 capitalize">
+                          {t(`documents.visibility.${item.visibility}`)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+      </div>
+    </div>
+  );
 
-        {/* Footer Actions (Collapsed Mode) */}
-        {isCollapsed && (
-          <div className="p-2 border-t border-default-200 flex flex-col gap-2 items-center">
-            <Tooltip content={t("documents.create")} placement="right">
-              <Button
-                isIconOnly
-                variant="flat"
-                color="primary"
-                size="sm"
-                onPress={onOpen}
-              >
-                <PlusIcon className="w-5 h-5" />
-              </Button>
-            </Tooltip>
-          </div>
-        )}
-      </motion.div>
+  return (
+    <>
+      {isCollapsed ? collapsedView : expandedView}
 
       <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
         <ModalContent>

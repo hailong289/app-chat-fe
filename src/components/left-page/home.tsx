@@ -163,33 +163,6 @@ export const Home = () => {
     []
   );
 
-  const btnCollapse = useMemo(
-    () => (
-      <Tooltip
-        content={
-          countState.collapsedSidebar
-            ? "Mở rộng danh sách"
-            : "Thu gọn danh sách"
-        }
-        placement="bottom"
-      >
-        <Button
-          isIconOnly
-          variant="light"
-          size="sm"
-          className="text-foreground"
-          onPress={() => countState.togoleSidebar()}
-        >
-          {countState.collapsedSidebar ? (
-            <ChevronDoubleRightIcon className="w-5 h-5" />
-          ) : (
-            <ChevronDoubleLeftIcon className="w-5 h-5" />
-          )}
-        </Button>
-      </Tooltip>
-    ),
-    [countState.collapsedSidebar]
-  );
 
   const handleChatClick = useCallback(
     (chat: any) => {
@@ -245,14 +218,6 @@ export const Home = () => {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Top actions */}
-      {!isSearchVisible && (
-        <div className="flex items-center justify-end p-1 border-b border-default dark:bg-slate-900">
-          {btnNewMsg}
-          {btnCollapse}
-        </div>
-      )}
-
       {/* Status Section */}
       {!isSearchVisible && !countState.collapsedSidebar && (
         <Card className="rounded-none shadow-none border-b border-default dark:bg-slate-900">
