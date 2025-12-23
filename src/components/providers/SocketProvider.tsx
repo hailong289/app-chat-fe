@@ -77,7 +77,6 @@ export function SocketProvider({
   url?: string;
 }>) {
   const baseUrl = url || process.env.NEXT_PUBLIC_SOCKET_URL!;
-  console.log("🚀 ~ SocketProvider ~ baseUrl:", baseUrl);
   const isLoggedOut = useAuthStore((s) => !s.tokens);
 
   const socketsRef = useRef<Record<string, Socket>>({});
