@@ -35,7 +35,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FilePreviewGridModal from "../file/FilePreviewGridModal";
 import useMessageStore from "@/store/useMessageStore";
-import { FilePreview } from "@/store/types/message.state";
+import { FilePreview, MessageType } from "@/store/types/message.state";
 import useAuthStore from "@/store/useAuthStore";
 import { useSocket } from "../../providers/SocketProvider";
 import EmojiPicker, { EmojiClickData, Categories } from "emoji-picker-react";
@@ -58,6 +58,8 @@ import FileGalleryModal from "../../modals/FileGalleryModal";
 import { aiService } from "@/service/ai.service";
 
 const maxFiles = 20;
+
+const EMPTY_MESSAGES: MessageType[] = [];
 
 type ChatInputBarProps = Readonly<{
   chatId: string;
@@ -91,7 +93,7 @@ export default function ChatInputBar({
   const [suggestedGifs, setSuggestedGifs] = useState<string[]>([]);
 
   const messages = useMessageStore(
-    (state) => state.messagesRoom[chatId]?.messages || []
+    (state) => state.messagesRoom[chatId]?.messages || EMPTY_MESSAGES
   );
 
   const emojiTab = useMemo(
@@ -650,7 +652,7 @@ export default function ChatInputBar({
         {(suggestions?.length > 0 ||
           suggestedEmojis?.length > 0 ||
           suggestedGifs?.length > 0) && (
-          <div className="flex flex-col gap-2 px-1 pb-2">
+          <div className="flex  gap-2 px-1 pb-2">
             {suggestions?.length > 0 && (
               <div className="flex gap-2 overflow-x-auto scrollbar-hide">
                 {suggestions.map((suggestion, index) => (

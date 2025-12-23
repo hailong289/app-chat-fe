@@ -89,7 +89,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
 
     setIsSearching(true);
     try {
-      const res = await aiService.search(query);
+      const res = await aiService.search(query, roomState.room?._id);
       setSearchResults(res.results || []);
     } catch (error) {
       console.error("Search failed", error);

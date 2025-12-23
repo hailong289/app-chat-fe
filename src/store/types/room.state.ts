@@ -52,6 +52,7 @@ export interface RoomsState {
 }
 
 export type roomType = {
+  _id: string;
   id: string; // Primary key - must not be null
   roomId: string;
   type: "group" | "private" | "channel";

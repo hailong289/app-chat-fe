@@ -26,6 +26,7 @@ interface MessageItemProps {
   chatId: string;
   socket: any;
   noAction?: boolean;
+  renderedMessageIds?: React.MutableRefObject<Set<string>>;
   onToggleExpanded: (id: string) => void;
   onReply: (msg: MessageType) => void;
   onReact: (msg: MessageType, emoji: string) => void;
@@ -38,7 +39,7 @@ interface MessageItemProps {
   messageState: any;
 }
 
-import { memo } from "react";
+import { memo, useEffect } from "react";
 
 export const MessageItem = memo(function MessageItem({
   msg,
@@ -56,6 +57,7 @@ export const MessageItem = memo(function MessageItem({
   chatId,
   socket,
   noAction,
+  renderedMessageIds,
   onToggleExpanded,
   onReply,
   onReact,
@@ -68,6 +70,13 @@ export const MessageItem = memo(function MessageItem({
   messageState,
 }: Readonly<MessageItemProps>) {
   const { t } = useTranslation();
+
+  useEffect(() => {
+    if (renderedMessageIds && !renderedMessageIds.current.has(msg.id)) {
+      renderedMessageIds.current.add(msg.id);
+    }
+  }, [msg.id, renderedMessageIds]);
+
   const isSameSenderAsPrev = prevMsg?.sender._id === msg.sender._id;
   const isSameSenderAsNext = nextMsg?.sender._id === msg.sender._id;
   const shouldAnimateThis = shouldAnimate && isNewMessage;

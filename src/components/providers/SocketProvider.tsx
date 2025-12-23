@@ -77,6 +77,7 @@ export function SocketProvider({
   url?: string;
 }>) {
   const baseUrl = url || process.env.NEXT_PUBLIC_SOCKET_URL!;
+  console.log("🚀 ~ SocketProvider ~ baseUrl:", baseUrl);
   const isLoggedOut = useAuthStore((s) => !s.tokens);
 
   const socketsRef = useRef<Record<string, Socket>>({});
@@ -195,9 +196,15 @@ export function SocketProvider({
         console.error(`❌ [${ns}] Socket Error Parsed:`, msg);
 
         const lowerMsg = msg.toLowerCase();
-        if (lowerMsg.includes("unauthorized") || lowerMsg.includes("jwt") || lowerMsg.includes("forbidden")) {
-             console.warn(`🔒 [${ns}] Auth failed (error event), stopping reconnect.`);
-             socket.disconnect(); 
+        if (
+          lowerMsg.includes("unauthorized") ||
+          lowerMsg.includes("jwt") ||
+          lowerMsg.includes("forbidden")
+        ) {
+          console.warn(
+            `🔒 [${ns}] Auth failed (error event), stopping reconnect.`
+          );
+          socket.disconnect();
         }
 
         updateState(ns, {
