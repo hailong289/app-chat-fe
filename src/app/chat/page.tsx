@@ -114,9 +114,7 @@ export default function ChatPage() {
   );
 
   return (
-    <Suspense
-      fallback={Fallback}
-    >
+    <Suspense fallback={Fallback}>
       <ChatPageContent />
     </Suspense>
   );
