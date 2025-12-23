@@ -14,23 +14,18 @@ const safeStringify = (value: unknown): string | undefined => {
   }
 };
 
-const getProp = <T extends string | number | symbol, V>(
-  source: Record<T, V> | undefined,
-  key: T
-): V | undefined => {
-  if (!source) return undefined;
-  if (Object.prototype.hasOwnProperty.call(source, key)) {
-    return source[key];
-  }
-  return undefined;
+const getProp = (source: unknown, key: string): unknown => {
+  if (!source || typeof source !== "object") return undefined;
+  if (!Object.prototype.hasOwnProperty.call(source, key)) return undefined;
+  return (source as Record<string, unknown>)[key];
 };
 
 export const normalizeError = (error: unknown): NormalizedError => {
   if (error instanceof Error) {
     const statusCode =
-      getProp(error as Record<string, unknown>, "statusCode") ??
-      getProp(error as Record<string, unknown>, "status") ??
-      getProp(getProp(error as Record<string, unknown>, "response"), "status");
+      getProp(error, "statusCode") ??
+      getProp(error, "status") ??
+      getProp(getProp(error, "response"), "status");
 
     return {
       message: error.message || "Unknown error",
