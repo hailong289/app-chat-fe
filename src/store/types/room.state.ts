@@ -42,9 +42,17 @@ export interface RoomsState {
     typing: boolean;
     roomId: string;
   }) => void;
+  updateBlockStatus: (
+    roomId: string,
+    isBlocked: boolean,
+    blockByMine: boolean
+  ) => void;
+  pinnedRoom: (roomId: string, pinned: boolean) => Promise<void>;
+  mutedRoom: (roomId: string, muted: boolean) => Promise<void>;
 }
 
 export type roomType = {
+  _id: string;
   id: string; // Primary key - must not be null
   roomId: string;
   type: "group" | "private" | "channel";
@@ -90,6 +98,6 @@ export type pinned_messagesType = {
 export type roomMembers = {
   id: string;
   name: string | null;
-  role: string | null;
+  role: "admin" | "member" | "owner" | "guest" | null;
   avatar: string | null;
 };

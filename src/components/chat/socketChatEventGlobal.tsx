@@ -6,15 +6,16 @@ import useRoomStore from "@/store/useRoomStore";
 import useMessageStore from "@/store/useMessageStore";
 import useContactStore from "@/store/useContactStore";
 import { socketEvent } from "@/types/socketEvent.type";
+import useCallStore from "@/store/useCallStore";
 
 export const SocketEventChatGlobal = () => {
-  const { socket } = useSocket();
+  const { socket } = useSocket("/chat");
   const roomState = useRoomStore((state) => state);
   const contactState = useContactStore((state) => state);
   const messageState = useMessageStore((state) => state);
+  const callStore = useCallStore((state) => state);
   useEffect(() => {
     if (!socket) return;
-    console.log("nhận xử lý socket");
     socket.on(socketEvent.ROOMUPSERT, roomState.updateRoomSocket);
     socket.on(socketEvent.MSGUPSERT, messageState.upsetMsg);
     socket.on(socketEvent.MSGMARKREAD, roomState.setRoomReaded);
@@ -22,7 +23,9 @@ export const SocketEventChatGlobal = () => {
     socket.on(socketEvent.ROOMDELETE, roomState.roomDeleteSocket);
     socket.on(socketEvent.ERRORMSG, messageState.upsetMsgError);
     socket.on(socketEvent.STATUSTYPING, roomState.handleTypingEvent);
+    socket.on(socketEvent.CALL, (payload: any) => callStore.eventCall("request", payload));
     return () => {
+      socket.off(socketEvent.CALL, (payload: any) => callStore.eventCall("request", payload));
       socket.off(socketEvent.ROOMUPSERT, roomState.updateRoomSocket);
       socket.off(socketEvent.MSGUPSERT, messageState.upsetMsg);
       socket.off(socketEvent.MSGMARKREAD, roomState.setRoomReaded);

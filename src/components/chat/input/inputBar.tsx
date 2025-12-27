@@ -8,9 +8,7 @@ import {
   handleDropFactory,
   handleFilePickFactory,
   handlePasteFactory,
-  buildInputAccept,
   FileAcceptConfig,
-  documentOnlyConfig,
 } from "@/libs/file-handlers";
 import {
   FaceSmileIcon,
@@ -22,6 +20,7 @@ import {
   XCircleIcon,
   TrashIcon,
   DocumentIcon,
+  BookOpenIcon,
 } from "@heroicons/react/16/solid";
 import {
   Button,
@@ -36,7 +35,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FilePreviewGridModal from "../file/FilePreviewGridModal";
 import useMessageStore from "@/store/useMessageStore";
-import { FilePreview } from "@/store/types/message.state";
+import { FilePreview, MessageType } from "@/store/types/message.state";
 import useAuthStore from "@/store/useAuthStore";
 import { useSocket } from "../../providers/SocketProvider";
 import EmojiPicker, { EmojiClickData, Categories } from "emoji-picker-react";
@@ -52,20 +51,16 @@ import {
 } from "@heroicons/react/24/outline";
 import useRoomStore from "@/store/useRoomStore";
 import TypingIndicator from "./TypingIndicator";
-
-const emojiTab = [
-  { name: "Gần đây", category: Categories.SUGGESTED },
-  { name: "Mặt cười", category: Categories.SMILEYS_PEOPLE },
-  { name: "Động vật", category: Categories.ANIMALS_NATURE },
-  { name: "Đồ ăn", category: Categories.FOOD_DRINK },
-  { name: "Hoạt động", category: Categories.ACTIVITIES },
-  { name: "Du lịch", category: Categories.TRAVEL_PLACES },
-  { name: "Đồ vật", category: Categories.OBJECTS },
-  { name: "Ký hiệu", category: Categories.SYMBOLS },
-  { name: "Cờ", category: Categories.FLAGS },
-];
+import { useTranslation } from "react-i18next";
+import { DocumentPickerModal } from "../modals/DocumentPickerModal";
+import { Document } from "@/service/document.service";
+import FileGalleryModal from "../../modals/FileGalleryModal";
+import { aiService } from "@/service/ai.service";
+import { logError } from "@/utils/errorUtils";
 
 const maxFiles = 20;
+
+const EMPTY_MESSAGES: MessageType[] = [];
 
 type ChatInputBarProps = Readonly<{
   chatId: string;
@@ -86,11 +81,36 @@ export default function ChatInputBar({
   toggleInput,
   setScrollto,
 }: ChatInputBarProps) {
+  const { t } = useTranslation();
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<FilePreview[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [compressImages, setCompressImages] = useState(true);
   const [micro, setMicro] = useState(false);
+  const [showDocPicker, setShowDocPicker] = useState(false);
+  const [showFileGallery, setShowFileGallery] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestedEmojis, setSuggestedEmojis] = useState<string[]>([]);
+  const [suggestedGifs, setSuggestedGifs] = useState<string[]>([]);
+
+  const messages = useMessageStore(
+    (state) => state.messagesRoom[chatId]?.messages || EMPTY_MESSAGES
+  );
+
+  const emojiTab = useMemo(
+    () => [
+      { name: t("chat.emoji.recent"), category: Categories.SUGGESTED },
+      { name: t("chat.emoji.smileys"), category: Categories.SMILEYS_PEOPLE },
+      { name: t("chat.emoji.animals"), category: Categories.ANIMALS_NATURE },
+      { name: t("chat.emoji.food"), category: Categories.FOOD_DRINK },
+      { name: t("chat.emoji.activities"), category: Categories.ACTIVITIES },
+      { name: t("chat.emoji.travel"), category: Categories.TRAVEL_PLACES },
+      { name: t("chat.emoji.objects"), category: Categories.OBJECTS },
+      { name: t("chat.emoji.symbols"), category: Categories.SYMBOLS },
+      { name: t("chat.emoji.flags"), category: Categories.FLAGS },
+    ],
+    [t]
+  );
 
   const fileMediaInputRef = useRef<HTMLInputElement>(null);
   const fileDocInputRef = useRef<HTMLInputElement>(null);
@@ -110,34 +130,62 @@ export default function ChatInputBar({
 
   const auth = useAuthStore((state) => state.user);
 
+  const lastMessage = useMemo(() => messages.at(-1), [messages]);
+
+  useEffect(() => {
+    if (!lastMessage || lastMessage.sender._id === auth?.id) {
+      setSuggestions([]);
+      return;
+    }
+
+    const fetchSuggestions = async () => {
+      try {
+        const context = messages
+          .slice(-10)
+          .map((m) => `${m.sender.fullname}: ${m.content}`);
+        const res = await aiService.suggestReplies(context);
+        if (res) {
+          setSuggestions(res.suggestions || []);
+          setSuggestedEmojis(res.emojis || []);
+          setSuggestedGifs(res.gif_keywords || []);
+        }
+      } catch (e) {
+        logError("[ChatInput] Failed to fetch AI suggestions", e);
+      }
+    };
+
+    fetchSuggestions();
+  }, [lastMessage?.id, auth?.id]);
+
   const room = useRoomStore((state) => state.room);
   const roomTypingUsers = useRoomStore((state) => state.roomTypingUsers);
   const roomTypingSocket = useRoomStore((state) => state.roomTypingSocket);
 
-  const { socket } = useSocket();
+  const { socket } = useSocket("/chat");
+
+  const isGuest = useMemo(() => {
+    return room?.members?.some(
+      (member) => member.id === auth?.id && member.role === "guest"
+    );
+  }, [room, auth]);
 
   // ====== FILE CONFIG ======,
   const config: FileAcceptConfig = useMemo(
     () => ({
       ...defaultConfig,
-      accept: [...defaultConfig.accept, ...documentOnlyConfig.accept],
+      accept: ["*/*"],
       maxFiles,
       compressImages,
     }),
     [compressImages]
   );
 
-  const handleMaxFilesExceeded = useCallback((current: number, max: number) => {
-    console.log(
-      "🚨 Max files exceeded:",
-      current,
-      "files selected, max is",
-      max
-    );
-    toast.error(
-      `Chỉ được chọn tối đa ${max} files. Bạn đã chọn ${current} files.`
-    );
-  }, []);
+  const handleMaxFilesExceeded = useCallback(
+    (current: number, max: number) => {
+      toast.error(t("chat.input.maxFilesExceeded", { max, current }));
+    },
+    [t]
+  );
 
   // ====== SYNC LOCAL STATE VỚI STORE KHI ĐỔI CHAT ======
   useEffect(() => {
@@ -370,7 +418,6 @@ export default function ChatInputBar({
     }
 
     setToggleInput(!toggleInput);
-
     if (replyToId) {
       setReplyMessage(chatId, null);
     }
@@ -405,7 +452,7 @@ export default function ChatInputBar({
       await PermissionService.requestMicrophoneAccess();
     } catch (error) {
       console.error("PermissionService.requestMicrophoneAccess failed:", error);
-      toast.error("Không thể truy cập micro.");
+      toast.error(t("chat.voice.error.access"));
       return;
     }
 
@@ -415,7 +462,6 @@ export default function ChatInputBar({
         if (state === "idle") start();
       }, 100);
     } else {
-      console.log("cancel voice");
       cancel();
       setMicro(false);
     }
@@ -487,8 +533,30 @@ export default function ChatInputBar({
     toggleInput,
   ]);
 
+  // ====== RENDER ======
+  const handleSelectDocument = useCallback(
+    (doc: Document) => {
+      if (!socket || !auth) return;
+
+      sendMessage({
+        roomId: chatId,
+        content: doc.title,
+        attachments: [],
+        type: "document",
+        socket,
+        userId: auth._id,
+        userFullname: auth.fullname,
+        userAvatar: auth.avatar,
+        documentId: doc._id,
+      });
+
+      setShowDocPicker(false);
+    },
+    [chatId, socket, auth, sendMessage]
+  );
+
   // ====== BLOCKED / NO ACTION ======
-  if (noAction || isBlocked || !room?.id) {
+  if (noAction || isBlocked || !room?.id || isGuest) {
     return (
       <section
         aria-label="Chat input area"
@@ -501,23 +569,33 @@ export default function ChatInputBar({
             "linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.2) 100%)",
         }}
       >
-        {!blockByMine && (
+        {!blockByMine && !isGuest && (
           <p className="text-gray-500 dark:text-gray-300">
-            Bạn không có quyền gửi tin nhắn trong cuộc trò chuyện này.
+            {t("chat.input.blocked.noPermission")}
           </p>
         )}
         {blockByMine && (
           <p className="text-gray-500 dark:text-gray-300">
-            Bạn đã chặn người này vui lòng bỏ chặn để gửi tin nhắn.
+            {t("chat.input.blocked.blockedByMe")}
+          </p>
+        )}
+        {isGuest && (
+          <p className="text-gray-500 dark:text-gray-300">
+            {t("chat.input.blocked.guest", "Bạn chỉ có quyền xem")}
           </p>
         )}
       </section>
     );
   }
 
-  // ====== RENDER ======
   return (
     <div>
+      <DocumentPickerModal
+        isOpen={showDocPicker}
+        onClose={() => setShowDocPicker(false)}
+        onSelect={handleSelectDocument}
+        roomId={chatId}
+      />
       <div className="mb-4 absolute bottom-15">
         <TypingIndicator users={roomTypingUsers[room?.roomId || ""] || []} />
       </div>
@@ -572,6 +650,72 @@ export default function ChatInputBar({
           </div>
         )}
 
+        {(suggestions?.length > 0 ||
+          suggestedEmojis?.length > 0 ||
+          suggestedGifs?.length > 0) && (
+          <div className="flex  gap-2 px-1 pb-2">
+            {suggestions?.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                {suggestions.map((suggestion, index) => (
+                  <Chip
+                    key={`text-${index}`}
+                    className="cursor-pointer hover:bg-teal-100 dark:hover:bg-teal-900/40 transition-colors border-teal-200 dark:border-teal-800 shrink-0"
+                    color="primary"
+                    variant="flat"
+                    size="sm"
+                    onClick={() => {
+                      setMessage(suggestion);
+                      setSuggestions([]);
+                      setSuggestedEmojis([]);
+                      setSuggestedGifs([]);
+                      inputRef.current?.focus();
+                    }}
+                  >
+                    {suggestion}
+                  </Chip>
+                ))}
+              </div>
+            )}
+
+            {(suggestedEmojis?.length > 0 || suggestedGifs?.length > 0) && (
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                {suggestedEmojis.map((emoji, index) => (
+                  <Chip
+                    key={`emoji-${index}`}
+                    className="cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors border-orange-200 dark:border-orange-800 shrink-0"
+                    color="warning"
+                    variant="flat"
+                    size="sm"
+                    onClick={() => {
+                      setMessage((prev) => prev + emoji);
+                      inputRef.current?.focus();
+                    }}
+                  >
+                    {emoji}
+                  </Chip>
+                ))}
+                {suggestedGifs.map((keyword, index) => (
+                  <Chip
+                    key={`gif-${index}`}
+                    className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors border-purple-200 dark:border-purple-800 shrink-0"
+                    color="secondary"
+                    variant="flat"
+                    size="sm"
+                    startContent={<GifIcon className="w-3 h-3" />}
+                    onClick={() => {
+                      setGifSearchQuery(keyword);
+                      searchGifs(keyword);
+                      setIsGifPickerOpen(true);
+                    }}
+                  >
+                    {keyword}
+                  </Chip>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {replyingTo && (
           <button
             className="
@@ -589,10 +733,11 @@ export default function ChatInputBar({
               <div className="flex flex-col items-start gap-2 mb-1">
                 <div>
                   <span className="text-xs font-semibold text-teal-600 dark:text-teal-300">
-                    Trả lời{" "}
-                    {replyingTo.isMine
-                      ? "chính tôi"
-                      : replyingTo.sender?.fullname || "Unknown"}
+                    {t("chat.input.replyingTo", {
+                      name: replyingTo.isMine
+                        ? t("chat.input.you")
+                        : replyingTo.sender?.fullname || "Unknown",
+                    })}
                   </span>
                   {replyingTo.type !== "text" && (
                     <Chip
@@ -601,20 +746,24 @@ export default function ChatInputBar({
                       color="primary"
                       className="h-5"
                     >
-                      {replyingTo.type === "image" && "📷 Ảnh"}
-                      {replyingTo.type === "video" && "🎥 Video"}
-                      {replyingTo.type === "file" && "📎 File"}
-                      {replyingTo.type === "gif" && "🎬 GIF"}
-                      {replyingTo.type === "audio" && "🎵 Audio"}
+                      {replyingTo.type === "image" &&
+                        `📷 ${t("chat.input.image")}`}
+                      {replyingTo.type === "video" &&
+                        `🎥 ${t("chat.input.video")}`}
+                      {replyingTo.type === "file" &&
+                        `📎 ${t("chat.input.file")}`}
+                      {replyingTo.type === "gif" && `🎬 ${t("chat.input.gif")}`}
+                      {replyingTo.type === "audio" &&
+                        `🎵 ${t("chat.input.audio")}`}
                     </Chip>
                   )}
                 </div>
                 <p className="text-sm text-center text-gray-700 dark:text-gray-200 line-clamp-2">
                   {replyingTo.type === "text" && replyingTo.content}
-                  {replyingTo.type === "image" && "📷 Ảnh"}
-                  {replyingTo.type === "video" && "🎥 Video"}
-                  {replyingTo.type === "file" && "📎 File"}
-                  {replyingTo.type === "gif" && "🎬 GIF"}
+                  {replyingTo.type === "image" && `📷 ${t("chat.input.image")}`}
+                  {replyingTo.type === "video" && `🎥 ${t("chat.input.video")}`}
+                  {replyingTo.type === "file" && `📎 ${t("chat.input.file")}`}
+                  {replyingTo.type === "gif" && `🎬 ${t("chat.input.gif")}`}
                 </p>
               </div>
             </div>
@@ -647,7 +796,10 @@ export default function ChatInputBar({
           {!micro && (
             <div className="flex items-center gap-2">
               <Tooltip
-                content={`Chèn ảnh hoặc video tối đa ${maxFiles} files và có kích thước tối đa ${config.maxSizeMB}MB mỗi file`}
+                content={t("chat.input.tooltipMedia", {
+                  maxFiles,
+                  maxSize: config.maxSizeMB,
+                })}
               >
                 <Button
                   isIconOnly
@@ -660,7 +812,10 @@ export default function ChatInputBar({
                 </Button>
               </Tooltip>
               <Tooltip
-                content={`Chèn tài liệu tối đa ${maxFiles} files và có kích thước tối đa ${config.maxSizeMB}MB mỗi file`}
+                content={t("chat.input.tooltipFile", {
+                  maxFiles,
+                  maxSize: config.maxSizeMB,
+                })}
               >
                 <Button
                   isIconOnly
@@ -670,6 +825,20 @@ export default function ChatInputBar({
                   onClick={() => fileDocInputRef.current?.click()}
                 >
                   <DocumentIcon className="w-5 h-5" />
+                </Button>
+              </Tooltip>
+
+              <Tooltip
+                content={t("documents.select_document", "Select Document")}
+              >
+                <Button
+                  isIconOnly
+                  color="secondary"
+                  className="bg-purple-500 hover:bg-purple-600"
+                  size="sm"
+                  onClick={() => setShowDocPicker(true)}
+                >
+                  <BookOpenIcon className="w-5 h-5" />
                 </Button>
               </Tooltip>
 
@@ -709,7 +878,7 @@ export default function ChatInputBar({
                       previewConfig={{
                         showPreview: false,
                       }}
-                      searchPlaceHolder="Tìm emoji..."
+                      searchPlaceHolder={t("chat.input.searchEmoji")}
                       skinTonesDisabled
                       lazyLoadEmojis={true}
                       categories={emojiTab}
@@ -749,7 +918,7 @@ export default function ChatInputBar({
                   <div className="flex flex-col h-[400px]">
                     <div className="p-3 border-b border-gray-200 dark:border-gray-800">
                       <Input
-                        placeholder="Tìm GIF..."
+                        placeholder={t("chat.input.searchGif")}
                         value={gifSearchQuery}
                         onChange={(e) => setGifSearchQuery(e.target.value)}
                         size="sm"
@@ -801,8 +970,8 @@ export default function ChatInputBar({
                         return (
                           <div className="flex items-center justify-center h-40 text-gray-400 dark:text-gray-500 text-sm">
                             {gifSearchQuery
-                              ? "Không tìm thấy GIF"
-                              : "Nhập để tìm GIF..."}
+                              ? t("chat.input.noGifFound")
+                              : t("chat.input.enterToSearchGif")}
                           </div>
                         );
                       })()}
@@ -927,7 +1096,9 @@ export default function ChatInputBar({
                 >
                   <TrashIcon className="w-5 h-5" />
                 </Button>
-                <audio controls src={preview.url} className="w-full" />
+                <audio controls src={preview.url} className="w-full">
+                  <track kind="captions" />
+                </audio>
               </div>
             )}
           </div>
@@ -961,9 +1132,28 @@ export default function ChatInputBar({
           hidden
           multiple
           onChange={onPick}
-          accept={buildInputAccept(documentOnlyConfig.accept)}
+          accept="*"
         />
       </section>
+
+      <FileGalleryModal
+        isOpen={showFileGallery}
+        onClose={() => setShowFileGallery(false)}
+        onSelect={(files) => {
+          if (files.length > 0 && socket) {
+            const attachmentIds = files.map((f) => f._id);
+            socket.emit("message:send", {
+              roomId: chatId,
+              userId: useAuthStore.getState().user?._id,
+              type: "text",
+              content: "",
+              attachments: attachmentIds,
+            });
+          }
+        }}
+        roomId={chatId}
+        userId={useAuthStore.getState().user?._id}
+      />
     </div>
   );
 }

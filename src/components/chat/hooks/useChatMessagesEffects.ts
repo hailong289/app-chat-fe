@@ -1,11 +1,14 @@
 import { useEffect, useMemo } from "react";
 import { groupMessagesByDate } from "@/libs/timeline-helpers";
 import { MESSAGES_PER_GROUP } from "../constants/messageConstants";
+import { useTranslation } from "react-i18next";
 
 interface UseChatMessagesEffectsProps {
   chatId: string;
   messages: any[];
-  lastMsgId: string;
+  lastReadId: string | null;
+  scrollTargetId: string;
+  lastServerMessageId: string | null;
   displayedMessagesCount: number;
   isSwitchingChat: boolean;
   isBottomVisible: boolean;
@@ -24,19 +27,21 @@ interface UseChatMessagesEffectsProps {
   fetchTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>;
   lastFetchedServerMessageIdRef: React.MutableRefObject<string | null>;
   hasInitialFetchRef: React.MutableRefObject<Record<string, boolean>>;
-  roomState: any;
   messageState: any;
   socket: any;
   setIsSwitchingChat: (value: boolean) => void;
   setShouldAnimate: (value: boolean) => void;
-  setDisplayedMessagesCount: (count: number | ((prev: number) => number)) => void;
+  setDisplayedMessagesCount: (
+    count: number | ((prev: number) => number)
+  ) => void;
   setHasMoreOnServer: (value: boolean) => void;
-  setExpandedMessages: (value: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
+  setExpandedMessages: (
+    value: Set<string> | ((prev: Set<string>) => Set<string>)
+  ) => void;
   setIsBottomVisible: (value: boolean) => void;
   setIsFetchingNewMessages: (value: boolean) => void;
   setIsLoadingOlder: (value: boolean) => void;
   setIsLoadingFromAPI: (value: boolean) => void;
-  setIsTopVisible: (value: boolean) => void;
   scrollToMessage: (id: string) => Promise<void>;
   handleLoadMore: (force?: boolean) => void;
 }
@@ -44,7 +49,9 @@ interface UseChatMessagesEffectsProps {
 export function useChatMessagesEffects({
   chatId,
   messages,
-  lastMsgId,
+  lastReadId,
+  scrollTargetId,
+  lastServerMessageId,
   displayedMessagesCount,
   isSwitchingChat,
   isBottomVisible,
@@ -63,7 +70,6 @@ export function useChatMessagesEffects({
   fetchTimeoutRef,
   lastFetchedServerMessageIdRef,
   hasInitialFetchRef,
-  roomState,
   messageState,
   socket,
   setIsSwitchingChat,
@@ -75,10 +81,10 @@ export function useChatMessagesEffects({
   setIsFetchingNewMessages,
   setIsLoadingOlder,
   setIsLoadingFromAPI,
-  setIsTopVisible,
   scrollToMessage,
   handleLoadMore,
 }: UseChatMessagesEffectsProps) {
+  const { t } = useTranslation();
   // Effect: Handle chat switching
   useEffect(() => {
     const isActuallySwitchingChat = prevChatIdRef.current !== chatId;
@@ -87,6 +93,7 @@ export function useChatMessagesEffects({
       setIsSwitchingChat(true);
       setShouldAnimate(false);
       prevChatIdRef.current = chatId;
+      prevMessageCountRef.current = 0;
       renderedMessageIds.current.clear();
       setDisplayedMessagesCount(MESSAGES_PER_GROUP);
       setHasMoreOnServer(true);
@@ -101,7 +108,7 @@ export function useChatMessagesEffects({
         setShouldAnimate(true);
         setIsSwitchingChat(false);
         requestAnimationFrame(() => {
-          scrollToMessage(lastMsgId);
+          scrollToMessage(scrollTargetId);
         });
       };
 
@@ -115,7 +122,7 @@ export function useChatMessagesEffects({
           setShouldAnimate(true);
         });
     }
-  }, [chatId, lastMsgId, messageState, scrollToMessage]);
+  }, [chatId, scrollTargetId, messageState, scrollToMessage]);
 
   // Effect: Track when messages are loaded after switching
   useEffect(() => {
@@ -148,10 +155,9 @@ export function useChatMessagesEffects({
 
   // Effect: Sync new messages from server
   useEffect(() => {
-    if (!roomState.room?.last_message?.id) return;
+    if (!lastServerMessageId) return;
 
     const lastLocalMessageId = messages.at(-1)?.id;
-    const lastServerMessageId = roomState.room.last_message.id;
 
     if (!lastLocalMessageId) return;
     if (lastFetchedServerMessageIdRef.current === lastServerMessageId) return;
@@ -183,7 +189,7 @@ export function useChatMessagesEffects({
   }, [
     chatId,
     messages.length,
-    roomState.room?.last_message?.id,
+    lastServerMessageId,
     messageState,
     setIsFetchingNewMessages,
   ]);
@@ -200,7 +206,8 @@ export function useChatMessagesEffects({
 
           requestAnimationFrame(() => {
             if (containerRef.current) {
-              containerRef.current.scrollTop = containerRef.current.scrollHeight;
+              containerRef.current.scrollTop =
+                containerRef.current.scrollHeight;
             } else if (bottomRef.current) {
               bottomRef.current.scrollIntoView({ behavior: "smooth" });
             }
@@ -215,7 +222,14 @@ export function useChatMessagesEffects({
     return () => {
       socket.off("connect", handleReconnect);
     };
-  }, [socket, chatId, messageState, containerRef, bottomRef, setIsFetchingNewMessages]);
+  }, [
+    socket,
+    chatId,
+    messageState,
+    containerRef,
+    bottomRef,
+    setIsFetchingNewMessages,
+  ]);
 
   // Effect: Scroll detection and load more
   useEffect(() => {
@@ -230,10 +244,7 @@ export function useChatMessagesEffects({
       const { scrollTop, scrollHeight, clientHeight } = container;
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
       const isAtBottom = distanceFromBottom <= 50;
-      const isAtTop = scrollTop <= 50;
-
       setIsBottomVisible(isAtBottom);
-      setIsTopVisible(isAtTop);
       ticking = false;
     };
 
@@ -255,31 +266,7 @@ export function useChatMessagesEffects({
         container.removeEventListener("scroll", handleScroll);
       }
     };
-  }, [
-    isSwitchingChat,
-    containerRef,
-    setIsBottomVisible,
-    setIsTopVisible,
-    handleLoadMore,
-  ]);
-
-  // Effect: Auto scroll on new messages
-  useEffect(() => {
-    if (isSwitchingChat) return;
-
-    const hasNewMessages = messages.length > prevMessageCountRef.current;
-
-    if (hasNewMessages && isBottomVisible && bottomRef.current) {
-      requestAnimationFrame(() => {
-        bottomRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "end",
-        });
-      });
-    }
-
-    prevMessageCountRef.current = messages.length;
-  }, [messages.length, isBottomVisible, isSwitchingChat, bottomRef]);
+  }, [isSwitchingChat, containerRef, setIsBottomVisible, handleLoadMore]);
 
   // Effect: Handle new messages added to local store
   useEffect(() => {
@@ -292,15 +279,21 @@ export function useChatMessagesEffects({
       const newMessage = messages.at(-1);
 
       if (displayedMessagesCount < currentMessageCount) {
-        setDisplayedMessagesCount(
-          Math.max(currentMessageCount, MESSAGES_PER_GROUP)
-        );
+        if (prevMessageCountRef.current > 0) {
+          const diff = currentMessageCount - prevMessageCountRef.current;
+          setDisplayedMessagesCount((prev) =>
+            Math.min(prev + diff, currentMessageCount)
+          );
+        }
       }
 
       if (newMessage?.isMine) {
         setTimeout(() => {
           if (containerRef.current) {
-            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+            containerRef.current.scrollTo({
+              top: containerRef.current.scrollHeight,
+              behavior: "smooth",
+            });
           } else if (bottomRef.current) {
             bottomRef.current.scrollIntoView({
               behavior: "smooth",
@@ -311,7 +304,10 @@ export function useChatMessagesEffects({
       } else if (isBottomVisible && bottomRef.current) {
         requestAnimationFrame(() => {
           if (containerRef.current) {
-            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+            containerRef.current.scrollTo({
+              top: containerRef.current.scrollHeight,
+              behavior: "smooth",
+            });
           } else if (bottomRef.current) {
             bottomRef.current.scrollIntoView({
               behavior: "smooth",
@@ -336,17 +332,21 @@ export function useChatMessagesEffects({
   // Memoized: Visible messages
   const visibleMessages = useMemo(() => {
     const visible = messages || [];
+    // Only render the last displayedMessagesCount messages
+    // This is a simple windowing approach where we only render what's needed
+    // plus a buffer.
     return visible.slice(-displayedMessagesCount);
   }, [messages, displayedMessagesCount]);
 
   // Memoized: Visible groups
   const visibleGroups = useMemo(() => {
-    return groupMessagesByDate(visibleMessages, lastMsgId);
-  }, [visibleMessages, lastMsgId]);
+    // Use a stable key for grouping to prevent re-renders when only content changes
+    // but the structure remains the same
+    return groupMessagesByDate(visibleMessages, lastReadId ?? undefined, t);
+  }, [visibleMessages, lastReadId, t]);
 
   return {
     visibleMessages,
     visibleGroups,
   };
 }
-

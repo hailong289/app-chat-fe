@@ -2,8 +2,9 @@
 import { useReadProgress } from "@/libs/useReadProgress";
 import useMessageStore from "@/store/useMessageStore";
 import { ScrollShadow, Skeleton } from "@heroui/react";
-import { useEffect, useRef, useMemo, useCallback, memo, use } from "react";
+import { useEffect, useRef, useMemo, useCallback, memo } from "react";
 import useRoomStore from "@/store/useRoomStore";
+import type { RoomsState } from "@/store/types/room.state";
 import { useSocket } from "../../providers/SocketProvider";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageType } from "@/store/types/message.state";
@@ -18,6 +19,21 @@ import { ChatEmptyState } from "./ChatEmptyState";
 import { ChatLoadingIndicator } from "./ChatLoadingIndicator";
 import { ScrollToBottomButton } from "./ScrollToBottomButton";
 import { MessageGroup } from "./MessageGroup";
+import { useTranslation } from "react-i18next";
+
+const EMPTY_MESSAGES: MessageType[] = [];
+
+const selectMarkMessageAsRead = (state: RoomsState) => state.markMessageAsRead;
+
+const selectLastReadId = (state: RoomsState) =>
+  state.room?.last_read_id ?? null;
+
+const selectLastServerMessageId = (state: RoomsState) =>
+  state.room?.last_message?.id ?? null;
+
+const selectUnreadCount = (state: RoomsState) => state.room?.unread_count ?? 0;
+
+const selectIsRead = (state: RoomsState) => state.room?.is_read ?? false;
 
 export const ChatMessages = memo(
   ({
@@ -31,6 +47,8 @@ export const ChatMessages = memo(
     scrollto?: string | null;
     toggleInput: boolean;
   }) => {
+    const { t } = useTranslation();
+    console.count("🔥 ChatMessages Rendered");
     // Performance monitoring
     const startTime = useRef(performance.now());
 
@@ -42,18 +60,100 @@ export const ChatMessages = memo(
       }
     });
 
-    const { socket } = useSocket();
-    const roomState = useRoomStore((state) => state);
-    const messageState = useMessageStore((state) => state);
-    const messages =
-      useMessageStore.getState().messagesRoom[chatId]?.messages || [];
+    const { socket } = useSocket("/chat");
+    const markMessageAsRead = useRoomStore(selectMarkMessageAsRead);
+    const lastReadId = useRoomStore(selectLastReadId);
+    const lastServerMessageId = useRoomStore(selectLastServerMessageId);
+    const unreadCount = useRoomStore(selectUnreadCount);
+    const isRead = useRoomStore(selectIsRead);
+    const roomMeta = useMemo(
+      () => ({ lastReadId, lastServerMessageId, unreadCount, isRead }),
+      [lastReadId, lastServerMessageId, unreadCount, isRead]
+    );
+
+    // Optimize store subscription
+    const messages = useMessageStore(
+      useCallback(
+        (state) => state.messagesRoom[chatId]?.messages || EMPTY_MESSAGES,
+        [chatId]
+      )
+    );
+    const isLoadingMessage = useMessageStore((state) => state.isLoading);
+    const fetchMessagesFromAPI = useMessageStore(
+      (state) => state.fetchMessagesFromAPI
+    );
+    const getMessageByRoomId = useMessageStore(
+      (state) => state.getMessageByRoomId
+    );
+    const loadOlderMessages = useMessageStore(
+      (state) => state.loadOlderMessages
+    );
+    const findMessage = useMessageStore((state) => state.findMessage);
+    const resendMessage = useMessageStore((state) => state.resendMessage);
+    const fetchNewMessages = useMessageStore((state) => state.fetchNewMessages);
+
+    // Create a stable messageState object for hooks that need it
+    // This avoids re-rendering when unrelated parts of the store change
+    const messageState = useMemo(
+      () => ({
+        isLoading: isLoadingMessage,
+        fetchMessagesFromAPI,
+        getMessageByRoomId,
+        loadOlderMessages,
+        findMessage,
+        resendMessage,
+        fetchNewMessages,
+      }),
+      [
+        isLoadingMessage,
+        fetchMessagesFromAPI,
+        getMessageByRoomId,
+        loadOlderMessages,
+        findMessage,
+        resendMessage,
+        fetchNewMessages,
+      ]
+    );
+
+    // Memoize handlers to prevent re-creation on every render
+    const emitWithAckHelper = useCallback(
+      (event: string, payload: any, timeout = 5000) => {
+        return emitWithAck(socket, event, payload, timeout);
+      },
+      [socket]
+    );
+
+    const handlers = useMessageHandlers({
+      chatId,
+      socket,
+      messageState,
+      emitWithAckHelper,
+    });
+
+    // Memoize handlers object passed to MessageGroup
+    const memoizedHandlers = useMemo(
+      () => ({
+        onReply: handlers.handleReply,
+        onReact: handlers.handleReact,
+        onDelete: handlers.handleDelete,
+        onRecall: handlers.handleRecall,
+        onTogglePin: handlers.handleTogglePin,
+        onCopy: handlers.handleCopy,
+      }),
+      [
+        handlers.handleReply,
+        handlers.handleReact,
+        handlers.handleDelete,
+        handlers.handleRecall,
+        handlers.handleTogglePin,
+        handlers.handleCopy,
+      ]
+    );
 
     // Compute the most up-to-date message id to use for grouping/scrolling
-    const lastMsgId =
-      roomState.room?.last_read_id ??
-      roomState.room?.last_message?.id ??
-      messages.at(-1)?.id ??
-      "null";
+    const latestMessageId = messages.at(-1)?.id ?? null;
+    const lastMsgId = roomMeta.lastServerMessageId ?? latestMessageId ?? "null";
+    const scrollTargetId = roomMeta.lastReadId ?? lastMsgId;
 
     // State management hook
     const state = useChatMessagesState(chatId);
@@ -82,22 +182,6 @@ export const ChatMessages = memo(
         scrollToMessage(scrollto);
       }
     }, [scrollto, scrollToMessage]);
-
-    // Emit with ack helper
-    const emitWithAckHelper = useCallback(
-      (event: string, payload: any, timeout = 5000) => {
-        return emitWithAck(socket, event, payload, timeout);
-      },
-      [socket]
-    );
-
-    // Message handlers
-    const handlers = useMessageHandlers({
-      chatId,
-      socket,
-      messageState,
-      emitWithAckHelper,
-    });
 
     // Toggle expanded state for long messages
     const toggleExpanded = useCallback(
@@ -161,14 +245,31 @@ export const ChatMessages = memo(
           state.setIsLoadingFromAPI(true);
           state.hasTriedLoadingFromServer.current = true;
 
+          const container = state.containerRef.current;
+          const scrollHeightBefore = container ? container.scrollHeight : 0;
+
           try {
             const result: any = await messageState.loadOlderMessages(chatId);
-            state.setIsLoadingOlder(false);
-            state.setIsLoadingFromAPI(false);
 
-            if (!result || (Array.isArray(result) && result.length === 0)) {
-              state.setHasMoreOnServer(false);
-            }
+            // Wait for render to update scrollHeight
+            setTimeout(() => {
+              state.setIsLoadingOlder(false);
+              state.setIsLoadingFromAPI(false);
+
+              if (!result || (Array.isArray(result) && result.length === 0)) {
+                state.setHasMoreOnServer(false);
+              }
+
+              if (container) {
+                requestAnimationFrame(() => {
+                  const scrollHeightAfter = container.scrollHeight;
+                  const scrollDiff = scrollHeightAfter - scrollHeightBefore;
+                  if (scrollDiff > 0) {
+                    container.scrollTop += scrollDiff;
+                  }
+                });
+              }
+            }, 50);
           } catch (error: any) {
             console.error("Failed to load older messages:", error);
             state.setIsLoadingOlder(false);
@@ -221,7 +322,9 @@ export const ChatMessages = memo(
     const { visibleGroups } = useChatMessagesEffects({
       chatId,
       messages,
-      lastMsgId,
+      lastReadId: roomMeta.lastReadId,
+      scrollTargetId,
+      lastServerMessageId: roomMeta.lastServerMessageId,
       displayedMessagesCount: state.displayedMessagesCount,
       isSwitchingChat: state.isSwitchingChat,
       isBottomVisible: state.isBottomVisible,
@@ -240,7 +343,6 @@ export const ChatMessages = memo(
       fetchTimeoutRef: state.fetchTimeoutRef,
       lastFetchedServerMessageIdRef: state.lastFetchedServerMessageIdRef,
       hasInitialFetchRef: state.hasInitialFetchRef,
-      roomState,
       messageState,
       socket,
       setIsSwitchingChat: state.setIsSwitchingChat,
@@ -252,7 +354,6 @@ export const ChatMessages = memo(
       setIsFetchingNewMessages: state.setIsFetchingNewMessages,
       setIsLoadingOlder: state.setIsLoadingOlder,
       setIsLoadingFromAPI: state.setIsLoadingFromAPI,
-      setIsTopVisible: state.setIsTopVisible,
       scrollToMessage,
       handleLoadMore,
     });
@@ -264,7 +365,7 @@ export const ChatMessages = memo(
       stickyBottomPx: 0,
       minVisibleRatio: 0.5,
       onCommit: (id: string) => {
-        roomState.markMessageAsRead(chatId, id, socket);
+        markMessageAsRead(chatId, id, socket);
       },
     });
 
@@ -279,7 +380,7 @@ export const ChatMessages = memo(
           <ScrollShadow
             ref={state.containerRef}
             className={`
-              p-4 overflow-y-auto w-full max-h-[calc(100vh-200px)]
+              p-4 overflow-y-auto w-full max-h-[calc(100vh-250px)]
               transition-all duration-200 
               ${
                 state.isFetchingNewMessages
@@ -307,13 +408,15 @@ export const ChatMessages = memo(
                 className="text-center py-2 mb-2"
               >
                 <div className="text-xs text-gray-400 dark:text-gray-500">
-                  📜 Còn {messages.length - state.displayedMessagesCount} tin
-                  nhắn cũ hơn • Cuộn lên để tải{" "}
+                  📜{" "}
+                  {t("chat.messages.scroll.more", {
+                    count: messages.length - state.displayedMessagesCount,
+                  })}{" "}
                   <button
                     className="text-blue-500 dark:text-blue-400 cursor-pointer"
                     onClick={() => handleLoadMore()}
                   >
-                    thêm...
+                    {t("chat.messages.scroll.loadMore")}
                   </button>
                 </div>
               </motion.div>
@@ -378,11 +481,10 @@ export const ChatMessages = memo(
                 )}
 
               {/* Message groups */}
-              {visibleGroups.map((group, groupIdx) => (
+              {visibleGroups.map((group) => (
                 <MessageGroup
-                  key={`message-group-${group.dateLabel}-${groupIdx}`}
+                  key={`message-group-${group.dateLabel}`}
                   group={group}
-                  groupIdx={groupIdx}
                   shouldAnimate={state.shouldAnimate}
                   expandedMessages={state.expandedMessages}
                   lastMsgId={lastMsgId}
@@ -391,12 +493,12 @@ export const ChatMessages = memo(
                   noAction={noAction}
                   renderedMessageIds={state.renderedMessageIds}
                   onToggleExpanded={toggleExpanded}
-                  onReply={handlers.handleReply}
-                  onReact={handlers.handleReact}
-                  onDelete={handlers.handleDelete}
-                  onRecall={handlers.handleRecall}
-                  onTogglePin={handlers.handleTogglePin}
-                  onCopy={handlers.handleCopy}
+                  onReply={memoizedHandlers.onReply}
+                  onReact={memoizedHandlers.onReact}
+                  onDelete={memoizedHandlers.onDelete}
+                  onRecall={memoizedHandlers.onRecall}
+                  onTogglePin={memoizedHandlers.onTogglePin}
+                  onCopy={memoizedHandlers.onCopy}
                   onJumpToMessage={scrollToMessage}
                   setMessageRef={setMessageRef}
                   messageState={messageState}
@@ -416,8 +518,8 @@ export const ChatMessages = memo(
             messages.length > 0 &&
             !state.isSwitchingChat
           }
-          unreadCount={roomState?.room?.unread_count ?? 0}
-          isRead={roomState?.room?.is_read}
+          unreadCount={roomMeta.unreadCount}
+          isRead={roomMeta.isRead}
           onScrollToBottom={scrollToBottom}
         />
       </>

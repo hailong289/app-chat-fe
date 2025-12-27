@@ -2,70 +2,12 @@
 import { Card, CardBody, Image, Skeleton } from "@heroui/react";
 import { useEffect, useMemo, useState } from "react";
 import { GlobeAltIcon } from "@heroicons/react/24/outline";
-
-/* ---------------------------- Helpers ---------------------------- */
-const ytIdFromUrl = (raw: string): { id: string | null; start?: number } => {
-  try {
-    const u = new URL(raw);
-    // youtu.be/<id>?t=123
-    if (u.hostname.includes("youtu.be")) {
-      const id = u.pathname.slice(1);
-      const t = u.searchParams.get("t") || u.searchParams.get("start");
-      return {
-        id: id || null,
-        start: t ? Number.parseInt(t) || undefined : undefined,
-      };
-    }
-    // youtube.com/watch?v=<id>&t=123
-    if (u.hostname.includes("youtube.com")) {
-      const id = u.searchParams.get("v");
-      const t = u.searchParams.get("t") || u.searchParams.get("start");
-      return {
-        id: id || null,
-        start: t ? Number.parseInt(t) || undefined : undefined,
-      };
-    }
-    return { id: null };
-  } catch {
-    return { id: null };
-  }
-};
-
-const isFacebookVideoUrl = (raw: string) => {
-  try {
-    const u = new URL(raw);
-    if (
-      !u.hostname.includes("facebook.com") &&
-      !u.hostname.includes("fb.watch")
-    )
-      return false;
-    // Hỗ trợ /watch/, /reel/, /reels/, /videos/ và fb.watch/xxxx
-    return (
-      /\/(watch|reel|reels|videos)\//.test(u.pathname) ||
-      u.hostname === "fb.watch"
-    );
-  } catch {
-    return false;
-  }
-};
-
-const fbEmbedSrc = (raw: string, width = 560) => {
-  const href = encodeURIComponent(raw);
-  return `https://www.facebook.com/plugins/video.php?href=${href}&show_text=false&width=${width}&height=${Math.round(
-    (width * 9) / 16
-  )}&allowfullscreen=true`;
-};
+import LinkPreviewService, {
+  LinkPreviewData,
+} from "@/service/link-preview.service";
+import { logError, normalizeError } from "@/utils/errorUtils";
 
 /* ---------------------------- Types ---------------------------- */
-interface LinkPreviewData {
-  url: string;
-  title?: string;
-  description?: string;
-  image?: string;
-  siteName?: string;
-  favicon?: string;
-}
-
 interface LinkPreviewProps {
   url: string;
   isMine?: boolean;
@@ -86,16 +28,21 @@ export const LinkPreview = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  // Nhận diện nền tảng
-  const ytInfo = useMemo(() => ytIdFromUrl(url), [url]);
+  // Nhận diện nền tảng sử dụng service
+  const ytInfo = useMemo(() => LinkPreviewService.getYouTubeId(url), [url]);
   const isYouTube = !!ytInfo.id;
-  const isFacebook = useMemo(() => isFacebookVideoUrl(url), [url]);
+  const isFacebook = useMemo(
+    () => LinkPreviewService.isFacebookVideo(url),
+    [url]
+  );
 
   // Nếu là YouTube/Facebook -> bỏ qua fetch preview
   const shouldFetchPreview = !isYouTube && !isFacebook;
 
   useEffect(() => {
     let ignore = false;
+    let timeoutId: NodeJS.Timeout | null = null;
+
     const fetchPreview = async () => {
       if (!shouldFetchPreview) {
         setLoading(false);
@@ -103,71 +50,58 @@ export const LinkPreview = ({
         setError(false);
         return;
       }
-      const controller = new AbortController();
-      const timeoutMs = 6000; // 6s timeout
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      const timeoutMs = 10000; // 10s timeout
+      let isTimeout = false;
+
+      timeoutId = setTimeout(() => {
+        isTimeout = true;
+        if (!ignore) {
+          console.warn("Link preview timeout after", timeoutMs, "ms for:", url);
+          setError(true);
+          setLoading(false);
+        }
+      }, timeoutMs);
 
       try {
         setLoading(true);
         setError(false);
-        const response = await fetch(
-          `/api/link-preview?url=${encodeURIComponent(url)}`,
-          { signal: controller.signal }
-        );
 
-        if (!response.ok) {
-          const status = response.status;
-          const statusText = response.statusText;
-          const contentType = response.headers.get("content-type") || "";
+        // Gọi service để fetch preview
+        const data = await LinkPreviewService.fetchPreview(url);
 
-          let bodySnippet = "";
-          try {
-            const rawBody = await response.text();
-            if (contentType.includes("text/html")) {
-              bodySnippet = "[HTML response truncated]";
-            } else {
-              bodySnippet = rawBody.slice(0, 300);
-            }
-          } catch (e) {
-            console.debug("Failed to read error body for link preview:", e);
-          }
+        if (!ignore && !isTimeout) {
+          setPreview(data);
+          setError(false);
+        }
+      } catch (error: unknown) {
+        if (!ignore && !isTimeout) {
+          const normalized = normalizeError(error);
 
-          if (status === 404) {
-            console.warn(
-              "Link preview API returned 404 for url:",
-              url,
-              "- using fallback link only."
-            );
+          if (normalized.statusCode === 404) {
+            console.warn("Link preview not found for:", url);
+          } else if (normalized.statusCode === 503) {
+            console.warn("Link preview service unavailable for:", url);
           } else {
-            console.error(
-              "Link preview fetch failed:",
-              status,
-              statusText,
-              bodySnippet
-            );
+            logError("Error fetching link preview", error);
           }
-
-          if (!ignore) setError(true);
-          return;
+          setError(true);
         }
-
-        const data = (await response.json()) as LinkPreviewData;
-        if (!ignore) setPreview(data);
-      } catch (err: any) {
-        if (err?.name === "AbortError") {
-          console.error("Link preview fetch aborted (timeout)");
-        } else {
-          console.error("Error fetching link preview:", err);
-        }
-        if (!ignore) setError(true);
       } finally {
-        clearTimeout(timeoutId);
-        if (!ignore) setLoading(false);
+        if (timeoutId) clearTimeout(timeoutId);
+        if (!ignore && !isTimeout) {
+          setLoading(false);
+        }
       }
     };
-    if (url) fetchPreview();
+
+    if (url) {
+      fetchPreview();
+    }
+
     return () => {
       ignore = true;
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [url, shouldFetchPreview]);
 
@@ -236,7 +170,7 @@ export const LinkPreview = ({
   /* ---------------------- Facebook Player ---------------------- */
   const FacebookPlayer = () => {
     const [iframeLoaded, setIframeLoaded] = useState(false);
-    const src = fbEmbedSrc(url, 560);
+    const src = LinkPreviewService.getFacebookEmbedUrl(url, 560);
     const autoplayParam = autoPlay ? "&autoplay=true" : "";
     return (
       <div className="block mt-2 max-w-sm">

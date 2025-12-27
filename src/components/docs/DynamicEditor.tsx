@@ -1,9 +1,14 @@
-// src/components/DynamicEditor.tsx
 "use client";
 
 import dynamic from "next/dynamic";
 
-// Import Editor dưới dạng dynamic, tắt SSR
-export const DynamicEditor = dynamic(() => import("./Editor"), {
+// Import Editor dưới dạng dynamic, tắt SSR với loading state
+export const DynamicEditor = dynamic(() => import("./BlockNoteEditor"), {
   ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center p-8">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      <span className="ml-3 text-gray-600">Loading editor...</span>
+    </div>
+  ),
 });

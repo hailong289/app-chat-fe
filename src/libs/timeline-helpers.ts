@@ -2,6 +2,8 @@
  * Timeline helpers for grouping messages by date
  */
 
+import { TFunction } from "i18next";
+
 export type MessageGroup = {
   dateLabel: string; // "Hôm nay", "Hôm qua", "DD/MM/YYYY"
   messages: any[]; // Your MessageType
@@ -12,7 +14,7 @@ export type MessageGroup = {
 /**
  * Format date label in Vietnamese
  */
-export function formatDateLabel(date: Date): string {
+export function formatDateLabel(date: Date, t: TFunction): string {
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -35,9 +37,9 @@ export function formatDateLabel(date: Date): string {
   );
 
   if (dateOnly.getTime() === todayOnly.getTime()) {
-    return "Hôm nay";
+    return t("chat.messages.date.today");
   } else if (dateOnly.getTime() === yesterdayOnly.getTime()) {
-    return "Hôm qua";
+    return t("chat.messages.date.yesterday");
   } else {
     // Format as DD/MM/YYYY
     const day = String(date.getDate()).padStart(2, "0");
@@ -52,7 +54,11 @@ export function formatDateLabel(date: Date): string {
  */
 export function groupMessagesByDate<
   T extends { id: string; createdAt: string }
->(messages: T[], lastReadId?: string | null): MessageGroup[] {
+>(
+  messages: T[],
+  lastReadId: string | null | undefined,
+  t: TFunction
+): MessageGroup[] {
   const groups: Record<string, T[]> = {};
 
   messages.forEach((msg) => {
@@ -74,18 +80,29 @@ export function groupMessagesByDate<
   // Convert to array and sort by date (oldest first)
   const result: MessageGroup[] = [];
 
+  // Use a stable sort for keys
   const sortedDateKeys = Object.keys(groups).sort((a, b) => {
+    // Simple string comparison works for YYYY-MM-DD format if padded correctly,
+    // but our key is YYYY-M-D (unpadded).
+    // So we must parse.
     const [yearA, monthA, dayA] = a.split("-").map(Number);
     const [yearB, monthB, dayB] = b.split("-").map(Number);
-    const dateA = new Date(yearA, monthA, dayA);
-    const dateB = new Date(yearB, monthB, dayB);
-    return dateA.getTime() - dateB.getTime();
+
+    if (yearA !== yearB) return yearA - yearB;
+    if (monthA !== monthB) return monthA - monthB;
+    return dayA - dayB;
   });
 
   for (const dateKey of sortedDateKeys) {
     const [year, month, day] = dateKey.split("-").map(Number);
     const date = new Date(year, month, day);
     const groupMessages = groups[dateKey];
+
+    // Ensure messages within group are sorted by createdAt
+    groupMessages.sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
 
     // Kiểm tra xem group này có tin nhắn mới không
     let newMessageIndex = -1;
@@ -100,7 +117,7 @@ export function groupMessagesByDate<
     }
 
     result.push({
-      dateLabel: formatDateLabel(date),
+      dateLabel: formatDateLabel(date, t),
       messages: groupMessages,
       newMessageIndex: newMessageIndex >= 0 ? newMessageIndex : undefined,
     });

@@ -1,6 +1,7 @@
 "use client";
 import { useFirebase } from "@/components/providers/firebase.provider";
 import { useState, useEffect } from "react";
+import useAlertStore from "@/store/useAlertStore";
 
 // Simple SVG icons
 const BellIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
@@ -65,16 +66,22 @@ export default function NotificationToggle() {
 
   const handleToggle = async () => {
     if (permission === "granted") {
-      alert(
-        "Để tắt thông báo, vui lòng vào cài đặt trình duyệt:\nChrome: Cài đặt > Quyền riêng tư và bảo mật > Cài đặt trang web > Thông báo"
-      );
+      useAlertStore.getState().showAlert({
+        title: "Hướng dẫn",
+        message:
+          "Để tắt thông báo, vui lòng vào cài đặt trình duyệt:\nChrome: Cài đặt > Quyền riêng tư và bảo mật > Cài đặt trang web > Thông báo",
+        type: "info",
+      });
       return;
     }
 
     if (permission === "denied") {
-      alert(
-        "Bạn đã từ chối quyền thông báo. Để bật lại, vui lòng:\n1. Nhấp vào biểu tượng khóa/thông tin bên trái thanh địa chỉ\n2. Cho phép thông báo\n3. Tải lại trang"
-      );
+      useAlertStore.getState().showAlert({
+        title: "Hướng dẫn",
+        message:
+          "Bạn đã từ chối quyền thông báo. Để bật lại, vui lòng:\n1. Nhấp vào biểu tượng khóa/thông tin bên trái thanh địa chỉ\n2. Cho phép thông báo\n3. Tải lại trang",
+        type: "warning",
+      });
       return;
     }
 

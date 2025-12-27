@@ -1,6 +1,8 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useEffect } from "react";
 import { MESSAGES_PER_GROUP } from "../constants/messageConstants";
 import { MessageType } from "@/store/types/message.state";
+import { useToastStore } from "@/store/useToastStore";
+import useMessageStore from "@/store/useMessageStore";
 
 interface UseChatScrollProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -27,6 +29,39 @@ export function useChatScroll({
   setIsLoadingOlder,
   setHasMoreOnServer,
 }: UseChatScrollProps) {
+  const { addToast } = useToastStore();
+  const isUserInteracting = useRef(false);
+
+  // Detect user interaction to stop auto-scroll
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleUserInteraction = () => {
+      isUserInteracting.current = true;
+    };
+
+    container.addEventListener("wheel", handleUserInteraction, {
+      passive: true,
+    });
+    container.addEventListener("touchmove", handleUserInteraction, {
+      passive: true,
+    });
+    container.addEventListener("mousedown", handleUserInteraction, {
+      passive: true,
+    });
+    container.addEventListener("keydown", handleUserInteraction, {
+      passive: true,
+    });
+
+    return () => {
+      container.removeEventListener("wheel", handleUserInteraction);
+      container.removeEventListener("touchmove", handleUserInteraction);
+      container.removeEventListener("mousedown", handleUserInteraction);
+      container.removeEventListener("keydown", handleUserInteraction);
+    };
+  }, [containerRef]);
+
   const scrollToTop = useCallback(() => {
     containerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
   }, [containerRef]);
@@ -44,6 +79,9 @@ export function useChatScroll({
 
   const scrollToMessage = useCallback(
     async (id: string) => {
+      // Reset interaction flag
+      isUserInteracting.current = false;
+
       // Helper function để highlight message
       const highlightMessage = (element: Element) => {
         element.classList.add("message-highlight-flash");
@@ -52,7 +90,7 @@ export function useChatScroll({
         }, 1000);
       };
 
-      // Kiểm tra element đã tồn tại chưa
+      // 1. Check DOM (Rendered?)
       const el = document.querySelector(`[data-mid="${id}"]`);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -60,61 +98,86 @@ export function useChatScroll({
         return;
       }
 
-      // Element chưa render - tìm index trong messages
+      // 2. Check State (Loaded but not rendered?)
       let messageIndex = messages.findIndex((msg) => msg.id === id);
 
-      // CASE 1: Tin nhắn chưa có trong local → load từ server
+      // 3. If not in state, try to find it (DB -> API)
       if (messageIndex === -1) {
-        if (containerRef.current) {
-          containerRef.current.scrollTop = 0;
-        }
-
         setIsLoadingOlder(true);
+        addToast({
+          type: "info",
+          message: "Đang tìm tin nhắn...",
+          duration: 2000,
+        });
 
         try {
-          let attempts = 0;
-          const MAX_ATTEMPTS = 5;
+          // Use findMessage from store (checks DB then API)
+          const found = await messageState.findMessage(chatId, id);
 
-          while (attempts < MAX_ATTEMPTS) {
-            const result = await messageState.loadOlderMessages(chatId, 100);
-
-            if (!result || (Array.isArray(result) && result.length === 0)) {
-              setIsLoadingOlder(false);
-              setHasMoreOnServer(false);
-              return;
-            }
-
-            const currentMessages =
-              messageState.messagesRoom[chatId]?.messages || [];
-            messageIndex = currentMessages.findIndex(
-              (msg: MessageType) => msg.id === id
-            );
-
-            if (messageIndex !== -1) {
-              break;
-            }
-
-            attempts++;
-          }
-
-          setIsLoadingOlder(false);
-
-          if (messageIndex === -1) {
+          if (!found) {
+            setIsLoadingOlder(false);
+            setHasMoreOnServer(false);
+            addToast({
+              type: "error",
+              message: "Không tìm thấy tin nhắn",
+            });
             return;
           }
+
+          // Get fresh messages from store
+          const currentMessages =
+            useMessageStore.getState().messagesRoom[chatId]?.messages || [];
+          messageIndex = currentMessages.findIndex(
+            (msg: MessageType) => msg.id === id
+          );
+
+          if (messageIndex === -1) {
+            setIsLoadingOlder(false);
+            addToast({
+              type: "error",
+              message: "Lỗi hiển thị tin nhắn",
+            });
+            return;
+          }
+
+          setIsLoadingOlder(false);
         } catch (error) {
           setIsLoadingOlder(false);
+          addToast({
+            type: "error",
+            message: "Lỗi khi tìm tin nhắn",
+          });
           return;
         }
       }
 
-      // CASE 2: Tin nhắn có trong local nhưng chưa render
-      const currentMessages =
-        messageState.messagesRoom[chatId]?.messages || messages;
+      // 4. Render and Scroll
+      // At this point, message is in state (either initially or after fetch)
+      // We need to ensure it's within displayedMessagesCount
 
-      const requiredCount = messageIndex + 1 + MESSAGES_PER_GROUP;
+      const currentMessages =
+        useMessageStore.getState().messagesRoom[chatId]?.messages || messages;
+
+      // Recalculate index in case it changed
+      messageIndex = currentMessages.findIndex(
+        (msg: MessageType) => msg.id === id
+      );
+
+      if (messageIndex === -1) return; // Should not happen
+
+      const messagesFromEnd = currentMessages.length - messageIndex;
+      const requiredCount = messagesFromEnd + MESSAGES_PER_GROUP;
 
       if (requiredCount > displayedMessagesCount) {
+        // Warn user if scrolling too far back
+        if (messagesFromEnd > 1000) {
+          addToast({
+            type: "warning",
+            message: "Đang tải số lượng lớn tin nhắn, vui lòng chờ...",
+            duration: 4000,
+          });
+        }
+
         const currentScrollTop = containerRef.current?.scrollTop || 0;
         const currentScrollHeight = containerRef.current?.scrollHeight || 0;
 
@@ -122,20 +185,29 @@ export function useChatScroll({
           Math.min(requiredCount, currentMessages.length)
         );
 
-        const waitForElementAndScroll = (retries = 5, delay = 100) => {
+        const waitForElementAndScroll = (retries = 20, delay = 50) => {
+          if (isUserInteracting.current) return;
+
           requestAnimationFrame(() => {
             const newEl = document.querySelector(`[data-mid="${id}"]`);
-            if (newEl) {
+            // Ensure element is rendered and has dimensions
+            if (newEl && newEl.getBoundingClientRect().height > 0) {
               if (containerRef.current) {
                 const newScrollHeight = containerRef.current.scrollHeight || 0;
                 const scrollDiff = newScrollHeight - currentScrollHeight;
-                containerRef.current.scrollTop = currentScrollTop + scrollDiff;
+                // Only adjust if content was added above
+                if (scrollDiff > 0) {
+                  containerRef.current.scrollTop =
+                    currentScrollTop + scrollDiff;
+                }
               }
 
+              // Small delay to let the scrollTop adjustment settle
               setTimeout(() => {
+                if (isUserInteracting.current) return;
                 newEl.scrollIntoView({ behavior: "smooth", block: "center" });
                 setTimeout(() => highlightMessage(newEl), 500);
-              }, 100);
+              }, 50);
             } else if (retries > 0) {
               setTimeout(
                 () => waitForElementAndScroll(retries - 1, delay),
@@ -147,10 +219,12 @@ export function useChatScroll({
 
         waitForElementAndScroll();
       } else {
-        const scrollToExisting = (retries = 3) => {
+        const scrollToExisting = (retries = 10) => {
+          if (isUserInteracting.current) return;
+
           requestAnimationFrame(() => {
             const targetEl = document.querySelector(`[data-mid="${id}"]`);
-            if (targetEl) {
+            if (targetEl && targetEl.getBoundingClientRect().height > 0) {
               targetEl.scrollIntoView({
                 behavior: "smooth",
                 block: "center",
@@ -175,6 +249,7 @@ export function useChatScroll({
       setIsLoadingOlder,
       setHasMoreOnServer,
       setDisplayedMessagesCount,
+      addToast,
     ]
   );
 

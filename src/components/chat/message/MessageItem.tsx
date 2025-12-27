@@ -8,6 +8,7 @@ import { MessageReactions } from "./MessageReactions";
 import { ReplyPreview } from "./ReplyPreview";
 import { MessageType } from "@/store/types/message.state";
 import { ArrowPathIcon, EyeDropperIcon } from "@heroicons/react/16/solid";
+import { useTranslation } from "react-i18next";
 
 interface MessageItemProps {
   msg: MessageType;
@@ -25,6 +26,7 @@ interface MessageItemProps {
   chatId: string;
   socket: any;
   noAction?: boolean;
+  renderedMessageIds?: React.MutableRefObject<Set<string>>;
   onToggleExpanded: (id: string) => void;
   onReply: (msg: MessageType) => void;
   onReact: (msg: MessageType, emoji: string) => void;
@@ -37,7 +39,9 @@ interface MessageItemProps {
   messageState: any;
 }
 
-export function MessageItem({
+import { memo, useEffect } from "react";
+
+export const MessageItem = memo(function MessageItem({
   msg,
   prevMsg,
   nextMsg,
@@ -53,6 +57,7 @@ export function MessageItem({
   chatId,
   socket,
   noAction,
+  renderedMessageIds,
   onToggleExpanded,
   onReply,
   onReact,
@@ -64,6 +69,14 @@ export function MessageItem({
   setMessageRef,
   messageState,
 }: Readonly<MessageItemProps>) {
+  const { t } = useTranslation();
+
+  useEffect(() => {
+    if (renderedMessageIds && !renderedMessageIds.current.has(msg.id)) {
+      renderedMessageIds.current.add(msg.id);
+    }
+  }, [msg.id, renderedMessageIds]);
+
   const isSameSenderAsPrev = prevMsg?.sender._id === msg.sender._id;
   const isSameSenderAsNext = nextMsg?.sender._id === msg.sender._id;
   const shouldAnimateThis = shouldAnimate && isNewMessage;
@@ -76,7 +89,7 @@ export function MessageItem({
         } bg-blue-500 dark:bg-blue-400 rounded-full p-1 shadow-md hover:bg-blue-600 dark:hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-300 z-10`}
         onDoubleClick={() => onTogglePin(msg)}
       >
-        <Tooltip content="Đã gim tin nhắn" size="sm">
+        <Tooltip content={t("chat.messages.item.pinned")} size="sm">
           <EyeDropperIcon className="w-3 h-3 text-white" />
         </Tooltip>
       </button>
@@ -120,7 +133,7 @@ export function MessageItem({
           }
           className="bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-lg"
         >
-          ✨ Tin chưa đọc
+          ✨ {t("chat.messages.item.unread")}
         </motion.span>
         <motion.div
           initial={shouldAnimate ? { width: 0 } : false}
@@ -203,7 +216,7 @@ export function MessageItem({
             }}
             className="text-xs h-6 min-w-0 px-2"
           >
-            Gửi lại
+            {t("chat.messages.item.resend")}
           </Button>
         )}
 
@@ -213,11 +226,19 @@ export function MessageItem({
         {msg.isMine && msg.status === "sent" && (
           <span className="text-xs text-gray-400 dark:text-gray-500">
             {(msg.read_by_count ?? 0) > 0 ? (
-              <Tooltip content="Đã xem" size="sm" placement="left-start">
+              <Tooltip
+                content={t("chat.messages.item.seen")}
+                size="sm"
+                placement="left-start"
+              >
                 ✓✓
               </Tooltip>
             ) : (
-              <Tooltip content="Đã gửi" size="sm" placement="left-start">
+              <Tooltip
+                content={t("chat.messages.item.sent")}
+                size="sm"
+                placement="left-start"
+              >
                 ✓
               </Tooltip>
             )}
@@ -228,7 +249,9 @@ export function MessageItem({
             <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center">
               <Tooltip
                 content={
-                  msg.status === "pending" ? ` Đang gửi...` : "Đang tải lên..."
+                  msg.status === "pending"
+                    ? ` ${t("chat.messages.item.sending")}`
+                    : t("chat.messages.item.uploading")
                 }
                 size="sm"
                 placement="left-start"
@@ -355,6 +378,8 @@ export function MessageItem({
                   isSameSenderAsNext={isSameSenderAsNext}
                   isExpanded={isExpanded}
                   onToggleExpanded={onToggleExpanded}
+                  type={msg.type as any}
+                  callHistory={msg.call_history ?? null}
                 />
 
                 {/* Reactions display */}
@@ -382,4 +407,4 @@ export function MessageItem({
       </fieldset>
     </motion.div>
   );
-}
+});

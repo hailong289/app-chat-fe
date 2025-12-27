@@ -46,7 +46,17 @@ export default class UploadService {
     form.append("folder", folder);
 
     // ApiService đã tự set Content-Type + Authorization
-    return apiService.post<UploadSingleResp>("/filesystem/upload-single", form);
+    return apiService.post<any>("/filesystem/upload-single", form);
+  }
+
+  static getAttachments(params: {
+    roomId?: string;
+    userId?: string;
+    type?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    return apiService.get("/filesystem/attachments", { params });
   }
 
   static uploadMultiple(files: Array<File | Blob>, folder = "message") {
@@ -58,6 +68,24 @@ export default class UploadService {
 
     return apiService.post<UploadMultipleResp>(
       "/filesystem/upload-multiple",
+      form
+    );
+  }
+
+  static uploadMultipleByUser(
+    files: Array<File | Blob>,
+    roomId: string,
+    messageId?: string
+  ) {
+    const form = new FormData();
+    for (const f of files) {
+      form.append("files", f);
+    }
+    form.append("roomId", roomId);
+    if (messageId) form.append("messageId", messageId);
+
+    return apiService.post<UploadMultipleResp>(
+      "/filesystem/upload-multiple-user",
       form
     );
   }

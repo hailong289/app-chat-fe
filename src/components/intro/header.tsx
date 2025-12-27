@@ -22,16 +22,19 @@ import {
 } from "@heroui/react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { ThemeSwitcher } from "../ThemeSwitcher";
+import { LanguageSwitcher } from "../LanguageSwitcher";
 
 export const Header = () => {
+  const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const { logout: handleLogout, user } = useAuthStore();
   const { isToggled, tab, setToggleState, setTab } = useCounterStore();
-  const { disconnect: disconnectSocket } = useSocket();
+  const { disconnect: disconnectSocket } = useSocket("/chat");
 
   const changeToggle = useCallback(() => {
     setToggleState(!isToggled);
@@ -111,7 +114,9 @@ export const Header = () => {
             onPress={() => handleLink("", "/")}
           >
             <ChatBubbleLeftRightIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
-            <span className="truncate">Đoạn chat</span>
+            <span className="truncate" suppressHydrationWarning>
+              {t("sidebar.chats")}
+            </span>
           </Button>
 
           <Button
@@ -125,7 +130,9 @@ export const Header = () => {
             onPress={() => handleLink("contacts", "/contacts")}
           >
             <UserPlusIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
-            <span className="truncate">Bạn bè</span>
+            <span className="truncate" suppressHydrationWarning>
+              {t("sidebar.contacts")}
+            </span>
           </Button>
 
           <Button
@@ -140,8 +147,11 @@ export const Header = () => {
             <Badge color="danger" content="5">
               <BellIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
             </Badge>
-            <span className="text-white dark:text-gray-100 truncate">
-              Thông Báo
+            <span
+              className="text-white dark:text-gray-100 truncate"
+              suppressHydrationWarning
+            >
+              {t("sidebar.notifications")}
             </span>
           </Button>
 
@@ -156,7 +166,9 @@ export const Header = () => {
             onPress={() => handleLink("documents")}
           >
             <BookmarkIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
-            <span className="truncate">Tệp</span>
+            <span className="truncate" suppressHydrationWarning>
+              {t("sidebar.files")}
+            </span>
           </Button>
         </div>
 
@@ -176,12 +188,12 @@ export const Header = () => {
               </div>
             </DropdownTrigger>
             <DropdownMenu aria-label="User menu">
-              <DropdownItem key="profile">Hồ Sơ</DropdownItem>
+              <DropdownItem key="profile">{t("sidebar.profile")}</DropdownItem>
               <DropdownItem
                 key="setting"
                 onPress={() => handleLink("settings")}
               >
-                Cài Đặt
+                {t("sidebar.settings")}
               </DropdownItem>
               <DropdownItem
                 key="logout"
@@ -189,7 +201,7 @@ export const Header = () => {
                 className="text-danger"
                 color="danger"
               >
-                Đăng Xuất
+                {t("sidebar.logout")}
               </DropdownItem>
             </DropdownMenu>
           </Dropdown>
@@ -209,6 +221,7 @@ export const Header = () => {
           </Button>
 
           <ThemeSwitcher />
+          <LanguageSwitcher />
         </div>
       </nav>
     </div>

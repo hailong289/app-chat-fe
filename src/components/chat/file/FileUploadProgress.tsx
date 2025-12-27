@@ -1,11 +1,13 @@
 import { FilePreview } from "@/store/types/message.state";
 import { Progress } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 
 interface FileUploadProgressProps {
   attachment: FilePreview;
 }
 
 export const FileUploadProgress = ({ attachment }: FileUploadProgressProps) => {
+  const { t } = useTranslation();
   const { status, uploadProgress = 0, name } = attachment;
 
   if (status === "uploaded" || status === "pending") {
@@ -27,7 +29,9 @@ export const FileUploadProgress = ({ attachment }: FileUploadProgressProps) => {
         }}
       />
       {status === "failed" && (
-        <p className="text-xs text-red-500 mt-1">Upload failed</p>
+        <p className="text-xs text-red-500 mt-1">
+          {t("chat.file.preview.failed")}
+        </p>
       )}
     </div>
   );

@@ -1,12 +1,12 @@
 import axios from "axios";
-import { getCookie } from "cookies-next";
+import { deleteCookie, getCookie } from "cookies-next";
+import { redirect } from "next/navigation";
 
 class ApiService {
   private static instance: ApiService;
   private axiosInstance;
 
   private constructor() {
-    console.log("NEXT_PUBLIC_API_URL", process.env.NEXT_PUBLIC_API_URL);
     // Khởi tạo axios instance với cấu hình mặc định
     this.axiosInstance = axios.create({
       baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api", // Thay đổi thành URL API thực tế
@@ -46,6 +46,9 @@ class ApiService {
         const reasonStatusCode =
           error.response?.statusText || "Internal Server Error";
         const responseData = error.response?.data;
+        if (statusCode === 401) {
+          deleteCookie("tokens", { path: "/" });
+        }
         return Promise.reject({
           success: false,
           statusCode,
@@ -59,8 +62,6 @@ class ApiService {
       }
     );
     this.axiosInstance.interceptors.request.use((config) => {
-      // console.log("📦 Params:", config.params);
-      console.log("📦 Data:", config.baseURL);
       return config;
     });
   }

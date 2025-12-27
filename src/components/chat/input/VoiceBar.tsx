@@ -9,6 +9,7 @@ import {
 } from "@heroicons/react/24/solid";
 import WaveformCanvas from "../message/WaveformCanvas"; // bản có prop height
 import { useVoiceRecorder } from "@/libs/useVoiceRecorder";
+import { useTranslation } from "react-i18next";
 
 function formatMMSS(ms: number) {
   const sec = Math.floor(ms / 1000);
@@ -32,6 +33,7 @@ export default function VoiceBar({
   centerRatio?: number;
   gain?: number;
 }>) {
+  const { t } = useTranslation();
   const {
     state,
     durationMs,
@@ -56,7 +58,7 @@ export default function VoiceBar({
             color="primary"
             startContent={<MicrophoneIcon className="w-5 h-5" />}
           >
-            Ghi âm
+            {t("chat.voice.record")}
           </Button>
         )}
 
@@ -67,14 +69,14 @@ export default function VoiceBar({
               color="warning"
               startContent={<PauseCircleIcon className="w-5 h-5" />}
             >
-              Tạm dừng
+              {t("chat.voice.pause")}
             </Button>
             <Button
               onPress={stop}
               color="danger"
               startContent={<StopCircleIcon className="w-5 h-5" />}
             >
-              Dừng
+              {t("chat.voice.stop")}
             </Button>
           </>
         )}
@@ -86,14 +88,14 @@ export default function VoiceBar({
               color="success"
               startContent={<PlayIcon className="w-5 h-5" />}
             >
-              Tiếp tục
+              {t("chat.voice.resume")}
             </Button>
             <Button
               onPress={stop}
               color="danger"
               startContent={<StopCircleIcon className="w-5 h-5" />}
             >
-              Dừng
+              {t("chat.voice.stop")}
             </Button>
           </>
         )}
@@ -120,11 +122,11 @@ export default function VoiceBar({
           {/* Tuỳ chọn: confirm dùng file này / huỷ */}
           {onReady && (
             <Button onPress={() => onReady(preview)} color="secondary">
-              Dùng file này
+              {t("chat.voice.useFile")}
             </Button>
           )}
           <Button onPress={cancel} variant="flat">
-            Hủy
+            {t("chat.voice.cancel")}
           </Button>
         </div>
       )}

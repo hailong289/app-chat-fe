@@ -110,22 +110,15 @@ export async function compressImage(
 ): Promise<File> {
   // Chỉ nén nếu là ảnh
   if (!file.type.startsWith("image/")) {
-    console.log("⏭️ Skipping compression (not an image):", file.name);
     return file;
   }
 
   // Không nén GIF và SVG
   if (file.type === "image/gif" || file.type === "image/svg+xml") {
-    console.log("⏭️ Skipping compression (GIF/SVG):", file.name);
     return file;
   }
 
   try {
-    const originalSize = file.size / 1024 / 1024; // MB
-    console.log(
-      `🗜️ Compressing image: ${file.name} (${originalSize.toFixed(2)}MB)`
-    );
-
     const options = {
       maxSizeMB: 10, // Nén tối đa xuống 10MB
       maxWidthOrHeight: 1920, // Resize xuống max 1920px
@@ -134,16 +127,6 @@ export async function compressImage(
     };
 
     const compressedFile = await imageCompression(file, options);
-    const compressedSize = compressedFile.size / 1024 / 1024; // MB
-
-    console.log(
-      `✅ Compressed: ${file.name} | ${originalSize.toFixed(
-        2
-      )}MB → ${compressedSize.toFixed(2)}MB (${(
-        (1 - compressedSize / originalSize) *
-        100
-      ).toFixed(1)}% reduction)`
-    );
 
     return compressedFile;
   } catch (error) {
@@ -218,17 +201,23 @@ export function sanitizeFilename(
   const base = parts.join(".") || "file";
 
   // normalize unicode to NFKD and remove diacritics
-  const normalized = base.normalize("NFKD").replace(/\p{Diacritic}/gu, "");
+  const normalized = base.normalize("NFKD").replaceAll(/\p{Diacritic}/gu, "");
 
   // replace invalid chars with replacement
-  let safe = normalized.replace(/[^A-Za-z0-9._-]+/g, replacement);
+  let safe = normalized.replaceAll(/[^A-Za-z0-9._-]+/g, replacement);
 
   // collapse multiple replacements
-  const repEsc = replacement.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
-  safe = safe.replace(new RegExp(`${repEsc}{2,}`, "g"), replacement);
+  const repEsc = replacement.replaceAll(
+    /[-/\\^$*+?.()|[\]{}]/g,
+    String.raw`\$&`
+  );
+  safe = safe.replaceAll(new RegExp(`${repEsc}{2,}`, "g"), replacement);
 
   // trim replacements from ends
-  safe = safe.replace(new RegExp(`^(?:${repEsc})+|(?:${repEsc})+$`, "g"), "");
+  safe = safe.replaceAll(
+    new RegExp(`^(?:${repEsc})+|(?:${repEsc})+$`, "g"),
+    ""
+  );
 
   // truncate if too long
   if (safe.length > maxLength) safe = safe.slice(0, maxLength);
@@ -243,34 +232,22 @@ export function sanitizeFilename(
 export function isAccepted(file: File, accept: string[], acceptRegex?: RegExp) {
   const regex = acceptRegex ?? buildAcceptRegex(accept);
 
-  // Log để debug
-  console.log("🔍 Checking file:", {
-    name: file.name,
-    type: file.type,
-    size: file.size,
-  });
-
   if (file.type && regex.test(file.type)) {
-    console.log("✅ Accepted by file.type:", file.type);
     return true;
   }
 
   // fallback nếu type rỗng: đoán theo tên
   const guessed = guessMimeByExt(file.name);
-  console.log("🔍 Guessed MIME:", guessed);
 
   if (guessed && regex.test(guessed)) {
-    console.log("✅ Accepted by guessed MIME:", guessed);
     return true;
   }
 
   // chấp nhận mọi loại nếu có "*/*"
   if (accept.includes("*/*")) {
-    console.log("✅ Accepted by */*");
     return true;
   }
 
-  console.log("❌ File rejected");
   return false;
 }
 
@@ -285,7 +262,6 @@ export async function normalizeAndValidateFiles(
 
   for (const f of files) {
     if (!isAccepted(f, cfg.accept, acceptRegex)) {
-      console.log("❌ File not accepted:", f.name);
       continue;
     }
 
@@ -297,13 +273,6 @@ export async function normalizeAndValidateFiles(
 
     // Kiểm tra lại size sau khi nén
     if (processedFile.size > MAX_SIZE_BYTES) {
-      console.log(
-        "❌ File too large:",
-        processedFile.name,
-        `(${(processedFile.size / 1024 / 1024).toFixed(1)}MB > ${
-          cfg.maxSizeMB
-        }MB)`
-      );
       continue;
     }
 
@@ -380,7 +349,6 @@ export async function addFiles(
 
   if (combined.length > cfg.maxFiles) {
     // Gọi callback để thông báo vượt quá giới hạn
-    console.log("vượt quá số lượng");
     if (onMaxFilesExceeded) {
       onMaxFilesExceeded(combined.length, cfg.maxFiles);
     }

@@ -17,6 +17,7 @@ import {
   ArrowRightIcon,
 } from "@heroicons/react/16/solid";
 import { FilePreview } from "@/store/types/message.state";
+import { useTranslation } from "react-i18next";
 
 type Props = {
   readonly files: readonly FilePreview[];
@@ -75,6 +76,7 @@ export default function FilePreviewGridModal({
   className = "",
   showPdfInline = false,
 }: Props) {
+  const { t } = useTranslation();
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -144,7 +146,7 @@ export default function FilePreviewGridModal({
       {files.length > 0 && (
         <div className="mb-2 flex justify-between items-center">
           <span className="text-xs sm:text-sm text-default-600">
-            {files.length} file được chọn
+            {t("chat.file.preview.selected", { count: files.length })}
           </span>
           {onRemoveAll && (
             <Button
@@ -153,7 +155,7 @@ export default function FilePreviewGridModal({
               variant="flat"
               onPress={onRemoveAll}
             >
-              Xoá tất cả
+              {t("chat.file.preview.removeAll")}
             </Button>
           )}
         </div>
@@ -204,7 +206,7 @@ export default function FilePreviewGridModal({
           }
 
           return (
-            <button
+            <div
               key={`${item.name}-${item.url}-${i}`}
               className={`
                 relative group h-16 w-16 sm:h-20 sm:w-20
@@ -221,6 +223,7 @@ export default function FilePreviewGridModal({
                   openPreview(i);
                 }
               }}
+              role="button"
               tabIndex={0}
             >
               {previewContent}
@@ -235,7 +238,8 @@ export default function FilePreviewGridModal({
                     className="w-full mb-1"
                   />
                   <p className="text-[10px] text-white text-center">
-                    Đang tải lên… {item.uploadProgress || 0}%
+                    {t("chat.file.preview.uploading")}{" "}
+                    {item.uploadProgress || 0}%
                   </p>
                 </div>
               )}
@@ -244,7 +248,7 @@ export default function FilePreviewGridModal({
               {failed && (
                 <div className="absolute inset-0 bg-danger-500/80 flex items-center justify-center">
                   <p className="text-[10px] text-white font-semibold text-center px-1">
-                    Upload thất bại
+                    {t("chat.file.preview.failed")}
                   </p>
                 </div>
               )}
@@ -263,7 +267,7 @@ export default function FilePreviewGridModal({
                   <XMarkIcon className="w-3 h-3" />
                 </button>
               )}
-            </button>
+            </div>
           );
         })}
       </div>
@@ -301,7 +305,7 @@ export default function FilePreviewGridModal({
                     startContent={<XMarkIcon className="w-4 h-4" />}
                     onPress={() => onOpenChange()}
                   >
-                    Đóng
+                    {t("chat.file.preview.close")}
                   </Button>
                 </ModalHeader>
 
@@ -349,7 +353,7 @@ export default function FilePreviewGridModal({
                         !(showPdfInline && isPdf(type)) && (
                           <div className="text-center text-white/90">
                             <p className="mb-4">
-                              Định dạng này chưa hỗ trợ xem trước.
+                              {t("chat.file.preview.notSupported")}
                             </p>
                             <a
                               href={item.uploadedUrl || item.url}
@@ -357,7 +361,7 @@ export default function FilePreviewGridModal({
                               rel="noreferrer"
                               className="inline-block px-4 py-2 bg-white text-black rounded-lg text-sm font-medium"
                             >
-                              Mở tab mới / tải về
+                              {t("chat.file.preview.openNewTab")}
                             </a>
                           </div>
                         )}
@@ -394,7 +398,7 @@ export default function FilePreviewGridModal({
                     onPress={goPrev}
                     isDisabled={!previewableIdx.length}
                   >
-                    Trước
+                    {t("chat.file.preview.prev")}
                   </Button>
                   <span className="text-xs text-white/70">
                     {openIndex !== null
@@ -410,7 +414,7 @@ export default function FilePreviewGridModal({
                     onPress={goNext}
                     isDisabled={!previewableIdx.length}
                   >
-                    Sau
+                    {t("chat.file.preview.next")}
                   </Button>
                 </ModalFooter>
               </>

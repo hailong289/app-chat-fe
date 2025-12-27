@@ -1,6 +1,19 @@
 import { FaceSmileIcon } from "@heroicons/react/16/solid";
+import { useTranslation } from "react-i18next";
+import { useEffect, useState } from "react";
 
 export function ChatEmptyState() {
+  const { t } = useTranslation();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
+
   return (
     <div className="text-center text-gray-500 dark:text-gray-400 mt-10">
       <div className="mb-4">
@@ -9,10 +22,10 @@ export function ChatEmptyState() {
         </div>
       </div>
       <p className="text-lg font-medium text-gray-700 dark:text-gray-200">
-        Chưa có tin nhắn nào
+        {t("chat.messages.empty.title")}
       </p>
       <p className="text-sm mt-1 text-gray-500 dark:text-gray-400">
-        Bắt đầu trò chuyện thôi!
+        {t("chat.messages.empty.subtitle")}
       </p>
     </div>
   );

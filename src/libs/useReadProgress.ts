@@ -26,7 +26,7 @@ export function useReadProgress(opts: {
   };
 
   // id đã đọc tới (client)
-  const [lastReadId, setLastReadId] = useState<string>("");
+  const lastReadIdRef = useRef<string>("");
 
   // index map để lấy "max đã thấy"
   const indexOf = useMemo(() => {
@@ -81,11 +81,11 @@ export function useReadProgress(opts: {
 
     // Mark last visible message as read
     const updateLastRead = (id: string) => {
-      const currentIdx = indexOf.get(lastReadId) ?? -1;
+      const currentIdx = indexOf.get(lastReadIdRef.current) ?? -1;
       const newIdx = indexOf.get(id) ?? -1;
 
       if (newIdx > currentIdx) {
-        setLastReadId(id);
+        lastReadIdRef.current = id;
         debouncedCommit(id);
       }
     };
@@ -106,7 +106,6 @@ export function useReadProgress(opts: {
       if (!hasScroll()) {
         const lastId = getLastReadableMessageId();
         if (lastId) {
-          console.log("📭 No scroll detected - marking all messages as read");
           updateLastRead(lastId);
         }
         return true;
@@ -214,7 +213,7 @@ export function useReadProgress(opts: {
       clearTimeout(initialCheckTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, container, stickyBottomPx, minVisibleRatio]);
+  }, [messages.length, container, stickyBottomPx, minVisibleRatio]);
 
-  return { setMessageRef: setRef, lastReadId };
+  return { setMessageRef: setRef, lastReadId: lastReadIdRef.current };
 }

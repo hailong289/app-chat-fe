@@ -1,4 +1,5 @@
 import { SendMessageArgs } from "../useMessageStore";
+import { CallMember } from "./call.state";
 
 export type MessageSender = {
   _id: string;
@@ -25,7 +26,15 @@ export type FilePreview = {
 export type MessageType = {
   id: string;
   roomId: string;
-  type: "text" | "image" | "file" | "system" | "video" | "audio" | "gif";
+  type:
+    | "text"
+    | "image"
+    | "file"
+    | "system"
+    | "video"
+    | "audio"
+    | "gif"
+    | "document";
   content: string;
   createdAt: string;
   editedAt?: string | null;
@@ -33,6 +42,7 @@ export type MessageType = {
   pinned: boolean;
   sender: MessageSender & { id?: string };
   attachments?: Array<FilePreview>;
+  documentId?: string; // Link to Document collection
   reactions?: Array<{
     emoji: string;
     count: number;
@@ -80,7 +90,44 @@ export type MessageType = {
     | "uploading"
     | "uploaded"
     | "recalled";
+  call_history?: CallHistoryType | null;
+  summary?: string | null;
 };
+
+export interface CallHistoryType {
+  _id: string;
+  call_id: string;
+  room_id: string;
+  call_type: "audio" | "video";
+  message_id: string;
+  members: CallMember[];
+  started_at: string;
+  ended_at: string;
+  duration: number;
+  // Additional fields used in components
+  caller_id?: string;
+  callee_id?: string;
+}
+export interface GalleryItem {
+  _id: string;
+  msg_roomId: string;
+  msg_content: string;
+  msg_type: string;
+  createdAt: string;
+  attachments: FilePreview[];
+}
+
+export interface RoomGallery {
+  media: GalleryItem[];
+  docs: GalleryItem[];
+  links: GalleryItem[];
+  isLoadingMedia: boolean;
+  isLoadingDocs: boolean;
+  isLoadingLinks: boolean;
+  hasMoreMedia: boolean;
+  hasMoreDocs: boolean;
+  hasMoreLinks: boolean;
+}
 
 export interface RoomData {
   messages: MessageType[];
@@ -89,6 +136,7 @@ export interface RoomData {
   // ghim: string[] | null;
   // updatedAt: string | null;
   reply: MessageType | null;
+  gallery?: RoomGallery;
 }
 
 export interface MessageState {
@@ -112,9 +160,14 @@ export interface MessageState {
     }
   ) => Promise<MessageType[]>;
   loadOlderMessages: (roomId: string, limit?: number) => Promise<any[]>;
+  findMessage: (roomId: string, messageId: string) => Promise<boolean>;
   deleteMessage: (roomId: string, messageId: string) => Promise<void>;
   recallMessage: (roomId: string, messageId: string) => Promise<void>;
   fetchNewMessages: (roomId: string, lastMessageId?: string) => Promise<void>;
+  fetchRoomGallery: (
+    roomId: string,
+    type: "media" | "docs" | "links"
+  ) => Promise<void>;
 
   uploadAttachments: (data: {
     roomId: string;
@@ -157,4 +210,5 @@ export type msg = {
   updatedAt: string | null;
   messages: Array<MessageType>;
   reply: MessageType | null;
+  gallery?: RoomGallery;
 };

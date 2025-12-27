@@ -15,7 +15,11 @@ import {
   SelectItem,
 } from "@heroui/react";
 import Image from "next/image";
-import { CalendarDate } from "@internationalized/date";
+import {
+  CalendarDate,
+  CalendarDateTime,
+  ZonedDateTime,
+} from "@internationalized/date";
 import { PayloadRegister } from "@/types/auth.type";
 import Helpers from "@/libs/helpers";
 import useToast from "@/hooks/useToast";
@@ -23,88 +27,104 @@ import useAuthStore from "@/store/useAuthStore";
 import { useRouter } from "next/navigation";
 import Joi from "joi";
 import { useFirebase } from "@/components/providers/firebase.provider";
-
-const registerSchema = Joi.object({
-  type: Joi.string().valid("email", "phone").required().messages({
-    "any.required": "Loại đăng ký không được để trống",
-    "string.empty": "Loại đăng ký không được để trống",
-    "any.only": "Loại đăng ký không hợp lệ",
-  }),
-  fullname: Joi.string().required().messages({
-    "any.required": "Họ và tên không được để trống",
-    "string.empty": "Họ và tên không được để trống",
-  }),
-  username: Joi.string()
-    .required()
-    .custom((value, helpers) => {
-      const type = helpers.prefs.context?.type; // lấy type từ object cha
-
-      if (type === "email") {
-        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailPattern.test(value)) {
-          return helpers.error("string.email");
-        }
-      }
-
-      if (type === "phone") {
-        const phonePattern = /^(\+84|84|0)(3|5|7|8|9)\d{8}$/;
-        if (!phonePattern.test(value.replace(/\s/g, ""))) {
-          return helpers.error("string.pattern.base");
-        }
-      }
-
-      return value;
-    })
-    .messages({
-      "any.required": "Trường này không được để trống",
-      "string.empty": "Trường này không được để trống",
-      "string.email": "Vui lòng nhập email hợp lệ",
-      "string.pattern.base": "Vui lòng nhập số điện thoại hợp lệ",
-    }),
-  password: Joi.string().min(6).required().messages({
-    "any.required": "Mật khẩu không được để trống",
-    "string.empty": "Mật khẩu không được để trống",
-    "string.min": "Mật khẩu phải có ít nhất 6 ký tự",
-  }),
-  confirm: Joi.string()
-    .required()
-    .custom((value, helpers) => {
-      // Lấy password từ object cha (submit form)
-      const root = helpers.state.ancestors?.[0] || {};
-      const passwordFromRoot = root.password;
-
-      // Lấy password từ context (validate field đơn lẻ)
-      const passwordFromContext = helpers.prefs.context?.password;
-
-      const password = passwordFromRoot ?? passwordFromContext;
-
-      if (value !== password) {
-        return helpers.error("any.only");
-      }
-      return value;
-    })
-    .messages({
-      "any.required": "Xác nhận mật khẩu không được để trống",
-      "string.empty": "Xác nhận mật khẩu không được để trống",
-      "any.only": "Mật khẩu xác nhận không khớp",
-    }),
-  dateOfBirth: Joi.any(),
-  gender: Joi.string().valid("male", "female", "other").required().messages({
-    "any.required": "Giới tính không được để trống",
-    "string.empty": "Giới tính không được để trống",
-    "any.only": "Giới tính không hợp lệ",
-  }),
-  fcmToken: Joi.string().optional().allow(null),
-});
+import { useTranslation } from "react-i18next";
 
 export default function RegisterPage() {
+  const { t } = useTranslation();
+  const registerSchema = Joi.object({
+    type: Joi.string()
+      .valid("email", "phone")
+      .required()
+      .messages({
+        "any.required": t("auth.validation.required"),
+        "string.empty": t("auth.validation.required"),
+        "any.only": t("auth.validation.required"),
+      }),
+    fullname: Joi.string()
+      .required()
+      .messages({
+        "any.required": t("auth.validation.required"),
+        "string.empty": t("auth.validation.required"),
+      }),
+    username: Joi.string()
+      .required()
+      .custom((value, helpers) => {
+        const type = helpers.prefs.context?.type; // lấy type từ object cha
+
+        if (type === "email") {
+          const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailPattern.test(value)) {
+            return helpers.error("string.email");
+          }
+        }
+
+        if (type === "phone") {
+          const phonePattern = /^(\+84|84|0)(3|5|7|8|9)\d{8}$/;
+          if (!phonePattern.test(value.replace(/\s/g, ""))) {
+            return helpers.error("string.pattern.base");
+          }
+        }
+
+        return value;
+      })
+      .messages({
+        "any.required": t("auth.validation.required"),
+        "string.empty": t("auth.validation.required"),
+        "string.email": t("auth.validation.emailInvalid"),
+        "string.pattern.base": t("auth.validation.phoneInvalid"),
+      }),
+    password: Joi.string()
+      .min(6)
+      .required()
+      .messages({
+        "any.required": t("auth.validation.required"),
+        "string.empty": t("auth.validation.required"),
+        "string.min": t("auth.validation.passwordMin"),
+      }),
+    confirm: Joi.string()
+      .required()
+      .custom((value, helpers) => {
+        // Lấy password từ object cha (submit form)
+        const root = helpers.state.ancestors?.[0] || {};
+        const passwordFromRoot = root.password;
+
+        // Lấy password từ context (validate field đơn lẻ)
+        const passwordFromContext = helpers.prefs.context?.password;
+
+        const password = passwordFromRoot ?? passwordFromContext;
+
+        if (value !== password) {
+          return helpers.error("any.only");
+        }
+        return value;
+      })
+      .messages({
+        "any.required": t("auth.validation.required"),
+        "string.empty": t("auth.validation.required"),
+        "any.only": t("auth.validation.passwordMatch"),
+      }),
+    dateOfBirth: Joi.any(),
+    gender: Joi.string()
+      .valid("male", "female", "other")
+      .required()
+      .messages({
+        "any.required": t("auth.validation.required"),
+        "string.empty": t("auth.validation.required"),
+        "any.only": t("auth.validation.required"),
+      }),
+    fcmToken: Joi.string().optional().allow(null),
+  });
   const [form, setForm] = useState({
     fullname: "",
     username: "",
     password: "",
     confirm: "",
     gender: "male" as "male" | "female" | "other",
-    dateOfBirth: Helpers.getDefaultDate() as CalendarDate | null,
+    dateOfBirth: Helpers.getDefaultDate() as
+      | CalendarDate
+      | CalendarDateTime
+      | ZonedDateTime
+      | null,
     type: "email" as "email" | "phone",
     fcmToken: null as string | null,
   });
@@ -155,9 +175,9 @@ export default function RegisterPage() {
       callback: (err) => {
         if (err) {
           console.error("Registration failed:", err);
-          showError(err.message || "Đăng ký thất bại. Vui lòng thử lại.");
+          showError(err.message || t("auth.register.failed"));
         } else {
-          success("Đăng ký thành công!");
+          success(t("auth.register.success"));
           router.push("/"); // Redirect to home page after successful registration
         }
       },
@@ -175,7 +195,7 @@ export default function RegisterPage() {
             height={100}
             className="object-contain"
           />
-          <h1 className="text-2xl font-semibold">Đăng Ký</h1>
+          <h1 className="text-2xl font-semibold">{t("auth.register.title")}</h1>
         </CardHeader>
         <CardBody>
           <Tabs
@@ -187,12 +207,12 @@ export default function RegisterPage() {
             }
             color="primary"
           >
-            <Tab key="email" title="Email">
+            <Tab key="email" title={t("auth.register.emailTab")}>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <Input
                   type="text"
-                  label="Họ và tên"
-                  placeholder="Nguyễn Văn A"
+                  label={t("auth.register.fullnamePlaceholder")}
+                  placeholder={t("auth.register.fullnamePlaceholder")}
                   value={form.fullname}
                   onChange={(e) =>
                     setForm({ ...form, fullname: e.target.value })
@@ -205,8 +225,8 @@ export default function RegisterPage() {
 
                 <Input
                   type="email"
-                  label="Email"
-                  placeholder="you@example.com"
+                  label={t("auth.register.emailPlaceholder")}
+                  placeholder={t("auth.register.emailPlaceholder")}
                   value={form.username}
                   onChange={(e) =>
                     setForm({ ...form, username: e.target.value })
@@ -219,8 +239,8 @@ export default function RegisterPage() {
 
                 <Input
                   type="password"
-                  label="Mật khẩu"
-                  placeholder="Tối thiểu 8 ký tự"
+                  label={t("auth.register.passwordPlaceholder")}
+                  placeholder={t("auth.register.passwordPlaceholder")}
                   value={form.password}
                   onChange={(e) =>
                     setForm({ ...form, password: e.target.value })
@@ -232,8 +252,8 @@ export default function RegisterPage() {
                 />
                 <Input
                   type="password"
-                  label="Xác nhận mật khẩu"
-                  placeholder="Nhập lại mật khẩu"
+                  label={t("auth.register.confirmPasswordPlaceholder")}
+                  placeholder={t("auth.register.confirmPasswordPlaceholder")}
                   value={form.confirm}
                   onChange={(e) =>
                     setForm({ ...form, confirm: e.target.value })
@@ -245,9 +265,9 @@ export default function RegisterPage() {
                 />
 
                 <DatePicker
-                  label="Ngày sinh"
+                  label={t("auth.register.dobLabel")}
                   onChange={(date) => setForm({ ...form, dateOfBirth: date })}
-                  defaultValue={Helpers.getDefaultDate()}
+                  defaultValue={Helpers.getDefaultDate() as any}
                   isRequired
                   errorMessage={fieldErrors.dateOfBirth}
                   isInvalid={!!fieldErrors.dateOfBirth}
@@ -255,7 +275,7 @@ export default function RegisterPage() {
 
                 <Select
                   className="w-full"
-                  label="Chọn giới tính"
+                  label={t("auth.register.genderLabel")}
                   defaultSelectedKeys={new Set([form.gender])}
                   errorMessage={fieldErrors.gender}
                   isInvalid={!!fieldErrors.gender}
@@ -266,8 +286,12 @@ export default function RegisterPage() {
                     })
                   }
                 >
-                  <SelectItem key="male">Nam</SelectItem>
-                  <SelectItem key="female">Nữ</SelectItem>
+                  <SelectItem key="male">
+                    {t("auth.register.genderMale")}
+                  </SelectItem>
+                  <SelectItem key="female">
+                    {t("auth.register.genderFemale")}
+                  </SelectItem>
                 </Select>
 
                 <div className="text-center my-3">
@@ -278,27 +302,27 @@ export default function RegisterPage() {
                     disabled={isLoading}
                     isLoading={isLoading}
                   >
-                    Đăng Ký
+                    {t("auth.register.submit")}
                   </Button>
                 </div>
 
                 <p className="text-center text-sm">
-                  Bạn đã có tài khoản?{" "}
+                  {t("auth.register.hasAccount")}{" "}
                   <Link
                     href="/auth"
                     className="text-primary font-semibold hover:underline"
                   >
-                    Đăng nhập
+                    {t("auth.register.loginNow")}
                   </Link>
                 </p>
               </form>
             </Tab>
-            <Tab key="phone" title="Số điện thoại">
+            <Tab key="phone" title={t("auth.register.phoneTab")}>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <Input
                   type="text"
-                  label="Họ và tên"
-                  placeholder="Nguyễn Văn A"
+                  label={t("auth.register.fullnamePlaceholder")}
+                  placeholder={t("auth.register.fullnamePlaceholder")}
                   value={form.fullname}
                   onChange={(e) =>
                     setForm({ ...form, fullname: e.target.value })
@@ -311,8 +335,8 @@ export default function RegisterPage() {
 
                 <Input
                   type="tel"
-                  label="Số điện thoại"
-                  placeholder="0901234567"
+                  label={t("auth.register.phonePlaceholder")}
+                  placeholder={t("auth.register.phonePlaceholder")}
                   value={form.username}
                   onChange={(e) =>
                     setForm({ ...form, username: e.target.value })
@@ -325,8 +349,8 @@ export default function RegisterPage() {
 
                 <Input
                   type="password"
-                  label="Mật khẩu"
-                  placeholder="Tối thiểu 8 ký tự"
+                  label={t("auth.register.passwordPlaceholder")}
+                  placeholder={t("auth.register.passwordPlaceholder")}
                   value={form.password}
                   onChange={(e) =>
                     setForm({ ...form, password: e.target.value })
@@ -338,8 +362,8 @@ export default function RegisterPage() {
                 />
                 <Input
                   type="password"
-                  label="Xác nhận mật khẩu"
-                  placeholder="Nhập lại mật khẩu"
+                  label={t("auth.register.confirmPasswordPlaceholder")}
+                  placeholder={t("auth.register.confirmPasswordPlaceholder")}
                   value={form.confirm}
                   onChange={(e) =>
                     setForm({ ...form, confirm: e.target.value })
@@ -351,9 +375,9 @@ export default function RegisterPage() {
                 />
 
                 <DatePicker
-                  label="Ngày sinh"
+                  label={t("auth.register.dobLabel")}
                   onChange={(date) => setForm({ ...form, dateOfBirth: date })}
-                  defaultValue={Helpers.getDefaultDate()}
+                  defaultValue={Helpers.getDefaultDate() as any}
                   isRequired
                   errorMessage={fieldErrors.dateOfBirth}
                   isInvalid={!!fieldErrors.dateOfBirth}
@@ -361,7 +385,7 @@ export default function RegisterPage() {
 
                 <Select
                   className="w-full"
-                  label="Chọn giới tính"
+                  label={t("auth.register.genderLabel")}
                   defaultSelectedKeys={new Set([form.gender])}
                   onSelectionChange={(key) =>
                     setForm({
@@ -370,8 +394,12 @@ export default function RegisterPage() {
                     })
                   }
                 >
-                  <SelectItem key="male">Nam</SelectItem>
-                  <SelectItem key="female">Nữ</SelectItem>
+                  <SelectItem key="male">
+                    {t("auth.register.genderMale")}
+                  </SelectItem>
+                  <SelectItem key="female">
+                    {t("auth.register.genderFemale")}
+                  </SelectItem>
                 </Select>
 
                 <div className="text-center my-3">
@@ -382,17 +410,17 @@ export default function RegisterPage() {
                     disabled={isLoading}
                     isLoading={isLoading}
                   >
-                    Đăng Ký
+                    {t("auth.register.submit")}
                   </Button>
                 </div>
 
                 <p className="text-center text-sm">
-                  Bạn đã có tài khoản?{" "}
+                  {t("auth.register.hasAccount")}{" "}
                   <Link
                     href="/auth"
                     className="text-primary font-semibold hover:underline"
                   >
-                    Đăng nhập
+                    {t("auth.register.loginNow")}
                   </Link>
                 </p>
               </form>

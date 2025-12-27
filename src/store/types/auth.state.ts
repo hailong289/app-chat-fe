@@ -3,6 +3,9 @@ import {
   PayloadLogin,
   PayloadRegister,
   ResetPasswordPayload,
+  UpdateAvatarPayload,
+  UpdateProfilePayload,
+  UpdatePasswordPayload,
   User,
 } from "@/types/auth.type";
 
@@ -22,6 +25,10 @@ export interface AuthState {
   setAuth: (isAuthenticated: boolean) => void;
   forgotPassword: (payload: ForgotPasswordPayload) => void;
   resetPassword: (payload: ResetPasswordPayload) => void;
-  //   refreshAccessToken: () => Promise<string | null>;
-  //   getValidAccessToken: () => Promise<string | null>;
+  refreshToken: () => Promise<void>;
+  updateProfile: (payload: UpdateProfilePayload) => void;
+  updateAvatar: (payload: UpdateAvatarPayload) => void;
+  updatePassword: (payload: UpdatePasswordPayload) => void;
+  // refreshAccessToken: () => Promise<string | null>;
+  // getValidAccessToken: () => Promise<string | null>;
 }
