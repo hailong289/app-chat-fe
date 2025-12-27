@@ -51,6 +51,12 @@ const nextConfig: NextConfig = {
         port: "",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "s3.us-east-005.backblazeb2.com",
+        port: "",
+        pathname: "/**",
+      },
     ],
     // Alternative: use dangerouslyAllowSVG and contentSecurityPolicy for placeholder services
     dangerouslyAllowSVG: true,

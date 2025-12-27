@@ -1,35 +1,36 @@
 import { User } from "@/types/auth.type";
 import { Socket } from "socket.io-client";
 
-
 export interface CallMember {
   id: string;
+  user_id?: string;
   fullname: string;
   avatar: string;
   is_caller: boolean;
-  status:  | 'initiated'
-  | 'started'
-  | 'pending'
-  | 'accepted'
-  | 'cancelled' // người gọi đã hủy cuộc gọi
-  | 'rejected' // người nhận đã từ chối cuộc gọi
-  | 'missed' // người nhận đã bỏ qua cuộc gọi
-  | 'ended'; // người nhận hoặc người gọi đã kết thúc cuộc gọi
+  status:
+    | "initiated"
+    | "started"
+    | "pending"
+    | "accepted"
+    | "cancelled" // người gọi đã hủy cuộc gọi
+    | "rejected" // người nhận đã từ chối cuộc gọi
+    | "missed" // người nhận đã bỏ qua cuộc gọi
+    | "ended"; // người nhận hoặc người gọi đã kết thúc cuộc gọi
 }
 
 export interface CallState {
   roomId: string | null;
-  status: 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined'; // idle: không có cuộc gọi, calling: người gọi, incoming: người bị gọi, ended: kết thúc cuộc gọi, accepted: đã chấp nhận cuộc gọi, declined: đã từ chối cuộc gọi
-  mode: 'audio' | 'video'; // audio: audio, video: video only
+  status: "idle" | "calling" | "incoming" | "ended" | "accepted" | "declined"; // idle: không có cuộc gọi, calling: người gọi, incoming: người bị gọi, ended: kết thúc cuộc gọi, accepted: đã chấp nhận cuộc gọi, declined: đã từ chối cuộc gọi
+  mode: "audio" | "video"; // audio: audio, video: video only
   members: CallMember[];
   error: string | null;
   isWindowOpen: boolean;
   configPeerConnection: {
     iceServers: RTCIceServer[];
     iceCandidatePoolSize: number;
-    iceTransportPolicy: 'all' | 'public' | 'relay';
-    bundlePolicy: 'max-bundle' | 'max-compat' | 'balanced';
-    rtcpMuxPolicy: 'negotiate' | 'require';
+    iceTransportPolicy: "all" | "public" | "relay";
+    bundlePolicy: "max-bundle" | "max-compat" | "balanced";
+    rtcpMuxPolicy: "negotiate" | "require";
   };
   stream: {
     localStream: MediaStream | null;
@@ -52,13 +53,21 @@ export interface CallState {
   eventCall: (event: string, payload: any) => Promise<void>;
   acceptCall: (data: any) => void;
   handleCreateLocalStream: () => void;
-  handleCreatePeerConnection: (roomId: string, actionUserId: string) => Promise<RTCPeerConnection>;
+  handleCreatePeerConnection: (
+    roomId: string,
+    actionUserId: string
+  ) => Promise<RTCPeerConnection>;
   updateCallState: (state: Partial<CallState>) => void;
-  flushPendingCandidates: (roomId: string, actionUserId: string) => Promise<void>;
-  actionToggleTrack: (action: 'mic' | 'video' | 'speaker' | 'shareScreen', value: boolean) => Promise<void>;
+  flushPendingCandidates: (
+    roomId: string,
+    actionUserId: string
+  ) => Promise<void>;
+  actionToggleTrack: (
+    action: "mic" | "video" | "speaker" | "shareScreen",
+    value: boolean
+  ) => Promise<void>;
   handleEndCall: (data: any) => void;
   handleRequestCall: (data: any) => void;
   handleAcceptCall: (data: any) => void;
   handleShareScreen: (value: boolean) => Promise<void>;
 }
-
