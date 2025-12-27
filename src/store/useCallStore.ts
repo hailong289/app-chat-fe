@@ -24,7 +24,7 @@ const useCallStore = create<CallState>()((set, get) => ({
     ],
     iceCandidatePoolSize: 10,
     iceTransportPolicy: "all",
-    bundlePolicy: "max-bundle",
+    bundlePolicy: "balanced",
     rtcpMuxPolicy: "require",
   },
   stream: {
