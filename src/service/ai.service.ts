@@ -4,6 +4,7 @@ export interface SearchResult {
   text: string;
   contextId: string;
   score: number;
+  messageId: string;
 }
 
 export interface SearchResponse {

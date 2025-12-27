@@ -203,7 +203,8 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                           <DocumentIcon className="w-5 h-5 text-primary" />
                         }
                         onClick={() => {
-                          console.log("Navigate to", result.contextId);
+                          console.log("Navigate to", result.messageId);
+                          setScrollto(result.messageId);
                           // TODO: Implement navigation to message or document
                         }}
                       >

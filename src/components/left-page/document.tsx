@@ -47,6 +47,7 @@ const Document: React.FC = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [newDocTitle, setNewDocTitle] = useState("");
+  const [hydrated, setHydrated] = useState(false);
   const isCollapsed = useCounterStore((state) => state.collapsedSidebar);
   const { socket } = useSocket("/doc");
   useEffect(() => {
@@ -83,6 +84,11 @@ const Document: React.FC = () => {
       setShowSearch(false);
     }
   }, [isCollapsed]);
+
+  // Avoid hydration mismatches from client-only language detection.
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   const handleCreateDocument = async () => {
     if (!newDocTitle.trim()) return;
@@ -331,7 +337,15 @@ const Document: React.FC = () => {
 
   return (
     <>
-      {isCollapsed ? collapsedView : expandedView}
+      {hydrated ? (
+        isCollapsed ? (
+          collapsedView
+        ) : (
+          expandedView
+        )
+      ) : (
+        <div className="h-full w-full" aria-hidden="true" />
+      )}
 
       <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
         <ModalContent>
