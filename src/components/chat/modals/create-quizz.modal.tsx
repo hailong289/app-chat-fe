@@ -17,7 +17,7 @@ import {
   Radio,
   RadioGroup,
 } from "@heroui/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import UploadFileButton from "@/components/upload/UploadFileButton";
 import UploadService from "@/service/uploadfile.service";
@@ -214,35 +214,55 @@ export const CreateQuizzModal = ({
     }
   };
 
-  const updateQuizzField = (field: keyof QuizzResponse, value: any) => {
-    if (!editedQuizz) return;
+  const updateQuizzField = useCallback((field: keyof QuizzResponse, value: any) => {
     setEditedQuizz((prev) => prev ? { ...prev, [field]: value } : null);
-  };
+  }, []);
 
-  const updateQuestion = (questionIndex: number, field: keyof QuizzQuestion, value: any) => {
-    if (!editedQuizz) return;
-    const updatedQuestions = [...editedQuizz.quiz_questions];
-    updatedQuestions[questionIndex] = {
-      ...updatedQuestions[questionIndex],
-      [field]: value
-    };
-    setEditedQuizz((prev) => prev ? { ...prev, quiz_questions: updatedQuestions } : null);
-  };
+  const updateQuestion = useCallback((questionIndex: number, field: keyof QuizzQuestion, value: any) => {
+    setEditedQuizz((prev) => {
+      if (!prev) return null;
+      const updatedQuestions = [...prev.quiz_questions];
+      updatedQuestions[questionIndex] = {
+        ...updatedQuestions[questionIndex],
+        [field]: value
+      };
+      return { ...prev, quiz_questions: updatedQuestions };
+    });
+  }, []);
 
-  const updateAnswer = (questionIndex: number, answerIndex: number, field: keyof QuizzAnswer, value: any) => {
-    if (!editedQuizz) return;
-    const updatedQuestions = [...editedQuizz.quiz_questions];
-    const updatedAnswers = [...updatedQuestions[questionIndex].answers];
-    updatedAnswers[answerIndex] = {
-      ...updatedAnswers[answerIndex],
-      [field]: value
-    };
-    updatedQuestions[questionIndex] = {
-      ...updatedQuestions[questionIndex],
-      answers: updatedAnswers
-    };
-    setEditedQuizz((prev) => prev ? { ...prev, quiz_questions: updatedQuestions } : null);
-  };
+  const updateAnswer = useCallback((questionIndex: number, answerIndex: number, field: keyof QuizzAnswer, value: any) => {
+    setEditedQuizz((prev) => {
+      if (!prev) return null;
+      const updatedQuestions = [...prev.quiz_questions];
+      const updatedAnswers = [...updatedQuestions[questionIndex].answers];
+      updatedAnswers[answerIndex] = {
+        ...updatedAnswers[answerIndex],
+        [field]: value
+      };
+      updatedQuestions[questionIndex] = {
+        ...updatedQuestions[questionIndex],
+        answers: updatedAnswers
+      };
+      return { ...prev, quiz_questions: updatedQuestions };
+    });
+  }, []);
+
+  // Tối ưu: Update tất cả answers trong một lần cho radio buttons
+  const updateRadioAnswer = useCallback((questionIndex: number, selectedIndex: number) => {
+    setEditedQuizz((prev) => {
+      if (!prev) return null;
+      const updatedQuestions = [...prev.quiz_questions];
+      const updatedAnswers = updatedQuestions[questionIndex].answers.map((answer, idx) => ({
+        ...answer,
+        is_correct: idx === selectedIndex
+      }));
+      updatedQuestions[questionIndex] = {
+        ...updatedQuestions[questionIndex],
+        answers: updatedAnswers
+      };
+      return { ...prev, quiz_questions: updatedQuestions };
+    });
+  }, []);
 
   const isFormValid = () => {
     if (form.inputType === "text" && !form.textContent.trim()) return false;
@@ -619,52 +639,53 @@ export const CreateQuizzModal = ({
                                   ))
                                 ) : (
                                   // Single choice và true_false: dùng radio
-                                  <RadioGroup
-                                    value={question.answers.findIndex((a: QuizzAnswer) => a.is_correct) >= 0 
-                                      ? question.answers.findIndex((a: QuizzAnswer) => a.is_correct).toString() 
-                                      : undefined}
-                                    onValueChange={(value) => {
-                                      if (!isEditing) return;
-                                      // Reset tất cả answers về false
-                                      question.answers.forEach((_: QuizzAnswer, idx: number) => {
-                                        updateAnswer(qIndex, idx, "is_correct", false);
-                                      });
-                                      // Set answer được chọn thành true
-                                      const selectedIndex = parseInt(value);
-                                      if (selectedIndex >= 0 && selectedIndex < question.answers.length) {
-                                        updateAnswer(qIndex, selectedIndex, "is_correct", true);
-                                      }
-                                    }}
-                                    isDisabled={!isEditing}
-                                  >
-                                    {question.answers.map((answer, aIndex) => (
-                                      <div key={aIndex} className="flex items-center gap-2">
-                                        {isEditing ? (
-                                          <>
-                                            <Radio value={aIndex.toString()} />
-                                            <Input
-                                              className="flex-1"
-                                              value={answer.answer_text}
-                                              onChange={(e) => 
-                                                updateAnswer(qIndex, aIndex, "answer_text", e.target.value)
-                                              }
-                                              placeholder="Nhập đáp án"
-                                            />
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Radio 
-                                              value={aIndex.toString()} 
-                                              isDisabled 
-                                            />
-                                            <span className={answer.is_correct ? "text-success font-medium" : ""}>
-                                              {answer.answer_text}
-                                            </span>
-                                          </>
-                                        )}
-                                      </div>
-                                    ))}
-                                  </RadioGroup>
+                                  (() => {
+                                    // Tính toán value một lần để tránh re-render
+                                    const correctIndex = question.answers.findIndex((a: QuizzAnswer) => a.is_correct);
+                                    const radioValue = correctIndex >= 0 ? correctIndex.toString() : undefined;
+                                    
+                                    return (
+                                      <RadioGroup
+                                        value={radioValue}
+                                        onValueChange={(value) => {
+                                          if (!isEditing) return;
+                                          const selectedIndex = parseInt(value);
+                                          if (selectedIndex >= 0 && selectedIndex < question.answers.length) {
+                                            updateRadioAnswer(qIndex, selectedIndex);
+                                          }
+                                        }}
+                                        isDisabled={!isEditing}
+                                      >
+                                        {question.answers.map((answer, aIndex) => (
+                                          <div key={aIndex} className="flex items-center gap-2">
+                                            {isEditing ? (
+                                              <>
+                                                <Radio value={aIndex.toString()} />
+                                                <Input
+                                                  className="flex-1"
+                                                  value={answer.answer_text}
+                                                  onChange={(e) => 
+                                                    updateAnswer(qIndex, aIndex, "answer_text", e.target.value)
+                                                  }
+                                                  placeholder="Nhập đáp án"
+                                                />
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Radio 
+                                                  value={aIndex.toString()} 
+                                                  isDisabled 
+                                                />
+                                                <span className={answer.is_correct ? "text-success font-medium" : ""}>
+                                                  {answer.answer_text}
+                                                </span>
+                                              </>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </RadioGroup>
+                                    );
+                                  })()
                                 )}
                               </div>
 
