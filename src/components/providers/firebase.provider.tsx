@@ -203,11 +203,11 @@ export const FirebaseProvider = ({
       }
     } catch (err) {
       console.error("❌ Error getting token:", err);
-      useAlertStore.getState().showAlert({
-        title: "Lỗi",
-        message: "Có lỗi khi xin quyền thông báo. Vui lòng thử lại.",
-        type: "error",
-      });
+      // useAlertStore.getState().showAlert({
+      //   title: "Lỗi",
+      //   message: "Có lỗi khi xin quyền thông báo. Vui lòng thử lại.",
+      //   type: "error",
+      // });
     }
   }, [isBrowser, messaging]);
 

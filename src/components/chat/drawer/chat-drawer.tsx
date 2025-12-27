@@ -22,6 +22,8 @@ import {
   FilmIcon,
   TableCellsIcon,
   DocumentIcon,
+  AcademicCapIcon,
+  PlusIcon,
 } from "@heroicons/react/24/outline";
 import { useState } from "react";
 import { CallChangeNameModal } from "../modals/changeName.model";
@@ -45,6 +47,7 @@ import { ChangeNickNameModal } from "../modals/changeNickName.model";
 import UploadFileButton from "@/components/upload/UploadFileButton";
 import UploadService from "@/service/uploadfile.service";
 import { AddMemberModal } from "../modals/add-member.model";
+import { CreateQuizzModal } from "../modals/create-quizz.modal";
 import { useRouter } from "next/navigation";
 import Timeline from "@/components/ui/timeline";
 import { useTranslation } from "react-i18next";
@@ -52,6 +55,9 @@ import useContactStore from "@/store/useContactStore";
 import useMessageStore from "@/store/useMessageStore";
 import RoomService from "@/service/room.service";
 import { useEffect } from "react";
+import QuizzList from "./quizz-list";
+import { useSocket } from "@/components/providers/SocketProvider";
+import { QuizzResponse } from "@/types/quizz.type";
 
 export default function ChatDrawer({
   isOpen,
@@ -69,6 +75,8 @@ export default function ChatDrawer({
   const { room: currentRoom } = useRoomStore();
   const fetchRoomGallery = useMessageStore((state) => state.fetchRoomGallery);
   const messagesRoom = useMessageStore((state) => state.messagesRoom);
+  const sendMessage = useMessageStore((state) => state.sendMessage);
+  const { socket } = useSocket("/chat");
 
   const roomData = currentRoom?.id ? messagesRoom[currentRoom.id] : null;
   const documents = roomData?.gallery?.docs || [];
@@ -103,6 +111,8 @@ export default function ChatDrawer({
   const [memberIdToDelete, setMemberIdToDelete] = useState<string | null>(null);
   const [openChangeNickNameModal, setOpenChangeNickNameModal] = useState(false);
   const [openAddMemberModal, setOpenAddMemberModal] = useState(false);
+  const [openCreateQuizzModal, setOpenCreateQuizzModal] = useState(false);
+  const [refreshQuizzList, setRefreshQuizzList] = useState(false);
   const roomState = useRoomStore((state) => state);
   const userState = useAuthStore((state) => state);
   const user = userState.user;
@@ -112,6 +122,14 @@ export default function ChatDrawer({
   const isGuest = roomState.room?.members?.some(
     (member) => member.id === user?.id && member.role === "guest"
   );
+
+  // Refresh quizz list when modal closes (after creating a new quizz)
+  useEffect(() => {
+    if (!openCreateQuizzModal) {
+      setRefreshQuizzList((prev) => !prev);
+    }
+  }, [openCreateQuizzModal]);
+
   const role: Record<string, string> = {
     admin: t("chat.drawer.roles.admin"),
     member: t("chat.drawer.roles.member"),
@@ -618,6 +636,52 @@ export default function ChatDrawer({
                           }))}
                         />
                       </AccordionItem>,
+                      <AccordionItem
+                        key="6"
+                        aria-label="Accordion 6"
+                        title="Quizz"
+                      >
+                        <div className="space-y-4">
+                          <Button
+                            className="w-full justify-start"
+                            color="primary"
+                            variant="solid"
+                            startContent={
+                              <PlusIcon className="w-4 h-4 text-white" />
+                            }
+                            onPress={() => {
+                              setOpenCreateQuizzModal(true);
+                            }}
+                          >
+                            Tạo quizz
+                          </Button>
+                          <QuizzList
+                            roomId={roomState.room?._id}
+                            refreshTrigger={refreshQuizzList}
+                            user={user}
+                            onSendQuiz={(quiz: QuizzResponse) => {
+                              if (!roomState.room?._id || !user) return;
+                              
+                              // Tạo nội dung message với thông tin quizz
+                              const quizContent = `📝 **${quiz.quiz_title}**\n\n${quiz.quiz_description || ""}\n\n📊 ${quiz.quiz_questions?.length || 0} câu hỏi - Tổng điểm: ${quiz.quiz_questions?.reduce((sum, q) => sum + (q.points || 0), 0) || 0}`;
+                              
+                              sendMessage({
+                                roomId: roomState.room.id,
+                                content: quizContent,
+                                attachments: [],
+                                type: "text",
+                                socket,
+                                userId: user._id || user.id,
+                                userFullname: user.fullname,
+                                userAvatar: user.avatar,
+                              });
+                              
+                              // Đóng drawer sau khi gửi
+                              onClose();
+                            }}
+                          />
+                        </div>
+                      </AccordionItem>,
                     ].filter(Boolean)}
                   </Accordion>
                 </div>
@@ -643,6 +707,12 @@ export default function ChatDrawer({
       <AddMemberModal
         isOpen={openAddMemberModal}
         onClose={() => setOpenAddMemberModal(false)}
+      />
+      <CreateQuizzModal
+        isOpen={openCreateQuizzModal}
+        onClose={() => setOpenCreateQuizzModal(false)}
+        roomId={roomState.room?._id}
+        userId={user?._id}
       />
     </>
   );
