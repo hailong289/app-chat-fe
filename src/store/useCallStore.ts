@@ -12,7 +12,22 @@ const useCallStore = create<CallState>()(
         members: [] as CallMember[],
         error: null,
         isWindowOpen: false,
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+        configPeerConnection: {
+            iceServers: [
+                { urls: ["stun:stun.l.google.com:19302"] },
+                { urls: ["stun:stun1.l.google.com:19302"] },
+                { urls: ["stun:stun2.l.google.com:19302"] },
+                {
+                  urls: "turn:openrelay.metered.ca:443",
+                  username: "openrelayproject",
+                  credential: "openrelayproject",
+                },
+              ],
+            iceCandidatePoolSize: 10,
+            iceTransportPolicy: 'all',
+            bundlePolicy: 'max-bundle',
+            rtcpMuxPolicy: 'require'
+        },
         stream: {
             localStream: null,
             remoteStreams: new Map<string, MediaStream>(),
@@ -332,7 +347,7 @@ const useCallStore = create<CallState>()(
                 return get().stream.peerConnections.get(key)!;
             }
             const socket = get().socket;
-            const pc = new RTCPeerConnection({ iceServers: get().iceServers });
+            const pc = new RTCPeerConnection(get().configPeerConnection as RTCConfiguration);
             // Khi nhận được ICE Candidate từ bên kia
             pc.onicecandidate = (event) => {
                 if (event.candidate) {
