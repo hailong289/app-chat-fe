@@ -994,6 +994,10 @@ const useMessageStore = create<MessageState>()((set, get) => ({
    * Used for jumping to a specific message
    */
   findMessage: async (roomId: string, messageId: string): Promise<boolean> => {
+    if (!messageId || messageId === "null" || messageId === "undefined") {
+      console.warn("findMessage called with invalid ID:", messageId);
+      return false;
+    }
     try {
       // 1. Check IndexedDB
       const msgInDB = await db.messages.get(messageId);
