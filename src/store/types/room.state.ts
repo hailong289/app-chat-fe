@@ -49,6 +49,7 @@ export interface RoomsState {
   ) => void;
   pinnedRoom: (roomId: string, pinned: boolean) => Promise<void>;
   mutedRoom: (roomId: string, muted: boolean) => Promise<void>;
+  getRoomByRoomId: (roomId: string) => roomType | undefined;
 }
 
 export type roomType = {

@@ -466,6 +466,10 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       return { rooms: updatedRooms, room: updatedRoom, isLoading: false };
     });
   },
+  getRoomByRoomId: (roomId: string) => {
+    const room = get().rooms.find((r) => r.id === roomId);
+    return room;
+  },
 }));
 
 export default useRoomStore;
