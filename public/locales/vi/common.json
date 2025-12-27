@@ -243,7 +243,8 @@
       "call": {
         "incoming": "Cuộc gọi đến",
         "inProgress": "Cuộc gọi đang diễn ra",
-        "calling": "Đang gọi..."
+        "calling": "Đang gọi...",
+        "join": "Tham gia"
       },
       "changeName": {
         "title": "Đổi tên đoạn chat",
@@ -454,7 +455,8 @@
       "ongoing": "Đang diễn ra",
       "missed": "Cuộc gọi nhỡ",
       "cancelled": "Đã hủy",
-      "busy": "Người dùng bận"
+      "busy": "Người dùng bận",
+      "join": "Tham gia"
     },
     "type": {
       "group": "Cuộc gọi nhóm",

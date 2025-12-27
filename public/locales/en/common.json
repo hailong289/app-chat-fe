@@ -243,7 +243,8 @@
       "call": {
         "incoming": "Incoming Call",
         "inProgress": "Call in Progress",
-        "calling": "Calling..."
+        "calling": "Calling...",
+        "join": "Join call"
       },
       "changeName": {
         "title": "Change chat name",
@@ -454,7 +455,8 @@
       "ongoing": "Ongoing",
       "missed": "Missed call",
       "cancelled": "Cancelled",
-      "busy": "User busy"
+      "busy": "User busy",
+      "join": "Join call"
     },
     "type": {
       "group": "Group call",

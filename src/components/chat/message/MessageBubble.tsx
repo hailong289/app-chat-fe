@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { useRouter } from "next/navigation";
 import Helpers from "@/libs/helpers";
 import useAuthStore from "@/store/useAuthStore";
+import { Button } from "@heroui/button";
 
 interface MessageBubbleProps {
   msg: MessageType;
@@ -270,7 +271,6 @@ function CallMessageBubble({
   const otherUser = callHistory.members.find(
     (member) => member.id !== user?.id
   );
-  const isCaller = currentUser?.is_caller;
 
   // Determine status
   let statusLabel = t("call.status.ended", "Cuộc gọi đã kết thúc");
@@ -279,23 +279,19 @@ function CallMessageBubble({
     "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400";
 
   const myStatus = currentUser?.status;
-  const otherStatus = otherUser?.status;
+  const isStarted = ["started", "accepted"].includes(myStatus || "");
 
-  if (["initiated", "started", "pending"].includes(myStatus || "")) {
+  if (["initiated", "pending"].includes(myStatus || "")) {
     statusLabel = t("call.status.waiting", "Đang chờ...");
     statusColor = "text-yellow-600 dark:text-yellow-400";
     iconColor =
       "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400";
-  } else if (["started", "accepted"].includes(otherStatus || "")) {
+  } else if (["started", "accepted"].includes(myStatus || "")) {
     statusLabel = t("call.status.ongoing", "Đang diễn ra");
     statusColor = "text-green-600 dark:text-green-400";
     iconColor =
       "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400";
-  } else if (
-    myStatus === "missed" ||
-    myStatus === "rejected" ||
-    (isCaller && otherStatus === "missed")
-  ) {
+  } else if (["missed", "rejected"].includes(myStatus || "")) {
     statusLabel = t("call.status.missed", "Cuộc gọi nhỡ");
     statusColor = "text-red-600 dark:text-red-400";
     iconColor = "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400";
@@ -369,6 +365,20 @@ function CallMessageBubble({
               </>
             )}
           </div>
+          {isStarted && (
+              <div className="flex items-start gap-2 text-xs my-2">
+                <Button
+                  size="sm"
+                  color="primary"
+                  variant="solid"
+                  onPress={() => {
+                    console.log("accept call", callHistory);
+                  }}
+                >
+                  {t("call.status.join", "Tham gia")}
+                </Button>
+              </div>
+            )}
         </div>
       </div>
     </div>
