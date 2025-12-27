@@ -1425,6 +1425,17 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       });
     }
   },
+  clearRoomMessages: async (roomId: string) => {
+    await db.messages.where("roomId").equals(roomId).delete();
+    set((state) => {
+      const nextMessages = { ...state.messagesRoom };
+      delete nextMessages[roomId];
+      return {
+        ...state,
+        messagesRoom: nextMessages,
+      };
+    });
+  },
 }));
 
 export default useMessageStore;

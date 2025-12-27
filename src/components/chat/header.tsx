@@ -31,6 +31,7 @@ import {
   SparklesIcon,
   MapPinIcon,
   MusicalNoteIcon,
+  FolderIcon,
 } from "@heroicons/react/24/outline";
 import ChatDrawer from "./drawer/chat-drawer";
 import useRoomStore from "@/store/useRoomStore";
@@ -65,6 +66,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     onOpen: onOpenPinned,
     onOpenChange: onOpenChangePinned,
   } = useDisclosure();
+
   const [showSearch, setShowSearch] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<SearchResult[]>([]);
@@ -349,17 +351,12 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
             </div>
           </div>
         )}
-      <ChatDrawer isOpen={isOpen} onClose={onOpenChange} noAction={noAction} />
-      {/* <CallModal
-        isOpen={formModalCall.isOpen}
-        onClose={() => setFormModalCall((prev) => ({ ...prev, isOpen: false }))}
-        isIncoming={formModalCall.isIncoming}
-        isVideo={formModalCall.isVideo}
-        onAccept={() => {}}
-        onDecline={() => {}}
-        caller={formModalCall.caller}
-      /> */}
-
+      <ChatDrawer
+        isOpen={isOpen}
+        onClose={onOpenChange}
+        noAction={noAction}
+        setScrollto={setScrollto}
+      />
       <Modal
         isOpen={isOpenPinned}
         placement="top"

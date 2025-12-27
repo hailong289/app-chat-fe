@@ -282,6 +282,12 @@
         "membersPlaceholder": "Enter member name",
         "cancel": "Cancel",
         "create": "Create"
+      },
+      "clearHistory": {
+        "title": "Clear chat history",
+        "description": "This will permanently delete all messages in this conversation for everyone. This action cannot be undone.",
+        "cancel": "Cancel",
+        "confirm": "Clear history"
       }
     },
     "file": {
@@ -311,6 +317,13 @@
         "pause": "Pause"
       }
     },
+    "fileExplorer": {
+      "title": "File Explorer",
+      "media": "Media",
+      "noMedia": "No media found",
+      "documents": "Documents",
+      "noDocuments": "No documents found"
+    },
     "drawer": {
       "roles": {
         "admin": "Admin",
@@ -333,8 +346,15 @@
       },
       "media": {
         "title": "Media, files and links",
+        "noFiles": "No files found",
+        "fallback": {
+          "media": "Media",
+          "file": "File",
+          "document": "Document"
+        },
         "tabs": {
           "media": "Media",
+          "file": "File",
           "link": "Link",
           "docs": "Docs"
         }
@@ -345,7 +365,8 @@
         "reportDesc": "Give feedback about conversation",
         "leaveGroup": "Leave group",
         "block": "Block",
-        "unblock": "Unblock"
+        "unblock": "Unblock",
+        "clearHistory": "Clear chat history"
       },
       "history": {
         "title": "Activity history"

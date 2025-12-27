@@ -168,6 +168,7 @@ export interface MessageState {
     roomId: string,
     type: "media" | "docs" | "links"
   ) => Promise<void>;
+  clearRoomMessages: (roomId: string) => Promise<void>;
 
   uploadAttachments: (data: {
     roomId: string;

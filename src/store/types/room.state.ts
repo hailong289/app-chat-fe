@@ -19,6 +19,7 @@ export interface RoomsState {
   getRoomsByType: (type: string) => Promise<roomType[]>;
   changeRoomName: (id: string, name: string) => Promise<void>;
   leavingRoom: () => Promise<boolean>;
+  clearHistory: (roomId?: string) => Promise<boolean>;
   deleteMember: (memberId: string) => Promise<void>;
   changeNickName: (memberId: string, name: string) => Promise<void>;
   setType: (type: "group" | "private" | "channel" | "all") => void;
