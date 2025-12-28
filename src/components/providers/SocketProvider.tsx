@@ -195,9 +195,15 @@ export function SocketProvider({
         console.error(`❌ [${ns}] Socket Error Parsed:`, msg);
 
         const lowerMsg = msg.toLowerCase();
-        if (lowerMsg.includes("unauthorized") || lowerMsg.includes("jwt") || lowerMsg.includes("forbidden")) {
-             console.warn(`🔒 [${ns}] Auth failed (error event), stopping reconnect.`);
-             socket.disconnect(); 
+        if (
+          lowerMsg.includes("unauthorized") ||
+          lowerMsg.includes("jwt") ||
+          lowerMsg.includes("forbidden")
+        ) {
+          console.warn(
+            `🔒 [${ns}] Auth failed (error event), stopping reconnect.`
+          );
+          socket.disconnect();
         }
 
         updateState(ns, {

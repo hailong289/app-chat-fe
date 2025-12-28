@@ -1,4 +1,5 @@
 import apiService from "./api.service";
+import { logError } from "@/utils/errorUtils";
 
 export interface LinkPreviewData {
   url: string;
@@ -39,8 +40,8 @@ class LinkPreviewService {
 
       // Fallback nếu format response khác
       return response.data as unknown as LinkPreviewData;
-    } catch (error: any) {
-      console.error("LinkPreviewService: Failed to fetch preview", error);
+    } catch (error: unknown) {
+      logError("LinkPreviewService: Failed to fetch preview", error);
       throw error;
     }
   }

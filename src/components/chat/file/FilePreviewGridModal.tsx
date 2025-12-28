@@ -206,7 +206,7 @@ export default function FilePreviewGridModal({
           }
 
           return (
-            <button
+            <div
               key={`${item.name}-${item.url}-${i}`}
               className={`
                 relative group h-16 w-16 sm:h-20 sm:w-20
@@ -223,6 +223,7 @@ export default function FilePreviewGridModal({
                   openPreview(i);
                 }
               }}
+              role="button"
               tabIndex={0}
             >
               {previewContent}
@@ -266,7 +267,7 @@ export default function FilePreviewGridModal({
                   <XMarkIcon className="w-3 h-3" />
                 </button>
               )}
-            </button>
+            </div>
           );
         })}
       </div>

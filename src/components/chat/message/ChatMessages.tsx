@@ -4,6 +4,7 @@ import useMessageStore from "@/store/useMessageStore";
 import { ScrollShadow, Skeleton } from "@heroui/react";
 import { useEffect, useRef, useMemo, useCallback, memo } from "react";
 import useRoomStore from "@/store/useRoomStore";
+import type { RoomsState } from "@/store/types/room.state";
 import { useSocket } from "../../providers/SocketProvider";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageType } from "@/store/types/message.state";
@@ -21,6 +22,18 @@ import { MessageGroup } from "./MessageGroup";
 import { useTranslation } from "react-i18next";
 
 const EMPTY_MESSAGES: MessageType[] = [];
+
+const selectMarkMessageAsRead = (state: RoomsState) => state.markMessageAsRead;
+
+const selectLastReadId = (state: RoomsState) =>
+  state.room?.last_read_id ?? null;
+
+const selectLastServerMessageId = (state: RoomsState) =>
+  state.room?.last_message?.id ?? null;
+
+const selectUnreadCount = (state: RoomsState) => state.room?.unread_count ?? 0;
+
+const selectIsRead = (state: RoomsState) => state.room?.is_read ?? false;
 
 export const ChatMessages = memo(
   ({
@@ -47,7 +60,15 @@ export const ChatMessages = memo(
     });
 
     const { socket } = useSocket("/chat");
-    const roomState = useRoomStore((state) => state);
+    const markMessageAsRead = useRoomStore(selectMarkMessageAsRead);
+    const lastReadId = useRoomStore(selectLastReadId);
+    const lastServerMessageId = useRoomStore(selectLastServerMessageId);
+    const unreadCount = useRoomStore(selectUnreadCount);
+    const isRead = useRoomStore(selectIsRead);
+    const roomMeta = useMemo(
+      () => ({ lastReadId, lastServerMessageId, unreadCount, isRead }),
+      [lastReadId, lastServerMessageId, unreadCount, isRead]
+    );
 
     // Optimize store subscription
     const messages = useMessageStore(
@@ -67,26 +88,29 @@ export const ChatMessages = memo(
       (state) => state.loadOlderMessages
     );
     const findMessage = useMessageStore((state) => state.findMessage);
+    const resendMessage = useMessageStore((state) => state.resendMessage);
+    const fetchNewMessages = useMessageStore((state) => state.fetchNewMessages);
 
     // Create a stable messageState object for hooks that need it
     // This avoids re-rendering when unrelated parts of the store change
     const messageState = useMemo(
       () => ({
         isLoading: isLoadingMessage,
-        messagesRoom: { [chatId]: { messages } },
         fetchMessagesFromAPI,
         getMessageByRoomId,
         loadOlderMessages,
         findMessage,
+        resendMessage,
+        fetchNewMessages,
       }),
       [
         isLoadingMessage,
-        messages,
-        chatId,
         fetchMessagesFromAPI,
         getMessageByRoomId,
         loadOlderMessages,
         findMessage,
+        resendMessage,
+        fetchNewMessages,
       ]
     );
 
@@ -114,6 +138,8 @@ export const ChatMessages = memo(
         onRecall: handlers.handleRecall,
         onTogglePin: handlers.handleTogglePin,
         onCopy: handlers.handleCopy,
+        onTranslate: handlers.handleTranslate,
+        onSummarize: handlers.handleSummarize,
       }),
       [
         handlers.handleReply,
@@ -122,15 +148,15 @@ export const ChatMessages = memo(
         handlers.handleRecall,
         handlers.handleTogglePin,
         handlers.handleCopy,
+        handlers.handleTranslate,
+        handlers.handleSummarize,
       ]
     );
 
     // Compute the most up-to-date message id to use for grouping/scrolling
-    const lastMsgId =
-      roomState.room?.last_read_id ??
-      roomState.room?.last_message?.id ??
-      messages.at(-1)?.id ??
-      "null";
+    const latestMessageId = messages.at(-1)?.id ?? null;
+    const lastMsgId = roomMeta.lastServerMessageId ?? latestMessageId ?? "null";
+    const scrollTargetId = roomMeta.lastReadId ?? lastMsgId;
 
     // State management hook
     const state = useChatMessagesState(chatId);
@@ -299,7 +325,9 @@ export const ChatMessages = memo(
     const { visibleGroups } = useChatMessagesEffects({
       chatId,
       messages,
-      lastMsgId,
+      lastReadId: roomMeta.lastReadId,
+      scrollTargetId,
+      lastServerMessageId: roomMeta.lastServerMessageId,
       displayedMessagesCount: state.displayedMessagesCount,
       isSwitchingChat: state.isSwitchingChat,
       isBottomVisible: state.isBottomVisible,
@@ -318,7 +346,6 @@ export const ChatMessages = memo(
       fetchTimeoutRef: state.fetchTimeoutRef,
       lastFetchedServerMessageIdRef: state.lastFetchedServerMessageIdRef,
       hasInitialFetchRef: state.hasInitialFetchRef,
-      roomState,
       messageState,
       socket,
       setIsSwitchingChat: state.setIsSwitchingChat,
@@ -330,7 +357,6 @@ export const ChatMessages = memo(
       setIsFetchingNewMessages: state.setIsFetchingNewMessages,
       setIsLoadingOlder: state.setIsLoadingOlder,
       setIsLoadingFromAPI: state.setIsLoadingFromAPI,
-      setIsTopVisible: state.setIsTopVisible,
       scrollToMessage,
       handleLoadMore,
     });
@@ -342,7 +368,7 @@ export const ChatMessages = memo(
       stickyBottomPx: 0,
       minVisibleRatio: 0.5,
       onCommit: (id: string) => {
-        roomState.markMessageAsRead(chatId, id, socket);
+        markMessageAsRead(chatId, id, socket);
       },
     });
 
@@ -476,6 +502,8 @@ export const ChatMessages = memo(
                   onRecall={memoizedHandlers.onRecall}
                   onTogglePin={memoizedHandlers.onTogglePin}
                   onCopy={memoizedHandlers.onCopy}
+                  onTranslate={memoizedHandlers.onTranslate}
+                  onSummarize={memoizedHandlers.onSummarize}
                   onJumpToMessage={scrollToMessage}
                   setMessageRef={setMessageRef}
                   messageState={messageState}
@@ -495,8 +523,8 @@ export const ChatMessages = memo(
             messages.length > 0 &&
             !state.isSwitchingChat
           }
-          unreadCount={roomState?.room?.unread_count ?? 0}
-          isRead={roomState?.room?.is_read}
+          unreadCount={roomMeta.unreadCount}
+          isRead={roomMeta.isRead}
           onScrollToBottom={scrollToBottom}
         />
       </>

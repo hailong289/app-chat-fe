@@ -23,6 +23,19 @@ export type FilePreview = {
   file?: File; // File gốc để upload
   uploadError?: any; // optional structured error info when upload failed
 };
+
+export type MessageSummary = {
+  text: string;
+  title?: string;
+  keyPoints?: string[];
+  language?: string;
+};
+
+export type MessageTranslation = {
+  text: string;
+  from?: string;
+  to: string;
+};
 export type MessageType = {
   id: string;
   roomId: string;
@@ -91,7 +104,10 @@ export type MessageType = {
     | "uploaded"
     | "recalled";
   call_history?: CallHistoryType | null;
-  summary?: string | null;
+  summary?: MessageSummary | null;
+  translation?: MessageTranslation | null;
+  aiProcessing?: boolean;
+  aiTask?: "translate" | "summary" | string;
 };
 
 export interface CallHistoryType {
@@ -164,10 +180,7 @@ export interface MessageState {
   deleteMessage: (roomId: string, messageId: string) => Promise<void>;
   recallMessage: (roomId: string, messageId: string) => Promise<void>;
   fetchNewMessages: (roomId: string, lastMessageId?: string) => Promise<void>;
-  fetchRoomGallery: (
-    roomId: string,
-    type: "media" | "docs" | "links"
-  ) => Promise<void>;
+  clearRoomMessages: (roomId: string) => Promise<void>;
 
   uploadAttachments: (data: {
     roomId: string;
@@ -201,6 +214,22 @@ export interface MessageState {
     roomId: string,
     messageId: string,
     delayMs?: number
+  ) => void;
+  setMessageSummary: (
+    roomId: string,
+    messageId: string,
+    summary: MessageSummary | null
+  ) => Promise<void>;
+  setMessageTranslation: (
+    roomId: string,
+    messageId: string,
+    translation: MessageTranslation | null
+  ) => Promise<void>;
+  setMessageAiProcessing: (
+    roomId: string,
+    messageId: string,
+    aiProcessing: boolean,
+    aiTask?: "translate" | "summary" | string
   ) => void;
 }
 export type msg = {

@@ -128,6 +128,30 @@
       "passwordMatch": "Mật khẩu xác nhận không khớp"
     }
   },
+  "callPage": {
+    "loading": {
+      "connecting": "Đang kết nối...",
+      "callInfo": "Đang tải thông tin cuộc gọi...",
+      "stream": "Đang tải stream..."
+    },
+    "status": {
+      "connected": "Đã kết nối",
+      "groupCaller": "Bạn đã bắt đầu cuộc gọi nhóm với {{count}} người khác",
+      "groupReceiver": "Bạn đang nhận cuộc gọi nhóm với {{count}} người khác",
+      "oneOnOneCaller": "Bạn đang gọi đến {{name}}",
+      "oneOnOneReceiver": "Bạn đang nhận cuộc gọi từ {{name}}"
+    },
+    "labels": {
+      "unknown": "Không xác định",
+      "unknownUser": "Người dùng không xác định",
+      "youAndOthers": "Bạn và người khác",
+      "deviceSettings": "Cài đặt thiết bị",
+      "microphone": "Micro",
+      "speaker": "Loa",
+      "camera": "Camera",
+      "close": "Đóng"
+    }
+  },
   "chat": {
     "input": {
       "placeholder": "Nhập tin nhắn...",
@@ -243,7 +267,8 @@
       "call": {
         "incoming": "Cuộc gọi đến",
         "inProgress": "Cuộc gọi đang diễn ra",
-        "calling": "Đang gọi..."
+        "calling": "Đang gọi...",
+        "join": "Tham gia"
       },
       "changeName": {
         "title": "Đổi tên đoạn chat",
@@ -282,6 +307,12 @@
         "membersPlaceholder": "Nhập tên thành viên",
         "cancel": "Huỷ",
         "create": "Tạo"
+      },
+      "clearHistory": {
+        "title": "Xóa lịch sử trò chuyện",
+        "description": "Hành động này sẽ xóa vĩnh viễn mọi tin nhắn trong đoạn chat cho tất cả mọi người. Không thể hoàn tác.",
+        "cancel": "Hủy",
+        "confirm": "Xóa lịch sử"
       }
     },
     "file": {
@@ -311,6 +342,13 @@
         "pause": "Tạm dừng"
       }
     },
+    "fileExplorer": {
+      "title": "Trình quản lý tệp",
+      "media": "Phương tiện",
+      "noMedia": "Không tìm thấy phương tiện nào",
+      "documents": "Tài liệu",
+      "noDocuments": "Không tìm thấy tài liệu nào"
+    },
     "drawer": {
       "roles": {
         "admin": "Quản trị viên",
@@ -333,8 +371,15 @@
       },
       "media": {
         "title": "File phương tiện, file liên kết",
+        "noFiles": "Không tìm thấy tệp nào",
+        "fallback": {
+          "media": "Phương tiện",
+          "file": "Tệp",
+          "document": "Tài liệu"
+        },
         "tabs": {
           "media": "Media",
+          "file": "Tệp",
           "link": "Link",
           "docs": "Docs"
         }
@@ -345,7 +390,8 @@
         "reportDesc": "Đóng góp về cuộc trò chuyện",
         "leaveGroup": "Rời nhóm",
         "block": "Chặn",
-        "unblock": "Bỏ chặn"
+        "unblock": "Bỏ chặn",
+        "clearHistory": "Xóa lịch sử trò chuyện"
       },
       "history": {
         "title": "Lịch sử hoạt động"
@@ -454,7 +500,8 @@
       "ongoing": "Đang diễn ra",
       "missed": "Cuộc gọi nhỡ",
       "cancelled": "Đã hủy",
-      "busy": "Người dùng bận"
+      "busy": "Người dùng bận",
+      "join": "Tham gia"
     },
     "type": {
       "group": "Cuộc gọi nhóm",
