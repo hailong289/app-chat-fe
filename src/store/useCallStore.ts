@@ -65,7 +65,6 @@ const useCallStore = create<CallState>()((set, get) => ({
       fullname: m.fullname,
       avatar: m.avatar,
       is_caller: m.id == currentUser.id,
-      status: m.id == currentUser.id ? "started" : "pending",
     }));
     const encodedMemberInfo = Helpers.enCryptUserInfo(memberMap);
     window.open(
@@ -117,65 +116,22 @@ const useCallStore = create<CallState>()((set, get) => ({
   handleAcceptCall: async (payload: any) => {
     // accepted: người gọi
     const { roomId, offer, members, actionUserId } = payload;
-    console.log("handleAcceptCall", payload);
     const socket = get().socket;
     const currentUser = useAuthStore.getState().user;
     if (!currentUser) {
       console.error("User not authenticated, cannot handle call event");
       return;
     }
-    
-    // Use members from payload if available, otherwise fallback to store
-    const membersToCheck = members || get().members;
-    
-    // Update members in store to reflect the new status
-    if (members) {
-        set({ members });
-    }
-
-    const userStarted = membersToCheck.find(
+    const userStarted = members.find(
       (m: CallMember) => m.id === currentUser.id && m.status === "started"
     );
-    
     if (!userStarted) {
-      console.log("User is not started (pending), skipping P2P connection establishment.");
+      console.error("User not found in members");
       return;
     }
-    
     // Nhận offer từ người gọi
     const offerDescription = Helpers.decryptUserInfo(offer);
     const pc = await get().handleCreatePeerConnection(roomId, actionUserId);
-    
-    if (pc.signalingState !== "stable") {
-        console.warn("Peer connection not stable", pc.signalingState);
-        // If we are in 'have-local-offer', it means we (the caller) already created an offer?
-        // But here we are receiving an offer from the callee (in this architecture).
-        // If we are the caller, we shouldn't have a local offer set for *this* peer connection 
-        // unless we are renegotiating.
-        // But wait, handleCreatePeerConnection creates a NEW pc if not exists.
-        // If it exists, it returns it.
-        
-        // If we are the caller, we might have created the PC in openCall?
-        // No, openCall just opens the window.
-        // The PC is created when we receive 'call:accepted' (here) or when we initiate?
-        // In this app, it seems the Caller waits for Callee to 'accept' and send an Offer?
-        // Let's check acceptCall.
-        // acceptCall (Callee) -> creates PC -> creates Offer -> emits 'call:accepted'.
-        // handleAcceptCall (Caller) -> receives Offer -> sets Remote -> creates Answer -> emits 'call:answer'.
-        
-        // So Caller should be in 'stable' state initially.
-        if (pc.signalingState === 'have-local-offer') {
-             // This is weird. Maybe we are renegotiating?
-             // Or maybe we are the Callee and we received our own offer back? No.
-             console.warn("Rolling back local offer to accept remote offer");
-             try {
-                await pc.setLocalDescription({type: "rollback"});
-             } catch (e) {
-                 console.error("Rollback failed:", e);
-             }
-        }
-    }
-
     await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
     const answerCreated = await pc.createAnswer();
     await pc.setLocalDescription(answerCreated);
@@ -185,11 +141,7 @@ const useCallStore = create<CallState>()((set, get) => ({
       members: Helpers.enCryptUserInfo(members),
       targetUserId: actionUserId,
     });
-    set({
-      status: "accepted",
-      answer: Helpers.enCryptUserInfo(answerCreated),
-      members: members,
-    });
+    set({ status: "accepted", answer: Helpers.enCryptUserInfo(answerCreated) });
     Helpers.updateURLParams("status", "accepted");
   },
   endCall: async (payload: any) => {
@@ -231,33 +183,9 @@ const useCallStore = create<CallState>()((set, get) => ({
   },
   handleEndCall: (payload: any) => {
     const { roomId, actionUserId, members } = payload;
-    const currentUser = useAuthStore.getState().user;
-
-    // Case 1: Mình là người kết thúc cuộc gọi -> Dọn dẹp và đóng cửa sổ
-    if (currentUser && actionUserId === currentUser.id) {
-      get().stream.localStream?.getTracks().forEach((track) => track.stop());
-      get().stream.remoteStreams.forEach((stream) => stream.getTracks().forEach((track) => track.stop()));
-      get().stream.peerConnections.forEach((pc) => pc.close());
-
-      set({
-        status: "ended",
-        roomId: null,
-        stream: {
-          localStream: null,
-          remoteStreams: new Map<string, MediaStream>(),
-          peerConnections: new Map<string, RTCPeerConnection>(),
-        },
-        members: members,
-      });
-      window.opener && window.close();
-      return;
-    }
-
-    // Case 2: Người khác kết thúc cuộc gọi
     const isCallerEnded = members.some(
       (m: CallMember) => m.is_caller && m.status === "ended"
     );
-
     if (members.length > 2 && !isCallerEnded) {
       // nếu có nhiều hơn 2 người và người gọi không kết thúc cuộc gọi thì không kết thúc cuộc gọi
       console.log("Cuộc gọi có nhiều hơn 2 người, không kết thúc cuộc gọi");
@@ -294,7 +222,6 @@ const useCallStore = create<CallState>()((set, get) => ({
           remoteStreams: newRemoteStreams,
           peerConnections: newPeerConnections,
         },
-        members: members,
       });
       return;
     }
@@ -334,9 +261,9 @@ const useCallStore = create<CallState>()((set, get) => ({
       console.warn("User not authenticated, cannot handle call event");
       return;
     }
-    // if (!window.opener && event !== "request") {
-    //   return;
-    // }
+    if (!window.opener && event !== "request") {
+      return;
+    }
     const { actionUserId, offer, answer, candidate, roomId, targetUserId } =
       payload;
     const socket = get().socket;
@@ -404,21 +331,19 @@ const useCallStore = create<CallState>()((set, get) => ({
         await get().handleEndCall(payload);
         break;
       case "candidate":
-        console.log("Received candidate from", actionUserId, candidate);
+        // console.log("candidate", candidate);
         const key = `${roomId}-${actionUserId}`;
         const iceCandidate = new RTCIceCandidate(candidate);
         const pc = get().stream.peerConnections.get(key);
         if (pc && pc.remoteDescription) {
           try {
             await pc.addIceCandidate(iceCandidate);
-            console.log("✅ Added Late ICE Candidate directly");
+            // console.log("✅ Added Late ICE Candidate directly");
           } catch (err) {
             console.error("❌ Error adding late candidate:", err);
-            console.error("Candidate:", candidate);
-            console.error("Remote Description SDP:", pc.remoteDescription.sdp);
           }
         } else {
-          console.log("⏳ Queuing ICE candidate (waiting for remoteDescription)...");
+          // console.log("⏳ Queuing ICE candidate (waiting for remoteDescription)...");
           const pendingCandidates = get().pendingCandidates;
           if (!pendingCandidates.has(key)) {
             pendingCandidates.set(key, []);
@@ -445,19 +370,6 @@ const useCallStore = create<CallState>()((set, get) => ({
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       set({ stream: { ...get().stream, localStream: stream } });
       
-      // Add tracks to existing peer connections if they were created before the stream
-      const peerConnections = get().stream.peerConnections;
-      peerConnections.forEach((pc) => {
-        stream.getTracks().forEach((track) => {
-          // Check if track already exists in sender
-          const senders = pc.getSenders();
-          const hasTrack = senders.some(s => s.track?.id === track.id);
-          if (!hasTrack) {
-             pc.addTrack(track, stream);
-          }
-        });
-      });
-
       // Populate devices list if empty
       if (currentState.devices.audioInputs.length === 0) {
           await get().getDevices();
@@ -478,7 +390,6 @@ const useCallStore = create<CallState>()((set, get) => ({
     // Khi nhận được ICE Candidate từ bên kia
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log("Sending ICE candidate to", actionUserId);
         socket?.emit("call:candidate", {
           candidate: event.candidate,
           roomId,
@@ -487,63 +398,23 @@ const useCallStore = create<CallState>()((set, get) => ({
       }
     };
 
-    pc.oniceconnectionstatechange = () => {
-        console.log(`ICE Connection State (${key}):`, pc.iceConnectionState);
-        if (pc.iceConnectionState === 'failed') {
-            console.error(`ICE connection failed for ${key}.`);
-        }
-    };
-
-    pc.onconnectionstatechange = () => {
-        console.log(`Connection State (${key}):`, pc.connectionState);
-    };
-
     // Khi nhận được Stream từ bên kia
     pc.ontrack = (event) => {
-      const streamFromEvent = event.streams[0];
-      set((prev) => {
-        const currentStream = prev.stream.remoteStreams.get(key);
-        let finalStream = currentStream;
-
-        if (streamFromEvent) {
-          finalStream = streamFromEvent;
-        } else {
-          if (currentStream) {
-            if (!currentStream.getTracks().find((t) => t.id === event.track.id)) {
-              currentStream.addTrack(event.track);
-            }
-            finalStream = currentStream;
-          } else {
-            finalStream = new MediaStream([event.track]);
-          }
-        }
-        
-        // Force update by creating a new Map
-        const updatedRemoteStreams = new Map(prev.stream.remoteStreams);
-        updatedRemoteStreams.set(key, finalStream!);
-        
-        // Also ensure we trigger a re-render by updating a timestamp or similar if needed
-        // But Zustand should handle the new Map reference.
-        
-        return {
-          stream: {
-            ...prev.stream,
-            remoteStreams: updatedRemoteStreams,
-          },
-        };
-      });
+      const currentRemoteStreams = get().stream.remoteStreams;
+      if (!currentRemoteStreams.has(key)) {
+        // nếu chưa có stream thì thêm vào map
+        // Tạo Map mới để trigger re-render trong Zustand
+        const newRemoteStreams = new Map(currentRemoteStreams);
+        newRemoteStreams.set(key, event.streams[0]);
+        set({ stream: { ...get().stream, remoteStreams: newRemoteStreams } });
+      }
     };
 
     // Thêm tracks vào local stream
     const localStream = get().stream.localStream;
     if (localStream) {
       localStream.getTracks().forEach((track) => {
-        // Check if track already exists
-        const senders = pc.getSenders();
-        const hasTrack = senders.some(s => s.track?.id === track.id);
-        if (!hasTrack) {
-            pc.addTrack(track, localStream);
-        }
+        pc.addTrack(track, localStream);
       });
     }
 
@@ -594,9 +465,9 @@ const useCallStore = create<CallState>()((set, get) => ({
   },
   flushPendingCandidates: async (roomId: string, actionUserId: string) => {
     const key = `${roomId}-${actionUserId}`;
-    // if (!window.opener) {
-    //   return;
-    // }
+    if (!window.opener) {
+      return;
+    }
     const pendingCandidates = get().pendingCandidates.get(key);
     const pc = get().stream.peerConnections.get(key);
     if (!pc) {

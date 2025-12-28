@@ -106,8 +106,6 @@ export type MessageType = {
   call_history?: CallHistoryType | null;
   summary?: MessageSummary | null;
   translation?: MessageTranslation | null;
-  aiProcessing?: boolean;
-  aiTask?: "translate" | "summary" | string;
 };
 
 export interface CallHistoryType {
@@ -225,12 +223,6 @@ export interface MessageState {
     messageId: string,
     translation: MessageTranslation | null
   ) => Promise<void>;
-  setMessageAiProcessing: (
-    roomId: string,
-    messageId: string,
-    aiProcessing: boolean,
-    aiTask?: "translate" | "summary" | string
-  ) => void;
 }
 export type msg = {
   input: string | null;

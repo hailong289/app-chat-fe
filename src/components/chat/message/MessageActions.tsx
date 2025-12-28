@@ -53,21 +53,9 @@ export function MessageActions({
   const [isSummarizing, setIsSummarizing] = useState(false);
 
   const canTranslate = msg.type === "text" && !!onTranslate;
-  const summarizableMime = (
-    msg.attachments || []
-  ).some((att) => {
-    const mime = att.mimeType || "";
-    return (
-      mime.startsWith("application/pdf") ||
-      mime.startsWith("application/msword") ||
-      mime.startsWith("application/vnd.openxmlformats-officedocument") ||
-      mime.startsWith("application/vnd.ms-powerpoint") ||
-      mime.startsWith("application/vnd.openxmlformats-officedocument.presentationml") ||
-      mime.startsWith("text/")
-    );
-  });
-
-  const canSummarize = !!onSummarize && summarizableMime && msg.type !== "document";
+  const canSummarize =
+    !!onSummarize &&
+    (msg.type === "document" || (msg.attachments?.length ?? 0) > 0);
 
   const handleTranslate = async () => {
     if (!onTranslate) return;
