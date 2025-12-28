@@ -72,12 +72,6 @@ const useCallStore = create<CallState>()((set, get) => ({
       "",
       "width=800,height=600"
     );
-    socket?.emit("call:request", {
-      actionUserId: currentUser.id,
-      membersIds: members.map((m: User) => m.id),
-      roomId: roomId,
-      callType: mode,
-    });
   },
   handleRequestCall: async (payload: any) => {
     // incoming: người bị gọi
@@ -433,6 +427,7 @@ const useCallStore = create<CallState>()((set, get) => ({
   },
   updateCallState: async (state) => {
     const currentUser = useAuthStore.getState().user;
+    const socket = state.socket;
     if (state.status === "accepted") {
       set({ action: { ...get().action, duration: 0 } });
       const interval = setInterval(() => {
@@ -442,7 +437,7 @@ const useCallStore = create<CallState>()((set, get) => ({
         }));
       }, 1000);
       return () => clearInterval(interval);
-    } else if (state.status === "joined" && state.socket) {
+    } else if (state.status === "joined" && socket) {
       set((prev) => ({
         ...prev,
         socket: state.socket,
@@ -455,6 +450,13 @@ const useCallStore = create<CallState>()((set, get) => ({
           socket: state.socket,
         });
       }, 1000);
+    } else if (state.status === "calling" && socket) {
+      socket?.emit("call:request", {
+        actionUserId: currentUser?.id || "",
+        membersIds: state.members?.map((m: CallMember) => m.id) || [],
+        roomId: state.roomId,
+        callType: state.mode,
+      });
     }
     set((prev) => ({
       ...prev,
