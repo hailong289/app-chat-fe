@@ -22,10 +22,15 @@ const useCallStore = create<CallState>()(
                   username: "openrelayproject",
                   credential: "openrelayproject",
                 },
+                {
+                    urls: "turn:relay1.expressturn.com:3480",
+                    username: "000000002072254500",
+                    credential: "wLpXGwPdwl1qZ1YbdZDs8gJVfJA=",
+                }
               ],
             iceCandidatePoolSize: 10,
             iceTransportPolicy: 'all',
-            bundlePolicy: 'max-bundle',
+            bundlePolicy: 'balanced',
             rtcpMuxPolicy: 'require'
         },
         stream: {
@@ -64,7 +69,7 @@ const useCallStore = create<CallState>()(
         handleRequestCall: async (payload: any) => { // incoming: người bị gọi
             const { roomId, members, actionUserId, callType } = payload;
             const encodedMemberInfo = Helpers.enCryptUserInfo(members);
-            window.open(`/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${callType}&status=incoming`, '', 'width=500,height=600');
+            window.open(`/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${callType}&status=incoming`, '', 'width=800,height=600');
         },
         acceptCall: async (payload) => { // accepted: người bị gọi
             const { roomId, members, currentUser, socket } = payload;
@@ -92,18 +97,6 @@ const useCallStore = create<CallState>()(
                     offer: Helpers.enCryptUserInfo(offer),
                 });
             }
-            // // Tạo peer connection
-            // const pc = await get().handleCreatePeerConnection(roomId, actionUserId);
-            // // tạo offer
-            // const offer = await pc.createOffer();
-            // await pc.setLocalDescription(offer);
-            // // gửi offer đến người gọi
-            // socket?.emit('call:accepted', { // gửi offer đến người gọi
-            //     membersIds: members.map((m: User) => m.id),
-            //     actionUserId: actionUserId,
-            //     roomId: roomId,
-            //     offer: Helpers.enCryptUserInfo(offer),
-            // });
         },
         handleAcceptCall: async (payload: any) => { // accepted: người gọi
             const { roomId, offer, members, actionUserId } = payload;
@@ -118,7 +111,6 @@ const useCallStore = create<CallState>()(
                 console.error("User not found in members");
                 return;
             }
-            console.log('handleAcceptCall', userStarted);
             // Nhận offer từ người gọi
             const offerDescription = Helpers.decryptUserInfo(offer);
             const pc = await get().handleCreatePeerConnection(roomId, actionUserId);
@@ -385,7 +377,8 @@ const useCallStore = create<CallState>()(
             set({ stream: { ...get().stream, peerConnections: newPeerConnections } });
             return pc;
         },
-        updateCallState: (state) => {
+        updateCallState: async (state) => {
+            const currentUser = useAuthStore.getState().user;
             if (state.status === 'accepted') {
                 set({ action: { ...get().action, duration: 0 } });
                 const interval = setInterval(() => {
@@ -395,6 +388,19 @@ const useCallStore = create<CallState>()(
                     }));
                 }, 1000);
                 return () => clearInterval(interval);
+            } else if (state.status === 'joined' && state.socket) {
+                set((prev) => ({
+                    ...prev,
+                    socket: state.socket,
+                }));
+                setTimeout(async () => {
+                    await get().acceptCall({
+                        roomId: state.roomId,
+                        members: state.members,
+                        currentUser: currentUser,
+                        socket: state.socket,
+                    });
+                }, 1000);
             }
             set((prev) => ({
                 ...prev,

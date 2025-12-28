@@ -14,12 +14,13 @@ export interface CallMember {
   | 'cancelled' // người gọi đã hủy cuộc gọi
   | 'rejected' // người nhận đã từ chối cuộc gọi
   | 'missed' // người nhận đã bỏ qua cuộc gọi
-  | 'ended'; // người nhận hoặc người gọi đã kết thúc cuộc gọi
+  | 'ended' // người nhận hoặc người gọi đã kết thúc cuộc gọi
+  | 'joined'; // người nhận đã tham gia cuộc gọi
 }
 
 export interface CallState {
   roomId: string | null;
-  status: 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined'; // idle: không có cuộc gọi, calling: người gọi, incoming: người bị gọi, ended: kết thúc cuộc gọi, accepted: đã chấp nhận cuộc gọi, declined: đã từ chối cuộc gọi
+  status: 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined' | 'joined'; // idle: không có cuộc gọi, calling: người gọi, incoming: người bị gọi, ended: kết thúc cuộc gọi, accepted: đã chấp nhận cuộc gọi, declined: đã từ chối cuộc gọi, joined: đã tham gia cuộc gọi
   mode: 'audio' | 'video'; // audio: audio, video: video only
   members: CallMember[];
   error: string | null;

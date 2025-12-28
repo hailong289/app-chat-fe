@@ -280,13 +280,14 @@ function CallMessageBubble({
 
   const myStatus = currentUser?.status;
   const isStarted = ["started", "accepted"].includes(myStatus || "");
+  const isPending = ["initiated", "pending"].includes(myStatus || "");
 
-  if (["initiated", "pending"].includes(myStatus || "")) {
+  if (isPending) {
     statusLabel = t("call.status.waiting", "Đang chờ...");
     statusColor = "text-yellow-600 dark:text-yellow-400";
     iconColor =
       "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400";
-  } else if (["started", "accepted"].includes(myStatus || "")) {
+  } else if (isStarted) {
     statusLabel = t("call.status.ongoing", "Đang diễn ra");
     statusColor = "text-green-600 dark:text-green-400";
     iconColor =
@@ -312,6 +313,11 @@ function CallMessageBubble({
         defaultValue: `với ${totalMembers - 1} người khác`,
       })
     : otherUser?.fullname || t("common.unknown_user", "Người dùng");
+
+  const handleJoinCall = () => {
+    const encodedMemberInfo = Helpers.enCryptUserInfo(callHistory.members);
+    window.open(`/call?roomId=${msg.roomId}&members=${encodedMemberInfo}&callType=${callHistory.call_type}&status=joined&isCaller=false`, '', 'width=800,height=600');
+  }
 
   return (
     <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
@@ -365,15 +371,13 @@ function CallMessageBubble({
               </>
             )}
           </div>
-          {isStarted && (
+          {isPending && isGroupCall && (
               <div className="flex items-start gap-2 text-xs my-2">
                 <Button
                   size="sm"
                   color="primary"
                   variant="solid"
-                  onPress={() => {
-                    console.log("accept call", callHistory);
-                  }}
+                  onPress={handleJoinCall}
                 >
                   {t("call.status.join", "Tham gia")}
                 </Button>

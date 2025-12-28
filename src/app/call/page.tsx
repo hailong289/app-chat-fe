@@ -77,27 +77,29 @@ function CallPageContentInner() {
   // update call state
   useEffect(() => {
     if (!socket) return;
-    updateCallState({
-      roomId: searchParams.get("roomId") || "",
-      status: searchParams.get("status") as 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined',
-      mode: searchParams.get("callType") as 'audio' | 'video',
-      members: Helpers.decryptUserInfo(
-        searchParams.get("members") || "[]"
-      ) as CallMember[],
-      action: {
-        isMicEnabled: true,
-        isCameraEnabled: searchParams.get("callType") === "video",
-        isSpeakerphoneEnabled: true,
-        duration: 0,
-        isSharingScreen: false,
-      },
-      socket: socket,
-    });
+    (async () => {
+      await updateCallState({
+        roomId: searchParams.get("roomId") || "",
+        status: searchParams.get("status") as 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined',
+        mode: searchParams.get("callType") as 'audio' | 'video',
+        members: Helpers.decryptUserInfo(
+          searchParams.get("members") || "[]"
+        ) as CallMember[],
+        action: {
+          isMicEnabled: true,
+          isCameraEnabled: searchParams.get("callType") === "video",
+          isSpeakerphoneEnabled: true,
+          duration: 0,
+          isSharingScreen: false,
+        },
+        socket: socket,
+      });
+    })();
   }, [searchParams, socket]);
 
   useEffect(() => {
     if (!socket) return;
-    if (callStatus === 'incoming' || callStatus === 'calling') {
+    if (callStatus === 'incoming' || callStatus === 'calling' || callStatus === 'joined') {
       handleCreateLocalStream();
     }
     console.log("callStatus", callStatus);
@@ -215,7 +217,7 @@ function CallPageContentInner() {
     );
   }
 
-  if (!members || callStatus === 'idle') {
+  if (!members || callStatus === 'idle' || callStatus === 'joined') {
     return (
       <div className="bg-dark h-screen w-full flex items-center justify-center">
         <p className="text-gray-500">Đang tải thông tin cuộc gọi...</p>
