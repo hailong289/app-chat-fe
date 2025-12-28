@@ -44,6 +44,15 @@ const useCallStore = create<CallState>()((set, get) => ({
     isSpeakerphoneEnabled: true,
     duration: 0, // thời gian gọi
     isSharingScreen: false,
+    userIdGhimmed: "",
+  },
+  devices: {
+    audioInputs: [],
+    audioOutputs: [],
+    videoInputs: [],
+    selectedAudioInput: "",
+    selectedAudioOutput: "",
+    selectedVideoInput: "",
   },
   socket: null,
   actionUserId: null,
@@ -77,7 +86,7 @@ const useCallStore = create<CallState>()((set, get) => ({
     window.open(
       `/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${callType}&status=incoming`,
       "",
-      "width=500,height=600"
+      "width=800,height=600"
     );
   },
   acceptCall: async (payload) => {
@@ -109,18 +118,6 @@ const useCallStore = create<CallState>()((set, get) => ({
         offer: Helpers.enCryptUserInfo(offer),
       });
     }
-    // // Tạo peer connection
-    // const pc = await get().handleCreatePeerConnection(roomId, actionUserId);
-    // // tạo offer
-    // const offer = await pc.createOffer();
-    // await pc.setLocalDescription(offer);
-    // // gửi offer đến người gọi
-    // socket?.emit('call:accepted', { // gửi offer đến người gọi
-    //     membersIds: members.map((m: User) => m.id),
-    //     actionUserId: actionUserId,
-    //     roomId: roomId,
-    //     offer: Helpers.enCryptUserInfo(offer),
-    // });
   },
   handleAcceptCall: async (payload: any) => {
     // accepted: người gọi
@@ -132,15 +129,12 @@ const useCallStore = create<CallState>()((set, get) => ({
       return;
     }
     const userStarted = members.find(
-      (m: CallMember) =>
-        (m.id === currentUser.id || m.user_id === currentUser.id) &&
-        m.status === "started"
+      (m: CallMember) => m.id === currentUser.id && m.status === "started"
     );
     if (!userStarted) {
-      console.error("User not found in members", members, currentUser);
+      console.error("User not found in members");
       return;
     }
-    console.log("handleAcceptCall", userStarted);
     // Nhận offer từ người gọi
     const offerDescription = Helpers.decryptUserInfo(offer);
     const pc = await get().handleCreatePeerConnection(roomId, actionUserId);
@@ -372,11 +366,23 @@ const useCallStore = create<CallState>()((set, get) => ({
     if (get().stream.localStream) {
       return;
     }
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: get().mode === "video",
-      audio: true,
-    });
-    set({ stream: { ...get().stream, localStream: stream } });
+    const currentState = get();
+    const constraints: MediaStreamConstraints = {
+      audio: currentState.devices.selectedAudioInput ? { deviceId: { exact: currentState.devices.selectedAudioInput } } : true,
+      video: currentState.mode === "video" ? (currentState.devices.selectedVideoInput ? { deviceId: { exact: currentState.devices.selectedVideoInput } } : true) : false,
+    };
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      set({ stream: { ...get().stream, localStream: stream } });
+      
+      // Populate devices list if empty
+      if (currentState.devices.audioInputs.length === 0) {
+          await get().getDevices();
+      }
+    } catch (error) {
+      console.error("Error creating local stream:", error);
+    }
   },
   handleCreatePeerConnection: async (roomId: string, actionUserId: string) => {
     const key = `${roomId}-${actionUserId}`;
@@ -425,7 +431,8 @@ const useCallStore = create<CallState>()((set, get) => ({
     set({ stream: { ...get().stream, peerConnections: newPeerConnections } });
     return pc;
   },
-  updateCallState: (state) => {
+  updateCallState: async (state) => {
+    const currentUser = useAuthStore.getState().user;
     if (state.status === "accepted") {
       set({ action: { ...get().action, duration: 0 } });
       const interval = setInterval(() => {
@@ -435,6 +442,19 @@ const useCallStore = create<CallState>()((set, get) => ({
         }));
       }, 1000);
       return () => clearInterval(interval);
+    } else if (state.status === "joined" && state.socket) {
+      set((prev) => ({
+        ...prev,
+        socket: state.socket,
+      }));
+      setTimeout(async () => {
+        await get().acceptCall({
+          roomId: state.roomId,
+          members: state.members,
+          currentUser: currentUser,
+          socket: state.socket,
+        });
+      }, 1000);
     }
     set((prev) => ({
       ...prev,
@@ -621,6 +641,14 @@ const useCallStore = create<CallState>()((set, get) => ({
             },
           }));
         }
+        
+        // Emit event to notify others
+        currentState.socket?.emit("call:share-screen", {
+            roomId,
+            actionUserId: useAuthStore.getState().user?.id,
+            isSharing: true
+        });
+
       } catch (err) {
         console.error("User cancelled screen share or error:", err);
         // Reset lại nút toggle nếu user hủy
@@ -680,6 +708,14 @@ const useCallStore = create<CallState>()((set, get) => ({
             isCameraEnabled: true,
           },
         }));
+
+        // Emit event to notify others
+        currentState.socket?.emit("call:share-screen", {
+            roomId,
+            actionUserId: useAuthStore.getState().user?.id,
+            isSharing: false
+        });
+
       } catch (err) {
         console.error("Error reverting to camera:", err);
         set((prev) => ({
@@ -687,6 +723,92 @@ const useCallStore = create<CallState>()((set, get) => ({
           action: { ...prev.action, isSharingScreen: false },
         }));
       }
+    }
+  },
+  setUserIdGhimmed: (userId: string) => {
+    set((prev) => ({
+      ...prev,
+      action: { ...prev.action, userIdGhimmed: userId },
+    }));
+  },
+  getDevices: async () => {
+    try {
+      // Request permission first to get labels if not already granted
+      // This might trigger a permission prompt
+      // await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter((device) => device.kind === "audioinput");
+      const audioOutputs = devices.filter((device) => device.kind === "audiooutput");
+      const videoInputs = devices.filter((device) => device.kind === "videoinput");
+
+      set((prev) => ({
+        ...prev,
+        devices: {
+          ...prev.devices,
+          audioInputs,
+          audioOutputs,
+          videoInputs,
+          selectedAudioInput: prev.devices.selectedAudioInput || audioInputs[0]?.deviceId || "",
+          selectedAudioOutput: prev.devices.selectedAudioOutput || audioOutputs[0]?.deviceId || "",
+          selectedVideoInput: prev.devices.selectedVideoInput || videoInputs[0]?.deviceId || "",
+        },
+      }));
+    } catch (error) {
+      console.error("Error getting devices:", error);
+    }
+  },
+  setDevice: async (type, deviceId) => {
+    set((prev) => ({
+      ...prev,
+      devices: { ...prev.devices, [type === 'audioInput' ? 'selectedAudioInput' : type === 'audioOutput' ? 'selectedAudioOutput' : 'selectedVideoInput']: deviceId },
+    }));
+
+    // If changing input device, we need to restart the stream
+    if (type === 'audioInput' || type === 'videoInput') {
+        const currentState = get();
+        const currentStream = currentState.stream.localStream;
+        
+        if (currentStream) {
+            // Stop current tracks
+            currentStream.getTracks().forEach(track => track.stop());
+            
+            // Create new stream with selected devices
+            const constraints = {
+                audio: { deviceId: { exact: type === 'audioInput' ? deviceId : currentState.devices.selectedAudioInput } },
+                video: currentState.mode === 'video' ? { deviceId: { exact: type === 'videoInput' ? deviceId : currentState.devices.selectedVideoInput } } : false
+            };
+            
+            try {
+                const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                // Replace tracks in peer connections
+                const peerConnections = currentState.stream.peerConnections;
+                for (const [key, pc] of peerConnections.entries()) {
+                    const senders = pc.getSenders();
+                    
+                    const audioTrack = newStream.getAudioTracks()[0];
+                    const videoTrack = newStream.getVideoTracks()[0];
+                    
+                    if (audioTrack) {
+                        const audioSender = senders.find(s => s.track?.kind === 'audio');
+                        if (audioSender) await audioSender.replaceTrack(audioTrack);
+                    }
+                    
+                    if (videoTrack) {
+                        const videoSender = senders.find(s => s.track?.kind === 'video');
+                        if (videoSender) await videoSender.replaceTrack(videoTrack);
+                    }
+                }
+                
+                set((prev) => ({
+                    ...prev,
+                    stream: { ...prev.stream, localStream: newStream }
+                }));
+            } catch (error) {
+                console.error("Error switching device:", error);
+            }
+        }
     }
   },
 }));

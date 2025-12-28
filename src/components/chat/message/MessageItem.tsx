@@ -34,6 +34,8 @@ interface MessageItemProps {
   onRecall: (msg: MessageType) => void;
   onTogglePin: (msg: MessageType) => void;
   onCopy: (content: string) => void;
+  onTranslate: (msg: MessageType) => void;
+  onSummarize: (msg: MessageType) => void;
   onJumpToMessage: (id: string) => void;
   setMessageRef: (id: string) => (el: HTMLElement | null) => void;
   messageState: any;
@@ -65,6 +67,8 @@ export const MessageItem = memo(function MessageItem({
   onRecall,
   onTogglePin,
   onCopy,
+  onTranslate,
+  onSummarize,
   onJumpToMessage,
   setMessageRef,
   messageState,
@@ -338,6 +342,8 @@ export const MessageItem = memo(function MessageItem({
                   onRecall={onRecall}
                   onTogglePin={onTogglePin}
                   onCopy={onCopy}
+                  onTranslate={onTranslate}
+                  onSummarize={onSummarize}
                 />
               </div>
 

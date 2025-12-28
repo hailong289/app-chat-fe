@@ -23,6 +23,19 @@ export type FilePreview = {
   file?: File; // File gốc để upload
   uploadError?: any; // optional structured error info when upload failed
 };
+
+export type MessageSummary = {
+  text: string;
+  title?: string;
+  keyPoints?: string[];
+  language?: string;
+};
+
+export type MessageTranslation = {
+  text: string;
+  from?: string;
+  to: string;
+};
 export type MessageType = {
   id: string;
   roomId: string;
@@ -91,7 +104,8 @@ export type MessageType = {
     | "uploaded"
     | "recalled";
   call_history?: CallHistoryType | null;
-  summary?: string | null;
+  summary?: MessageSummary | null;
+  translation?: MessageTranslation | null;
 };
 
 export interface CallHistoryType {
@@ -199,6 +213,16 @@ export interface MessageState {
     messageId: string,
     delayMs?: number
   ) => void;
+  setMessageSummary: (
+    roomId: string,
+    messageId: string,
+    summary: MessageSummary | null
+  ) => Promise<void>;
+  setMessageTranslation: (
+    roomId: string,
+    messageId: string,
+    translation: MessageTranslation | null
+  ) => Promise<void>;
 }
 export type msg = {
   input: string | null;

@@ -1,4 +1,5 @@
 import { User } from "@/types/auth.type";
+import { is } from "date-fns/locale";
 import { Socket } from "socket.io-client";
 
 export interface CallMember {
@@ -7,21 +8,21 @@ export interface CallMember {
   fullname: string;
   avatar: string;
   is_caller: boolean;
-  status:
-    | "initiated"
-    | "started"
-    | "pending"
-    | "accepted"
-    | "cancelled" // người gọi đã hủy cuộc gọi
-    | "rejected" // người nhận đã từ chối cuộc gọi
-    | "missed" // người nhận đã bỏ qua cuộc gọi
-    | "ended"; // người nhận hoặc người gọi đã kết thúc cuộc gọi
+  status:  | 'initiated'
+  | 'started'
+  | 'pending'
+  | 'accepted'
+  | 'cancelled' // người gọi đã hủy cuộc gọi
+  | 'rejected' // người nhận đã từ chối cuộc gọi
+  | 'missed' // người nhận đã bỏ qua cuộc gọi
+  | 'ended' // người nhận hoặc người gọi đã kết thúc cuộc gọi
+  | 'joined'; // người nhận đã tham gia cuộc gọi
 }
 
 export interface CallState {
   roomId: string | null;
-  status: "idle" | "calling" | "incoming" | "ended" | "accepted" | "declined"; // idle: không có cuộc gọi, calling: người gọi, incoming: người bị gọi, ended: kết thúc cuộc gọi, accepted: đã chấp nhận cuộc gọi, declined: đã từ chối cuộc gọi
-  mode: "audio" | "video"; // audio: audio, video: video only
+  status: 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined' | 'joined'; // idle: không có cuộc gọi, calling: người gọi, incoming: người bị gọi, ended: kết thúc cuộc gọi, accepted: đã chấp nhận cuộc gọi, declined: đã từ chối cuộc gọi, joined: đã tham gia cuộc gọi
+  mode: 'audio' | 'video'; // audio: audio, video: video only
   members: CallMember[];
   error: string | null;
   isWindowOpen: boolean;
@@ -44,8 +45,17 @@ export interface CallState {
     isSpeakerphoneEnabled: boolean; // true: speakerphone on, false: speakerphone off
     duration: number; // thời gian gọi
     isSharingScreen: boolean; // true: share screen on, false: share screen off
+    userIdGhimmed: string; // true: ghim cuộc gọi, false: không ghim
   };
   socket: Socket | null;
+  devices: {
+    audioInputs: MediaDeviceInfo[];
+    audioOutputs: MediaDeviceInfo[];
+    videoInputs: MediaDeviceInfo[];
+    selectedAudioInput: string;
+    selectedAudioOutput: string;
+    selectedVideoInput: string;
+  };
   actionUserId: string | null;
   answer: string | null;
   openCall: (data: any) => void;
@@ -70,4 +80,7 @@ export interface CallState {
   handleRequestCall: (data: any) => void;
   handleAcceptCall: (data: any) => void;
   handleShareScreen: (value: boolean) => Promise<void>;
+  setUserIdGhimmed: (userId: string) => void;
+  getDevices: () => Promise<void>;
+  setDevice: (type: 'audioInput' | 'audioOutput' | 'videoInput', deviceId: string) => Promise<void>;
 }

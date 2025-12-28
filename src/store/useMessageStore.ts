@@ -3,7 +3,9 @@ import {
   FilePreview,
   GalleryItem,
   MessageState,
+  MessageSummary,
   MessageType,
+  MessageTranslation,
 } from "./types/message.state";
 export interface SendMessageArgs {
   roomId: string;
@@ -1186,6 +1188,66 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       },
     });
+  },
+
+  setMessageSummary: async (
+    roomId: string,
+    messageId: string,
+    summary: MessageSummary | null
+  ) => {
+    const state = get();
+    const currentRoom = state.messagesRoom[roomId];
+    if (!currentRoom?.messages) return;
+
+    const updatedMessages = currentRoom.messages.map((msg) =>
+      msg.id === messageId ? { ...msg, summary } : msg
+    );
+
+    const updatedMessage = updatedMessages.find((m) => m.id === messageId);
+
+    set({
+      messagesRoom: {
+        ...state.messagesRoom,
+        [roomId]: {
+          ...currentRoom,
+          messages: updatedMessages,
+        },
+      },
+    });
+
+    if (updatedMessage) {
+      await upsertOne(db.messages, sanitizeMessageForDB(updatedMessage));
+    }
+  },
+
+  setMessageTranslation: async (
+    roomId: string,
+    messageId: string,
+    translation: MessageTranslation | null
+  ) => {
+    const state = get();
+    const currentRoom = state.messagesRoom[roomId];
+    if (!currentRoom?.messages) return;
+
+    const updatedMessages = currentRoom.messages.map((msg) =>
+      msg.id === messageId ? { ...msg, translation } : msg
+    );
+
+    const updatedMessage = updatedMessages.find((m) => m.id === messageId);
+
+    set({
+      messagesRoom: {
+        ...state.messagesRoom,
+        [roomId]: {
+          ...currentRoom,
+          messages: updatedMessages,
+        },
+      },
+    });
+
+    if (updatedMessage) {
+      await upsertOne(db.messages, sanitizeMessageForDB(updatedMessage));
+    }
   },
   upsetMsgError: (payload: {
     message: string;

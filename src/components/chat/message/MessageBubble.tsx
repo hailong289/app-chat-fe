@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { useRouter } from "next/navigation";
 import Helpers from "@/libs/helpers";
 import useAuthStore from "@/store/useAuthStore";
+import { Button } from "@heroui/button";
 
 interface MessageBubbleProps {
   msg: MessageType;
@@ -139,6 +140,33 @@ function DocumentMessageBubble({ msg }: Readonly<{ msg: MessageType }>) {
           </div>
         </div>
       </div>
+
+      {msg.summary ? (
+        <div
+          className={`mt-3 w-full rounded-xl border px-4 py-3 text-sm shadow-sm ${
+            msg.isMine
+              ? "bg-blue-50 border-blue-100 text-blue-900 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-50"
+              : "bg-gray-50 border-gray-200 text-gray-800 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+          }`}
+        >
+          <div className="font-semibold text-xs mb-1">
+            {t(
+              "chat.messages.bubble.summaryTitle",
+              "Tóm tắt tài liệu"
+            )}
+          </div>
+          <p className="leading-relaxed whitespace-pre-wrap">
+            {msg.summary.text}
+          </p>
+          {msg.summary.keyPoints && msg.summary.keyPoints.length > 0 ? (
+            <ul className="list-disc ml-4 mt-2 space-y-1">
+              {msg.summary.keyPoints.map((point, idx) => (
+                <li key={`${msg.id}-kp-${idx}`}>{point}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -218,6 +246,24 @@ function RegularMessageBubble({
           {displayContent}
         </p>
 
+        {msg.translation?.text ? (
+          <div
+            className={`mt-2 text-xs rounded-lg px-3 py-2 leading-relaxed ${
+              msg.isMine
+                ? "bg-white/15 text-white"
+                : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
+            }`}
+          >
+            <div className="font-semibold mb-1">
+              {t(
+                "chat.messages.bubble.translatedLabel",
+                `Translated (${msg.translation.from || "auto"} → ${msg.translation.to})`
+              )}
+            </div>
+            <p className="whitespace-pre-wrap">{msg.translation.text}</p>
+          </div>
+        ) : null}
+
         {/* Nút xem thêm/thu gọn */}
         {isLongMessage && (
           <button
@@ -270,7 +316,6 @@ function CallMessageBubble({
   const otherUser = callHistory.members.find(
     (member) => member.id !== user?.id
   );
-  const isCaller = currentUser?.is_caller;
 
   // Determine status
   let statusLabel = t("call.status.ended", "Cuộc gọi đã kết thúc");
@@ -279,23 +324,20 @@ function CallMessageBubble({
     "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400";
 
   const myStatus = currentUser?.status;
-  const otherStatus = otherUser?.status;
+  const isStarted = ["started", "accepted"].includes(myStatus || "");
+  const isPending = ["initiated", "pending"].includes(myStatus || "");
 
-  if (["initiated", "started", "pending"].includes(myStatus || "")) {
+  if (isPending) {
     statusLabel = t("call.status.waiting", "Đang chờ...");
     statusColor = "text-yellow-600 dark:text-yellow-400";
     iconColor =
       "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400";
-  } else if (["started", "accepted"].includes(otherStatus || "")) {
+  } else if (isStarted) {
     statusLabel = t("call.status.ongoing", "Đang diễn ra");
     statusColor = "text-green-600 dark:text-green-400";
     iconColor =
       "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400";
-  } else if (
-    myStatus === "missed" ||
-    myStatus === "rejected" ||
-    (isCaller && otherStatus === "missed")
-  ) {
+  } else if (["missed", "rejected"].includes(myStatus || "")) {
     statusLabel = t("call.status.missed", "Cuộc gọi nhỡ");
     statusColor = "text-red-600 dark:text-red-400";
     iconColor = "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400";
@@ -316,6 +358,11 @@ function CallMessageBubble({
         defaultValue: `với ${totalMembers - 1} người khác`,
       })
     : otherUser?.fullname || t("common.unknown_user", "Người dùng");
+
+  const handleJoinCall = () => {
+    const encodedMemberInfo = Helpers.enCryptUserInfo(callHistory.members);
+    window.open(`/call?roomId=${msg.roomId}&members=${encodedMemberInfo}&callType=${callHistory.call_type}&status=joined&isCaller=false`, '', 'width=800,height=600');
+  }
 
   return (
     <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
@@ -369,6 +416,18 @@ function CallMessageBubble({
               </>
             )}
           </div>
+          {isPending && isGroupCall && (
+              <div className="flex items-start gap-2 text-xs my-2">
+                <Button
+                  size="sm"
+                  color="primary"
+                  variant="solid"
+                  onPress={handleJoinCall}
+                >
+                  {t("call.status.join", "Tham gia")}
+                </Button>
+              </div>
+            )}
         </div>
       </div>
     </div>
