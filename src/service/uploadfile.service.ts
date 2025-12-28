@@ -1,6 +1,14 @@
 import { UploadSingleResp, UploadApiResponse } from "@/types/upload.type";
 import apiService from "./api.service";
 
+export type AttachmentFilterType =
+  | "media"
+  | "file"
+  | "image"
+  | "video"
+  | "audio"
+  | "link";
+
 export type UploadMultipleItem = UploadSingleResp & { index?: number };
 export type UploadMultipleResp =
   | { files: UploadMultipleItem[] } // trường hợp backend trả dạng mảng object
@@ -57,7 +65,7 @@ export default class UploadService {
   static async getAttachments(params: {
     roomId?: string;
     userId?: string;
-    type?: "media" | "file" | "image" | "video" | "audio" | "link";
+    type?: AttachmentFilterType;
     page?: number;
     limit?: number;
   }) {
