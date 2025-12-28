@@ -14,9 +14,7 @@ import {
   Spinner,
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import UploadService, {
-  AttachmentFilterType,
-} from "@/service/uploadfile.service";
+import UploadService from "@/service/uploadfile.service";
 import {
   MagnifyingGlassIcon,
   DocumentIcon,
@@ -42,7 +40,7 @@ export default function FileGalleryModal({
   userId,
 }: FileGalleryModalProps) {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<AttachmentFilterType>("media");
+  const [activeTab, setActiveTab] = useState<string>("media");
   const [files, setFiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<any[]>([]);
@@ -55,14 +53,22 @@ export default function FileGalleryModal({
       setLoading(true);
       try {
         const currentPage = reset ? 1 : page;
-        const response = await UploadService.getAttachments({
+        const res = await UploadService.getAttachments({
           roomId,
           userId,
           type: activeTab,
           page: currentPage,
           limit: 20,
         });
-        const newFiles = Array.isArray(response) ? response : [];
+
+        // Check if res.data is the array or res.data.metadata is the array
+        // Based on typical response format: { metadata: [...] }
+        const data = res.data as any;
+        const newFiles = Array.isArray(data)
+          ? data
+          : data && Array.isArray(data.metadata)
+          ? data.metadata
+          : [];
 
         if (reset) {
           setFiles(newFiles);
@@ -192,9 +198,7 @@ export default function FileGalleryModal({
             <Tabs
               aria-label="File types"
               selectedKey={activeTab}
-              onSelectionChange={(key) =>
-                setActiveTab(key as AttachmentFilterType)
-              }
+              onSelectionChange={(key) => setActiveTab(key as string)}
               color="primary"
               variant="underlined"
               classNames={{
@@ -215,7 +219,7 @@ export default function FileGalleryModal({
                 }
               />
               <Tab
-                key="file"
+                key="doc"
                 title={
                   <div className="flex items-center space-x-2">
                     <DocumentIcon className="w-4 h-4" />

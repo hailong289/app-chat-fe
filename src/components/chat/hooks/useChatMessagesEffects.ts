@@ -6,9 +6,7 @@ import { useTranslation } from "react-i18next";
 interface UseChatMessagesEffectsProps {
   chatId: string;
   messages: any[];
-  lastReadId: string | null;
-  scrollTargetId: string;
-  lastServerMessageId: string | null;
+  lastMsgId: string;
   displayedMessagesCount: number;
   isSwitchingChat: boolean;
   isBottomVisible: boolean;
@@ -27,6 +25,7 @@ interface UseChatMessagesEffectsProps {
   fetchTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>;
   lastFetchedServerMessageIdRef: React.MutableRefObject<string | null>;
   hasInitialFetchRef: React.MutableRefObject<Record<string, boolean>>;
+  roomState: any;
   messageState: any;
   socket: any;
   setIsSwitchingChat: (value: boolean) => void;
@@ -42,6 +41,7 @@ interface UseChatMessagesEffectsProps {
   setIsFetchingNewMessages: (value: boolean) => void;
   setIsLoadingOlder: (value: boolean) => void;
   setIsLoadingFromAPI: (value: boolean) => void;
+  setIsTopVisible: (value: boolean) => void;
   scrollToMessage: (id: string) => Promise<void>;
   handleLoadMore: (force?: boolean) => void;
 }
@@ -49,9 +49,7 @@ interface UseChatMessagesEffectsProps {
 export function useChatMessagesEffects({
   chatId,
   messages,
-  lastReadId,
-  scrollTargetId,
-  lastServerMessageId,
+  lastMsgId,
   displayedMessagesCount,
   isSwitchingChat,
   isBottomVisible,
@@ -70,6 +68,7 @@ export function useChatMessagesEffects({
   fetchTimeoutRef,
   lastFetchedServerMessageIdRef,
   hasInitialFetchRef,
+  roomState,
   messageState,
   socket,
   setIsSwitchingChat,
@@ -81,6 +80,7 @@ export function useChatMessagesEffects({
   setIsFetchingNewMessages,
   setIsLoadingOlder,
   setIsLoadingFromAPI,
+  setIsTopVisible,
   scrollToMessage,
   handleLoadMore,
 }: UseChatMessagesEffectsProps) {
@@ -108,7 +108,7 @@ export function useChatMessagesEffects({
         setShouldAnimate(true);
         setIsSwitchingChat(false);
         requestAnimationFrame(() => {
-          scrollToMessage(scrollTargetId);
+          scrollToMessage(lastMsgId);
         });
       };
 
@@ -122,7 +122,7 @@ export function useChatMessagesEffects({
           setShouldAnimate(true);
         });
     }
-  }, [chatId, scrollTargetId, messageState, scrollToMessage]);
+  }, [chatId, lastMsgId, messageState, scrollToMessage]);
 
   // Effect: Track when messages are loaded after switching
   useEffect(() => {
@@ -155,9 +155,10 @@ export function useChatMessagesEffects({
 
   // Effect: Sync new messages from server
   useEffect(() => {
-    if (!lastServerMessageId) return;
+    if (!roomState.room?.last_message?.id) return;
 
     const lastLocalMessageId = messages.at(-1)?.id;
+    const lastServerMessageId = roomState.room.last_message.id;
 
     if (!lastLocalMessageId) return;
     if (lastFetchedServerMessageIdRef.current === lastServerMessageId) return;
@@ -189,7 +190,7 @@ export function useChatMessagesEffects({
   }, [
     chatId,
     messages.length,
-    lastServerMessageId,
+    roomState.room?.last_message?.id,
     messageState,
     setIsFetchingNewMessages,
   ]);
@@ -244,7 +245,10 @@ export function useChatMessagesEffects({
       const { scrollTop, scrollHeight, clientHeight } = container;
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
       const isAtBottom = distanceFromBottom <= 50;
+      const isAtTop = scrollTop <= 50;
+
       setIsBottomVisible(isAtBottom);
+      setIsTopVisible(isAtTop);
       ticking = false;
     };
 
@@ -266,7 +270,13 @@ export function useChatMessagesEffects({
         container.removeEventListener("scroll", handleScroll);
       }
     };
-  }, [isSwitchingChat, containerRef, setIsBottomVisible, handleLoadMore]);
+  }, [
+    isSwitchingChat,
+    containerRef,
+    setIsBottomVisible,
+    setIsTopVisible,
+    handleLoadMore,
+  ]);
 
   // Effect: Handle new messages added to local store
   useEffect(() => {
@@ -342,8 +352,8 @@ export function useChatMessagesEffects({
   const visibleGroups = useMemo(() => {
     // Use a stable key for grouping to prevent re-renders when only content changes
     // but the structure remains the same
-    return groupMessagesByDate(visibleMessages, lastReadId ?? undefined, t);
-  }, [visibleMessages, lastReadId, t]);
+    return groupMessagesByDate(visibleMessages, lastMsgId, t);
+  }, [visibleMessages, lastMsgId, t]); // Ensure dependencies are correct
 
   return {
     visibleMessages,

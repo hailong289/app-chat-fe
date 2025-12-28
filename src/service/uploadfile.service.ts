@@ -1,14 +1,6 @@
 import { UploadSingleResp, UploadApiResponse } from "@/types/upload.type";
 import apiService from "./api.service";
 
-export type AttachmentFilterType =
-  | "media"
-  | "file"
-  | "image"
-  | "video"
-  | "audio"
-  | "link";
-
 export type UploadMultipleItem = UploadSingleResp & { index?: number };
 export type UploadMultipleResp =
   | { files: UploadMultipleItem[] } // trường hợp backend trả dạng mảng object
@@ -44,11 +36,6 @@ export default class UploadService {
       size,
       mimeType: metadata.mimeType,
       status: metadata.status,
-      createdAt: metadata.createdAt,
-      contextId: metadata.contextId,
-      contextType: metadata.contextType,
-      messageId:
-        metadata.contextType === "message" ? metadata.contextId : undefined,
     };
   }
   // === BASIC APIs (cùng style với RoomService) ===
@@ -62,33 +49,14 @@ export default class UploadService {
     return apiService.post<any>("/filesystem/upload-single", form);
   }
 
-  static async getAttachments(params: {
+  static getAttachments(params: {
     roomId?: string;
     userId?: string;
-    type?: AttachmentFilterType;
+    type?: string;
     page?: number;
     limit?: number;
   }) {
-    // apiService.get signature is get<T>(url, params) where params is passed as the second argument
-    // But axios expects params inside a config object: { params: ... }
-    // Let's check apiService.get implementation.
-    // public async get<T>(url: string, params?: any) { return await this.axiosInstance.get<T>(url, { params }); }
-    // Wait, if apiService.get takes `params` as the second arg and puts it into `{ params }`, then passing `{ params }` from here results in `{ params: { params: ... } }`.
-    // That explains why the backend sees `params[roomId]` instead of `roomId`.
-
-    const response = await apiService.get<any>(
-      "/filesystem/attachments",
-      params
-    );
-
-    // Transform response if needed, assuming backend returns { metadata: [...] }
-    const data = response.data?.metadata || [];
-    if (Array.isArray(data)) {
-      return data.map((item: any) =>
-        this.transformUploadResponse({ metadata: item } as any)
-      );
-    }
-    return [];
+    return apiService.get("/filesystem/attachments", { params });
   }
 
   static uploadMultiple(files: Array<File | Blob>, folder = "message") {

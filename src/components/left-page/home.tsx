@@ -25,11 +25,6 @@ import {
   DropdownTrigger,
   DropdownMenu,
   DropdownItem,
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
 } from "@heroui/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CreateRoomModal } from "../chat/modals/createRoom.modal";
@@ -49,11 +44,8 @@ import {
   TrashIcon,
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarIconSolid } from "@heroicons/react/24/solid";
-import { useTranslation } from "react-i18next";
-import type { roomType } from "@/store/types/room.state";
 
 export const Home = () => {
-  const { t } = useTranslation();
   const { socket } = useSocket("/chat");
 
   const router = useRouter();
@@ -67,9 +59,6 @@ export const Home = () => {
   const [search, setSearch] = useState("");
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [openModal, setOpenModal] = useState(false);
-  const [pendingRoom, setPendingRoom] = useState<roomType | null>(null);
-  const [isClearHistoryModalOpen, setIsClearHistoryModalOpen] = useState(false);
-  const [isClearingHistory, setIsClearingHistory] = useState(false);
 
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<string>(searchParams.get("chatId") || "");
@@ -174,6 +163,34 @@ export const Home = () => {
     []
   );
 
+  const btnCollapse = useMemo(
+    () => (
+      <Tooltip
+        content={
+          countState.collapsedSidebar
+            ? "Mở rộng danh sách"
+            : "Thu gọn danh sách"
+        }
+        placement="bottom"
+      >
+        <Button
+          isIconOnly
+          variant="light"
+          size="sm"
+          className="text-foreground"
+          onPress={() => countState.togoleSidebar()}
+        >
+          {countState.collapsedSidebar ? (
+            <ChevronDoubleRightIcon className="w-5 h-5" />
+          ) : (
+            <ChevronDoubleLeftIcon className="w-5 h-5" />
+          )}
+        </Button>
+      </Tooltip>
+    ),
+    [countState.collapsedSidebar]
+  );
+
   const handleChatClick = useCallback(
     (chat: any) => {
       roomState.getRoomById(chat.id);
@@ -226,56 +243,16 @@ export const Home = () => {
     [router, pathname]
   );
 
-  const handleDeleteRoom = useCallback(
-    (chat: roomType) => {
-      if (isClearingHistory) return;
-      setPendingRoom(chat);
-      setIsClearHistoryModalOpen(true);
-    },
-    [isClearingHistory]
-  );
-
-  const handleModalOpenChange = useCallback(
-    (open: boolean) => {
-      if (isClearingHistory) return;
-      setIsClearHistoryModalOpen(open);
-      if (!open) {
-        setPendingRoom(null);
-      }
-    },
-    [isClearingHistory]
-  );
-
-  const handleConfirmDeleteRoom = useCallback(
-    async (close?: () => void) => {
-      if (!pendingRoom) return;
-      setIsClearingHistory(true);
-      try {
-        const success = await roomState.clearHistory(pendingRoom.id);
-        if (success) {
-          close?.();
-          setIsClearHistoryModalOpen(false);
-          setPendingRoom(null);
-        }
-      } finally {
-        setIsClearingHistory(false);
-      }
-    },
-    [pendingRoom, roomState]
-  );
-
-  const handleCancelDeleteRoom = useCallback(
-    (close?: () => void) => {
-      if (isClearingHistory) return;
-      close?.();
-      setIsClearHistoryModalOpen(false);
-      setPendingRoom(null);
-    },
-    [isClearingHistory]
-  );
-
   return (
     <div className="h-full flex flex-col">
+      {/* Top actions */}
+      {!isSearchVisible && (
+        <div className="flex items-center justify-end p-1 border-b border-default dark:bg-slate-900">
+          {btnNewMsg}
+          {btnCollapse}
+        </div>
+      )}
+
       {/* Status Section */}
       {!isSearchVisible && !countState.collapsedSidebar && (
         <Card className="rounded-none shadow-none border-b border-default dark:bg-slate-900">
@@ -566,10 +543,11 @@ export const Home = () => {
                             className="text-danger"
                             color="danger"
                             startContent={<TrashIcon className="w-4 h-4" />}
-                            isDisabled={isClearingHistory}
-                            onPress={() => handleDeleteRoom(chat)}
+                            onPress={() => {
+                              // Handle delete/leave
+                            }}
                           >
-                            {t("chat.drawer.privacy.clearHistory")}
+                            Xóa hội thoại
                           </DropdownItem>
                         </DropdownMenu>
                       </Dropdown>
@@ -590,47 +568,6 @@ export const Home = () => {
           </div>
         </div>
       </div>
-      <Modal
-        isOpen={isClearHistoryModalOpen}
-        onOpenChange={handleModalOpenChange}
-        placement="center"
-      >
-        <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader className="flex flex-col items-center gap-1 text-center">
-                {t("chat.modal.clearHistory.title")}
-                {pendingRoom?.name && (
-                  <span className="text-sm text-default-500">
-                    {pendingRoom.name}
-                  </span>
-                )}
-              </ModalHeader>
-              <ModalBody>
-                <span className="text-sm text-center block">
-                  {t("chat.modal.clearHistory.description")}
-                </span>
-              </ModalBody>
-              <ModalFooter className="flex justify-center gap-4">
-                <Button
-                  variant="light"
-                  onPress={() => handleCancelDeleteRoom(onClose)}
-                  isDisabled={isClearingHistory}
-                >
-                  {t("chat.modal.clearHistory.cancel")}
-                </Button>
-                <Button
-                  color="danger"
-                  isLoading={isClearingHistory}
-                  onPress={() => handleConfirmDeleteRoom(onClose)}
-                >
-                  {t("chat.modal.clearHistory.confirm")}
-                </Button>
-              </ModalFooter>
-            </>
-          )}
-        </ModalContent>
-      </Modal>
 
       <CreateRoomModal isOpen={openModal} onClose={() => setOpenModal(false)} />
     </div>

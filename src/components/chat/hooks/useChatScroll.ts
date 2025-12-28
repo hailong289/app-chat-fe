@@ -79,11 +79,6 @@ export function useChatScroll({
 
   const scrollToMessage = useCallback(
     async (id: string) => {
-      if (!id || id === "null" || id === "undefined") {
-        console.warn("scrollToMessage called with invalid ID:", id);
-        return;
-      }
-
       // Reset interaction flag
       isUserInteracting.current = false;
 

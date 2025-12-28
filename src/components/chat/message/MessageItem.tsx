@@ -26,7 +26,6 @@ interface MessageItemProps {
   chatId: string;
   socket: any;
   noAction?: boolean;
-  renderedMessageIds?: React.MutableRefObject<Set<string>>;
   onToggleExpanded: (id: string) => void;
   onReply: (msg: MessageType) => void;
   onReact: (msg: MessageType, emoji: string) => void;
@@ -34,14 +33,12 @@ interface MessageItemProps {
   onRecall: (msg: MessageType) => void;
   onTogglePin: (msg: MessageType) => void;
   onCopy: (content: string) => void;
-  onTranslate: (msg: MessageType) => void;
-  onSummarize: (msg: MessageType) => void;
   onJumpToMessage: (id: string) => void;
   setMessageRef: (id: string) => (el: HTMLElement | null) => void;
   messageState: any;
 }
 
-import { memo, useEffect, useState } from "react";
+import { memo } from "react";
 
 export const MessageItem = memo(function MessageItem({
   msg,
@@ -59,7 +56,6 @@ export const MessageItem = memo(function MessageItem({
   chatId,
   socket,
   noAction,
-  renderedMessageIds,
   onToggleExpanded,
   onReply,
   onReact,
@@ -67,39 +63,14 @@ export const MessageItem = memo(function MessageItem({
   onRecall,
   onTogglePin,
   onCopy,
-  onTranslate,
-  onSummarize,
   onJumpToMessage,
   setMessageRef,
   messageState,
 }: Readonly<MessageItemProps>) {
   const { t } = useTranslation();
-  const [expandedSummaryIds, setExpandedSummaryIds] = useState<Set<string>>(
-    () => new Set()
-  );
-
-  const toggleSummaryExpanded = (id: string) => {
-    setExpandedSummaryIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    if (renderedMessageIds && !renderedMessageIds.current.has(msg.id)) {
-      renderedMessageIds.current.add(msg.id);
-    }
-  }, [msg.id, renderedMessageIds]);
-
   const isSameSenderAsPrev = prevMsg?.sender._id === msg.sender._id;
   const isSameSenderAsNext = nextMsg?.sender._id === msg.sender._id;
   const shouldAnimateThis = shouldAnimate && isNewMessage;
-  const isAiProcessing = !!msg.aiProcessing;
 
   const PinnedIcon = () => {
     return (
@@ -332,21 +303,11 @@ export const MessageItem = memo(function MessageItem({
           <AvatarSlot side="left" />
 
           {/* Message bubble */}
-          <div className="relative">
-            {isAiProcessing ? (
-              <div
-                className={`pointer-events-none absolute -top-5 ${msg.isMine ? "right-10" : "left-10"} z-20 flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full bg-blue-600 text-white shadow-md shadow-blue-500/30 animate-pulse`}
-              >
-                <span className="h-2 w-2 rounded-full bg-white animate-ping" aria-hidden />
-                <span>{t("chat.messages.bubble.aiProcessing", "Đang xử lý AI")}</span>
-              </div>
-            ) : null}
-
-            <div
-              className={`relative flex flex-col max-w-md ${
-                msg.isMine ? "items-end" : "items-start"
-              }`}
-            >
+          <div
+            className={`flex flex-col max-w-md ${
+              msg.isMine ? "items-end" : "items-start"
+            }`}
+          >
             <div
               className={`gap-3 flex justify-end items-center ${
                 msg.isMine ? "" : "flex-row-reverse"
@@ -368,8 +329,6 @@ export const MessageItem = memo(function MessageItem({
                   onRecall={onRecall}
                   onTogglePin={onTogglePin}
                   onCopy={onCopy}
-                  onTranslate={onTranslate}
-                  onSummarize={onSummarize}
                 />
               </div>
 
@@ -414,86 +373,6 @@ export const MessageItem = memo(function MessageItem({
                   callHistory={msg.call_history ?? null}
                 />
 
-                {msg.summary && msg.type !== "document" ? (
-                  <div className="mt-3 w-full max-w-md">
-                    <div className="relative rounded-2xl bg-gradient-to-r from-fuchsia-500 via-blue-500 to-cyan-400 p-[1px] shadow-lg shadow-blue-500/20">
-                      {(() => {
-                        const maxChars = 120;
-                        const isExpanded = expandedSummaryIds.has(msg.id);
-                        const needsClamp = (msg.summary?.text?.length || 0) > maxChars;
-                        const displayText =
-                          isExpanded || !needsClamp
-                            ? msg.summary.text
-                            : msg.summary.text.slice(0, maxChars) + "...";
-                        const keyPoints = msg.summary.keyPoints || [];
-                        const visibleKeyPoints = isExpanded
-                          ? keyPoints
-                          : keyPoints.slice(0, 2);
-
-                        return (
-                          <div
-                            className={`relative flex flex-col gap-2 rounded-[14px] px-4 py-3 text-sm backdrop-blur-sm ${
-                              msg.isMine
-                                ? "bg-blue-50/90 text-blue-900 dark:bg-blue-900/40 dark:text-blue-50"
-                                : "bg-white text-gray-800 dark:bg-gray-900/80 dark:text-gray-100"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <div className="h-5 w-1 rounded-full bg-gradient-to-b from-fuchsia-500 via-blue-500 to-cyan-400" />
-                                <span className="font-semibold text-xs uppercase tracking-wide">
-                                  {t(
-                                    "chat.messages.bubble.summaryTitle",
-                                    "Tóm tắt tài liệu"
-                                  )}
-                                </span>
-                              </div>
-                              {msg.summary.language ? (
-                                <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-200">
-                                  {msg.summary.language}
-                                </span>
-                              ) : null}
-                            </div>
-
-                            {msg.summary.title ? (
-                              <div className="text-sm font-semibold leading-snug">
-                                {msg.summary.title}
-                              </div>
-                            ) : null}
-
-                            <p className="leading-relaxed whitespace-pre-wrap">
-                              {displayText}
-                            </p>
-
-                            {needsClamp ? (
-                              <button
-                                onClick={() => toggleSummaryExpanded(msg.id)}
-                                className={`self-start text-xs font-semibold inline-flex items-center gap-1 px-2 py-1 rounded-md transition-colors ${
-                                  msg.isMine
-                                    ? "text-blue-900 bg-blue-100 hover:bg-blue-200 dark:text-blue-50 dark:bg-blue-800/60 dark:hover:bg-blue-800"
-                                    : "text-blue-800 bg-blue-100 hover:bg-blue-200 dark:text-blue-100 dark:bg-blue-800/40 dark:hover:bg-blue-800/60"
-                                }`}
-                              >
-                                {isExpanded
-                                  ? t("chat.messages.bubble.collapse")
-                                  : t("chat.messages.bubble.seeMore")}
-                              </button>
-                            ) : null}
-
-                            {visibleKeyPoints.length > 0 ? (
-                              <ul className="list-disc ml-5 space-y-1 text-sm marker:text-blue-500 dark:marker:text-blue-300">
-                                {visibleKeyPoints.map((point, idx) => (
-                                  <li key={`${msg.id}-kp-${idx}`}>{point}</li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                ) : null}
-
                 {/* Reactions display */}
                 {!msg.isDeleted &&
                   msg.status !== "recalled" &&
@@ -503,7 +382,6 @@ export const MessageItem = memo(function MessageItem({
                   )}
               </div>
             </div>
-          </div>
 
             {/* Timestamp - chỉ hiện ở tin cuối nhóm */}
             <TimestampAndStatus />

@@ -2,67 +2,21 @@
 import React from "react";
 import Image from "next/image";
 import { ChevronUpIcon, XMarkIcon } from "@heroicons/react/24/solid";
-import { Card, CardBody, Avatar, Badge, Button, Tooltip } from "@heroui/react";
+import { Card, CardBody, Avatar, Badge, Button } from "@heroui/react";
+import { LockClosedIcon } from "@heroicons/react/24/outline";
 import { usePathname, useRouter } from "next/navigation";
 import useContactStore from "@/store/useContactStore";
 import formatTimeAgo from "@/libs/forrmattime";
 import useAuthStore from "@/store/useAuthStore";
-import useCounterStore from "@/store/useCounterStore";
 
 const Messages: React.FC = () => {
   const contactState = useContactStore((state) => state);
   const authState = useAuthStore((state) => state);
   const router = useRouter();
   const pathname = usePathname();
-  const isCollapsed = useCounterStore((state) => state.collapsedSidebar);
   const handleClose = () => () => {
     router.push(pathname || "/");
   };
-  const recentUpdates = contactState.online.filter(
-    (contact) => contact.id !== authState.user?.id
-  );
-
-  if (isCollapsed) {
-    return (
-      <Card className="bg-white/90 dark:bg-slate-900/80 w-full shadow-none border-none rounded-none">
-        <CardBody className="flex flex-col items-center gap-4 py-4">
-          <Tooltip content="Trạng thái của tôi" placement="right">
-            <Avatar
-              src={
-                authState.user?.avatar || "https://avatar.iran.liara.run/public"
-              }
-              name={authState.user?.fullname || "My Status"}
-              size="md"
-              isBordered
-              color="success"
-            />
-          </Tooltip>
-
-          <div className="flex flex-col items-center gap-3">
-            {recentUpdates.slice(0, 6).map((update) => (
-              <Tooltip
-                key={update.id}
-                content={update.fullname}
-                placement="right"
-              >
-                <Badge content=" " color="success" placement="bottom-right">
-                  <Avatar
-                    src={update.avatar ?? undefined}
-                    name={update.fullname}
-                    size="md"
-                    isBordered
-                    className="cursor-pointer"
-                    onClick={() => router.push(`/chat?story=${update.id}`)}
-                  />
-                </Badge>
-              </Tooltip>
-            ))}
-          </div>
-        </CardBody>
-      </Card>
-    );
-  }
-
   return (
     <Card className="bg-white w-full shadow-none border-none rounded-none">
       <CardBody>
@@ -71,10 +25,7 @@ const Messages: React.FC = () => {
           <div className="flex items-center">
             <div className="relative">
               <Avatar
-                src={
-                  authState.user?.avatar ||
-                  "https://avatar.iran.liara.run/public"
-                }
+                src={authState.user?.avatar || "https://avatar.iran.liara.run/public"}
                 name={authState.user?.fullname || "My Status"}
                 size="lg"
                 isBordered
@@ -117,29 +68,31 @@ const Messages: React.FC = () => {
 
         {/* Recent Updates List */}
         <div className="px-2">
-          {recentUpdates.map((update) => (
-            <Card
-              key={update.id}
-              className="mb-2 shadow-none border border-teal-100"
-            >
-              <CardBody className="flex items-center py-3 flex-row">
-                <Badge content=" " color="success" placement="bottom-right">
-                  <Avatar
-                    src={update.avatar ?? undefined}
-                    name={update.fullname}
-                    size="md"
-                    isBordered
-                  />
-                </Badge>
-                <div className="ml-3">
-                  <h4 className="font-medium">{update.fullname}</h4>
-                  <p className="text-sm text-gray-500">
-                    {update.onlineAt ? formatTimeAgo(update.onlineAt) : ""}
-                  </p>
-                </div>
-              </CardBody>
-            </Card>
-          ))}
+          {contactState.online
+            .filter((contact) => contact.id !== authState.user?.id)
+            .map((update) => (
+              <Card
+                key={update.id}
+                className="mb-2 shadow-none border border-teal-100"
+              >
+                <CardBody className="flex items-center py-3 flex-row">
+                  <Badge content=" " color="success" placement="bottom-right">
+                    <Avatar
+                      src={update.avatar ?? undefined}
+                      name={update.fullname}
+                      size="md"
+                      isBordered
+                    />
+                  </Badge>
+                  <div className="ml-3">
+                    <h4 className="font-medium">{update.fullname}</h4>
+                    <p className="text-sm text-gray-500">
+                      {update.onlineAt ? formatTimeAgo(update.onlineAt) : ""}
+                    </p>
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
         </div>
       </CardBody>
     </Card>

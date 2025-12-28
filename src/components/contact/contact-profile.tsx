@@ -24,9 +24,6 @@ import useRoomStore from "@/store/useRoomStore";
 import useAuthStore from "@/store/useAuthStore";
 import useCounterStore from "@/store/useCounterStore";
 import useContactStore from "@/store/useContactStore";
-import { roomMembers, RoomsState, roomType } from "@/store/types/room.state";
-import useCallStore from "@/store/useCallStore";
-import { useSocket } from "../providers/SocketProvider";
 
 interface ContactProfileProps {
   contact: ContactType;
@@ -40,7 +37,7 @@ export default function ContactProfile({
   const router = useRouter();
   const authState = useAuthStore((state) => state);
   const roomState = useRoomStore((state) => state);
-  const { openCall } = useCallStore();
+
   const handleChatPrivate = (id: string) => {
     roomState.createRoom("private", `Chat với ${id}`, [id]);
     router.push(`/chat?chatId=${id}`);
@@ -77,24 +74,7 @@ export default function ContactProfile({
       receiverId: contact.id,
     });
   };
-  const { socket } = useSocket("/chat");
-  const handleStartCall = (id: string, mode: "audio" | "video") => {
-    const room = roomState.getRoomByRoomId(id);
-    console.log("🚀 ~ handleStartCall ~ room:", room);
-    if (!room) return;
-    openCall({
-      roomId: room.roomId || "",
-      mode,
-      members: room.members.map((m: roomMembers) => ({
-        id: m.id,
-        fullname: m.name,
-        avatar: m.avatar,
-        is_caller: true,
-      })),
-      currentUser: authState.user,
-      socket,
-    });
-  };
+
   return (
     <div className="h-full bg-background text-foreground overflow-y-auto">
       {/* Header */}
@@ -194,7 +174,6 @@ export default function ContactProfile({
                     color="default"
                     variant="bordered"
                     startContent={<VideoCameraIcon className="w-5 h-5" />}
-                    onPress={() => handleStartCall(contact.id, "video")}
                   >
                     Gọi video
                   </Button>
@@ -203,7 +182,6 @@ export default function ContactProfile({
                     variant="bordered"
                     isIconOnly
                     startContent={<PhoneIcon className="w-5 h-5" />}
-                    onPress={() => handleStartCall(contact.id, "audio")}
                   />
                 </div>
               )}

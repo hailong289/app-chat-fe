@@ -5,7 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      
+      args:
+        NEXT_PUBLIC_SOCKET_URL: http://localhost:5000/chat
     image: app-chat-fe
     container_name: app-chat-fe
     ports:

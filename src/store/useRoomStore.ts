@@ -10,7 +10,6 @@ import {
   upsertMany,
   upsertOne,
 } from "@/libs/crud";
-import useMessageStore from "./useMessageStore";
 
 const useRoomStore = create<RoomsState>()((set, get) => ({
   isLoading: false,
@@ -121,50 +120,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       room: rooms.length > 0 ? rooms[0] : null,
     });
     return true;
-  },
-  clearHistory: async (roomId?: string) => {
-    const state = get();
-    const targetRoomId = roomId ?? state.room?.id;
-    if (!targetRoomId) return false;
-
-    let room =
-      roomId && roomId !== state.room?.id
-        ? state.rooms.find((r) => r.id === targetRoomId)
-        : state.room;
-
-    if (!room) {
-      room = await getOne(db.rooms, targetRoomId);
-    }
-
-    if (!room) return false;
-
-    set({ isLoading: true, error: null });
-    try {
-      const response: any = await RoomService.clearHistory({
-        roomId: targetRoomId,
-      });
-      if (response.data.statusCode !== 200) {
-        throw new Error("Failed to clear history");
-      }
-
-      const messageStore = useMessageStore.getState();
-      await messageStore.clearRoomMessages(targetRoomId);
-
-      const updatedRoom = response.data.metadata ?? room;
-      await upsertOne(db.rooms, updatedRoom);
-      await get().getRoomsByType(state.type);
-
-      set((current) => ({
-        isLoading: false,
-        error: null,
-        room: current.room?.id === targetRoomId ? updatedRoom : current.room,
-      }));
-      return true;
-    } catch (error) {
-      console.error("❌ Error clearing chat history:", error);
-      set({ isLoading: false, error: "Failed to clear chat history" });
-      return false;
-    }
   },
   deleteMember: async (memberId: string) => {
     set({ isLoading: true });
@@ -510,10 +465,6 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
 
       return { rooms: updatedRooms, room: updatedRoom, isLoading: false };
     });
-  },
-  getRoomByRoomId: (roomId: string) => {
-    const room = get().rooms.find((r) => r.id === roomId);
-    return room;
   },
 }));
 

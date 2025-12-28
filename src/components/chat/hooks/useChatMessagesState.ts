@@ -6,6 +6,7 @@ export function useChatMessagesState(chatId: string) {
     new Set()
   );
   const [isBottomVisible, setIsBottomVisible] = useState(false);
+  const [isTopVisible, setIsTopVisible] = useState(false);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [displayedMessagesCount, setDisplayedMessagesCount] =
     useState(MESSAGES_PER_GROUP);
@@ -34,6 +35,8 @@ export function useChatMessagesState(chatId: string) {
     setExpandedMessages,
     isBottomVisible,
     setIsBottomVisible,
+    isTopVisible,
+    setIsTopVisible,
     isLoadingOlder,
     setIsLoadingOlder,
     displayedMessagesCount,
@@ -62,3 +65,4 @@ export function useChatMessagesState(chatId: string) {
     hasInitialFetchRef,
   };
 }
+

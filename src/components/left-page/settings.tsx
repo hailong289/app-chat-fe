@@ -2,73 +2,16 @@
 
 import React from "react";
 import { XMarkIcon, ArrowRightCircleIcon } from "@heroicons/react/24/outline";
-import { Card, CardBody, Button, Tooltip } from "@heroui/react";
+import { Card, CardBody, Button } from "@heroui/react";
 import { usePathname, useRouter } from "next/navigation";
-import useCounterStore from "@/store/useCounterStore";
 
 const Settings: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
-  const isCollapsed = useCounterStore((state) => state.collapsedSidebar);
 
   const handleClose = () => {
     router.push(pathname || "/");
   };
-
-  if (isCollapsed) {
-    return (
-      <Card className="w-full h-full shadow-none border-none rounded-none bg-background/80 text-foreground">
-        <CardBody className="flex flex-col items-center gap-4 py-4">
-          <Tooltip content="Cài đặt tài khoản" placement="right">
-            <Button
-              isIconOnly
-              variant="light"
-              onPress={() => router.push("/settings/account")}
-            >
-              <ArrowRightCircleIcon className="w-5 h-5" />
-            </Button>
-          </Tooltip>
-          <Tooltip content="Cài đặt tin nhắn" placement="right">
-            <Button
-              isIconOnly
-              variant="light"
-              onPress={() => router.push("/settings/chat")}
-            >
-              <ArrowRightCircleIcon className="w-5 h-5" />
-            </Button>
-          </Tooltip>
-          <Tooltip content="Tích hợp" placement="right">
-            <Button
-              isIconOnly
-              variant="light"
-              onPress={() => router.push("/settings/intergation")}
-            >
-              <ArrowRightCircleIcon className="w-5 h-5" />
-            </Button>
-          </Tooltip>
-          <Tooltip content="Hỗ trợ" placement="right">
-            <Button
-              isIconOnly
-              variant="light"
-              onPress={() => router.push("/settings/support")}
-            >
-              <ArrowRightCircleIcon className="w-5 h-5" />
-            </Button>
-          </Tooltip>
-          <Tooltip content="Đóng danh sách" placement="right">
-            <Button
-              isIconOnly
-              variant="light"
-              className="text-foreground-500"
-              onPress={handleClose}
-            >
-              <XMarkIcon className="w-5 h-5" />
-            </Button>
-          </Tooltip>
-        </CardBody>
-      </Card>
-    );
-  }
 
   return (
     <Card className="w-full h-full shadow-none border-none rounded-none bg-background text-foreground">

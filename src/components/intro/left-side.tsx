@@ -25,14 +25,8 @@ export const LeftSide = () => {
   //   }
   // }, [tab, navigation]);
 
-  const isCollapsed = countState.collapsedSidebar;
-
   return (
-    <div
-      className={`bg-white h-screen flex flex-col border-r border-default dark:bg-slate-900 dark:border-slate-700 overflow-y-auto transition-all duration-200 ${
-        isCollapsed ? "items-center gap-4 py-4" : ""
-      }`}
-    >
+    <div className="bg-white h-screen flex flex-col border-r border-default dark:bg-slate-900 dark:border-slate-700overflow-y-auto">
       {/* Render different components based on the tab */}
       {path.includes("/settings") && !searchParams.get("tab") ? (
         <Settings />

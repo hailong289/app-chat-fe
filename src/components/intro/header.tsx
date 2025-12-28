@@ -21,11 +21,10 @@ import {
   DropdownTrigger,
 } from "@heroui/react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { ThemeSwitcher } from "../ThemeSwitcher";
 import { LanguageSwitcher } from "../LanguageSwitcher";
-import useNotificationStore from "@/store/useNotificationStore";
 
 export const Header = () => {
   const { t } = useTranslation();
@@ -36,15 +35,6 @@ export const Header = () => {
   const { logout: handleLogout, user } = useAuthStore();
   const { isToggled, tab, setToggleState, setTab } = useCounterStore();
   const { disconnect: disconnectSocket } = useSocket("/chat");
-  const unreadCount = useNotificationStore((state) => state.unreadCount);
-  const fetchNotifications = useNotificationStore(
-    (state) => state.fetchNotifications
-  );
-
-  useEffect(() => {
-    if (!user?.id) return;
-    fetchNotifications();
-  }, [fetchNotifications, user?.id]);
 
   const changeToggle = useCallback(() => {
     setToggleState(!isToggled);
@@ -154,11 +144,7 @@ export const Header = () => {
             variant="light"
             onPress={() => handleLink("notifications")}
           >
-            <Badge
-              color="danger"
-              content={unreadCount > 99 ? "99+" : `${Math.max(unreadCount, 0)}`}
-              isInvisible={!unreadCount}
-            >
+            <Badge color="danger" content="5">
               <BellIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
             </Badge>
             <span

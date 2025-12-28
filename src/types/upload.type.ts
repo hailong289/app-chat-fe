@@ -11,9 +11,6 @@ export type UploadApiResponse = {
     size?: number | { low: number; high: number; unsigned: boolean }; // MongoDB Long type
     mimeType?: string;
     status?: string; // "uploaded" | "pending" | etc
-    createdAt?: string;
-    contextId?: string;
-    contextType?: string;
   };
 };
 
@@ -29,8 +26,4 @@ export type UploadSingleResp = {
   provider?: string;
   publicId?: string;
   originalName?: string;
-  createdAt?: string;
-  contextId?: string;
-  contextType?: string;
-  messageId?: string; // Alias for contextId if contextType is message
 };

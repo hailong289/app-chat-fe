@@ -15,12 +15,6 @@ import {
   Dropdown,
   DropdownMenu,
   DropdownItem,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  Spinner,
 } from "@heroui/react";
 import { ArrowDownTrayIcon } from "@heroicons/react/24/solid";
 import {
@@ -28,11 +22,8 @@ import {
   FilmIcon,
   TableCellsIcon,
   DocumentIcon,
-  LinkIcon,
-  ArrowTopRightOnSquareIcon,
-  PencilSquareIcon,
 } from "@heroicons/react/24/outline";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { CallChangeNameModal } from "../modals/changeName.model";
 import {
   ArrowRightEndOnRectangleIcon,
@@ -59,119 +50,39 @@ import Timeline from "@/components/ui/timeline";
 import { useTranslation } from "react-i18next";
 import useContactStore from "@/store/useContactStore";
 import useMessageStore from "@/store/useMessageStore";
-import DocumentService, { Document } from "@/service/document.service";
-import { FilePreview } from "@/store/types/message.state";
-
-import MessageService from "@/service/message.service";
-import MediaViewerModal from "@/components/modals/MediaViewerModal";
 import RoomService from "@/service/room.service";
+import { useEffect } from "react";
 
 export default function ChatDrawer({
   isOpen,
   onClose,
   noAction,
-  setScrollto,
 }: Readonly<{
   isOpen: boolean;
   onClose: () => void;
   noAction: boolean;
-  setScrollto?: (msgId: string) => void;
 }>) {
   const { t } = useTranslation();
   const { BlockUser, UnlockBlockedUser } = useContactStore();
   const [selectedKeys, setSelectedKeys] = useState(new Set(["1"]));
-  const [selectedTab, setSelectedTab] = useState<
-    "media" | "file" | "link" | "docs"
-  >("media");
+  const [selectedTab, setSelectedTab] = useState("media");
   const { room: currentRoom } = useRoomStore();
+  const fetchRoomGallery = useMessageStore((state) => state.fetchRoomGallery);
+  const messagesRoom = useMessageStore((state) => state.messagesRoom);
 
-  // Local state for files
-  const [files, setFiles] = useState<any[]>([]);
-  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-
-  // Media Viewer State
-  const [previewIndex, setPreviewIndex] = useState<number>(-1);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const roomData = currentRoom?.id ? messagesRoom[currentRoom.id] : null;
+  const documents = roomData?.gallery?.docs || [];
+  const media = roomData?.gallery?.media || [];
 
   useEffect(() => {
-    if (isOpen && currentRoom?._id) {
-      setPage(1);
-      setFiles([]);
-      setHasMore(true);
-      fetchFiles(1);
-    }
-  }, [isOpen, currentRoom?._id, selectedTab]);
-
-  const fetchFiles = async (currentPage: number) => {
-    if (!currentRoom?._id) return;
-
-    setIsLoadingFiles(true);
-    try {
-      let newFiles: any[] = [];
-
-      if (selectedTab === "media") {
-        newFiles = await UploadService.getAttachments({
-          roomId: currentRoom._id,
-          type: "media",
-          page: currentPage,
-          limit: 20,
-        });
-      } else if (selectedTab === "file") {
-        newFiles = await UploadService.getAttachments({
-          roomId: currentRoom._id,
-          type: "file",
-          page: currentPage,
-          limit: 20,
-        });
-      } else if (selectedTab === "link") {
-        newFiles = await UploadService.getAttachments({
-          roomId: currentRoom._id,
-          type: "link",
-          page: currentPage,
-          limit: 20,
-        });
-      } else if (selectedTab === "docs") {
-        // DocumentService might not support pagination yet, assuming it returns all
-        if (currentPage === 1) {
-          const docs = await DocumentService.getDocuments(currentRoom._id);
-          newFiles = (docs as any) || [];
-        } else {
-          newFiles = [];
-        }
+    if (isOpen && currentRoom?.id) {
+      if (selectedTab === "docs") {
+        fetchRoomGallery(currentRoom.id, "docs");
+      } else if (selectedTab === "media") {
+        fetchRoomGallery(currentRoom.id, "media");
       }
-
-      if (newFiles.length < 20) setHasMore(false);
-
-      setFiles((prev) => {
-        // Filter duplicates
-        const combined = [...prev, ...newFiles];
-        const unique = combined.filter(
-          (item, index, self) =>
-            index === self.findIndex((t) => t._id === item._id)
-        );
-        return unique;
-      });
-    } catch (error) {
-      console.error("Failed to fetch files:", error);
-    } finally {
-      setIsLoadingFiles(false);
     }
-  };
-
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
-    if (
-      scrollHeight - scrollTop <= clientHeight + 50 &&
-      !isLoadingFiles &&
-      hasMore
-    ) {
-      const nextPage = page + 1;
-      setPage(nextPage);
-      fetchFiles(nextPage);
-    }
-  };
+  }, [isOpen, currentRoom?.id, selectedTab, fetchRoomGallery]);
 
   const handleChangeRole = async (memberId: string, role: string) => {
     if (!currentRoom?.id) return;
@@ -192,8 +103,6 @@ export default function ChatDrawer({
   const [memberIdToDelete, setMemberIdToDelete] = useState<string | null>(null);
   const [openChangeNickNameModal, setOpenChangeNickNameModal] = useState(false);
   const [openAddMemberModal, setOpenAddMemberModal] = useState(false);
-  const [openClearHistoryModal, setOpenClearHistoryModal] = useState(false);
-  const [isClearingHistory, setIsClearingHistory] = useState(false);
   const roomState = useRoomStore((state) => state);
   const userState = useAuthStore((state) => state);
   const user = userState.user;
@@ -213,16 +122,6 @@ export default function ChatDrawer({
   const handleChatPrivate = (id: string) => {
     roomState.createRoom("private", `${t("chat.drawer.chatWith")} ${id}`, [id]);
     router.push(`/chat?chatId=${id}`);
-  };
-
-  const handleConfirmClearHistory = async (onClose: () => void) => {
-    if (!roomState.room?.id) return;
-    setIsClearingHistory(true);
-    const success = await roomState.clearHistory();
-    setIsClearingHistory(false);
-    if (success) {
-      onClose();
-    }
   };
   return (
     <>
@@ -480,14 +379,9 @@ export default function ChatDrawer({
                         <div className="mb-6">
                           <Tabs
                             selectedKey={selectedTab}
-                            onSelectionChange={(key) => {
-                              setSelectedTab(
-                                key as "media" | "file" | "link" | "docs"
-                              );
-                              setFiles([]);
-                              setPage(1);
-                              setHasMore(true);
-                            }}
+                            onSelectionChange={(key) =>
+                              setSelectedTab(key as string)
+                            }
                             color="primary"
                             variant="solid"
                             fullWidth
@@ -505,10 +399,6 @@ export default function ChatDrawer({
                               title={t("chat.drawer.media.tabs.media")}
                             />
                             <Tab
-                              key="file"
-                              title={t("chat.drawer.media.tabs.file")}
-                            />
-                            <Tab
                               key="link"
                               title={t("chat.drawer.media.tabs.link")}
                             />
@@ -519,167 +409,112 @@ export default function ChatDrawer({
                           </Tabs>
                         </div>
 
-                        <div
-                          className={`max-h-[400px] overflow-y-auto ${
-                            selectedTab === "media"
-                              ? "grid grid-cols-3 gap-2 p-1"
-                              : "space-y-4"
-                          }`}
-                          onScroll={handleScroll}
-                        >
-                          {files.map((item, index) => {
-                            const isMedia = selectedTab === "media";
-                            const isFile = selectedTab === "file";
-                            const isLink = selectedTab === "link";
-                            const isDoc = selectedTab === "docs";
-
-                            if (isMedia) {
-                              return (
-                                <Card
-                                  key={item._id || index}
-                                  className="aspect-square shadow-none border border-gray-200"
-                                  isPressable={false}
-                                  onClick={() => {
-                                    setPreviewIndex(index);
-                                    setIsPreviewOpen(true);
-                                  }}
-                                >
-                                  <CardBody className="p-0 overflow-hidden relative group">
-                                    {item.mimeType?.startsWith("image") ||
-                                    item.kind === "image" ||
-                                    item.kind === "photo" ? (
-                                      <img
-                                        src={item.url}
-                                        className="w-full h-full object-cover"
-                                        alt={item.name}
-                                      />
-                                    ) : (
-                                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                                        <FilmIcon className="w-8 h-8 text-gray-400" />
-                                      </div>
-                                    )}
-                                    <div
-                                      className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <Button
-                                        isIconOnly
-                                        size="sm"
-                                        variant="light"
-                                        className="text-white"
-                                        onPress={() => {
-                                          if (item.messageId) {
-                                            setScrollto?.(item.messageId);
-                                          }
-                                        }}
-                                      >
-                                        <ChatBubbleLeftIcon className="w-5 h-5" />
-                                      </Button>
-                                    </div>
-                                  </CardBody>
-                                </Card>
-                              );
-                            }
-
-                            let icon;
-                            let name;
-                            let date;
-                            let actionIcon = (
-                              <ArrowDownTrayIcon className="w-5 h-5" />
-                            );
-                            let action: () => void = () => {
-                              window.open(item.url, "_blank");
-                            };
-
-                            if (isFile) {
-                              icon = (
-                                <DocumentIcon className="w-6 h-6 text-gray-500" />
-                              );
-                              name =
-                                item.name ||
-                                t("chat.drawer.media.fallback.file");
-                              date = item.createdAt;
-                            } else if (isLink) {
-                              icon = (
-                                <LinkIcon className="w-6 h-6 text-gray-500" />
-                              );
-                              name = item.name || item.url;
-                              date = item.createdAt;
-                              actionIcon = (
-                                <ArrowTopRightOnSquareIcon className="w-5 h-5" />
-                              );
-                              action = () => window.open(item.url, "_blank");
-                            } else if (isDoc) {
-                              icon = (
-                                <DocumentIcon className="w-6 h-6 text-blue-500" />
-                              );
-                              name =
-                                item.title ||
-                                t("chat.drawer.media.fallback.document");
-                              date = item.createdAt;
-                              actionIcon = (
-                                <PencilSquareIcon className="w-5 h-5" />
-                              );
-                              action = () => {
-                                router.push(`/docs/${item._id}`);
-                              };
-                            }
-
-                            return (
-                              <Card
-                                key={item._id || index}
-                                className="shadow-none border border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors"
-                                isPressable={false}
-                                onClick={() => {
-                                  if (item.messageId) {
-                                    setScrollto?.(item.messageId);
-                                  }
-                                }}
-                              >
-                                <CardBody className="flex flex-row items-center justify-between p-4">
-                                  <div className="flex items-center gap-4 overflow-hidden flex-1 min-w-0">
-                                    <div className="w-12 h-12 min-w-[3rem] rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0">
-                                      {icon}
-                                    </div>
-                                    <div className="flex flex-col overflow-hidden flex-1 min-w-0">
-                                      <h3 className="font-semibold text-gray-800 truncate pr-2">
-                                        {name}
-                                      </h3>
-                                      <p className="text-sm text-gray-500">
-                                        {date
-                                          ? new Date(date).toLocaleDateString()
-                                          : ""}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <div
-                                    className="flex items-center gap-2 flex-shrink-0"
-                                    onClick={(e) => e.stopPropagation()}
+                        <div className="space-y-4">
+                          {(() => {
+                            let content;
+                            if (selectedTab === "docs") {
+                              if (documents.length > 0) {
+                                content = documents.map((doc) => (
+                                  <Card
+                                    key={doc._id}
+                                    className="shadow-none border border-gray-100"
                                   >
-                                    <Button
-                                      isIconOnly
-                                      variant="light"
-                                      size="sm"
-                                      className="text-gray-400 hover:text-gray-600"
-                                      onPress={action}
+                                    <CardBody className="flex flex-row items-center justify-between p-4">
+                                      <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-full flex items-center justify-center bg-blue-100 text-blue-500">
+                                          <DocumentIcon className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                          <h3 className="font-semibold text-gray-800">
+                                            {doc.msg_content || "Document"}
+                                          </h3>
+                                          <p className="text-sm text-gray-500">
+                                            {new Date(
+                                              doc.createdAt
+                                            ).toLocaleDateString()}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          isIconOnly
+                                          variant="light"
+                                          size="sm"
+                                          className="text-gray-400 hover:text-gray-600"
+                                        >
+                                          <ArrowDownTrayIcon className="w-5 h-5" />
+                                        </Button>
+                                      </div>
+                                    </CardBody>
+                                  </Card>
+                                ));
+                              } else {
+                                content = (
+                                  <p className="text-center text-gray-500 py-4">
+                                    No documents found
+                                  </p>
+                                );
+                              }
+                            } else if (media.length > 0) {
+                              content = media.flatMap((msg) =>
+                                (msg.attachments || []).map(
+                                  (att: any, idx: number) => (
+                                    <Card
+                                      key={`${msg._id}-${idx}`}
+                                      className="shadow-none border border-gray-100"
                                     >
-                                      {actionIcon}
-                                    </Button>
-                                  </div>
-                                </CardBody>
-                              </Card>
-                            );
-                          })}
-                          {isLoadingFiles && (
-                            <div className="col-span-3 flex justify-center py-4">
-                              <Spinner />
-                            </div>
-                          )}
-                          {!isLoadingFiles && files.length === 0 && (
-                            <p className="col-span-3 text-center text-gray-500 py-4">
-                              {t("chat.drawer.media.noFiles")}
-                            </p>
-                          )}
+                                      <CardBody className="flex flex-row items-center justify-between p-4">
+                                        <div className="flex items-center gap-4">
+                                          <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+                                            {att.kind === "image" ||
+                                            att.kind === "photo" ? (
+                                              <img
+                                                src={att.url}
+                                                className="w-full h-full object-cover"
+                                                alt={att.name}
+                                              />
+                                            ) : (
+                                              <FilmIcon className="w-6 h-6 text-gray-500" />
+                                            )}
+                                          </div>
+                                          <div>
+                                            <h3 className="font-semibold text-gray-800 truncate max-w-[150px]">
+                                              {att.name || "Media"}
+                                            </h3>
+                                            <p className="text-sm text-gray-500">
+                                              {new Date(
+                                                msg.createdAt
+                                              ).toLocaleDateString()}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <Button
+                                            isIconOnly
+                                            variant="light"
+                                            size="sm"
+                                            className="text-gray-400 hover:text-gray-600"
+                                            onPress={() =>
+                                              window.open(att.url, "_blank")
+                                            }
+                                          >
+                                            <ArrowDownTrayIcon className="w-5 h-5" />
+                                          </Button>
+                                        </div>
+                                      </CardBody>
+                                    </Card>
+                                  )
+                                )
+                              );
+                            } else {
+                              content = (
+                                <p className="text-center text-gray-500 py-4">
+                                  No media found
+                                </p>
+                              );
+                            }
+                            return content;
+                          })()}
                         </div>
                       </AccordionItem>,
                       <AccordionItem
@@ -757,16 +592,6 @@ export default function ChatDrawer({
                               : t("chat.drawer.privacy.block")}
                           </Button>
                         )}
-                        <Button
-                          className="w-full justify-start"
-                          variant="light"
-                          startContent={
-                            <TrashIcon className="w-5 h-5 text-gray-400" />
-                          }
-                          onPress={() => setOpenClearHistoryModal(true)}
-                        >
-                          {t("chat.drawer.privacy.clearHistory")}
-                        </Button>
                       </AccordionItem>,
                       <AccordionItem
                         key="5"
@@ -818,44 +643,6 @@ export default function ChatDrawer({
       <AddMemberModal
         isOpen={openAddMemberModal}
         onClose={() => setOpenAddMemberModal(false)}
-      />
-      <Modal
-        isOpen={openClearHistoryModal}
-        onOpenChange={setOpenClearHistoryModal}
-      >
-        <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader className="flex flex-col items-center gap-1">
-                {t("chat.modal.clearHistory.title")}
-              </ModalHeader>
-              <ModalBody>
-                <span className="text-sm text-center">
-                  {t("chat.modal.clearHistory.description")}
-                </span>
-              </ModalBody>
-              <ModalFooter className="flex justify-center gap-5">
-                <Button variant="light" onPress={onClose}>
-                  {t("chat.modal.clearHistory.cancel")}
-                </Button>
-                <Button
-                  color="danger"
-                  isLoading={isClearingHistory}
-                  onPress={() => handleConfirmClearHistory(onClose)}
-                >
-                  {t("chat.modal.clearHistory.confirm")}
-                </Button>
-              </ModalFooter>
-            </>
-          )}
-        </ModalContent>
-      </Modal>
-      <MediaViewerModal
-        isOpen={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
-        files={files}
-        currentIndex={previewIndex}
-        setCurrentIndex={setPreviewIndex}
       />
     </>
   );

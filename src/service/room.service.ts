@@ -44,10 +44,4 @@ export default class RoomService {
   static mutedRoom(body: { roomId: string; muted: boolean }) {
     return apiService.patch("/chat/rooms/muted", body);
   }
-
-  static clearHistory(body: { roomId: string }) {
-    return apiService.patch("/chat/rooms/deleted", body);
-  }
-
-  // static
 }

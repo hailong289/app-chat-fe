@@ -128,30 +128,6 @@
       "passwordMatch": "Passwords do not match"
     }
   },
-  "callPage": {
-    "loading": {
-      "connecting": "Connecting...",
-      "callInfo": "Loading call information...",
-      "stream": "Loading stream..."
-    },
-    "status": {
-      "connected": "Connected",
-      "groupCaller": "You started a group call with {{count}} others",
-      "groupReceiver": "You are receiving a group call with {{count}} others",
-      "oneOnOneCaller": "You are calling {{name}}",
-      "oneOnOneReceiver": "You are receiving a call from {{name}}"
-    },
-    "labels": {
-      "unknown": "Unknown",
-      "unknownUser": "Unknown user",
-      "youAndOthers": "You and others",
-      "deviceSettings": "Device settings",
-      "microphone": "Microphone",
-      "speaker": "Speaker",
-      "camera": "Camera",
-      "close": "Close"
-    }
-  },
   "chat": {
     "input": {
       "placeholder": "Type a message...",
@@ -267,8 +243,7 @@
       "call": {
         "incoming": "Incoming Call",
         "inProgress": "Call in Progress",
-        "calling": "Calling...",
-        "join": "Join call"
+        "calling": "Calling..."
       },
       "changeName": {
         "title": "Change chat name",
@@ -307,12 +282,6 @@
         "membersPlaceholder": "Enter member name",
         "cancel": "Cancel",
         "create": "Create"
-      },
-      "clearHistory": {
-        "title": "Clear chat history",
-        "description": "This will permanently delete all messages in this conversation for everyone. This action cannot be undone.",
-        "cancel": "Cancel",
-        "confirm": "Clear history"
       }
     },
     "file": {
@@ -342,13 +311,6 @@
         "pause": "Pause"
       }
     },
-    "fileExplorer": {
-      "title": "File Explorer",
-      "media": "Media",
-      "noMedia": "No media found",
-      "documents": "Documents",
-      "noDocuments": "No documents found"
-    },
     "drawer": {
       "roles": {
         "admin": "Admin",
@@ -371,15 +333,8 @@
       },
       "media": {
         "title": "Media, files and links",
-        "noFiles": "No files found",
-        "fallback": {
-          "media": "Media",
-          "file": "File",
-          "document": "Document"
-        },
         "tabs": {
           "media": "Media",
-          "file": "File",
           "link": "Link",
           "docs": "Docs"
         }
@@ -390,8 +345,7 @@
         "reportDesc": "Give feedback about conversation",
         "leaveGroup": "Leave group",
         "block": "Block",
-        "unblock": "Unblock",
-        "clearHistory": "Clear chat history"
+        "unblock": "Unblock"
       },
       "history": {
         "title": "Activity history"
@@ -500,8 +454,7 @@
       "ongoing": "Ongoing",
       "missed": "Missed call",
       "cancelled": "Cancelled",
-      "busy": "User busy",
-      "join": "Join call"
+      "busy": "User busy"
     },
     "type": {
       "group": "Group call",

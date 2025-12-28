@@ -31,7 +31,6 @@ import {
   SparklesIcon,
   MapPinIcon,
   MusicalNoteIcon,
-  FolderIcon,
 } from "@heroicons/react/24/outline";
 import ChatDrawer from "./drawer/chat-drawer";
 import useRoomStore from "@/store/useRoomStore";
@@ -66,7 +65,6 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     onOpen: onOpenPinned,
     onOpenChange: onOpenChangePinned,
   } = useDisclosure();
-
   const [showSearch, setShowSearch] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<SearchResult[]>([]);
@@ -91,7 +89,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
 
     setIsSearching(true);
     try {
-      const res = await aiService.search(query, roomState.room?._id);
+      const res = await aiService.search(query);
       setSearchResults(res.results || []);
     } catch (error) {
       console.error("Search failed", error);
@@ -205,8 +203,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                           <DocumentIcon className="w-5 h-5 text-primary" />
                         }
                         onClick={() => {
-                          console.log("Navigate to", result.messageId);
-                          setScrollto(result.messageId);
+                          console.log("Navigate to", result.contextId);
                           // TODO: Implement navigation to message or document
                         }}
                       >
@@ -351,12 +348,17 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
             </div>
           </div>
         )}
-      <ChatDrawer
-        isOpen={isOpen}
-        onClose={onOpenChange}
-        noAction={noAction}
-        setScrollto={setScrollto}
-      />
+      <ChatDrawer isOpen={isOpen} onClose={onOpenChange} noAction={noAction} />
+      {/* <CallModal
+        isOpen={formModalCall.isOpen}
+        onClose={() => setFormModalCall((prev) => ({ ...prev, isOpen: false }))}
+        isIncoming={formModalCall.isIncoming}
+        isVideo={formModalCall.isVideo}
+        onAccept={() => {}}
+        onDecline={() => {}}
+        caller={formModalCall.caller}
+      /> */}
+
       <Modal
         isOpen={isOpenPinned}
         placement="top"
