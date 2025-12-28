@@ -25,7 +25,7 @@ export function useMessageHandlers({
   emitWithAckHelper,
 }: UseMessageHandlersProps) {
   const toast = useToast();
-  const { t, i18n } = useTranslation();
+ const { t, i18n } = useTranslation();
 
   const handleReply = useCallback(
     (msg: MessageType) => {
@@ -224,26 +224,27 @@ export function useMessageHandlers({
         const attachment = (msg.attachments || []).find(
           (att) => att.uploadedUrl || att.url
         );
-
-        if (!attachment) {
+        let result;
+        if (!attachment ) {
           toast.error(
             t("chat.hooks.summary.noFile", "Không tìm thấy tệp để tóm tắt")
           );
           return;
+        }else{
+          const fileUrl = attachment.uploadedUrl || attachment.url;
+          const response = await fetch(fileUrl);
+          if (!response.ok) {
+            throw new Error("Failed to download file for summary");
+          }
+  
+          const blob = await response.blob();
+          const fileName = attachment.name || `document-${msg.id}`;
+          const fileType = attachment.mimeType || blob.type || "application/octet-stream";
+          const file = new File([blob], fileName, { type: fileType });
+  
+         result = await aiService.summaryDocument(file);
         }
 
-        const fileUrl = attachment.uploadedUrl || attachment.url;
-        const response = await fetch(fileUrl);
-        if (!response.ok) {
-          throw new Error("Failed to download file for summary");
-        }
-
-        const blob = await response.blob();
-        const fileName = attachment.name || `document-${msg.id}`;
-        const fileType = attachment.mimeType || blob.type || "application/octet-stream";
-        const file = new File([blob], fileName, { type: fileType });
-
-        const result = await aiService.summaryDocument(file);
 
         await useMessageStore
           .getState()
