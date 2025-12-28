@@ -134,6 +134,11 @@ export default function ShareModal({
   };
 
   const sharedUsers = document.sharedWith || [];
+  // Deduplicate sharedUsers based on userId to prevent key collision errors
+  const uniqueSharedUsers = sharedUsers.filter(
+    (share: any, index: number, self: any[]) =>
+      index === self.findIndex((t) => t.userId === share.userId)
+  );
   const docOwner = document.owner;
 
   return (
@@ -214,20 +219,11 @@ export default function ShareModal({
                               <Spinner size="sm" />
                             </div>
                           );
-                          console.log(
-                            "🚀 ~ ShareModal ~ searchResults:",
-                            searchResults
-                          );
                         } else if (searchResults.length > 0) {
                           searchContent = searchResults.map((user: any) => (
                             <div
                               key={user._id}
                               className="w-full flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                              onClick={() =>
-                                handleShare(user._id, selectedRole)
-                              }
-                              role="button"
-                              tabIndex={0}
                             >
                               <User
                                 name={user.fullname}
@@ -236,7 +232,14 @@ export default function ShareModal({
                                   src: user.avatar,
                                 }}
                               />
-                              <Button size="sm" variant="flat" color="primary">
+                              <Button
+                                size="sm"
+                                variant="flat"
+                                color="primary"
+                                onClick={() =>
+                                  handleShare(user._id, selectedRole)
+                                }
+                              >
                                 {t("share.add")}
                               </Button>
                             </div>
@@ -249,7 +252,7 @@ export default function ShareModal({
                           );
                         }
                         return (
-                          <div className="border rounded-lg divide-y max-h-40 overflow-y-auto">
+                          <div className=" divide-y max-h-40 overflow-y-auto">
                             {searchContent}
                           </div>
                         );
@@ -288,7 +291,7 @@ export default function ShareModal({
                     </div>
 
                     {/* Shared Users */}
-                    {sharedUsers.map((share: any) => (
+                    {uniqueSharedUsers.map((share: any) => (
                       <div
                         key={share.userId}
                         className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50"

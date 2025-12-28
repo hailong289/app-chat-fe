@@ -283,6 +283,12 @@
         "membersPlaceholder": "Nhập tên thành viên",
         "cancel": "Huỷ",
         "create": "Tạo"
+      },
+      "clearHistory": {
+        "title": "Xóa lịch sử trò chuyện",
+        "description": "Hành động này sẽ xóa vĩnh viễn mọi tin nhắn trong đoạn chat cho tất cả mọi người. Không thể hoàn tác.",
+        "cancel": "Hủy",
+        "confirm": "Xóa lịch sử"
       }
     },
     "file": {
@@ -312,6 +318,13 @@
         "pause": "Tạm dừng"
       }
     },
+    "fileExplorer": {
+      "title": "Trình quản lý tệp",
+      "media": "Phương tiện",
+      "noMedia": "Không tìm thấy phương tiện nào",
+      "documents": "Tài liệu",
+      "noDocuments": "Không tìm thấy tài liệu nào"
+    },
     "drawer": {
       "roles": {
         "admin": "Quản trị viên",
@@ -334,8 +347,15 @@
       },
       "media": {
         "title": "File phương tiện, file liên kết",
+        "noFiles": "Không tìm thấy tệp nào",
+        "fallback": {
+          "media": "Phương tiện",
+          "file": "Tệp",
+          "document": "Tài liệu"
+        },
         "tabs": {
           "media": "Media",
+          "file": "Tệp",
           "link": "Link",
           "docs": "Docs"
         }
@@ -346,7 +366,8 @@
         "reportDesc": "Đóng góp về cuộc trò chuyện",
         "leaveGroup": "Rời nhóm",
         "block": "Chặn",
-        "unblock": "Bỏ chặn"
+        "unblock": "Bỏ chặn",
+        "clearHistory": "Xóa lịch sử trò chuyện"
       },
       "history": {
         "title": "Lịch sử hoạt động"

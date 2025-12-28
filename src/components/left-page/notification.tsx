@@ -1,74 +1,91 @@
 "use client";
 
-import React, { useState } from "react";
-import { XMarkIcon } from "@heroicons/react/24/solid";
-import { Card, CardBody, Avatar, Button } from "@heroui/react";
+import React, { useEffect } from "react";
+import { XMarkIcon, CheckIcon } from "@heroicons/react/24/solid";
+import {
+  Card,
+  CardBody,
+  Avatar,
+  Button,
+  Tooltip,
+  Spinner,
+} from "@heroui/react";
 import { usePathname, useRouter } from "next/navigation";
+import useCounterStore from "@/store/useCounterStore";
+import useNotificationStore from "@/store/useNotificationStore";
+import { formatDistanceToNow } from "date-fns";
+import { vi } from "date-fns/locale";
 
-interface NotificationItem {
-  id: string;
-  name: string;
-  avatar: string;
-  subtitle: string;
-  message: string;
-  badgeColor?: string; // optional custom tailwind class nếu muốn
-  badgeText?: string;
-}
+const formatRelativeTime = (value: string | null) => {
+  if (!value) return "Vừa xong";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Vừa xong";
+  return formatDistanceToNow(date, {
+    addSuffix: true,
+    locale: vi,
+  });
+};
 
 const Notification: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
+  const isCollapsed = useCounterStore((state) => state.collapsedSidebar);
+  const {
+    notifications,
+    isLoading,
+    fetchNotifications,
+    markAllAsRead,
+    removeNotification,
+    markAsRead,
+  } = useNotificationStore();
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: "1",
-      name: "Josephin water",
-      avatar: "/avatars/josephin.jpg",
-      subtitle: "Upload New Photos",
-      message: "I would suggest you discuss this f…",
-    },
-    {
-      id: "2",
-      name: "Jony Today Birthday",
-      avatar: "",
-      subtitle: "Upload New Photos",
-      message: "I would suggest you discuss this f…",
-      badgeColor: "bg-success",
-      badgeText: "A",
-    },
-    {
-      id: "3",
-      name: "Sufiya Elija",
-      avatar: "/avatars/sufiya.jpg",
-      subtitle: "Comment on your photo",
-      message: "I would suggest you discuss this f…",
-    },
-    {
-      id: "4",
-      name: "Pabelo Mukrani",
-      avatar: "/avatars/pabelo.jpg",
-      subtitle: "Invite your new friend",
-      message: "I would suggest you discuss this f…",
-      badgeColor: "bg-warning",
-    },
-    {
-      id: "5",
-      name: "Pabelo Mukrani",
-      avatar: "",
-      subtitle: "Update profile picture",
-      message: "I would suggest you discuss this f…",
-      badgeColor: "bg-success",
-      badgeText: "AC",
-    },
-  ]);
-
-  const handleRemove = (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  };
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
 
   const handleClose = () => {
     router.push(pathname || "/");
   };
+
+  if (isCollapsed) {
+    return (
+      <Card className="w-full h-full shadow-none border-none rounded-none bg-background/80 text-foreground">
+        <CardBody className="flex flex-col items-center gap-4 py-4">
+          <Tooltip content="Đóng danh sách" placement="right">
+            <Button
+              isIconOnly
+              variant="light"
+              className="text-foreground-500"
+              onPress={handleClose}
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </Button>
+          </Tooltip>
+          <div className="flex flex-col items-center gap-3">
+            {notifications.slice(0, 8).map((item) => (
+              <Tooltip key={item._id} content={item.title} placement="right">
+                {item.sender?.avatar ? (
+                  <Avatar
+                    src={item.sender.avatar}
+                    size="md"
+                    className="cursor-pointer"
+                  />
+                ) : (
+                  <div
+                    className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-semibold cursor-pointer bg-primary`}
+                  >
+                    {(item.sender?.fullname || item.title || "S")
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </div>
+                )}
+              </Tooltip>
+            ))}
+          </div>
+        </CardBody>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full h-full shadow-none border-none rounded-none bg-background text-foreground">
@@ -81,19 +98,35 @@ const Notification: React.FC = () => {
               Lưu trữ và xem lại thông báo của bạn
             </p>
           </div>
-          <Button
-            isIconOnly
-            variant="light"
-            className="text-foreground-500 hover:text-foreground hover:bg-default-100"
-            onPress={handleClose}
-          >
-            <XMarkIcon className="w-7 h-7" />
-          </Button>
+          <div className="flex gap-2">
+            <Tooltip content="Đánh dấu tất cả đã đọc">
+              <Button
+                isIconOnly
+                variant="light"
+                className="text-foreground-500 hover:text-primary"
+                onPress={() => markAllAsRead()}
+              >
+                <CheckIcon className="w-6 h-6" />
+              </Button>
+            </Tooltip>
+            <Button
+              isIconOnly
+              variant="light"
+              className="text-foreground-500 hover:text-foreground hover:bg-default-100"
+              onPress={handleClose}
+            >
+              <XMarkIcon className="w-7 h-7" />
+            </Button>
+          </div>
         </div>
 
         {/* List */}
         <div className="flex-1 overflow-y-auto">
-          {notifications.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <Spinner />
+            </div>
+          ) : notifications.length === 0 ? (
             <div className="flex items-center justify-center h-full py-10">
               <p className="text-sm text-foreground-500">
                 Bạn chưa có thông báo nào.
@@ -102,46 +135,49 @@ const Notification: React.FC = () => {
           ) : (
             notifications.map((item) => (
               <Card
-                key={item.id}
-                className="mb-0 shadow-none border-b border-default-200 dark:border-default-100 rounded-none bg-background"
+                key={item._id}
+                className={`mb-0 shadow-none border-b border-default-200 dark:border-default-100 rounded-none ${
+                  !item.isRead
+                    ? "bg-primary-50 dark:bg-primary-900/20"
+                    : "bg-background"
+                }`}
+                isPressable
+                onPress={() => !item.isRead && markAsRead(item._id)}
               >
                 <CardBody className="flex items-start justify-between px-4 py-4 flex-row gap-3">
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-4 w-full">
                     {/* Avatar / Badge */}
-                    {item.avatar ? (
+                    {item.sender?.avatar ? (
                       <Avatar
-                        src={item.avatar}
+                        src={item.sender.avatar}
                         size="lg"
                         className="min-w-[56px] min-h-[56px]"
                       />
                     ) : (
                       <div
-                        className={`min-w-[56px] min-h-[56px] rounded-full flex items-center justify-center text-white text-2xl font-bold ${
-                          item.badgeColor || "bg-primary"
-                        }`}
+                        className={`min-w-[56px] min-h-[56px] rounded-full flex items-center justify-center text-white text-2xl font-bold bg-primary`}
                       >
-                        {item.badgeText ||
-                          item.name
-                            .split(" ")
-                            .map((w) => w[0])
-                            .join("")
-                            .toUpperCase()}
+                        {(item.sender?.fullname || item.title || "S")
+                          .slice(0, 2)
+                          .toUpperCase()}
                       </div>
                     )}
 
                     {/* Text */}
-                    <div className="max-w-xs sm:max-w-md">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold leading-tight">
-                          {item.name}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`font-semibold leading-tight ${
+                            !item.isRead ? "text-primary" : ""
+                          }`}
+                        >
+                          {item.title}
+                        </span>
+                        <span className="text-xs text-foreground-400 whitespace-nowrap">
+                          {formatRelativeTime(item.createdAt)}
                         </span>
                       </div>
-                      {item.subtitle && (
-                        <p className="text-xs text-primary mt-0.5">
-                          {item.subtitle}
-                        </p>
-                      )}
-                      <div className="text-sm text-foreground-500 mt-1 truncate">
+                      <div className="text-sm text-foreground-500 mt-1 break-words">
                         {item.message}
                       </div>
                     </div>
@@ -151,10 +187,11 @@ const Notification: React.FC = () => {
                   <Button
                     isIconOnly
                     variant="light"
-                    className="text-foreground-400 hover:text-foreground hover:bg-default-100"
-                    onPress={() => handleRemove(item.id)}
+                    size="sm"
+                    className="text-foreground-400 hover:text-danger min-w-8 w-8 h-8"
+                    onPress={() => removeNotification(item._id)}
                   >
-                    <XMarkIcon className="w-6 h-6" />
+                    <XMarkIcon className="w-5 h-5" />
                   </Button>
                 </CardBody>
               </Card>

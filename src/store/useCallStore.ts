@@ -422,12 +422,12 @@ const useCallStore = create<CallState>()(
             if (candidates && candidates.length > 0) {
                 console.log(`✅ Flushing ${candidates.length} pending ICE candidates for room ${roomId}`);
                 for (const candidate of candidates) {
-                  try {
+                try {
                     await pc?.addIceCandidate(candidate);
                     console.log("✅ ICE candidate added from queue:", candidate);
-                  } catch (err) {
+                } catch (err) {
                     console.error("❌ Error adding queued ICE candidate:", err);
-                  }
+                }
                 }
                 get().pendingCandidates.delete(key);
             }
@@ -589,8 +589,7 @@ const useCallStore = create<CallState>()(
                     }));
                 }
             }
-        },
-       
+        }
     })
 );
 export default useCallStore;
