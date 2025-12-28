@@ -48,7 +48,6 @@ export const ChatMessages = memo(
     toggleInput: boolean;
   }) => {
     const { t } = useTranslation();
-    console.count("🔥 ChatMessages Rendered");
     // Performance monitoring
     const startTime = useRef(performance.now());
 
@@ -139,6 +138,8 @@ export const ChatMessages = memo(
         onRecall: handlers.handleRecall,
         onTogglePin: handlers.handleTogglePin,
         onCopy: handlers.handleCopy,
+        onTranslate: handlers.handleTranslate,
+        onSummarize: handlers.handleSummarize,
       }),
       [
         handlers.handleReply,
@@ -147,6 +148,8 @@ export const ChatMessages = memo(
         handlers.handleRecall,
         handlers.handleTogglePin,
         handlers.handleCopy,
+        handlers.handleTranslate,
+        handlers.handleSummarize,
       ]
     );
 
@@ -499,6 +502,8 @@ export const ChatMessages = memo(
                   onRecall={memoizedHandlers.onRecall}
                   onTogglePin={memoizedHandlers.onTogglePin}
                   onCopy={memoizedHandlers.onCopy}
+                  onTranslate={memoizedHandlers.onTranslate}
+                  onSummarize={memoizedHandlers.onSummarize}
                   onJumpToMessage={scrollToMessage}
                   setMessageRef={setMessageRef}
                   messageState={messageState}

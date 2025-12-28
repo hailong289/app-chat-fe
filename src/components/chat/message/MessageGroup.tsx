@@ -22,6 +22,8 @@ interface MessageGroupProps {
   onRecall: (msg: MessageType) => void;
   onTogglePin: (msg: MessageType) => void;
   onCopy: (content: string) => void;
+  onTranslate: (msg: MessageType) => void;
+  onSummarize: (msg: MessageType) => void;
   onJumpToMessage: (id: string) => void;
   setMessageRef: (id: string) => (el: HTMLElement | null) => void;
   messageState: any;
@@ -46,6 +48,8 @@ export const MessageGroup = memo(
     onRecall,
     onTogglePin,
     onCopy,
+    onTranslate,
+    onSummarize,
     onJumpToMessage,
     setMessageRef,
     messageState,
@@ -135,6 +139,8 @@ export const MessageGroup = memo(
                 onRecall={onRecall}
                 onTogglePin={onTogglePin}
                 onCopy={onCopy}
+                onTranslate={onTranslate}
+                onSummarize={onSummarize}
                 onJumpToMessage={onJumpToMessage}
                 setMessageRef={setMessageRef}
                 messageState={messageState}
@@ -176,6 +182,8 @@ export const MessageGroup = memo(
       prevProps.onRecall !== nextProps.onRecall ||
       prevProps.onTogglePin !== nextProps.onTogglePin ||
       prevProps.onCopy !== nextProps.onCopy ||
+      prevProps.onTranslate !== nextProps.onTranslate ||
+      prevProps.onSummarize !== nextProps.onSummarize ||
       prevProps.onJumpToMessage !== nextProps.onJumpToMessage
     ) {
       return false;

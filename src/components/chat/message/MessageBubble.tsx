@@ -140,6 +140,33 @@ function DocumentMessageBubble({ msg }: Readonly<{ msg: MessageType }>) {
           </div>
         </div>
       </div>
+
+      {msg.summary ? (
+        <div
+          className={`mt-3 w-full rounded-xl border px-4 py-3 text-sm shadow-sm ${
+            msg.isMine
+              ? "bg-blue-50 border-blue-100 text-blue-900 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-50"
+              : "bg-gray-50 border-gray-200 text-gray-800 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+          }`}
+        >
+          <div className="font-semibold text-xs mb-1">
+            {t(
+              "chat.messages.bubble.summaryTitle",
+              "Tóm tắt tài liệu"
+            )}
+          </div>
+          <p className="leading-relaxed whitespace-pre-wrap">
+            {msg.summary.text}
+          </p>
+          {msg.summary.keyPoints && msg.summary.keyPoints.length > 0 ? (
+            <ul className="list-disc ml-4 mt-2 space-y-1">
+              {msg.summary.keyPoints.map((point, idx) => (
+                <li key={`${msg.id}-kp-${idx}`}>{point}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -218,6 +245,24 @@ function RegularMessageBubble({
         <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
           {displayContent}
         </p>
+
+        {msg.translation?.text ? (
+          <div
+            className={`mt-2 text-xs rounded-lg px-3 py-2 leading-relaxed ${
+              msg.isMine
+                ? "bg-white/15 text-white"
+                : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
+            }`}
+          >
+            <div className="font-semibold mb-1">
+              {t(
+                "chat.messages.bubble.translatedLabel",
+                `Translated (${msg.translation.from || "auto"} → ${msg.translation.to})`
+              )}
+            </div>
+            <p className="whitespace-pre-wrap">{msg.translation.text}</p>
+          </div>
+        ) : null}
 
         {/* Nút xem thêm/thu gọn */}
         {isLongMessage && (
