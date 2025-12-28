@@ -183,7 +183,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
           className="relative h-full shrink-0"
           style={{ width: `${sidebarWidth}px` }}
         >
-          <div className="absolute top-3 right-3 z-20">{collapseButton}</div>
+          <div className="absolute top-0 right-[-1px] z-20">{collapseButton}</div>
           <Suspense fallback={<div className="h-full" />}>
             <LeftSide />
           </Suspense>

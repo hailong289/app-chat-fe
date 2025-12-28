@@ -1220,6 +1220,33 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     }
   },
 
+  setMessageAiProcessing: (
+    roomId: string,
+    messageId: string,
+    aiProcessing: boolean,
+    aiTask?: "translate" | "summary" | string
+  ) => {
+    const state = get();
+    const currentRoom = state.messagesRoom[roomId];
+    if (!currentRoom?.messages) return;
+
+    const updatedMessages = currentRoom.messages.map((msg) =>
+      msg.id === messageId
+        ? { ...msg, aiProcessing, aiTask: aiProcessing ? aiTask : undefined }
+        : msg
+    );
+
+    set({
+      messagesRoom: {
+        ...state.messagesRoom,
+        [roomId]: {
+          ...currentRoom,
+          messages: updatedMessages,
+        },
+      },
+    });
+  },
+
   setMessageTranslation: async (
     roomId: string,
     messageId: string,
