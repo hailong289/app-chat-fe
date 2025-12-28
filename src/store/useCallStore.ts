@@ -44,6 +44,15 @@ const useCallStore = create<CallState>()((set, get) => ({
     isSpeakerphoneEnabled: true,
     duration: 0, // thời gian gọi
     isSharingScreen: false,
+    userIdGhimmed: "",
+  },
+  devices: {
+    audioInputs: [],
+    audioOutputs: [],
+    videoInputs: [],
+    selectedAudioInput: "",
+    selectedAudioOutput: "",
+    selectedVideoInput: "",
   },
   socket: null,
   actionUserId: null,
@@ -357,11 +366,23 @@ const useCallStore = create<CallState>()((set, get) => ({
     if (get().stream.localStream) {
       return;
     }
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: get().mode === "video",
-      audio: true,
-    });
-    set({ stream: { ...get().stream, localStream: stream } });
+    const currentState = get();
+    const constraints: MediaStreamConstraints = {
+      audio: currentState.devices.selectedAudioInput ? { deviceId: { exact: currentState.devices.selectedAudioInput } } : true,
+      video: currentState.mode === "video" ? (currentState.devices.selectedVideoInput ? { deviceId: { exact: currentState.devices.selectedVideoInput } } : true) : false,
+    };
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      set({ stream: { ...get().stream, localStream: stream } });
+      
+      // Populate devices list if empty
+      if (currentState.devices.audioInputs.length === 0) {
+          await get().getDevices();
+      }
+    } catch (error) {
+      console.error("Error creating local stream:", error);
+    }
   },
   handleCreatePeerConnection: async (roomId: string, actionUserId: string) => {
     const key = `${roomId}-${actionUserId}`;
@@ -532,11 +553,9 @@ const useCallStore = create<CallState>()((set, get) => ({
         // 1. Lấy stream màn hình
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
-          audio: true,
+          audio: true, // Thường tắt audio hệ thống để tránh vọng âm với Mic
         });
-
         const screenTrack = screenStream.getVideoTracks()[0];
-
         const screenAudioTrack = screenStream.getAudioTracks()[0];
 
         // --- MIX AUDIO (Mic + System Audio) ---
@@ -563,7 +582,7 @@ const useCallStore = create<CallState>()((set, get) => ({
           mixedAudioTrack = screenAudioTrack || micTrack || null;
         }
 
-        // 2. Thay thế track Video hiện tại (Camera) bằng Screen Track cho tất cả peer connections
+        // 2. Thay thế track Video và Audio cho tất cả peer connections
         const peerConnections = currentState.stream.peerConnections;
         for (const [key, pc] of peerConnections.entries()) {
           const videoSender = pc
@@ -622,6 +641,14 @@ const useCallStore = create<CallState>()((set, get) => ({
             },
           }));
         }
+        
+        // Emit event to notify others
+        currentState.socket?.emit("call:share-screen", {
+            roomId,
+            actionUserId: useAuthStore.getState().user?.id,
+            isSharing: true
+        });
+
       } catch (err) {
         console.error("User cancelled screen share or error:", err);
         // Reset lại nút toggle nếu user hủy
@@ -650,6 +677,7 @@ const useCallStore = create<CallState>()((set, get) => ({
           if (videoSender) {
             await videoSender.replaceTrack(cameraTrack);
           }
+
           // Restore Audio Track
           const audioSender = pc
             .getSenders()
@@ -680,6 +708,14 @@ const useCallStore = create<CallState>()((set, get) => ({
             isCameraEnabled: true,
           },
         }));
+
+        // Emit event to notify others
+        currentState.socket?.emit("call:share-screen", {
+            roomId,
+            actionUserId: useAuthStore.getState().user?.id,
+            isSharing: false
+        });
+
       } catch (err) {
         console.error("Error reverting to camera:", err);
         set((prev) => ({
@@ -687,6 +723,92 @@ const useCallStore = create<CallState>()((set, get) => ({
           action: { ...prev.action, isSharingScreen: false },
         }));
       }
+    }
+  },
+  setUserIdGhimmed: (userId: string) => {
+    set((prev) => ({
+      ...prev,
+      action: { ...prev.action, userIdGhimmed: userId },
+    }));
+  },
+  getDevices: async () => {
+    try {
+      // Request permission first to get labels if not already granted
+      // This might trigger a permission prompt
+      // await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter((device) => device.kind === "audioinput");
+      const audioOutputs = devices.filter((device) => device.kind === "audiooutput");
+      const videoInputs = devices.filter((device) => device.kind === "videoinput");
+
+      set((prev) => ({
+        ...prev,
+        devices: {
+          ...prev.devices,
+          audioInputs,
+          audioOutputs,
+          videoInputs,
+          selectedAudioInput: prev.devices.selectedAudioInput || audioInputs[0]?.deviceId || "",
+          selectedAudioOutput: prev.devices.selectedAudioOutput || audioOutputs[0]?.deviceId || "",
+          selectedVideoInput: prev.devices.selectedVideoInput || videoInputs[0]?.deviceId || "",
+        },
+      }));
+    } catch (error) {
+      console.error("Error getting devices:", error);
+    }
+  },
+  setDevice: async (type, deviceId) => {
+    set((prev) => ({
+      ...prev,
+      devices: { ...prev.devices, [type === 'audioInput' ? 'selectedAudioInput' : type === 'audioOutput' ? 'selectedAudioOutput' : 'selectedVideoInput']: deviceId },
+    }));
+
+    // If changing input device, we need to restart the stream
+    if (type === 'audioInput' || type === 'videoInput') {
+        const currentState = get();
+        const currentStream = currentState.stream.localStream;
+        
+        if (currentStream) {
+            // Stop current tracks
+            currentStream.getTracks().forEach(track => track.stop());
+            
+            // Create new stream with selected devices
+            const constraints = {
+                audio: { deviceId: { exact: type === 'audioInput' ? deviceId : currentState.devices.selectedAudioInput } },
+                video: currentState.mode === 'video' ? { deviceId: { exact: type === 'videoInput' ? deviceId : currentState.devices.selectedVideoInput } } : false
+            };
+            
+            try {
+                const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                // Replace tracks in peer connections
+                const peerConnections = currentState.stream.peerConnections;
+                for (const [key, pc] of peerConnections.entries()) {
+                    const senders = pc.getSenders();
+                    
+                    const audioTrack = newStream.getAudioTracks()[0];
+                    const videoTrack = newStream.getVideoTracks()[0];
+                    
+                    if (audioTrack) {
+                        const audioSender = senders.find(s => s.track?.kind === 'audio');
+                        if (audioSender) await audioSender.replaceTrack(audioTrack);
+                    }
+                    
+                    if (videoTrack) {
+                        const videoSender = senders.find(s => s.track?.kind === 'video');
+                        if (videoSender) await videoSender.replaceTrack(videoTrack);
+                    }
+                }
+                
+                set((prev) => ({
+                    ...prev,
+                    stream: { ...prev.stream, localStream: newStream }
+                }));
+            } catch (error) {
+                console.error("Error switching device:", error);
+            }
+        }
     }
   },
 }));

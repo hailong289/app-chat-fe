@@ -128,6 +128,30 @@
       "passwordMatch": "Mật khẩu xác nhận không khớp"
     }
   },
+  "callPage": {
+    "loading": {
+      "connecting": "Đang kết nối...",
+      "callInfo": "Đang tải thông tin cuộc gọi...",
+      "stream": "Đang tải stream..."
+    },
+    "status": {
+      "connected": "Đã kết nối",
+      "groupCaller": "Bạn đã bắt đầu cuộc gọi nhóm với {{count}} người khác",
+      "groupReceiver": "Bạn đang nhận cuộc gọi nhóm với {{count}} người khác",
+      "oneOnOneCaller": "Bạn đang gọi đến {{name}}",
+      "oneOnOneReceiver": "Bạn đang nhận cuộc gọi từ {{name}}"
+    },
+    "labels": {
+      "unknown": "Không xác định",
+      "unknownUser": "Người dùng không xác định",
+      "youAndOthers": "Bạn và người khác",
+      "deviceSettings": "Cài đặt thiết bị",
+      "microphone": "Micro",
+      "speaker": "Loa",
+      "camera": "Camera",
+      "close": "Đóng"
+    }
+  },
   "chat": {
     "input": {
       "placeholder": "Nhập tin nhắn...",

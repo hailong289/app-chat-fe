@@ -128,6 +128,30 @@
       "passwordMatch": "Passwords do not match"
     }
   },
+  "callPage": {
+    "loading": {
+      "connecting": "Connecting...",
+      "callInfo": "Loading call information...",
+      "stream": "Loading stream..."
+    },
+    "status": {
+      "connected": "Connected",
+      "groupCaller": "You started a group call with {{count}} others",
+      "groupReceiver": "You are receiving a group call with {{count}} others",
+      "oneOnOneCaller": "You are calling {{name}}",
+      "oneOnOneReceiver": "You are receiving a call from {{name}}"
+    },
+    "labels": {
+      "unknown": "Unknown",
+      "unknownUser": "Unknown user",
+      "youAndOthers": "You and others",
+      "deviceSettings": "Device settings",
+      "microphone": "Microphone",
+      "speaker": "Speaker",
+      "camera": "Camera",
+      "close": "Close"
+    }
+  },
   "chat": {
     "input": {
       "placeholder": "Type a message...",

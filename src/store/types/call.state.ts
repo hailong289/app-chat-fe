@@ -1,4 +1,5 @@
 import { User } from "@/types/auth.type";
+import { is } from "date-fns/locale";
 import { Socket } from "socket.io-client";
 
 export interface CallMember {
@@ -44,8 +45,17 @@ export interface CallState {
     isSpeakerphoneEnabled: boolean; // true: speakerphone on, false: speakerphone off
     duration: number; // thời gian gọi
     isSharingScreen: boolean; // true: share screen on, false: share screen off
+    userIdGhimmed: string; // true: ghim cuộc gọi, false: không ghim
   };
   socket: Socket | null;
+  devices: {
+    audioInputs: MediaDeviceInfo[];
+    audioOutputs: MediaDeviceInfo[];
+    videoInputs: MediaDeviceInfo[];
+    selectedAudioInput: string;
+    selectedAudioOutput: string;
+    selectedVideoInput: string;
+  };
   actionUserId: string | null;
   answer: string | null;
   openCall: (data: any) => void;
@@ -70,4 +80,7 @@ export interface CallState {
   handleRequestCall: (data: any) => void;
   handleAcceptCall: (data: any) => void;
   handleShareScreen: (value: boolean) => Promise<void>;
+  setUserIdGhimmed: (userId: string) => void;
+  getDevices: () => Promise<void>;
+  setDevice: (type: 'audioInput' | 'audioOutput' | 'videoInput', deviceId: string) => Promise<void>;
 }
