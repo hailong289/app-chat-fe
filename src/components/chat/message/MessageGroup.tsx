@@ -22,6 +22,8 @@ interface MessageGroupProps {
   onRecall: (msg: MessageType) => void;
   onTogglePin: (msg: MessageType) => void;
   onCopy: (content: string) => void;
+  onTranslate: (msg: MessageType) => void;
+  onSummarize: (msg: MessageType) => void;
   onJumpToMessage: (id: string) => void;
   setMessageRef: (id: string) => (el: HTMLElement | null) => void;
   messageState: any;
@@ -46,6 +48,8 @@ export const MessageGroup = memo(
     onRecall,
     onTogglePin,
     onCopy,
+    onTranslate,
+    onSummarize,
     onJumpToMessage,
     setMessageRef,
     messageState,
@@ -88,9 +92,22 @@ export const MessageGroup = memo(
             const messageSpacing = isSameSenderAsPrev ? "mt-1" : "mt-4";
 
             const isNewMessage = !renderedMessageIds.current.has(msg.id);
-            if (!renderedMessageIds.current.has(msg.id)) {
-              renderedMessageIds.current.add(msg.id);
-            }
+            // Side-effect in render is removed here. It should be handled in useEffect or similar if strictly needed,
+            // but for "isNewMessage" calculation, checking the ref is fine.
+            // Updating the ref should happen elsewhere if possible, but if it's just for tracking "first render of this ID",
+            // we might need a different approach or accept it's a bit "unsafe".
+            // However, to fix the "mutate ref in render" warning/issue:
+            // We can defer the update or use a layout effect.
+            // For now, let's keep the check but move the update to a useEffect in the Item or parent.
+            // Actually, for this specific logic (animation trigger), it's often done this way in simple cases.
+            // But to be strict:
+            // We will NOT mutate here. We will let the parent or a generic effect handle "marking as rendered".
+            // But wait, `renderedMessageIds` is passed from parent.
+
+            // Let's just remove the mutation from render phase.
+            // The parent `useChatMessagesEffects` clears it on chat switch.
+            // We need a way to mark it as rendered.
+            // A `useEffect` inside MessageItem is a better place.
 
             const isExpanded = expandedMessages.has(msg.id);
             const isUnreadDivider =
@@ -114,6 +131,7 @@ export const MessageGroup = memo(
                 chatId={chatId}
                 socket={socket}
                 noAction={noAction}
+                renderedMessageIds={renderedMessageIds}
                 onToggleExpanded={onToggleExpanded}
                 onReply={onReply}
                 onReact={onReact}
@@ -121,6 +139,8 @@ export const MessageGroup = memo(
                 onRecall={onRecall}
                 onTogglePin={onTogglePin}
                 onCopy={onCopy}
+                onTranslate={onTranslate}
+                onSummarize={onSummarize}
                 onJumpToMessage={onJumpToMessage}
                 setMessageRef={setMessageRef}
                 messageState={messageState}
@@ -141,11 +161,18 @@ export const MessageGroup = memo(
       prevProps.lastMsgId !== nextProps.lastMsgId ||
       prevProps.chatId !== nextProps.chatId ||
       prevProps.noAction !== nextProps.noAction ||
-      prevProps.expandedMessages !== nextProps.expandedMessages ||
       prevProps.socket !== nextProps.socket
     ) {
       return false;
     }
+
+    // Check if any message in this group has changed its expanded state
+    const hasExpandedChange = prevProps.group.messages.some(
+      (msg) =>
+        prevProps.expandedMessages.has(msg.id) !==
+        nextProps.expandedMessages.has(msg.id)
+    );
+    if (hasExpandedChange) return false;
 
     // 2. Check handlers (assuming they are memoized in parent)
     if (
@@ -155,6 +182,8 @@ export const MessageGroup = memo(
       prevProps.onRecall !== nextProps.onRecall ||
       prevProps.onTogglePin !== nextProps.onTogglePin ||
       prevProps.onCopy !== nextProps.onCopy ||
+      prevProps.onTranslate !== nextProps.onTranslate ||
+      prevProps.onSummarize !== nextProps.onSummarize ||
       prevProps.onJumpToMessage !== nextProps.onJumpToMessage
     ) {
       return false;
@@ -172,13 +201,17 @@ export const MessageGroup = memo(
       return false;
     }
 
-    // Check if messages are referentially equal
-    // Since we use immutable state updates, reference equality check is sufficient
-    for (let i = 0; i < prevGroup.messages.length; i++) {
-      if (prevGroup.messages[i] !== nextGroup.messages[i]) {
-        return false;
-      }
-    }
+    // Check if messages are referentially equal or have changed status/content
+    return prevGroup.messages.every((msg, idx) => {
+      const nextMsg = nextGroup.messages[idx];
+      return (
+        msg.id === nextMsg.id &&
+        msg.status === nextMsg.status &&
+        msg.read_by_count === nextMsg.read_by_count &&
+        msg.editedAt === nextMsg.editedAt &&
+        msg.isRead === nextMsg.isRead
+      );
+    });
 
     return true;
   }

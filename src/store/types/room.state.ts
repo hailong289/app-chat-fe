@@ -19,6 +19,7 @@ export interface RoomsState {
   getRoomsByType: (type: string) => Promise<roomType[]>;
   changeRoomName: (id: string, name: string) => Promise<void>;
   leavingRoom: () => Promise<boolean>;
+  clearHistory: (roomId?: string) => Promise<boolean>;
   deleteMember: (memberId: string) => Promise<void>;
   changeNickName: (memberId: string, name: string) => Promise<void>;
   setType: (type: "group" | "private" | "channel" | "all") => void;
@@ -49,9 +50,11 @@ export interface RoomsState {
   ) => void;
   pinnedRoom: (roomId: string, pinned: boolean) => Promise<void>;
   mutedRoom: (roomId: string, muted: boolean) => Promise<void>;
+  getRoomByRoomId: (roomId: string) => roomType | undefined;
 }
 
 export type roomType = {
+  _id: string;
   id: string; // Primary key - must not be null
   roomId: string;
   type: "group" | "private" | "channel";
