@@ -147,11 +147,29 @@ function CallPageContentInner() {
 
   useEffect(() => {
     if (!socket) return;
-    if (callStatus === 'incoming' || callStatus === 'calling' || callStatus === 'joined') {
+    if (callStatus === 'incoming' || callStatus === 'calling' || callStatus === 'joined' || callStatus === 'accepted') {
       handleCreateLocalStream();
     }
     console.log("callStatus", callStatus);
   }, [callStatus, socket]);
+
+  // Re-negotiate on page reload if status is accepted
+  useEffect(() => {
+    if (isMounted && socket && callStatus === 'accepted' && members.length > 0 && localStream) {
+        const peerConnections = useCallStore.getState().stream.peerConnections;
+        // If we are accepted but have no connections, it means we likely reloaded
+        // We need to re-initiate connections with everyone
+        if (peerConnections.size === 0) {
+            console.log("Page reloaded during call, re-negotiating...");
+            acceptCall({
+                roomId,
+                members,
+                currentUser,
+                socket
+            });
+        }
+    }
+  }, [isMounted, socket, callStatus, members, roomId, currentUser, acceptCall, localStream]);
 
   // Update audio output device
   useEffect(() => {
@@ -315,7 +333,7 @@ function CallPageContentInner() {
   if (!isMounted || !socket) {
     return (
       <div className="bg-dark h-screen w-full flex items-center justify-center">
-        <p className="text-gray-500">{t("callPage.loading.connecting")}</p>
+        <p className="text-gray-500" suppressHydrationWarning>{t("callPage.loading.connecting")}</p>
       </div>
     );
   }
@@ -323,7 +341,7 @@ function CallPageContentInner() {
   if (!members || callStatus === 'idle' || callStatus === 'joined') {
     return (
       <div className="bg-dark h-screen w-full flex items-center justify-center">
-        <p className="text-gray-500">{t("callPage.loading.callInfo")}</p>
+        <p className="text-gray-500" suppressHydrationWarning>{t("callPage.loading.callInfo")}</p>
       </div>
     );
   }

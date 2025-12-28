@@ -65,7 +65,20 @@ export const aiService = {
       form
     );
 
-    const data = response.data?.metadata;
+    const raw = response.data?.metadata as unknown;
+
+    let data: Partial<SummaryDocumentResponse> = {};
+    try {
+      if (typeof raw === "string") {
+        data = JSON.parse(raw) as Partial<SummaryDocumentResponse>;
+      } else if (raw && typeof raw === "object") {
+        data = raw as Partial<SummaryDocumentResponse>;
+      }
+    } catch (err) {
+      console.error("❌ summaryDocument parse error", err);
+      data = {};
+    }
+
     return {
       summary: data?.summary || "",
       title: data?.title,
