@@ -21,6 +21,11 @@ const useCallStore = create<CallState>()((set, get) => ({
         username: "openrelayproject",
         credential: "openrelayproject",
       },
+      {
+        urls: "turn:relay1.expressturn.com:3480",
+        username: "000000002072254500",
+        credential: "wLpXGwPdwl1qZ1YbdZDs8gJVfJA=",
+      },
     ],
     iceCandidatePoolSize: 10,
     iceTransportPolicy: "all",
@@ -528,11 +533,36 @@ const useCallStore = create<CallState>()((set, get) => ({
         // 1. Lấy stream màn hình
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
-          audio: false, // Thường tắt audio hệ thống để tránh vọng âm với Mic
+          audio: true, // Thường tắt audio hệ thống để tránh vọng âm với Mic
         });
         const screenTrack = screenStream.getVideoTracks()[0];
+        const screenAudioTrack = screenStream.getAudioTracks()[0];
 
-        // 2. Thay thế track Video hiện tại (Camera) bằng Screen Track cho tất cả peer connections
+        // --- MIX AUDIO (Mic + System Audio) ---
+        let mixedAudioTrack: MediaStreamTrack | null = null;
+        const micTrack = localStream?.getAudioTracks()[0];
+
+        if (micTrack && screenAudioTrack) {
+          // Merge 2 tracks
+          const audioContext = new AudioContext();
+          const destination = audioContext.createMediaStreamDestination();
+
+          // Mic Source
+          const micStream = new MediaStream([micTrack]);
+          const micSource = audioContext.createMediaStreamSource(micStream);
+          micSource.connect(destination);
+
+          // System Audio Source
+          const sysStream = new MediaStream([screenAudioTrack]);
+          const sysSource = audioContext.createMediaStreamSource(sysStream);
+          sysSource.connect(destination);
+
+          mixedAudioTrack = destination.stream.getAudioTracks()[0];
+        } else {
+          mixedAudioTrack = screenAudioTrack || micTrack || null;
+        }
+
+        // 2. Thay thế track Video và Audio cho tất cả peer connections
         const peerConnections = currentState.stream.peerConnections;
         for (const [key, pc] of peerConnections.entries()) {
           const videoSender = pc
@@ -540,6 +570,15 @@ const useCallStore = create<CallState>()((set, get) => ({
             .find((s) => s.track?.kind === "video");
           if (videoSender) {
             await videoSender.replaceTrack(screenTrack);
+          }
+
+          if (mixedAudioTrack) {
+            const audioSender = pc
+              .getSenders()
+              .find((s) => s.track?.kind === "audio");
+            if (audioSender) {
+              await audioSender.replaceTrack(mixedAudioTrack);
+            }
           }
         }
 
@@ -599,6 +638,7 @@ const useCallStore = create<CallState>()((set, get) => ({
           audio: true,
         });
         const cameraTrack = cameraStream.getVideoTracks()[0];
+        const micTrack = cameraStream.getAudioTracks()[0];
 
         // 2. Thay thế track Screen đang chạy bằng Camera Track cho tất cả peer connections
         const peerConnections = get().stream.peerConnections;
@@ -608,6 +648,14 @@ const useCallStore = create<CallState>()((set, get) => ({
             .find((s) => s.track?.kind === "video");
           if (videoSender) {
             await videoSender.replaceTrack(cameraTrack);
+          }
+
+          // Restore Audio Track
+          const audioSender = pc
+            .getSenders()
+            .find((s) => s.track?.kind === "audio");
+          if (audioSender) {
+            await audioSender.replaceTrack(micTrack);
           }
         }
 

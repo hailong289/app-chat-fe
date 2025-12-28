@@ -134,6 +134,11 @@ export default function ShareModal({
   };
 
   const sharedUsers = document.sharedWith || [];
+  // Deduplicate sharedUsers based on userId to prevent key collision errors
+  const uniqueSharedUsers = sharedUsers.filter(
+    (share: any, index: number, self: any[]) =>
+      index === self.findIndex((t) => t.userId === share.userId)
+  );
   const docOwner = document.owner;
 
   return (
@@ -286,7 +291,7 @@ export default function ShareModal({
                     </div>
 
                     {/* Shared Users */}
-                    {sharedUsers.map((share: any) => (
+                    {uniqueSharedUsers.map((share: any) => (
                       <div
                         key={share.userId}
                         className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50"

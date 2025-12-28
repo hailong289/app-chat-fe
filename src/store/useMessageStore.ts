@@ -994,6 +994,10 @@ const useMessageStore = create<MessageState>()((set, get) => ({
    * Used for jumping to a specific message
    */
   findMessage: async (roomId: string, messageId: string): Promise<boolean> => {
+    if (!messageId || messageId === "null" || messageId === "undefined") {
+      console.warn("findMessage called with invalid ID:", messageId);
+      return false;
+    }
     try {
       // 1. Check IndexedDB
       const msgInDB = await db.messages.get(messageId);
@@ -1317,113 +1321,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         },
       });
     }, delayMs);
-  },
-  fetchRoomGallery: async (
-    roomId: string,
-    type: "media" | "docs" | "links"
-  ) => {
-    const state = get();
-    const roomData = state.messagesRoom[roomId] || {
-      messages: [],
-      input: null,
-      attachments: null,
-      reply: null,
-    };
-
-    const gallery = roomData.gallery || {
-      media: [],
-      docs: [],
-      links: [],
-      isLoadingMedia: false,
-      isLoadingDocs: false,
-      isLoadingLinks: false,
-      hasMoreMedia: true,
-      hasMoreDocs: true,
-      hasMoreLinks: true,
-    };
-
-    // Check if already loading or has data (optional: implement pagination check here)
-    if (
-      (type === "media" && gallery.isLoadingMedia) ||
-      (type === "docs" && gallery.isLoadingDocs) ||
-      (type === "links" && gallery.isLoadingLinks)
-    ) {
-      return;
-    }
-
-    // Set loading state
-    set({
-      messagesRoom: {
-        ...state.messagesRoom,
-        [roomId]: {
-          ...roomData,
-          gallery: {
-            ...gallery,
-            isLoadingMedia: type === "media" ? true : gallery.isLoadingMedia,
-            isLoadingDocs: type === "docs" ? true : gallery.isLoadingDocs,
-            isLoadingLinks: type === "links" ? true : gallery.isLoadingLinks,
-          },
-        },
-      },
-    });
-
-    try {
-      const res = await MessageService.getDocuments({
-        roomId,
-        type: type === "links" ? "link" : type, // Map 'links' to 'link' if needed by API
-      });
-
-      const newData = (res.data || []) as GalleryItem[];
-
-      set((currentState) => {
-        const currentRoomData = currentState.messagesRoom[roomId];
-        const currentGallery = currentRoomData?.gallery || gallery;
-
-        return {
-          messagesRoom: {
-            ...currentState.messagesRoom,
-            [roomId]: {
-              ...currentRoomData,
-              gallery: {
-                ...currentGallery,
-                media: type === "media" ? newData : currentGallery.media,
-                docs: type === "docs" ? newData : currentGallery.docs,
-                links: type === "links" ? newData : currentGallery.links,
-                isLoadingMedia:
-                  type === "media" ? false : currentGallery.isLoadingMedia,
-                isLoadingDocs:
-                  type === "docs" ? false : currentGallery.isLoadingDocs,
-                isLoadingLinks:
-                  type === "links" ? false : currentGallery.isLoadingLinks,
-              },
-            },
-          },
-        };
-      });
-    } catch (error) {
-      console.error(`Error fetching ${type} for room ${roomId}:`, error);
-      set((currentState) => {
-        const currentRoomData = currentState.messagesRoom[roomId];
-        const currentGallery = currentRoomData?.gallery || gallery;
-        return {
-          messagesRoom: {
-            ...currentState.messagesRoom,
-            [roomId]: {
-              ...currentRoomData,
-              gallery: {
-                ...currentGallery,
-                isLoadingMedia:
-                  type === "media" ? false : currentGallery.isLoadingMedia,
-                isLoadingDocs:
-                  type === "docs" ? false : currentGallery.isLoadingDocs,
-                isLoadingLinks:
-                  type === "links" ? false : currentGallery.isLoadingLinks,
-              },
-            },
-          },
-        };
-      });
-    }
   },
   clearRoomMessages: async (roomId: string) => {
     await db.messages.where("roomId").equals(roomId).delete();

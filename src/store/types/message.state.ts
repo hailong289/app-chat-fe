@@ -164,10 +164,6 @@ export interface MessageState {
   deleteMessage: (roomId: string, messageId: string) => Promise<void>;
   recallMessage: (roomId: string, messageId: string) => Promise<void>;
   fetchNewMessages: (roomId: string, lastMessageId?: string) => Promise<void>;
-  fetchRoomGallery: (
-    roomId: string,
-    type: "media" | "docs" | "links"
-  ) => Promise<void>;
   clearRoomMessages: (roomId: string) => Promise<void>;
 
   uploadAttachments: (data: {
