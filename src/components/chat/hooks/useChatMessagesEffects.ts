@@ -1,11 +1,13 @@
 import { useEffect, useMemo } from "react";
-import { groupMessagesByDate } from "@/libs/timeline-helpers";
+// import { groupMessagesByDate } from "@/libs/timeline-helpers"; // Removed: Filter logic moved to store
 import { MESSAGES_PER_GROUP } from "../constants/messageConstants";
 import { useTranslation } from "react-i18next";
+import { MessageGroup } from "@/store/types/message.state"; // Import type
+import useAuthStore from "@/store/useAuthStore";
 
 interface UseChatMessagesEffectsProps {
   chatId: string;
-  messages: any[];
+  groups: MessageGroup[]; // Changed from messages array
   lastReadId: string | null;
   scrollTargetId: string;
   lastServerMessageId: string | null;
@@ -48,7 +50,7 @@ interface UseChatMessagesEffectsProps {
 
 export function useChatMessagesEffects({
   chatId,
-  messages,
+  groups,
   lastReadId,
   scrollTargetId,
   lastServerMessageId,
@@ -85,6 +87,11 @@ export function useChatMessagesEffects({
   handleLoadMore,
 }: UseChatMessagesEffectsProps) {
   const { t } = useTranslation();
+  const currentUser = useAuthStore((state) => state.user);
+  
+  // Derive flat messages list from groups for internal logic
+  const messages = useMemo(() => groups.flatMap(g => g.messages), [groups]);
+
   // Effect: Handle chat switching
   useEffect(() => {
     const isActuallySwitchingChat = prevChatIdRef.current !== chatId;
@@ -108,7 +115,9 @@ export function useChatMessagesEffects({
         setShouldAnimate(true);
         setIsSwitchingChat(false);
         requestAnimationFrame(() => {
-          scrollToMessage(scrollTargetId);
+          if (scrollTargetId && scrollTargetId !== "null") {
+            scrollToMessage(scrollTargetId);
+          }
         });
       };
 
@@ -287,7 +296,9 @@ export function useChatMessagesEffects({
         }
       }
 
-      if (newMessage?.isMine) {
+      const isMine = currentUser?._id && newMessage?.sender?._id === currentUser._id;
+
+      if (isMine) {
         setTimeout(() => {
           if (containerRef.current) {
             containerRef.current.scrollTo({
@@ -327,26 +338,7 @@ export function useChatMessagesEffects({
     containerRef,
     bottomRef,
     setDisplayedMessagesCount,
+    currentUser,
   ]);
-
-  // Memoized: Visible messages
-  const visibleMessages = useMemo(() => {
-    const visible = messages || [];
-    // Only render the last displayedMessagesCount messages
-    // This is a simple windowing approach where we only render what's needed
-    // plus a buffer.
-    return visible.slice(-displayedMessagesCount);
-  }, [messages, displayedMessagesCount]);
-
-  // Memoized: Visible groups
-  const visibleGroups = useMemo(() => {
-    // Use a stable key for grouping to prevent re-renders when only content changes
-    // but the structure remains the same
-    return groupMessagesByDate(visibleMessages, lastReadId ?? undefined, t);
-  }, [visibleMessages, lastReadId, t]);
-
-  return {
-    visibleMessages,
-    visibleGroups,
-  };
 }
+

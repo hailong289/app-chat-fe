@@ -6,7 +6,65 @@ import {
   MessageSummary,
   MessageType,
   MessageTranslation,
+  RoomData,
 } from "./types/message.state";
+import { groupMessagesByDate } from "@/libs/timeline-helpers";
+import i18n from "@/i18n";
+import useAuthStore from "./useAuthStore";
+import useRoomStore from "./useRoomStore";
+import { roomType } from "./types/room.state";
+
+// Helper to get all messages from groups
+const getAllMessagesFromGroups = (roomData?: RoomData): MessageType[] => {
+  if (!roomData?.groups) return [];
+  return roomData.groups.flatMap(g => g.messages);
+};
+
+const updateRoomDataWithGroups = (
+  prevRoom: RoomData | undefined,
+  newMessages: MessageType[],
+  lastReadId: string | null | undefined,
+  newDisplayedCount?: number
+): RoomData => {
+  const count = newDisplayedCount ?? prevRoom?.displayedMessagesCount ?? 20;
+
+  // Filter messages hidden by current user
+  const currentUser = useAuthStore.getState().user;
+  const currentUserId = currentUser?._id;
+  
+  const displayableMessages = newMessages.filter(msg => {
+    if (currentUserId && msg.hiddenBy?.includes(currentUserId)) {
+      return false;
+    }
+    return true;
+  });
+
+  // Deduplicate messages by ID to prevent infinite loops/duplicate rendering
+  const uniqueMessagesMap = new Map<string, MessageType>();
+  displayableMessages.forEach((msg) => {
+    uniqueMessagesMap.set(msg.id, msg);
+  });
+  const uniqueMessages = Array.from(uniqueMessagesMap.values()).sort((a, b) => 
+    a.id.localeCompare(b.id)
+  );
+
+  const groups = groupMessagesByDate(uniqueMessages, lastReadId);
+
+  return {
+    ...(prevRoom || {
+      input: null,
+      attachments: null,
+      reply: null,
+      lastReadMessageId: null,
+      groups: [],
+      displayedMessagesCount: 20,
+    }),
+    groups: groups,
+    displayedMessagesCount: count,
+    lastReadMessageId: lastReadId,
+  } as RoomData; // Cast to match new interface without messages
+};
+
 export interface SendMessageArgs {
   roomId: string;
   content: string;
@@ -43,6 +101,16 @@ const sanitizeMessageForDB = (msg: MessageType): MessageType => {
     // Create a clean copy using structuredClone to remove circular refs
     const cleanMsg = structuredClone({
       ...msg,
+      // Ensure hiddenBy is preserved if it exists
+      hiddenBy: msg.hiddenBy || [],
+      // Ensure reply has new fields
+      reply: msg.reply
+        ? {
+            ...msg.reply,
+            hiddenBy: msg.reply.hiddenBy || [],
+            isDelete: msg.reply.isDelete, // From pipeline
+          }
+        : undefined,
       attachments: msg.attachments?.map((att) => ({
         _id: att._id,
         kind: att.kind,
@@ -57,18 +125,20 @@ const sanitizeMessageForDB = (msg: MessageType): MessageType => {
         status: att.status,
         uploadProgress: att.uploadProgress,
         uploadedUrl: att.uploadedUrl,
+        summary: att.summary, // Keep summary
         // Explicitly exclude file and any non-serializable data
       })),
       // Ensure sender is always valid
       sender: msg.sender
         ? {
             _id: msg.sender._id,
-            id: msg.sender.id,
+            id: msg.sender.id ,
             fullname: msg.sender.fullname,
             avatar: msg.sender.avatar,
           }
         : {
             _id: "unknown",
+            id: "unknown",
             fullname: "Unknown",
             avatar: "",
           },
@@ -123,6 +193,7 @@ const sanitizeAttachmentsFromAPI = (
     status: att.status,
     uploadProgress: att.uploadProgress,
     uploadedUrl: att.uploadedUrl,
+    summary: att.summary, // Keep summary
     // Explicitly exclude: file, and any other unknown properties
   }));
 };
@@ -139,18 +210,23 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     msgData.status = "sent";
     // Lấy state hiện tại
     const prevRoom = get().messagesRoom[msgData.roomId] || {
-      messages: [],
+      groups: [],
+      displayedMessagesCount: 20,
       reply: null,
     };
-    const prevMessages = prevRoom.messages || [];
+    
+    // Get messages using helper
+    const prevMessages = getAllMessagesFromGroups(prevRoom);
 
     // Tìm vị trí message theo id
     const existingIndex = prevMessages.findIndex((m) => m.id === msgData.id);
 
     let updatedMessages: MessageType[];
     if (existingIndex === -1) {
-      // ID không tồn tại → thêm vào cuối
-      updatedMessages = [...prevMessages, msgData];
+      // ID không tồn tại → thêm vào cuối và sort lại
+      updatedMessages = [...prevMessages, msgData].sort((a, b) =>
+        a.id.localeCompare(b.id)
+      );
     } else {
       // ID đã tồn tại → cập nhật tại chỗ
       if (
@@ -172,15 +248,99 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     }
 
     // Cập nhật state
+    const currentRoom = get().messagesRoom[msgData.roomId];
     set({
       messagesRoom: {
         ...get().messagesRoom,
-        [msgData.roomId]: {
-          ...prevRoom,
-          messages: updatedMessages,
-        },
+        [msgData.roomId]: updateRoomDataWithGroups(
+          currentRoom, 
+          updatedMessages, 
+          currentRoom?.lastReadMessageId
+        ),
       },
     });
+
+    // Update Room Store Optimistically
+    try {
+      const roomStore = useRoomStore.getState();
+      const targetRoom = roomStore.getRoomByRoomId(msgData.roomId);
+
+      if (targetRoom) {
+        const currentUser = useAuthStore.getState().user;
+        const isMine = msgData.sender.id === currentUser?._id;
+        
+        let snippet = msgData.content || "";
+        // Safe check for snippet type
+        if (msgData.type === 'image') {
+            snippet = i18n.t('chat.message.type.image') || "[Image]";
+        } else if (msgData.type === 'file' || msgData.type === 'document' || msgData.type === 'video') {
+             snippet = i18n.t('chat.message.type.file') || "[File]";
+        } else if (msgData.attachments && msgData.attachments.length > 0) {
+             const firstAtt = msgData.attachments[0];
+             // FilePreview has mimeType, kind, but not type usually.
+             if (firstAtt.mimeType?.startsWith('image') || firstAtt.kind === 'image') {
+                  snippet = i18n.t('chat.message.type.image') || "[Image]";
+             } else {
+                  snippet = i18n.t('chat.message.type.file') || "[File]";
+             }
+        }
+
+        const roomLastMsgDate = targetRoom.last_message?.createdAt ? new Date(targetRoom.last_message.createdAt).getTime() : 0;
+        const newMsgDate = new Date(msgData.createdAt).getTime();
+
+        // Update if newer or same time (sometimes useful)
+        // Only update if it's not a duplicate event for same ID
+        if (newMsgDate >= roomLastMsgDate) {
+             // Handle unread count: 
+             // If I'm visible in the room (active room), unread = 0.
+             // If not active room, and message is NOT mine, unread++
+             // BUT: We don't want to increment if we just fetched history. 
+             // upsetMsg is called for history too?
+             // Usually upsetMsg is for "sent" message (socket receive).
+             // Fetch history uses `updateRoomDataWithGroups` but generally calls set directly in `fetchMessagesFromAPI`.
+             // upsetMsg logic: `if (existingIndex === -1)`...
+             
+             // To be safe, only increment unread if it is a NEW message (existingIndex === -1) 
+             // AND it is NOT from history load (how to distinguish?).
+             // Usually history load calls `fetchMessagesFromAPI` which does NOT call `upsetMsg`.
+             // `upsetMsg` is likely used by Socket `on("message:receive")`.
+             
+             const isActiveRoom = roomStore.room?.id === msgData.roomId;
+             let newUnreadCount = targetRoom.unread_count;
+             
+             if (!isMine && !isActiveRoom && existingIndex === -1) {
+                  newUnreadCount = (targetRoom.unread_count || 0) + 1;
+             }
+             
+             // If active room, reset unread?
+             if (isActiveRoom) {
+                 newUnreadCount = 0;
+             }
+
+             const updatedRoom: roomType = {
+                 ...targetRoom,
+                 updatedAt: msgData.createdAt,
+                 unread_count: newUnreadCount,
+                 last_message: {
+                     id: msgData.id,
+                     content: snippet,
+                     createdAt: msgData.createdAt,
+                     sender: {
+                         id: msgData.sender.id || msgData.sender._id || "",
+                         name: msgData.sender.fullname || "",
+                         avatar: msgData.sender.avatar || ""
+                     },
+                     isMine: isMine
+                 },
+                 is_read: isActiveRoom || isMine
+             };
+             roomStore.updateRoomSocket(updatedRoom);
+        }
+      }
+    } catch(e) {
+      console.error("Error updating room store from message:", e);
+    }
+
     await upsertOne(db.messages, msgData);
   },
 
@@ -199,15 +359,19 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
     // Lưu dữ liệu tạm trước khi gửi
     const prevRoom = get().messagesRoom[roomId] || {
-      messages: [],
+      groups: [],
+      displayedMessagesCount: 20,
       reply: null,
     };
+    
+    const prevMessages = getAllMessagesFromGroups(prevRoom);
 
     const id = new ObjectId().toHexString();
-    const foundReply = get().messagesRoom[roomId]?.messages.find(
+    const foundReply = prevMessages.find(
       (m) => m.id === replyTo
     );
 
+    // Use raw foundReply without computing isMine
     const reply = foundReply
       ? {
           _id: foundReply.id,
@@ -218,9 +382,9 @@ const useMessageStore = create<MessageState>()((set, get) => ({
             _id: foundReply.sender._id,
             name: foundReply.sender.fullname || "Unknown",
           },
-          isMine: !!foundReply.isMine,
-          hiddenByMe: false,
+          // removed isMine, hiddenByMe
           isDeleted: false,
+          hiddenAt: null,
         }
       : undefined;
 
@@ -240,25 +404,67 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         fullname: userFullname || "Unknown",
         avatar: userAvatar || "",
       },
-      isMine: true,
-      isRead: true,
+      // Removed isMine, isRead here as requested. Logic will handle it.
       status: attachments && attachments.length > 0 ? "uploading" : "pending",
-      hiddenByMe: false,
+      hiddenBy: [], 
       hiddenAt: null,
       isDeleted: false,
-      read_by: [], // Add this property to satisfy MessageType
+      read_by: [], 
     };
 
-    // Thêm dữ liệu tạm vào messages để hiển thị ngay
+    // Thêm dữ liệu tạm
+    const currentRoom = get().messagesRoom[roomId];
+    const currentMessages = getAllMessagesFromGroups(currentRoom);
+    const newMessages = [...currentMessages, data];
+    
     set({
       messagesRoom: {
         ...get().messagesRoom,
-        [roomId]: {
-          ...prevRoom,
-          messages: [...(prevRoom.messages || []), data],
-        },
+        [roomId]: updateRoomDataWithGroups(
+          currentRoom, 
+          newMessages, 
+          currentRoom?.lastReadMessageId
+        ),
       },
     });
+
+    // Update Room Store Optimistically (Sending)
+    try {
+        const roomStore = useRoomStore.getState();
+        const targetRoom = roomStore.getRoomByRoomId(roomId);
+        if (targetRoom) {
+             let snippet = data.content || "";
+             if (data.attachments && data.attachments.length > 0) {
+                 const firstAtt = data.attachments[0];
+                 const mime = firstAtt.mimeType || ""; 
+                 if (mime.startsWith('image') || firstAtt.kind === 'image') snippet = i18n.t('chat.message.type.image') || "[Image]";
+                 else snippet = i18n.t('chat.message.type.file') || "[File]";
+             }
+
+             const updatedRoom: roomType = {
+                 ...targetRoom,
+                 updatedAt: data.createdAt,
+                 last_message: {
+                     id: data.id,
+                     content: snippet,
+                     createdAt: data.createdAt,
+                     sender: {
+                         id: data.sender.id ,
+                         name: data.sender.fullname || "",
+                         avatar: data.sender.avatar || ""
+                     },
+                     isMine: true
+                 },
+                 // No change to unread count for sent message
+                 // Ensure is_read is true since we are sending
+                 is_read: true, 
+                 unread_count: 0 // Reset if we are sending (implies we read everything)
+             };
+             roomStore.updateRoomSocket(updatedRoom);
+        }
+    } catch (e) {
+         console.error("Optimistic room update failed", e);
+    }
     // Upload attachments nếu có (background task)
     if (attachments && attachments.length > 0) {
       get()
@@ -286,16 +492,14 @@ const useMessageStore = create<MessageState>()((set, get) => ({
             );
             // mark message as failed in UI
             const currentRoom = get().messagesRoom[roomId];
-            const updatedMessages = (currentRoom?.messages || []).map((msg) =>
+            const msgs = getAllMessagesFromGroups(currentRoom);
+            const updatedMessages = msgs.map((msg) =>
               msg.id === id ? { ...msg, status: "failed" as const } : msg
             );
             set({
               messagesRoom: {
                 ...get().messagesRoom,
-                [roomId]: {
-                  ...currentRoom,
-                  messages: updatedMessages,
-                },
+                [roomId]: updateRoomDataWithGroups(currentRoom, updatedMessages, currentRoom?.lastReadMessageId),
               },
             });
           }
@@ -304,16 +508,14 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           console.error("❌ Upload failed:", error);
           // Update message status to failed
           const currentRoom = get().messagesRoom[roomId];
-          const updatedMessages = (currentRoom?.messages || []).map((msg) =>
+          const msgs = getAllMessagesFromGroups(currentRoom);
+          const updatedMessages = msgs.map((msg) =>
             msg.id === id ? { ...msg, status: "failed" as const } : msg
           );
           set({
             messagesRoom: {
               ...get().messagesRoom,
-              [roomId]: {
-                ...currentRoom,
-                messages: updatedMessages,
-              },
+              [roomId]: updateRoomDataWithGroups(currentRoom, updatedMessages, currentRoom?.lastReadMessageId),
             },
           });
         });
@@ -367,13 +569,12 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         return;
       }
 
-      // Map và sanitize messages từ API
+      // No need to compute fields
       const newMessages = response.data.metadata.map((msg: MessageType) => ({
-        ...msg,
-        roomId,
-        isRead: true,
-        status: (msg.status || "delivered") as MessageType["status"],
-        attachments: sanitizeAttachmentsFromAPI(msg.attachments),
+          ...msg,
+          roomId,
+          status: (msg.status || "delivered") as MessageType["status"],
+          attachments: sanitizeAttachmentsFromAPI(msg.attachments),
       }));
 
       // Lưu từng tin nhắn vào IndexedDB
@@ -385,12 +586,13 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
       // Cập nhật state
       const currentRoom = get().messagesRoom[roomId] || {
-        messages: [],
+        groups: [],
+        displayedMessagesCount: 20,
         input: null,
         attachments: null,
         reply: null,
       };
-      const currentMessages = currentRoom.messages || [];
+      const currentMessages = getAllMessagesFromGroups(currentRoom);
 
       // Lọc ra những tin nhắn chưa có trong state
       const uniqueNewMessages = newMessages.filter(
@@ -400,17 +602,78 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
       if (uniqueNewMessages.length > 0) {
         // Cập nhật messages trong room
+        const updatedMsgs = [...currentMessages, ...uniqueNewMessages];
         set((state) => ({
           ...state,
           messagesRoom: {
             ...state.messagesRoom,
-            [roomId]: {
-              ...currentRoom,
-              messages: [...currentMessages, ...uniqueNewMessages],
-            },
+            [roomId]: updateRoomDataWithGroups(
+
+              currentRoom,
+              updatedMsgs,
+              currentRoom?.lastReadMessageId
+            ),
           },
           isLoading: false,
         }));
+        
+        // Update Room Optimistically
+        try {
+             // Sort uniqueNewMessages by createdAt just to be sure
+             const sortedNew = [...uniqueNewMessages].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+             const latestMsg = sortedNew[sortedNew.length - 1];
+             
+             const roomStore = useRoomStore.getState();
+             const targetRoom = roomStore.getRoomByRoomId(roomId);
+             
+             if (targetRoom && latestMsg) {
+                 const currentUser = useAuthStore.getState().user;
+                 const isMine = latestMsg.sender.id === currentUser?._id;
+                 let snippet = latestMsg.content || "";
+                 // Simplified check
+                 if (latestMsg.type === 'image') {
+                    snippet = i18n.t('chat.message.type.image') || "[Image]";
+                 } else if (latestMsg.type === 'file' || latestMsg.type === 'document') {
+                     snippet = i18n.t('chat.message.type.file') || "[File]";
+                 } else if (latestMsg.attachments && latestMsg.attachments.length > 0) {
+                     const firstAtt = latestMsg.attachments[0];
+                     if (firstAtt.mimeType?.startsWith('image') || firstAtt.kind === 'image') {
+                          snippet = i18n.t('chat.message.type.image') || "[Image]";
+                     } else {
+                          snippet = i18n.t('chat.message.type.file') || "[File]";
+                     }
+                 }
+                 
+                 const currentRoomTime = targetRoom.last_message?.createdAt ? new Date(targetRoom.last_message.createdAt).getTime() : 0;
+                 if (new Date(latestMsg.createdAt).getTime() >= currentRoomTime) {
+                      const updatedRoom: roomType = {
+                         ...targetRoom,
+                         updatedAt: latestMsg.createdAt,
+                         last_message: {
+                             id: latestMsg.id,
+                             content: snippet,
+                             createdAt: latestMsg.createdAt,
+                             sender: {
+                                 id: latestMsg.sender.id || latestMsg.sender._id || "",
+                                 name: latestMsg.sender.fullname || "",
+                                 avatar: latestMsg.sender.avatar || ""
+                             },
+                             isMine: isMine
+                         }
+                     };
+                     // If active room, ensure read status
+                     if (roomStore.room?.id === roomId) {
+                         updatedRoom.unread_count = 0;
+                         updatedRoom.is_read = true;
+                     }
+                     roomStore.updateRoomSocket(updatedRoom);
+                 }
+             }
+
+        } catch (e) {
+             console.error("Error updating room from fetchNewMessages", e);
+        }
+
       } else {
         set((state) => ({ ...state, isLoading: false }));
       }
@@ -427,27 +690,32 @@ const useMessageStore = create<MessageState>()((set, get) => ({
   resendMessage: async (roomId: string, messageId: string, socket?: any) => {
     const state = get();
     const currentRoom = state.messagesRoom[roomId];
-    if (!currentRoom?.messages) return;
+    if (!currentRoom) return;
+
+    // Retrieve all messages from groups to find the target
+    const allMessages = getAllMessagesFromGroups(currentRoom);
 
     // Tìm message cần gửi lại
-    const message = currentRoom.messages.find((msg) => msg.id === messageId);
+    const message = allMessages.find((msg) => msg.id === messageId);
     if (!message) {
       console.error("❌ Message not found:", messageId);
       return;
     }
 
     // Cập nhật status về pending
-    const updatedMessages = currentRoom.messages.map((msg) =>
+    const updatedMessages = allMessages.map((msg) =>
       msg.id === messageId ? { ...msg, status: "pending" as const } : msg
     );
 
     set({
       messagesRoom: {
         ...state.messagesRoom,
-        [roomId]: {
-          ...currentRoom,
-          messages: updatedMessages,
-        },
+        [roomId]: updateRoomDataWithGroups(
+          currentRoom,
+          updatedMessages,
+          currentRoom.lastReadMessageId,
+          currentRoom.displayedMessagesCount
+        ),
       },
     });
 
@@ -492,7 +760,8 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       } else {
         // Không còn cái nào failed -> dùng lại attachments hiện tại trong state (refresh)
         const refreshedRoom = get().messagesRoom[roomId];
-        const refreshedMsg = refreshedRoom?.messages.find(
+        const refreshedMsgs = getAllMessagesFromGroups(refreshedRoom);
+        const refreshedMsg = refreshedMsgs.find(
           (m) => m.id === messageId
         );
         finalAttachments = refreshedMsg?.attachments || allAttachments;
@@ -523,17 +792,20 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           messageId
         );
 
-        const failedMessages = get().messagesRoom[roomId]?.messages.map((msg) =>
+        const curRoom = get().messagesRoom[roomId];
+        const curMsgs = getAllMessagesFromGroups(curRoom);
+        const failedMessages = curMsgs.map((msg) =>
           msg.id === messageId ? { ...msg, status: "failed" as const } : msg
         );
 
         set({
           messagesRoom: {
             ...get().messagesRoom,
-            [roomId]: {
-              ...get().messagesRoom[roomId],
-              messages: failedMessages || [],
-            },
+            [roomId]: updateRoomDataWithGroups(
+              curRoom,
+              failedMessages || [],
+              curRoom?.lastReadMessageId
+            ),
           },
         });
       }
@@ -542,17 +814,19 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
       // Cập nhật lại status về failed
       const current = get().messagesRoom[roomId];
-      const failedMessages = current?.messages.map((msg) =>
+      const currentMsgs = getAllMessagesFromGroups(current);
+      const failedMessages = currentMsgs.map((msg) =>
         msg.id === messageId ? { ...msg, status: "failed" as const } : msg
       );
 
       set({
         messagesRoom: {
           ...get().messagesRoom,
-          [roomId]: {
-            ...current,
-            messages: failedMessages || [],
-          },
+          [roomId]: updateRoomDataWithGroups(
+            current,
+            failedMessages || [],
+            current?.lastReadMessageId
+          ),
         },
       });
     }
@@ -587,13 +861,12 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
       // Validate response structure
       if (!response?.data?.metadata || !Array.isArray(response.data.metadata)) {
-        console.warn("⚠️ Invalid response structure from API:", response);
         return [];
       }
 
-      if (response.data.metadata.length === 0) {
-        return [];
-      }
+      // Lấy current user ID
+      const currentUser = useAuthStore.getState().user;
+      const currentUserId = currentUser?._id;
 
       // Map và sanitize messages từ API
       const messages = response.data.metadata.map((msg: MessageType) => ({
@@ -612,12 +885,13 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
       // Lấy room hiện tại và merge messages
       const currentRoom = get().messagesRoom[roomId] || {
-        messages: [],
+        groups: [],
+        displayedMessagesCount: 20,
         input: null,
         attachments: null,
         reply: null,
       };
-      const currentMessages = currentRoom.messages || [];
+      const currentMessages = getAllMessagesFromGroups(currentRoom);
 
       // Merge messages: loại bỏ duplicate dựa trên ID
       const mergedMessages = [...currentMessages];
@@ -642,10 +916,11 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       set({
         messagesRoom: {
           ...get().messagesRoom,
-          [roomId]: {
-            ...currentRoom,
-            messages: sortedMessages,
-          },
+          [roomId]: updateRoomDataWithGroups(
+            currentRoom,
+            sortedMessages,
+            currentRoom?.lastReadMessageId
+          ),
         },
       });
 
@@ -670,7 +945,8 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     );
 
     const prevRoom = get().messagesRoom[roomId] || {
-      messages: [],
+      groups: [],
+      displayedMessagesCount: 20,
       input: null,
       attachments: null,
       reply: null,
@@ -679,10 +955,11 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     set({
       messagesRoom: {
         ...get().messagesRoom,
-        [roomId]: {
-          ...prevRoom,
-          messages: sortedMessages,
-        },
+        [roomId]: updateRoomDataWithGroups(
+          prevRoom,
+          sortedMessages,
+          prevRoom?.lastReadMessageId
+        ),
       },
     });
   },
@@ -698,10 +975,13 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     status?: string
   ) => {
     const currentRoom = get().messagesRoom[roomId];
-    if (!currentRoom?.messages) return;
+    if (!currentRoom) return;
+
+    {/* Use helper to flatten groups */}
+    const prevMessages = getAllMessagesFromGroups(currentRoom);
 
     // Tìm message và cập nhật attachment progress
-    const updatedMessages = currentRoom.messages.map((msg) => {
+    const updatedMessages = prevMessages.map((msg) => {
       if (msg.id !== messageId) return msg;
 
       const updatedAttachments = (msg.attachments || []).map((att) =>
@@ -723,10 +1003,11 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     set({
       messagesRoom: {
         ...get().messagesRoom,
-        [roomId]: {
-          ...currentRoom,
-          messages: updatedMessages,
-        },
+        [roomId]: updateRoomDataWithGroups(
+          currentRoom,
+          updatedMessages,
+          currentRoom?.lastReadMessageId
+        ),
       },
     });
   },
@@ -885,17 +1166,19 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
     // Update attachments trong message
     const currentRoom = get().messagesRoom[roomId];
-    const updatedMessages = (currentRoom?.messages || []).map((msg) =>
+    const prevMessages = getAllMessagesFromGroups(currentRoom);
+    const updatedMessages = prevMessages.map((msg) =>
       msg.id === messageId ? { ...msg, attachments: updatedAttachments } : msg
     );
 
     set({
       messagesRoom: {
         ...get().messagesRoom,
-        [roomId]: {
-          ...currentRoom,
-          messages: updatedMessages,
-        },
+        [roomId]: updateRoomDataWithGroups(
+          currentRoom,
+          updatedMessages,
+          currentRoom?.lastReadMessageId
+        ),
       },
     });
 
@@ -913,13 +1196,14 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     limit: number = 100
   ): Promise<any[]> => {
     const currentRoom = get().messagesRoom[roomId];
-    if (!currentRoom?.messages || currentRoom.messages.length === 0) {
+    const msgs = getAllMessagesFromGroups(currentRoom);
+    if (!msgs || msgs.length === 0) {
       console.warn("No messages in local, skip loading older messages");
       return [];
     }
 
     // Lấy ID của tin nhắn cũ nhất hiện có
-    const oldestMessage = currentRoom.messages[0];
+    const oldestMessage = msgs[0];
     const oldestMessageId = oldestMessage?.id;
 
     if (!oldestMessageId) {
@@ -950,7 +1234,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       if (olderMessages && olderMessages.length > 0) {
         // Get fresh state to avoid race conditions
         const freshRoom = get().messagesRoom[roomId];
-        const freshMessages = freshRoom?.messages || [];
+        const freshMessages = getAllMessagesFromGroups(freshRoom);
 
         // Filter out duplicates that might already exist in freshMessages
         const uniqueOlderMessages = olderMessages.filter(
@@ -969,10 +1253,11 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         set({
           messagesRoom: {
             ...get().messagesRoom,
-            [roomId]: {
-              ...freshRoom,
-              messages: updatedMessages,
-            },
+            [roomId]: updateRoomDataWithGroups(
+              freshRoom,
+              updatedMessages,
+              freshRoom?.lastReadMessageId
+            ),
           },
         });
 
@@ -1063,16 +1348,18 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       // Remove from local state
       const currentRoom = get().messagesRoom[roomId];
       if (currentRoom) {
-        const updatedMessages = currentRoom.messages.filter(
+        const msgs = getAllMessagesFromGroups(currentRoom);
+        const updatedMessages = msgs.filter(
           (msg) => msg.id !== messageId
         );
         set({
           messagesRoom: {
             ...get().messagesRoom,
-            [roomId]: {
-              ...currentRoom,
-              messages: updatedMessages,
-            },
+            [roomId]: updateRoomDataWithGroups(
+              currentRoom,
+              updatedMessages,
+              currentRoom?.lastReadMessageId
+            ),
           },
         });
 
@@ -1095,7 +1382,8 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       // Update message status to "recalled"
       const currentRoom = get().messagesRoom[roomId];
       if (currentRoom) {
-        const updatedMessages = currentRoom.messages.map((msg) =>
+        const msgs = getAllMessagesFromGroups(currentRoom);
+        const updatedMessages = msgs.map((msg) =>
           msg.id === messageId
             ? {
                 ...msg,
@@ -1108,15 +1396,16 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         set({
           messagesRoom: {
             ...get().messagesRoom,
-            [roomId]: {
-              ...currentRoom,
-              messages: updatedMessages,
-            },
+            [roomId]: updateRoomDataWithGroups(
+              currentRoom,
+              updatedMessages,
+              currentRoom?.lastReadMessageId
+            ),
           },
         });
 
         // Update IndexedDB
-        const msg = currentRoom.messages.find((m) => m.id === messageId);
+        const msg = msgs.find((m) => m.id === messageId);
         if (msg) {
           await upsertOne(
             db.messages,
@@ -1197,9 +1486,10 @@ const useMessageStore = create<MessageState>()((set, get) => ({
   ) => {
     const state = get();
     const currentRoom = state.messagesRoom[roomId];
-    if (!currentRoom?.messages) return;
-
-    const updatedMessages = currentRoom.messages.map((msg) =>
+    if (!currentRoom) return;
+    
+    const msgs = getAllMessagesFromGroups(currentRoom);
+    const updatedMessages = msgs.map((msg) =>
       msg.id === messageId ? { ...msg, summary } : msg
     );
 
@@ -1208,10 +1498,11 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     set({
       messagesRoom: {
         ...state.messagesRoom,
-        [roomId]: {
-          ...currentRoom,
-          messages: updatedMessages,
-        },
+        [roomId]: updateRoomDataWithGroups(
+          currentRoom,
+          updatedMessages,
+          currentRoom?.lastReadMessageId
+        ),
       },
     });
 
@@ -1227,9 +1518,10 @@ const useMessageStore = create<MessageState>()((set, get) => ({
   ) => {
     const state = get();
     const currentRoom = state.messagesRoom[roomId];
-    if (!currentRoom?.messages) return;
+    if (!currentRoom) return;
 
-    const updatedMessages = currentRoom.messages.map((msg) =>
+    const msgs = getAllMessagesFromGroups(currentRoom);
+    const updatedMessages = msgs.map((msg) =>
       msg.id === messageId ? { ...msg, translation } : msg
     );
 
@@ -1238,10 +1530,11 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     set({
       messagesRoom: {
         ...state.messagesRoom,
-        [roomId]: {
-          ...currentRoom,
-          messages: updatedMessages,
-        },
+        [roomId]: updateRoomDataWithGroups(
+          currentRoom,
+          updatedMessages,
+          currentRoom?.lastReadMessageId
+        ),
       },
     });
 
@@ -1272,7 +1565,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       reply: null,
     };
 
-    const prevMessages = prevRoom.messages || [];
+    const prevMessages = getAllMessagesFromGroups(prevRoom);
     const existingIndex = prevMessages.findIndex((m) => m.id === id);
 
     // Nếu không tìm thấy message → không làm gì
@@ -1329,10 +1622,11 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     set({
       messagesRoom: {
         ...state.messagesRoom,
-        [roomId]: {
-          ...prevRoom,
-          messages: updatedMessages,
-        },
+        [roomId]: updateRoomDataWithGroups(
+          prevRoom,
+          updatedMessages,
+          prevRoom?.lastReadMessageId
+        ),
       },
     });
 
@@ -1354,8 +1648,9 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       const state = get();
       const currentRoom = state.messagesRoom[roomId];
       if (!currentRoom) return;
-
-      const updatedMessages = (currentRoom.messages || []).map((msg) => {
+      
+      const msgs = getAllMessagesFromGroups(currentRoom);
+      const updatedMessages = msgs.map((msg) => {
         if (msg.id !== messageId) return msg;
 
         // Nếu đã failed thì giữ nguyên
@@ -1376,13 +1671,45 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       set({
         messagesRoom: {
           ...state.messagesRoom,
-          [roomId]: {
-            ...currentRoom,
-            messages: updatedMessages,
-          },
+          [roomId]: updateRoomDataWithGroups(
+            currentRoom,
+            updatedMessages,
+            currentRoom?.lastReadMessageId
+          ),
         },
       });
     }, delayMs);
+  },
+  setDisplayedMessagesCount: (roomId: string, count: number) => {
+    const currentRoom = get().messagesRoom[roomId];
+    if (!currentRoom) return;
+
+    set({
+      messagesRoom: {
+        ...get().messagesRoom,
+        [roomId]: updateRoomDataWithGroups(
+          currentRoom,
+          getAllMessagesFromGroups(currentRoom),
+          currentRoom.lastReadMessageId,
+          count
+        ),
+      },
+    });
+  },
+  setLastReadMessageId: (roomId: string, messageId: string | null) => {
+    const currentRoom = get().messagesRoom[roomId];
+    if (!currentRoom) return;
+
+    set({
+      messagesRoom: {
+        ...get().messagesRoom,
+        [roomId]: updateRoomDataWithGroups(
+          currentRoom,
+          getAllMessagesFromGroups(currentRoom),
+          messageId
+        ),
+      },
+    });
   },
   clearRoomMessages: async (roomId: string) => {
     await db.messages.where("roomId").equals(roomId).delete();

@@ -517,7 +517,22 @@ export const CompactFileGallery = ({
                       )}
 
                       {/* Nội dung file */}
-                      <div className="flex-1 flex items-center justify-center overflow-hidden px-4 py-4">
+                      <div className="flex-1 flex items-center justify-center overflow-hidden px-4 py-4 relative">
+                        {/* Summary Overlay */}
+                        {selectedFile.summary && (
+                          <div className="absolute top-4 left-4 z-50 max-w-sm">
+                             <div className="bg-black/60 backdrop-blur-md border border-white/10 rounded-xl p-3 text-white shadow-xl transition-all hover:bg-black/80">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                                  <span className="text-xs font-bold text-blue-300 uppercase tracking-wider">{t("chat.file.gallery.aiSummary", "AI Summary")}</span>
+                                </div>
+                                <p className="text-xs sm:text-sm leading-relaxed text-gray-200 max-h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20">
+                                  {selectedFile.summary}
+                                </p>
+                             </div>
+                          </div>
+                        )}
+
                         {normalizeKind(selectedFile) === "photo" && (
                           <button
                             type="button"

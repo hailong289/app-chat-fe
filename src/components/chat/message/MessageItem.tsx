@@ -9,6 +9,7 @@ import { ReplyPreview } from "./ReplyPreview";
 import { MessageType } from "@/store/types/message.state";
 import { ArrowPathIcon, EyeDropperIcon } from "@heroicons/react/16/solid";
 import { useTranslation } from "react-i18next";
+import useAuthStore from "@/store/useAuthStore";
 
 interface MessageItemProps {
   msg: MessageType;
@@ -42,6 +43,7 @@ interface MessageItemProps {
 }
 
 import { memo, useEffect } from "react";
+import isEqual from "react-fast-compare";
 
 export const MessageItem = memo(function MessageItem({
   msg,
@@ -74,6 +76,9 @@ export const MessageItem = memo(function MessageItem({
   messageState,
 }: Readonly<MessageItemProps>) {
   const { t } = useTranslation();
+  const currentUser = useAuthStore((state) => state.user);
+  const currentUserId = currentUser?.id;
+  const isMine = currentUserId ? msg.sender?.id === currentUserId : false;
 
   useEffect(() => {
     if (renderedMessageIds && !renderedMessageIds.current.has(msg.id)) {
@@ -83,13 +88,13 @@ export const MessageItem = memo(function MessageItem({
 
   const isSameSenderAsPrev = prevMsg?.sender._id === msg.sender._id;
   const isSameSenderAsNext = nextMsg?.sender._id === msg.sender._id;
-  const shouldAnimateThis = shouldAnimate && isNewMessage;
+  const shouldAnimateThis = shouldAnimate && isNewMessage && !renderedMessageIds?.current.has(msg.id);
 
   const PinnedIcon = () => {
     return (
       <button
         className={`absolute top-2 ${
-          msg.isMine ? "right-4" : "left-4"
+          isMine ? "right-4" : "left-4"
         } bg-blue-500 dark:bg-blue-400 rounded-full p-1 shadow-md hover:bg-blue-600 dark:hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-300 z-10`}
         onDoubleClick={() => onTogglePin(msg)}
       >
@@ -99,10 +104,13 @@ export const MessageItem = memo(function MessageItem({
       </button>
     );
   };
-
+  
+  // Custom pinned icon if needed logic check uses isMine which is available in scope
+  // The PinnedIcon component was accessing isMine correctly as long as it's defined in outer scope
+  
   // Small helper that renders the "Tin chưa đọc" divider
   const UnreadDivider = () => {
-    if (!(isUnreadDivider && !msg.isRead && !msg.isMine)) return null;
+    if (!isUnreadDivider) return null;
     return (
       <motion.div
         initial={shouldAnimate ? { opacity: 0, scale: 0.8 } : false}
@@ -120,7 +128,7 @@ export const MessageItem = memo(function MessageItem({
             duration: shouldAnimate ? 0.6 : 0,
             delay: shouldAnimate ? 0.2 : 0,
           }}
-          className="flex-1 h-px bg-gradient-to-r from-transparent via-red-400 dark:via-red-500 to-transparent"
+          className="flex-1 h-px bg-linear-to-r from-transparent via-red-400 dark:via-red-500 to-transparent"
         ></motion.div>
         <motion.span
           initial={shouldAnimate ? { scale: 0 } : false}
@@ -135,7 +143,7 @@ export const MessageItem = memo(function MessageItem({
                 }
               : { duration: 0 }
           }
-          className="bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-lg"
+          className="bg-linear-to-r from-red-500 to-pink-500 text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-lg"
         >
           ✨ {t("chat.messages.item.unread")}
         </motion.span>
@@ -146,7 +154,7 @@ export const MessageItem = memo(function MessageItem({
             duration: shouldAnimate ? 0.6 : 0,
             delay: shouldAnimate ? 0.2 : 0,
           }}
-          className="flex-1 h-px bg-gradient-to-r from-transparent via-red-400 dark:via-red-500 to-transparent"
+          className="flex-1 h-px bg-linear-to-r from-transparent via-red-400 dark:via-red-500 to-transparent"
         ></motion.div>
       </motion.div>
     );
@@ -154,13 +162,14 @@ export const MessageItem = memo(function MessageItem({
 
   // Renders small read avatars + overflow count
   const ReadAvatars = ({ reads, count }: { reads?: any[]; count?: number }) => {
+    console.log("🚀 ~ ReadAvatars ~ reads:", reads)
     if (!reads || (count ?? 0) <= 0) return null;
     return (
       <div className="flex gap-1 items-end mb-1">
         {(reads || []).slice(0, 3).map((read_by: any) => (
           <Tooltip
             key={read_by.user.id}
-            content={read_by.user.fullname || "User"}
+            content={`${read_by.user.fullname || "User"} • ${formatMessageTime(read_by.readAt)}`}
             size="sm"
           >
             <Avatar
@@ -181,10 +190,10 @@ export const MessageItem = memo(function MessageItem({
 
   // Avatar slot component to avoid duplicating markup
   const AvatarSlot = ({ side }: { side: "left" | "right" }) => {
-    if (side === "left" && msg.isMine) return null;
-    if (side === "right" && !msg.isMine) return null;
+    if (side === "left" && isMine) return null;
+    if (side === "right" && !isMine) return null;
     return (
-      <div className="w-8 flex-shrink-0">
+      <div className="w-8 shrink-0">
         {showAvatar ? (
           <Avatar
             src={msg.sender.avatar || undefined}
@@ -206,10 +215,10 @@ export const MessageItem = memo(function MessageItem({
     return (
       <div
         className={`flex items-center gap-1 mt-1 ${
-          msg.isMine ? "flex-row-reverse" : "flex-row"
+          isMine ? "flex-row-reverse" : "flex-row"
         }`}
       >
-        {msg.status === "failed" && msg.isMine && (
+        {msg.status === "failed" && isMine && (
           <Button
             size="sm"
             color="danger"
@@ -227,9 +236,10 @@ export const MessageItem = memo(function MessageItem({
         <span className="text-xs text-gray-400 dark:text-gray-500">
           {formatMessageTime(msg.createdAt)}
         </span>
-        {msg.isMine && msg.status === "sent" && (
+        {isMine && msg.status === "sent" && (
           <span className="text-xs text-gray-400 dark:text-gray-500">
-            {(msg.read_by_count ?? 0) > 0 ? (
+            {/* Prefer read_by array length if available, fallback to count or 0 */}
+            {(msg.read_by?.length ?? msg.read_by_count ?? 0) > 0 ? (
               <Tooltip
                 content={t("chat.messages.item.seen")}
                 size="sm"
@@ -248,7 +258,7 @@ export const MessageItem = memo(function MessageItem({
             )}
           </span>
         )}
-        {msg.isMine &&
+        {isMine &&
           (msg.status === "pending" || msg.status === "uploading") && (
             <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center">
               <Tooltip
@@ -271,45 +281,49 @@ export const MessageItem = memo(function MessageItem({
   };
 
   return (
-    <motion.div
-      key={msg.id}
-      initial={
-        shouldAnimateThis
-          ? {
-              opacity: 0,
-              x: msg.isMine ? 20 : -20,
-              scale: 0.95,
-            }
-          : false
-      }
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={shouldAnimateThis ? { opacity: 0, scale: 0.95 } : undefined}
-      transition={{
-        duration: shouldAnimateThis ? 0.2 : 0,
-        ease: "easeOut",
-      }}
+    <div
       className={messageSpacing}
     >
+      <motion.div
+        layout
+        key={`msg-box-${msg.id}`}
+        initial={
+          shouldAnimateThis
+            ? {
+                opacity: 0,
+                x: isMine ? 20 : -20,
+                scale: 0.95,
+              }
+            : false
+        }
+        animate={{ opacity: 1, x: 0, scale: 1 }}
+        exit={shouldAnimateThis ? { opacity: 0, scale: 0.95 } : undefined}
+        transition={{
+          layout: { duration: 0.2, ease: "easeOut" },
+          opacity: { duration: 0.2 },
+          default: { duration: 0.2, ease: "easeOut" }
+        }}
+      >
       <UnreadDivider />
 
       <fieldset
         ref={setMessageRef(msg.id)}
         className={`relative flex items-end gap-2 group ${
-          msg.isMine ? "justify-end" : "justify-start"
+          isMine ? "justify-end" : "justify-start"
         }`}
         data-mid={msg.id}
       >
         {/* Pinned icon */}
-        {!msg.hiddenByMe && !msg.isDeleted && msg.pinned && <PinnedIcon />}
+        {!(currentUserId && msg.hiddenBy?.includes(currentUserId)) && !msg.isDeleted && msg.pinned && <PinnedIcon />}
 
         {/* Read avatars cho tin của mình (bên trái bubble) */}
-        {isLastInGroup && msg.isMine && (
-          <ReadAvatars reads={msg.read_by} count={msg.read_by_count} />
+        {isLastInGroup && isMine && (
+        <ReadAvatars reads={msg.read_by} count={msg.read_by_count} />
         )}
 
         <div
           className={`flex w-full items-end gap-2 group ${
-            msg.isMine ? "justify-end" : "justify-start"
+            isMine ? "justify-end" : "justify-start"
           }`}
         >
           {/* Avatar bên trái (tin người khác) */}
@@ -318,17 +332,17 @@ export const MessageItem = memo(function MessageItem({
           {/* Message bubble */}
           <div
             className={`flex flex-col max-w-md ${
-              msg.isMine ? "items-end" : "items-start"
+              isMine ? "items-end" : "items-start"
             }`}
           >
             <div
               className={`gap-3 flex justify-end items-center ${
-                msg.isMine ? "" : "flex-row-reverse"
+                isMine ? "" : "flex-row-reverse"
               }`}
             >
               <div
                 className={`flex gap-2 items-center ${
-                  msg.isMine ? "" : "flex-row-reverse"
+                  isMine ? "" : "flex-row-reverse"
                 }`}
               >
                 <MessageActions
@@ -349,7 +363,7 @@ export const MessageItem = memo(function MessageItem({
 
               <div
                 className={`flex flex-col ${
-                  msg.isMine ? "items-end" : "items-start"
+                  isMine ? "items-end" : "items-start"
                 }`}
               >
                 {/* Reply preview */}
@@ -358,7 +372,7 @@ export const MessageItem = memo(function MessageItem({
                 )}
 
                 {/* Tên người gửi */}
-                {!msg.isMine && !isSameSenderAsPrev && (
+                {!isMine && !isSameSenderAsPrev && (
                   <span className="text-xs text-gray-500 dark:text-gray-300 mb-1 ml-3 font-medium">
                     {msg.sender.fullname || "User"}
                   </span>
@@ -407,10 +421,41 @@ export const MessageItem = memo(function MessageItem({
         </div>
 
         {/* Read avatars for other people's last message */}
-        {!msg.isMine && msg.id === lastMsgId && (
-          <ReadAvatars reads={msg.read_by} count={msg.read_by_count} />
+        {!isMine && msg.id === lastMsgId && (
+        <ReadAvatars reads={msg.read_by} count={msg.read_by_count} />
         )}
       </fieldset>
-    </motion.div>
+      </motion.div>
+    </div>
   );
+}, (prevProps, nextProps) => {
+  // Custom comparison to prevent unnecessary re-renders
+  // We ignore handlers and refs as they should be stable or don't affect render output directly
+  
+  if (
+    prevProps.isFirstInGroup !== nextProps.isFirstInGroup ||
+    prevProps.isLastInGroup !== nextProps.isLastInGroup ||
+    prevProps.showAvatar !== nextProps.showAvatar ||
+    prevProps.messageSpacing !== nextProps.messageSpacing ||
+    prevProps.shouldAnimate !== nextProps.shouldAnimate ||
+    prevProps.isNewMessage !== nextProps.isNewMessage ||
+    prevProps.isExpanded !== nextProps.isExpanded ||
+    prevProps.isUnreadDivider !== nextProps.isUnreadDivider ||
+    prevProps.lastMsgId !== nextProps.lastMsgId ||
+    prevProps.chatId !== nextProps.chatId ||
+    prevProps.noAction !== nextProps.noAction
+  ) {
+    return false;
+  }
+
+  // Compare message content deeply if references change
+  if (prevProps.msg !== nextProps.msg) {
+     if (!isEqual(prevProps.msg, nextProps.msg)) return false;
+  }
+
+  // Check neighbors context (only sender ID matters for rendering groups)
+  if (prevProps.prevMsg?.sender._id !== nextProps.prevMsg?.sender._id) return false;
+  if (prevProps.nextMsg?.sender._id !== nextProps.nextMsg?.sender._id) return false;
+  
+  return true;
 });

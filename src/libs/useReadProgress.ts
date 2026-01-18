@@ -1,5 +1,4 @@
-// useReadProgress.ts
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useCallback } from "react";
 
 type MsgLite = { id: string; isMine?: boolean; deleted?: boolean };
 
@@ -18,202 +17,231 @@ export function useReadProgress(opts: {
     onCommit,
   } = opts;
 
-  // map id -> ref
-  const refMap = useRef(new Map<string, HTMLElement>());
-  const setRef = (id: string) => (el: HTMLElement | null) => {
-    if (!el) refMap.current.delete(id);
-    else refMap.current.set(id, el);
-  };
+  // 1. Keep data in refs to avoid restarting observer on data change
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
-  // id đã đọc tới (client)
+  const onCommitRef = useRef(onCommit);
+  onCommitRef.current = onCommit;
+
+  const observerRef = useRef<IntersectionObserver | undefined>(undefined);
+  
+  // Track last read to prevent backward jumps or duplicates
   const lastReadIdRef = useRef<string>("");
-
-  // index map để lấy "max đã thấy"
-  const indexOf = useMemo(() => {
+  
+  // Index lookup for O(1) comparison
+  // We keep this up to date synchronously with renders
+  const indexOfRef = useRef(new Map<string, number>());
+  
+  useMemo(() => {
     const m = new Map<string, number>();
     messages.forEach((msg, i) => m.set(msg.id, i));
-    return m;
+    indexOfRef.current = m;
   }, [messages]);
 
-  // debounce commit để tránh spam API khi kéo nhanh
-  const commitTimer = useRef<number | null>(null);
+  // Debounced commit
+  const commitTimer = useRef<NodeJS.Timeout | null>(null);
   const lastCommittedId = useRef<string>("");
 
-  const debouncedCommit = (id: string) => {
-    if (!onCommit || lastCommittedId.current === id) return;
-    if (commitTimer.current) window.clearTimeout(commitTimer.current);
-    commitTimer.current = window.setTimeout(() => {
+  const debouncedCommit = useCallback((id: string) => {
+    if (!onCommitRef.current || lastCommittedId.current === id) return;
+    
+    if (commitTimer.current) clearTimeout(commitTimer.current);
+    
+    // Tăng debounce lên chút cho an toàn với scroll nhanh
+    commitTimer.current = setTimeout(() => {
       lastCommittedId.current = id;
-      onCommit(id);
-    }, 300); // Tăng debounce lên 300ms
-  };
+      if (onCommitRef.current) {
+        onCommitRef.current(id);
+      }
+    }, 500);
+  }, []);
 
-  // Track observed elements để tránh re-observe
-  const observedIds = useRef(new Set<string>());
+  // Registry for ref callbacks to ensure stability
+  const refCallbacks = useRef(new Map<string, (el: HTMLElement | null) => void>());
+  // Store elements map for manual lookup if needed
+  const elementsMap = useRef(new Map<string, HTMLElement>());
 
+  // 2. Core Logic Helpers
+  const isAtBottom = useCallback(() => {
+    const target = container || document.documentElement;
+    // Use a slighly larger threshold (50px) to be safe
+    return target.scrollHeight - (target.scrollTop + target.clientHeight) <= 50;
+  }, [container]);
+
+  const hasScroll = useCallback(() => {
+    const target = container || document.documentElement;
+    return target.scrollHeight > target.clientHeight + 10;
+  }, [container]);
+
+  const getLastReadableMessageId = useCallback(() => {
+    const msgs = messagesRef.current;
+    // Scan backwards
+    for (let i = msgs.length - 1; i >= 0; i--) {
+        const msg = msgs[i];
+        if (!msg.isMine && !msg.deleted) {
+            return msg.id;
+        }
+    }
+    return null;
+  }, []);
+
+  const updateLastRead = useCallback((id: string) => {
+    const indexOf = indexOfRef.current;
+    const currentIdx = indexOf.get(lastReadIdRef.current) ?? -1;
+    const newIdx = indexOf.get(id) ?? -1;
+
+    // Only advance forward
+    if (newIdx > currentIdx) {
+      lastReadIdRef.current = id;
+      debouncedCommit(id);
+    }
+  }, [debouncedCommit]);
+
+  // 3. Setup Observer (Runs once per container/options change)
   useEffect(() => {
-    if (!messages.length) return;
+    const handleIntersect: IntersectionObserverCallback = (entries) => {
+      // Fast path: if at bottom, mark latest as read immediately
+      if (isAtBottom()) {
+        const lastId = getLastReadableMessageId();
+        if (lastId) updateLastRead(lastId); 
+        return; 
+      }
 
+      // Normal path: Find max visible index
+      const visibleEntries = entries.filter(
+        (e) => e.isIntersecting && e.intersectionRatio >= (minVisibleRatio || 0.5)
+      );
+
+      if (visibleEntries.length === 0) return;
+
+      const msgs = messagesRef.current;
+      const indexOf = indexOfRef.current;
+      
+      let maxIdx = -1;
+      let maxId: string | null = null;
+
+      for (const entry of visibleEntries) {
+        const el = entry.target as HTMLElement;
+        const id = el.dataset.mid; 
+        
+        if (!id) continue;
+
+        const idx = indexOf.get(id);
+        if (idx === undefined) continue;
+        
+        const msg = msgs[idx];
+        if (!msg || msg.isMine || msg.deleted) continue;
+
+        if (idx > maxIdx) {
+          maxIdx = idx;
+          maxId = id;
+        }
+      }
+
+      if (maxId) {
+        updateLastRead(maxId);
+      }
+    };
+
+    const io = new IntersectionObserver(handleIntersect, {
+      root: container,
+      rootMargin: `0px 0px -${stickyBottomPx}px 0px`,
+      threshold: [0, (minVisibleRatio || 0.5)], // Minimal thresholds
+    });
+
+    observerRef.current = io;
+
+    // Re-observe all currently mounted elements
+    // This handles the case where IO is re-created but elements persist
+    elementsMap.current.forEach((el) => {
+       io.observe(el);
+    });
+
+    return () => {
+      io.disconnect();
+      observerRef.current = undefined;
+    };
+  }, [container, stickyBottomPx, minVisibleRatio, isAtBottom, getLastReadableMessageId, updateLastRead]);
+
+  // 4. Stable Ref Factory
+  const getRef = useCallback((id: string) => {
+    const existing = refCallbacks.current.get(id);
+    if (existing) return existing;
+
+    const cb = (el: HTMLElement | null) => {
+      const io = observerRef.current;
+      if (el) {
+        elementsMap.current.set(id, el);
+        el.dataset.mid = id; 
+        
+        // Try to observe immediately if IO exists
+        if (observerRef.current) {
+             observerRef.current.observe(el);
+        } else {
+            // Queue for next tick if IO not ready (rare race condition)
+            setTimeout(() => {
+                observerRef.current?.observe(el);
+            }, 0);
+        }
+      } else {
+        const prevEl = elementsMap.current.get(id);
+        if (prevEl && observerRef.current) {
+            observerRef.current.unobserve(prevEl);
+        }
+        elementsMap.current.delete(id);
+      }
+    };
+    
+    refCallbacks.current.set(id, cb);
+    return cb;
+  }, []);
+
+  // 5. Scroll Fallback
+  useEffect(() => {
+    const target = container || window;
     let ticking = false;
 
-    // Optimized: Check if container has scroll
-    const hasScroll = (): boolean => {
-      if (!container) {
-        const { scrollHeight, clientHeight } = document.documentElement;
-        return scrollHeight > clientHeight + 10; // 10px threshold
-      } else {
-        const { scrollHeight, clientHeight } = container;
-        return scrollHeight > clientHeight + 10;
-      }
-    };
-
-    // Optimized: Check if scrolled to bottom
-    const isAtBottom = (): boolean => {
-      if (!container) {
-        const { scrollHeight, scrollTop, clientHeight } =
-          document.documentElement;
-        return scrollHeight - (scrollTop + clientHeight) <= 50;
-      } else {
-        const { scrollHeight, scrollTop, clientHeight } = container;
-        return scrollHeight - (scrollTop + clientHeight) <= 50;
-      }
-    };
-
-    // Mark last visible message as read
-    const updateLastRead = (id: string) => {
-      const currentIdx = indexOf.get(lastReadIdRef.current) ?? -1;
-      const newIdx = indexOf.get(id) ?? -1;
-
-      if (newIdx > currentIdx) {
-        lastReadIdRef.current = id;
-        debouncedCommit(id);
-      }
-    };
-
-    // Find last non-mine message
-    const getLastReadableMessageId = (): string | null => {
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const msg = messages[i];
-        if (!msg.isMine && !msg.deleted) {
-          return msg.id;
-        }
-      }
-      return null;
-    };
-
-    // 🔥 Mark all as read if no scroll (all messages visible)
-    const markAllAsReadIfNoScroll = () => {
-      if (!hasScroll()) {
-        const lastId = getLastReadableMessageId();
-        if (lastId) {
-          updateLastRead(lastId);
-        }
-        return true;
-      }
-      return false;
-    };
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        // Nếu đang ở bottom, mark hết luôn
-        if (isAtBottom()) {
-          const lastId = getLastReadableMessageId();
-          if (lastId) updateLastRead(lastId);
-          return;
-        }
-
-        // Lấy những entry visible
-        const visible = entries
-          .filter(
-            (e) => e.isIntersecting && e.intersectionRatio >= minVisibleRatio
-          )
-          .map((e) => e.target as HTMLElement);
-
-        if (visible.length === 0) return;
-
-        // Lấy message có index lớn nhất
-        let maxIdx = -1;
-        let maxId: string | null = null;
-
-        for (const el of visible) {
-          const id = el.dataset.mid;
-          if (!id) continue;
-
-          const msg = messages[indexOf.get(id)!];
-          if (msg?.isMine || msg?.deleted) continue;
-
-          const idx = indexOf.get(id);
-          if (idx != null && idx > maxIdx) {
-            maxIdx = idx;
-            maxId = id;
-          }
-        }
-
-        if (maxId) {
-          updateLastRead(maxId);
-        }
-      },
-      {
-        root: container ?? null,
-        rootMargin: `0px 0px -${stickyBottomPx}px 0px`,
-        threshold: [0, 0.25, 0.5, 0.75, 1], // Giảm từ 10 xuống 5 threshold
-      }
-    );
-
-    // Chỉ observe messages mới (chưa được observe)
-    for (const msg of messages) {
-      if (observedIds.current.has(msg.id)) continue;
-
-      const el = refMap.current.get(msg.id);
-      if (el) {
-        io.observe(el);
-        observedIds.current.add(msg.id);
-      }
-    }
-
-    // Optimized scroll handler với RAF
-    const handleScroll = () => {
+    const onScroll = () => {
       if (ticking) return;
-
       ticking = true;
       requestAnimationFrame(() => {
         if (isAtBottom()) {
-          const lastId = getLastReadableMessageId();
-          if (lastId) updateLastRead(lastId);
+            const lastId = getLastReadableMessageId();
+            if (lastId) updateLastRead(lastId);
         }
         ticking = false;
       });
     };
 
-    // Add scroll listener only if has scroll
-    const scrollTarget = container ?? window;
-    if (hasScroll()) {
-      scrollTarget.addEventListener("scroll", handleScroll, { passive: true });
-    }
-
-    // Initial check - với delay để đảm bảo DOM đã render
-    const initialCheckTimer = setTimeout(() => {
-      // Check if no scroll - mark all as read
-      if (markAllAsReadIfNoScroll()) {
-        return; // Already marked all as read
-      }
-
-      // Otherwise check if at bottom
-      if (isAtBottom()) {
-        const lastId = getLastReadableMessageId();
-        if (lastId) updateLastRead(lastId);
-      }
-    }, 100); // Delay 100ms để DOM render xong
+    target.addEventListener("scroll", onScroll, { passive: true });
+    
+    // Initial check
+    const timer = setTimeout(() => {
+        if (!hasScroll()) {
+             const lastId = getLastReadableMessageId();
+             if (lastId) updateLastRead(lastId);
+        } else if (isAtBottom()) {
+             const lastId = getLastReadableMessageId();
+             if (lastId) updateLastRead(lastId);
+        }
+    }, 500);
 
     return () => {
-      io.disconnect();
-      observedIds.current.clear();
-      scrollTarget.removeEventListener("scroll", handleScroll);
-      if (commitTimer.current) window.clearTimeout(commitTimer.current);
-      clearTimeout(initialCheckTimer);
+      target.removeEventListener("scroll", onScroll);
+      clearTimeout(timer);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length, container, stickyBottomPx, minVisibleRatio]);
+  }, [container, hasScroll, isAtBottom, getLastReadableMessageId, updateLastRead]);
 
-  return { setMessageRef: setRef, lastReadId: lastReadIdRef.current };
+  // Clean up timers
+  useEffect(() => {
+      return () => {
+          if (commitTimer.current) clearTimeout(commitTimer.current);
+      }
+  }, []);
+
+  return { 
+      setMessageRef: getRef,
+      lastReadId: lastReadIdRef.current 
+  };
 }

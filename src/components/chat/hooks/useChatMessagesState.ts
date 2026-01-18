@@ -7,8 +7,6 @@ export function useChatMessagesState(chatId: string) {
   );
   const [isBottomVisible, setIsBottomVisible] = useState(false);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
-  const [displayedMessagesCount, setDisplayedMessagesCount] =
-    useState(MESSAGES_PER_GROUP);
   const [isLoadingFromAPI, setIsLoadingFromAPI] = useState(false);
   const [hasMoreOnServer, setHasMoreOnServer] = useState(true);
   const [isFetchingNewMessages, setIsFetchingNewMessages] = useState(false);
@@ -36,8 +34,6 @@ export function useChatMessagesState(chatId: string) {
     setIsBottomVisible,
     isLoadingOlder,
     setIsLoadingOlder,
-    displayedMessagesCount,
-    setDisplayedMessagesCount,
     isLoadingFromAPI,
     setIsLoadingFromAPI,
     hasMoreOnServer,

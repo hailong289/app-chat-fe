@@ -1,6 +1,8 @@
+"use client";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageItem } from "./MessageItem";
 import { MessageType } from "@/store/types/message.state";
+import useAuthStore from "@/store/useAuthStore";
 
 interface MessageGroupProps {
   group: {
@@ -54,6 +56,9 @@ export const MessageGroup = memo(
     setMessageRef,
     messageState,
   }: Readonly<Omit<MessageGroupProps, "groupIdx">>) {
+    const currentUser = useAuthStore((state) => state.user);
+    const currentUserId = currentUser?._id;
+
     return (
       <div className="space-y-4">
         {/* Date divider */}
@@ -110,8 +115,14 @@ export const MessageGroup = memo(
             // A `useEffect` inside MessageItem is a better place.
 
             const isExpanded = expandedMessages.has(msg.id);
+
+            const isMine = currentUserId ? msg.sender?._id === currentUserId : false;
+            const isReadByMe = currentUserId && msg.read_by 
+              ? msg.read_by.some(r => r.user?._id === currentUserId) 
+              : false;
+
             const isUnreadDivider =
-              group.newMessageIndex === msgIdx && !msg.isRead && !msg.isMine;
+              group.newMessageIndex === msgIdx && !isReadByMe && !isMine;
 
             return (
               <MessageItem
@@ -207,12 +218,16 @@ export const MessageGroup = memo(
       return (
         msg.id === nextMsg.id &&
         msg.status === nextMsg.status &&
-        msg.read_by_count === nextMsg.read_by_count &&
+        // Compatibility check for read_by (array/length) vs old count
+        (msg.read_by_count ?? msg.read_by?.length ?? 0) === 
+        (nextMsg.read_by_count ?? nextMsg.read_by?.length ?? 0) &&
         msg.editedAt === nextMsg.editedAt &&
-        msg.isRead === nextMsg.isRead
+        // Check for new hiddenBy field changes
+        (msg.hiddenBy?.length ?? 0) === (nextMsg.hiddenBy?.length ?? 0)
       );
     });
 
-    return true;
   }
 );
+
+export default MessageGroup;
