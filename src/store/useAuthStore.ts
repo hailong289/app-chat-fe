@@ -2,17 +2,16 @@ import { create } from "zustand";
 import { AuthState } from "./types/auth.state";
 import { createJSONStorage, persist } from "zustand/middleware";
 import AuthService from "@/service/auth.service";
-import { deleteCookie, setCookie } from "cookies-next";
+import { deleteCookie, getCookie, setCookie } from "cookies-next";
 import Dexie from "dexie";
 import * as LocalStorageUtils from "@/utils/localStorage";
 import { AuthResponse } from "@/types/auth.type";
-import apiService from "@/service/api.service";
 
 // Lưu trạng thái xác thực trong localStorage
 const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      isAuthenticated: false,
+      isAuthenticated: Boolean(getCookie("tokens")),
       isLoading: false,
       user: null,
       tokens: {
@@ -20,7 +19,7 @@ const useAuthStore = create<AuthState>()(
         refreshToken: null,
         expiresIn: 0,
         expiredAt: 0,
-      },
+      },     
       login: async (payload) => {
         set({ isLoading: true });
         const { username, password, fcmToken } = payload;
@@ -161,8 +160,8 @@ const useAuthStore = create<AuthState>()(
               path: "/",
             }
           );
-        } catch (error) {
-          console.error("Manual refresh failed:", error);
+        } catch (error: any) {
+          console.error("Manual refresh failed:", error?.message || error);
           // 5. Nếu refresh thất bại (token hết hạn hẳn hoặc bị revoke) -> Logout
           get().logout();
         }
