@@ -26,10 +26,13 @@ export const AddMemberModal = ({ isOpen, onClose }: Props) => {
   const [memberIds, setMemberIds] = useState<string[]>([]);
 
   // Chỉ lấy đúng field cần
-  const contacts = useContactStore((state) => state.contacts);
+  const contacts = useContactStore((state) => state.eligibleContacts);
   const roomState = useRoomStore((state) => state);
   // Reset form mỗi lần modal đóng
   useEffect(() => {
+    if (isOpen) {
+      useContactStore.getState().syncEligibleContacts();
+    }
     if (!isOpen) {
       setSearchTerm("");
       setMemberIds([]);
@@ -41,7 +44,7 @@ export const AddMemberModal = ({ isOpen, onClose }: Props) => {
     const currentMemberIds = roomState.room?.members.map((m) => m.id) || [];
 
     const availableContacts = contacts.filter(
-      (c) => !currentMemberIds.includes(c.id)
+      (c) => !currentMemberIds.includes(c.id),
     );
 
     if (!searchTerm.trim()) return availableContacts;
@@ -49,7 +52,7 @@ export const AddMemberModal = ({ isOpen, onClose }: Props) => {
     const lower = searchTerm.toLowerCase();
 
     return availableContacts.filter((c) =>
-      c.fullname.toLowerCase().includes(lower)
+      c.fullname.toLowerCase().includes(lower),
     );
   }, [contacts, searchTerm, roomState.room]);
 

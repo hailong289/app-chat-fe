@@ -18,6 +18,8 @@ import {
   ChevronDoubleRightIcon,
 } from "@heroicons/react/24/solid";
 import useCounterStore from "@/store/useCounterStore";
+import { useSocket } from "@/components/providers/SocketProvider";
+import useRoomStore from "@/store/useRoomStore";
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const firebase = useFirebase();
@@ -28,7 +30,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const DEFAULT_SIDEBAR_WIDTH = 320;
   const COLLAPSED_SIDEBAR_WIDTH = 72;
   const [sidebarWidth, setSidebarWidth] = useState(
-    collapsedSidebar ? COLLAPSED_SIDEBAR_WIDTH : DEFAULT_SIDEBAR_WIDTH
+    collapsedSidebar ? COLLAPSED_SIDEBAR_WIDTH : DEFAULT_SIDEBAR_WIDTH,
   );
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement | null>(null);
@@ -42,6 +44,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const MIN_SIDEBAR_WIDTH = 240;
   const MAX_SIDEBAR_WIDTH = 480;
 
+  // Socket Listener for Room Updates
+  const { socket } = useSocket();
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -52,7 +56,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   // Những route dùng layout app chính
   const appRoutes = ["/", "/chat", "/settings", "/contacts", "/docs"];
   const isInAppRoute = appRoutes.some(
-    (route) => path === route || path.startsWith(`${route}/`)
+    (route) => path === route || path.startsWith(`${route}/`),
   );
 
   // Dùng layout đơn giản cho: auth + các route không thuộc appRoutes (kiểu 404 / intro riêng)
@@ -73,7 +77,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const validRoutes = ["/", "/chat", "/settings", "/contacts"];
   const isValidRoute =
     !validRoutes.some(
-      (route) => path === route || path.startsWith(route + "/")
+      (route) => path === route || path.startsWith(route + "/"),
     ) ||
     isAuthPage ||
     path.startsWith("/call");
@@ -95,7 +99,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       };
       setIsResizing(true);
     },
-    [collapsedSidebar, sidebarWidth, toggleSidebar]
+    [collapsedSidebar, sidebarWidth, toggleSidebar],
   );
 
   useEffect(() => {
@@ -105,7 +109,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       const delta = event.clientX - dragStateRef.current.startX;
       const nextWidth = Math.max(
         MIN_SIDEBAR_WIDTH,
-        Math.min(MAX_SIDEBAR_WIDTH, dragStateRef.current.startWidth + delta)
+        Math.min(MAX_SIDEBAR_WIDTH, dragStateRef.current.startWidth + delta),
       );
       setSidebarWidth(nextWidth);
       dragStateRef.current.lastWidth = nextWidth;
@@ -159,7 +163,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         </Button>
       </Tooltip>
     ),
-    [collapsedSidebar, toggleSidebar]
+    [collapsedSidebar, toggleSidebar],
   );
 
   if (isValidRoute) {

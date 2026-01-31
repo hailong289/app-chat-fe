@@ -17,6 +17,7 @@ export enum socketEvent {
   ROOMDELETE = "room:delete",
   MSGMARKREAD = "mark:read",
   CALL = "call:request",
+  ROOM_REFRESH = "room:refresh",
 }
 
 export enum notifyType {

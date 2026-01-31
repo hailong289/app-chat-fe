@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useEffect } from "react";
 import Image from "next/image";
 import { ChevronUpIcon, XMarkIcon } from "@heroicons/react/24/solid";
 import { Card, CardBody, Avatar, Badge, Button, Tooltip } from "@heroui/react";
@@ -8,6 +8,7 @@ import useContactStore from "@/store/useContactStore";
 import formatTimeAgo from "@/libs/forrmattime";
 import useAuthStore from "@/store/useAuthStore";
 import useCounterStore from "@/store/useCounterStore";
+import { useSocket } from "../providers/SocketProvider";
 
 const Messages: React.FC = () => {
   const contactState = useContactStore((state) => state);
@@ -18,8 +19,16 @@ const Messages: React.FC = () => {
   const handleClose = () => () => {
     router.push(pathname || "/");
   };
+  const { socket } = useSocket("/chat");
+
+  useEffect(() => {
+    if (socket && socket.connected) {
+      contactState.checkOnlineStatus(socket);
+    }
+  }, [socket]);
+
   const recentUpdates = contactState.online.filter(
-    (contact) => contact.id !== authState.user?.id
+    (contact) => contact.id !== authState.user?.id,
   );
 
   if (isCollapsed) {

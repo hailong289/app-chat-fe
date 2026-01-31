@@ -22,6 +22,7 @@ export interface ContactState {
   contact: ContactType | null;
   searchResults: ContactType[];
   online: ContactType[];
+  eligibleContacts: any[];
   inviteds: ContactType[];
   sent: ContactType[];
   friends: ContactType[];
@@ -30,6 +31,7 @@ export interface ContactState {
   search: (search: string) => Promise<void>;
   setContact: (id: string) => Promise<void>;
   getAllContacts: () => Promise<ContactType[]>;
+  syncEligibleContacts: () => void;
   sendInvitation: ({
     userId,
     receiverId,

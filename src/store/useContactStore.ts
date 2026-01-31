@@ -1,17 +1,20 @@
 import { metadata } from "./../app/settings/layout";
 import { create } from "zustand";
+import useAuthStore from "./useAuthStore";
 import { ContactState } from "./types/contact.type";
 import { createJSONStorage, persist } from "zustand/middleware";
 import ContactService from "@/service/contact.service";
 import { getOne, upsertMany, upsertOne } from "@/libs/crud";
 import { db } from "@/libs/db";
 import { socketEvent } from "@/types/socketEvent.type";
+import useRoomStore from "./useRoomStore";
 
 const useContactStore = create<ContactState>()(
   persist(
     (set, get) => ({
       isLoading: false,
       contacts: [],
+      eligibleContacts: [],
       searchResults: [],
       inviteds: [],
       sent: [],
@@ -24,7 +27,44 @@ const useContactStore = create<ContactState>()(
       getAllContacts: async () => {
         const allContacts = await db.contacts.toArray();
         set({ contacts: allContacts });
+        get().syncEligibleContacts();
         return allContacts;
+      },
+      syncEligibleContacts: () => {
+        const friends = get().friends;
+        const rooms = useRoomStore.getState().rooms;
+        const myId = useAuthStore.getState().user?.id;
+
+        const eligibleMap = new Map<string, any>();
+
+        // 1. Thêm bạn bè vào
+        friends.forEach((f) => {
+          eligibleMap.set(f.id, {
+            id: f.id,
+            fullname: f.fullname,
+            avatar: f.avatar,
+            friendship: f.friendship,
+          });
+        });
+
+        // 2. Thêm những người trong các phòng chat (partners)
+        rooms.forEach((room) => {
+          room.members?.forEach((m) => {
+            if (m.id !== myId && !eligibleMap.has(m.id)) {
+              eligibleMap.set(m.id, {
+                id: m.id,
+                fullname: m.name,
+                avatar: m.avatar,
+                friendship: "INVALID", // Hoặc một flag nào đó chỉ ra chưa là bạn
+              });
+            }
+          });
+        });
+
+        const result = Array.from(eligibleMap.values()).sort((a, b) =>
+          a.fullname.localeCompare(b.fullname),
+        );
+        set({ eligibleContacts: result });
       },
       search: async (search: string) => {
         set({ isLoading: true, error: null });
@@ -68,6 +108,7 @@ const useContactStore = create<ContactState>()(
         }));
         await upsertMany(db.contacts, friendsMapped);
         set({ friends: friendsMapped, isLoading: false });
+        get().syncEligibleContacts();
         return friendsMapped;
       },
       sendInvitation: async ({
@@ -107,10 +148,10 @@ const useContactStore = create<ContactState>()(
           const requests = response.data.metadata.friendRequests || [];
           const total = Number(response.data.metadata.total || 0);
           const page = Number(
-            response.data.metadata.page ?? payload?.page ?? get().page ?? 1
+            response.data.metadata.page ?? payload?.page ?? get().page ?? 1,
           );
           const limit = Number(
-            response.data.metadata.limit ?? payload?.limit ?? get().limit ?? 20
+            response.data.metadata.limit ?? payload?.limit ?? get().limit ?? 20,
           );
           const dataContacts = requests.map((contact: any) => ({
             ...contact,
@@ -255,15 +296,51 @@ const useContactStore = create<ContactState>()(
         });
       },
       checkOnlineStatus: (socket: any) => {
-        const ids = get().contacts.map((c) => c.id);
-        socket.emit(socketEvent.USERSATUS, ids);
+        // Filter: Only friends or people I've chatted with (in active rooms)
+        const contacts = get().contacts;
+        const friendIds = contacts
+          .filter((c) => c.friendship === "ACCEPTED")
+          .map((c) => c.id);
+
+        // We can also get members from useRoomStore if needed, but let's start with friends
+        // + anyone we have an existing open chat/room with (optional, but good for "recent chats")
+
+        // Use a Set to avoid duplicates
+        const idsToCheck = new Set(friendIds);
+
+        // Add members from active rooms (recent chats)
+        const rooms = useRoomStore.getState().rooms;
+        rooms.forEach((room) => {
+          // For private rooms, the other user ID is usually the room name or in members
+          // Depending on how room.members is structured.
+          // Assuming room.members is an array of objects with id.
+          if (room.members) {
+            // Check if members exist
+            // ... inside checkOnlineStatus
+            room.members.forEach((m: any) => {
+              // Type as any for now or roomMemberType
+              const myId = useAuthStore.getState().user?.id;
+              if (m.id !== myId) {
+                // Exclude self
+                idsToCheck.add(m.id);
+              }
+            });
+          }
+        });
+
+        // Convert back to array
+        const ids = Array.from(idsToCheck);
+
+        if (ids.length > 0) {
+          socket.emit(socketEvent.USERSATUS, ids);
+        }
       },
     }),
     {
       name: "contact-storage", // unique name
       storage: createJSONStorage(() => localStorage), // (optional) by default, 'localStorage' is used
-    }
-  )
+    },
+  ),
 );
 
 export default useContactStore;

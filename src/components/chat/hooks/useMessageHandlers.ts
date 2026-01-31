@@ -22,9 +22,8 @@ interface UseMessageHandlersProps {
 export function useMessageHandlers({
   chatId,
   socket,
-  messageState,
   emitWithAckHelper,
-}: UseMessageHandlersProps) {
+}: Omit<UseMessageHandlersProps, "messageState">) {
   const toast = useToast();
   const { t, i18n } = useTranslation();
 
@@ -48,79 +47,113 @@ export function useMessageHandlers({
 
       updated.reactions = updated.reactions || [];
 
-      // 1. Remove user from all existing reactions (to handle switch emoji)
-      updated.reactions = updated.reactions
-        .map((r: any) => ({
-          ...r,
-          users: r.users.filter((u: any) => u._id !== currentUser._id),
-        }))
-        .map((r: any) => ({
-          ...r,
-          count: r.users.length,
-        }))
-        .filter((r: any) => r.count > 0);
-
-      // 2. Add user to new emoji group
-      const targetReaction = updated.reactions.find(
+      // Check if user already reacted with this emoji
+      const existingReactionIndex = updated.reactions.findIndex(
         (r: any) => r.emoji === emoji,
       );
 
-      const reactionUser = {
-        _id: currentUser._id,
-        usr_id: currentUser.id,
-        usr_fullname: currentUser.fullname,
-        usr_avatar: currentUser.avatar,
-      };
+      let action = "add";
 
-      if (targetReaction) {
-        targetReaction.users.push(reactionUser);
-        targetReaction.count++;
+      if (existingReactionIndex > -1) {
+        // Emoji exists
+        const reaction = updated.reactions[existingReactionIndex];
+        const userIndex = reaction.users.findIndex(
+          (u: any) => u.id === currentUser.id,
+        );
+
+        if (userIndex > -1) {
+          // User already reacted -> remove
+          reaction.count--;
+          reaction.users.splice(userIndex, 1);
+          if (reaction.count <= 0) {
+            updated.reactions.splice(existingReactionIndex, 1);
+          }
+          action = "remove";
+        } else {
+          // User distinct -> add
+          reaction.count++;
+          reaction.users.push({
+            id: currentUser.id,
+            name: currentUser.fullname,
+            avatar: currentUser.avatar,
+          });
+        }
       } else {
+        // New emoji
         updated.reactions.push({
           emoji,
           count: 1,
-          users: [reactionUser],
+          users: [
+            {
+              id: currentUser.id,
+              name: currentUser.fullname,
+              avatar: currentUser.avatar,
+            },
+          ],
         });
       }
 
       // Optimistic update
-      messageState.upsetMsg(updated);
+      useMessageStore.getState().upsetMsg(updated);
 
-      socket.emit(
+      emitWithAckHelper(
         socketEvent.MSGREACT,
         {
           roomId: chatId,
           msgId: msg.id,
-          emoji: emoji,
+          emoji,
+          action,
         },
-        () => {},
-      );
+        2000,
+      )
+        .then((ack) => {
+          console.debug("emit:message:react ack:", ack);
+          if (!ack || ack?.ok === false) {
+            // rollback
+            useMessageStore.getState().upsetMsg(original);
+            toast.error(ack?.reason || t("chat.hooks.react.error"));
+          }
+        })
+        .catch((err) => {
+          console.error("react ack error", err);
+          // rollback
+          useMessageStore.getState().upsetMsg(original);
+          toast.error(t("chat.hooks.react.connectionError"));
+        });
     },
-    [chatId, socket, messageState],
+    [chatId, socket, emitWithAckHelper, toast, t],
   );
 
-  const handleCopy = useCallback((content: string) => {
-    navigator.clipboard.writeText(content);
-  }, []);
+  const handleCopy = useCallback(
+    (content: string) => {
+      navigator.clipboard.writeText(content);
+      toast.success(t("chat.hooks.copy.success"));
+    },
+    [t, toast],
+  );
 
   const handleDelete = useCallback(
-    (msg: any) => {
+    (msg: MessageType) => {
       if (!socket || !socket.connected) return;
 
       const original = { ...msg };
+      // Optimistic update
+      // We can mark as deleted or remove from store
+      // Here marking as deleted
       const updated = {
         ...msg,
-        hiddenByMe: true,
+        isDeleted: true,
+        // Ensure roomId
         roomId: msg.roomId || chatId,
       };
-
-      // Optimistic update
       useMessageStore.getState().upsetMsg(updated);
 
-      // Emit and reconcile on ack/error
       emitWithAckHelper(
         socketEvent.MSGDELETE,
-        { roomId: chatId, msgId: msg.id },
+        {
+          roomId: chatId,
+          msgId: msg.id,
+        },
         5000,
       )
         .then((ack) => {
@@ -135,7 +168,6 @@ export function useMessageHandlers({
         })
         .catch((err) => {
           console.error("delete ack error", err);
-          // rollback optimistic change
           useMessageStore.getState().upsetMsg(original);
           toast.error(t("chat.hooks.delete.connectionError"));
         });
@@ -144,24 +176,24 @@ export function useMessageHandlers({
   );
 
   const handleRecall = useCallback(
-    (msg: any) => {
+    (msg: MessageType) => {
+      // Re-check recall permission just in case
       const currentUser = useAuthStore.getState().user;
-      const isMine = currentUser?.id
-        ? msg.sender?.id === currentUser.id
-        : false;
+      if (!currentUser) return;
+      const isMine = msg.sender ? msg.sender.id === currentUser.id : false;
       if (!canRecallMessage(msg, isMine)) return;
       if (!socket || !socket.connected) return;
 
       const original = { ...msg };
 
       // Optimistic local recall
-      messageState.recallMessage(chatId, msg.id);
+      useMessageStore.getState().recallMessage(chatId, msg.id);
       const updated = {
         ...msg,
         isDeleted: true,
         roomId: msg.roomId || chatId,
       };
-      messageState.upsetMsg(updated);
+      useMessageStore.getState().upsetMsg(updated);
 
       emitWithAckHelper(
         socketEvent.MSGRECALL,
@@ -176,7 +208,7 @@ export function useMessageHandlers({
           console.debug("emit:message:recall ack:", ack, "msgId:", msg.id);
           if (!ack || ack?.ok === false) {
             // rollback
-            messageState.upsetMsg(original);
+            useMessageStore.getState().upsetMsg(original);
             toast.error(ack?.reason || t("chat.hooks.recall.error"));
           } else {
             toast.success(t("chat.hooks.recall.success"));
@@ -184,11 +216,11 @@ export function useMessageHandlers({
         })
         .catch((err) => {
           console.error("recall ack error", err);
-          messageState.upsetMsg(original);
+          useMessageStore.getState().upsetMsg(original);
           toast.error(t("chat.hooks.recall.connectionError"));
         });
     },
-    [chatId, emitWithAckHelper, messageState, toast, t],
+    [chatId, socket, emitWithAckHelper, toast, t],
   );
 
   const handleTogglePin = useCallback(
@@ -204,7 +236,7 @@ export function useMessageHandlers({
         };
 
         // Optimistic
-        messageState.upsetMsg(updated);
+        useMessageStore.getState().upsetMsg(updated);
 
         emitWithAckHelper(
           socketEvent.MSGPINNED,
@@ -218,7 +250,7 @@ export function useMessageHandlers({
           .then((ack) => {
             console.debug("emit:message:pin ack:", ack, "msgId:", msg.id);
             if (!ack || ack?.ok === false) {
-              messageState.upsetMsg(original);
+              useMessageStore.getState().upsetMsg(original);
               toast.error(ack?.reason || t("chat.hooks.pin.error"));
             } else {
               toast.success(
@@ -230,14 +262,14 @@ export function useMessageHandlers({
           })
           .catch((err) => {
             console.error("pin ack error", err);
-            messageState.upsetMsg(original);
+            useMessageStore.getState().upsetMsg(original);
             toast.error(t("chat.hooks.pin.connectionError"));
           });
       } catch (err) {
         console.error("❌ Error toggling pin:", err);
       }
     },
-    [chatId, emitWithAckHelper, messageState, toast, t],
+    [chatId, socket, emitWithAckHelper, toast, t],
   );
 
   const handleTranslate = useCallback(

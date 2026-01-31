@@ -98,46 +98,26 @@ export const ChatMessages = memo(
     console.log(
       `🔄 ~ ChatMessages render ~ chatId: ${chatId} - groups: ${groups.length} - messages: ${groups.flatMap((g) => g.messages).length} - displayedCount: ${displayedMessagesCount} - visibleGroups: ${visibleGroups.length}`,
     );
-
-    const isLoadingMessage = useMessageStore((state) => state.isLoading);
-    const fetchMessagesFromAPI = useMessageStore(
-      (state) => state.fetchMessagesFromAPI,
-    );
-    const getMessageByRoomId = useMessageStore(
-      (state) => state.getMessageByRoomId,
-    );
-    const loadOlderMessages = useMessageStore(
-      (state) => state.loadOlderMessages,
-    );
-    const findMessage = useMessageStore((state) => state.findMessage);
-    const resendMessage = useMessageStore((state) => state.resendMessage);
-    const fetchNewMessages = useMessageStore((state) => state.fetchNewMessages);
-    const upsetMsg = useMessageStore((state) => state.upsetMsg);
-
-    // Create a stable messageState object for hooks that need it
-    // This avoids re-rendering when unrelated parts of the store change
+    // Create a stable messageState object with methods directly from store
+    // We use getState() to ensure these are non-reactive and stable references
     const messageState = useMemo(
       () => ({
-        isLoading: isLoadingMessage,
-        fetchMessagesFromAPI,
-        getMessageByRoomId,
-        loadOlderMessages,
-        findMessage,
-        resendMessage,
-        fetchNewMessages,
-        upsetMsg,
+        isLoading: useMessageStore.getState().isLoading, // Initial value only, if reactive needed, pass separately
+        fetchMessagesFromAPI: useMessageStore.getState().fetchMessagesFromAPI,
+        getMessageByRoomId: useMessageStore.getState().getMessageByRoomId,
+        loadOlderMessages: useMessageStore.getState().loadOlderMessages,
+        findMessage: useMessageStore.getState().findMessage,
+        resendMessage: useMessageStore.getState().resendMessage,
+        fetchNewMessages: useMessageStore.getState().fetchNewMessages,
+        upsetMsg: useMessageStore.getState().upsetMsg,
+        recallMessage: useMessageStore.getState().recallMessage,
       }),
-      [
-        isLoadingMessage,
-        fetchMessagesFromAPI,
-        getMessageByRoomId,
-        loadOlderMessages,
-        findMessage,
-        resendMessage,
-        fetchNewMessages,
-        upsetMsg,
-      ],
+      [],
     );
+
+    // Update isLoading ref/value if needed by children?
+    // Actually children like ScrollToBottomButton might need reactive isLoading.
+    // But MessageGroup likely only needs methods.
 
     // Memoize handlers to prevent re-creation on every render
     const emitWithAckHelper = useCallback(
@@ -150,7 +130,6 @@ export const ChatMessages = memo(
     const handlers = useMessageHandlers({
       chatId,
       socket,
-      messageState,
       emitWithAckHelper,
     });
 

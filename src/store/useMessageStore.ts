@@ -243,7 +243,10 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     const prevMessagesForCheck = getAllMessagesFromGroups(prevRoomForCheck);
     const isNewMessage = !prevMessagesForCheck.some((m) => m.id === msgData.id);
 
-    // Use set callback for atomic update to prevent race conditions
+    // =============================================
+    // STEP 1: Update messageStore IMMEDIATELY (Optimistic Update)
+    // This is the fastest path to update UI
+    // =============================================
     set((state) => {
       const prevRoom = state.messagesRoom[normalizedRoomId] || {
         groups: [],
@@ -293,99 +296,98 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       };
     });
 
-    // Update Room Store Optimistically
-    try {
-      const roomStore = useRoomStore.getState();
-      const targetRoom =
-        roomStore.getRoomByRoomId(msgData.roomId) ||
-        roomStore.rooms.find((r) => r.id === normalizedRoomId);
+    // =============================================
+    // STEP 2: Run RoomStore update + IndexedDB in PARALLEL (fire-and-forget)
+    // These are slower operations that shouldn't block UI
+    // =============================================
+    const updateRoomStoreTask = () => {
+      try {
+        const currentRoomStore = useRoomStore.getState();
+        const targetRoom =
+          currentRoomStore.getRoomByRoomId(msgData.roomId) ||
+          currentRoomStore.rooms.find((r) => r.id === normalizedRoomId);
 
-      if (targetRoom) {
-        const currentUser = useAuthStore.getState().user;
-        const isMine = msgData.sender.id === currentUser?._id;
+        if (targetRoom) {
+          const currentUser = useAuthStore.getState().user;
+          const isMine = msgData.sender.id === currentUser?._id;
 
-        let snippet = msgData.content || "";
-        // Safe check for snippet type
-        if (msgData.type === "image") {
-          snippet = i18n.t("chat.message.type.image") || "[Image]";
-        } else if (
-          msgData.type === "file" ||
-          msgData.type === "document" ||
-          msgData.type === "video"
-        ) {
-          snippet = i18n.t("chat.message.type.file") || "[File]";
-        } else if (msgData.attachments && msgData.attachments.length > 0) {
-          const firstAtt = msgData.attachments[0];
-          // FilePreview has mimeType, kind, but not type usually.
-          if (
-            firstAtt.mimeType?.startsWith("image") ||
-            firstAtt.kind === "image"
-          ) {
+          let snippet = msgData.content || "";
+          // Safe check for snippet type
+          if (msgData.type === "image") {
             snippet = i18n.t("chat.message.type.image") || "[Image]";
-          } else {
+          } else if (
+            msgData.type === "file" ||
+            msgData.type === "document" ||
+            msgData.type === "video"
+          ) {
             snippet = i18n.t("chat.message.type.file") || "[File]";
-          }
-        }
-
-        const roomLastMsgDate = targetRoom.last_message?.createdAt
-          ? new Date(targetRoom.last_message.createdAt).getTime()
-          : 0;
-        const newMsgDate = new Date(msgData.createdAt).getTime();
-
-        // Update if newer or same time (sometimes useful)
-        // Only update if it's not a duplicate event for same ID
-        if (newMsgDate >= roomLastMsgDate) {
-          // Handle unread count:
-          // If I'm visible in the room (active room), unread = 0.
-          // If not active room, and message is NOT mine, unread++
-          // BUT: We don't want to increment if we just fetched history.
-          // upsetMsg is called for history too?
-          // Usually upsetMsg is for "sent" message (socket receive).
-          // Fetch history uses `updateRoomDataWithGroups` but generally calls set directly in `fetchMessagesFromAPI`.
-          // upsetMsg logic: `if (existingIndex === -1)`...
-
-          // To be safe, only increment unread if it is a NEW message (existingIndex === -1)
-          // AND it is NOT from history load (how to distinguish?).
-          // Usually history load calls `fetchMessagesFromAPI` which does NOT call `upsetMsg`.
-          // `upsetMsg` is likely used by Socket `on("message:receive")`.
-
-          const isActiveRoom = roomStore.room?.id === normalizedRoomId;
-          let newUnreadCount = targetRoom.unread_count;
-
-          if (!isMine && !isActiveRoom && isNewMessage) {
-            newUnreadCount = (targetRoom.unread_count || 0) + 1;
+          } else if (msgData.attachments && msgData.attachments.length > 0) {
+            const firstAtt = msgData.attachments[0];
+            // FilePreview has mimeType, kind, but not type usually.
+            if (
+              firstAtt.mimeType?.startsWith("image") ||
+              firstAtt.kind === "image"
+            ) {
+              snippet = i18n.t("chat.message.type.image") || "[Image]";
+            } else {
+              snippet = i18n.t("chat.message.type.file") || "[File]";
+            }
           }
 
-          // If active room, reset unread?
-          if (isActiveRoom) {
-            newUnreadCount = 0;
-          }
+          const roomLastMsgDate = targetRoom.last_message?.createdAt
+            ? new Date(targetRoom.last_message.createdAt).getTime()
+            : 0;
+          const newMsgDate = new Date(msgData.createdAt).getTime();
 
-          const updatedRoom: roomType = {
-            ...targetRoom,
-            updatedAt: msgData.createdAt,
-            unread_count: newUnreadCount,
-            last_message: {
-              id: msgData.id,
-              content: snippet,
-              createdAt: msgData.createdAt,
-              sender: {
-                id: msgData.sender.id || msgData.sender._id || "",
-                name: msgData.sender.fullname || "",
-                avatar: msgData.sender.avatar || "",
+          // Update if newer or same time (sometimes useful)
+          // Only update if it's not a duplicate event for same ID
+          if (newMsgDate >= roomLastMsgDate) {
+            const isActiveRoom = currentRoomStore.room?.id === normalizedRoomId;
+            let newUnreadCount = targetRoom.unread_count;
+
+            if (!isMine && !isActiveRoom && isNewMessage) {
+              newUnreadCount = (targetRoom.unread_count || 0) + 1;
+            }
+
+            // If active room, reset unread?
+            if (isActiveRoom) {
+              newUnreadCount = 0;
+            }
+
+            const updatedRoom: roomType = {
+              ...targetRoom,
+              updatedAt: msgData.createdAt,
+              unread_count: newUnreadCount,
+              last_message: {
+                id: msgData.id,
+                content: snippet,
+                createdAt: msgData.createdAt,
+                sender: {
+                  id: msgData.sender.id || msgData.sender._id || "",
+                  name: msgData.sender.fullname || "",
+                  avatar: msgData.sender.avatar || "",
+                },
+                isMine: isMine,
               },
-              isMine: isMine,
-            },
-            is_read: isActiveRoom || isMine,
-          };
-          roomStore.updateRoomSocket(updatedRoom);
+              is_read: isActiveRoom || isMine,
+            };
+            currentRoomStore.updateRoomSocket(updatedRoom);
+          }
         }
+      } catch (e) {
+        console.error("Error updating room store from message:", e);
       }
-    } catch (e) {
-      console.error("Error updating room store from message:", e);
-    }
+    };
 
-    await upsertOne(db.messages, msgData);
+    const indexedDBTask = () => upsertOne(db.messages, msgData);
+
+    // Fire both tasks in parallel, don't await - let them complete in background
+    Promise.all([
+      Promise.resolve().then(updateRoomStoreTask),
+      indexedDBTask(),
+    ]).catch((e) => {
+      console.error("Background tasks failed:", e);
+    });
   },
 
   sendMessage: async (args: SendMessageArgs) => {
@@ -470,44 +472,49 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       },
     });
 
-    // Update Room Store Optimistically (Sending)
-    try {
-      const roomStore = useRoomStore.getState();
-      const targetRoom = roomStore.getRoomByRoomId(roomId);
-      if (targetRoom) {
-        let snippet = data.content || "";
-        if (data.attachments && data.attachments.length > 0) {
-          const firstAtt = data.attachments[0];
-          const mime = firstAtt.mimeType || "";
-          if (mime.startsWith("image") || firstAtt.kind === "image")
-            snippet = i18n.t("chat.message.type.image") || "[Image]";
-          else snippet = i18n.t("chat.message.type.file") || "[File]";
-        }
+    // =============================================
+    // STEP 2: Update Room Store Optimistically (Fire-and-forget)
+    // Run after a microtask to allow UI to render message first
+    // =============================================
+    Promise.resolve().then(() => {
+      try {
+        const roomStore = useRoomStore.getState();
+        const targetRoom = roomStore.getRoomByRoomId(roomId);
+        if (targetRoom) {
+          let snippet = data.content || "";
+          if (data.attachments && data.attachments.length > 0) {
+            const firstAtt = data.attachments[0];
+            const mime = firstAtt.mimeType || "";
+            if (mime.startsWith("image") || firstAtt.kind === "image")
+              snippet = i18n.t("chat.message.type.image") || "[Image]";
+            else snippet = i18n.t("chat.message.type.file") || "[File]";
+          }
 
-        const updatedRoom: roomType = {
-          ...targetRoom,
-          updatedAt: data.createdAt,
-          last_message: {
-            id: data.id,
-            content: snippet,
-            createdAt: data.createdAt,
-            sender: {
-              id: data.sender.id,
-              name: data.sender.fullname || "",
-              avatar: data.sender.avatar || "",
+          const updatedRoom: roomType = {
+            ...targetRoom,
+            updatedAt: data.createdAt,
+            last_message: {
+              id: data.id,
+              content: snippet,
+              createdAt: data.createdAt,
+              sender: {
+                id: data.sender.id,
+                name: data.sender.fullname || "",
+                avatar: data.sender.avatar || "",
+              },
+              isMine: true,
             },
-            isMine: true,
-          },
-          // No change to unread count for sent message
-          // Ensure is_read is true since we are sending
-          is_read: true,
-          unread_count: 0, // Reset if we are sending (implies we read everything)
-        };
-        roomStore.updateRoomSocket(updatedRoom);
+            // No change to unread count for sent message
+            // Ensure is_read is true since we are sending
+            is_read: true,
+            unread_count: 0, // Reset if we are sending (implies we read everything)
+          };
+          roomStore.updateRoomSocket(updatedRoom);
+        }
+      } catch (e) {
+        console.error("Optimistic room update failed", e);
       }
-    } catch (e) {
-      console.error("Optimistic room update failed", e);
-    }
+    });
     // Upload attachments nếu có (background task)
     if (attachments && attachments.length > 0) {
       get()
