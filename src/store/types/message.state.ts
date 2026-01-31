@@ -49,7 +49,8 @@ export type MessageType = {
     | "video"
     | "audio"
     | "gif"
-    | "document";
+    | "document"
+    | "call";
   content: string;
   createdAt: string;
   editedAt?: string | null;
@@ -77,12 +78,12 @@ export type MessageType = {
       _id: string;
       name: string;
     };
-   hiddenBy?: string[]; // List of user IDs who hid this message
-   hiddenAt: string | null;
+    hiddenBy?: string[]; // List of user IDs who hid this message
+    hiddenAt: string | null;
     isDeleted?: boolean;
     isDelete?: boolean; // From new pipeline
   };
- 
+
   hiddenBy?: string[]; // List of user IDs who hid this message
   hiddenAt: string | null;
   read_by: Array<{
@@ -158,7 +159,7 @@ export interface RoomData {
   lastReadMessageId?: string | null;
   input: string | null;
   attachments: FilePreview[] | null;
-   reply: MessageType | null;
+  reply: MessageType | null;
   gallery?: RoomGallery;
 }
 
@@ -171,7 +172,7 @@ export interface MessageState {
   resendMessage: (
     roomId: string,
     messageId: string,
-    socket?: any
+    socket?: any,
   ) => Promise<void>;
   getMessageByRoomId: (roomId: string) => Promise<void>;
   fetchMessagesFromAPI: (
@@ -180,7 +181,7 @@ export interface MessageState {
       msgId?: string;
       limit?: number;
       type?: "new" | "old" | "all";
-    }
+    },
   ) => Promise<MessageType[]>;
   loadOlderMessages: (roomId: string, limit?: number) => Promise<any[]>;
   findMessage: (roomId: string, messageId: string) => Promise<boolean>;
@@ -199,7 +200,7 @@ export interface MessageState {
     messageId: string,
     fileId: string,
     progress: number,
-    status?: string
+    status?: string,
   ) => void;
   setReplyMessage: (roomId: string, message: MessageType | null) => void;
   setInput: (roomId: string, input: string | null) => void;
@@ -220,17 +221,17 @@ export interface MessageState {
   autoMarkMessageSent: (
     roomId: string,
     messageId: string,
-    delayMs?: number
+    delayMs?: number,
   ) => void;
   setMessageSummary: (
     roomId: string,
     messageId: string,
-    summary: MessageSummary | null
+    summary: MessageSummary | null,
   ) => Promise<void>;
   setMessageTranslation: (
     roomId: string,
     messageId: string,
-    translation: MessageTranslation | null
+    translation: MessageTranslation | null,
   ) => Promise<void>;
   setLastReadMessageId: (roomId: string, messageId: string | null) => void;
   setDisplayedMessagesCount: (roomId: string, count: number) => void;

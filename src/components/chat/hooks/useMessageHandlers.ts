@@ -145,7 +145,11 @@ export function useMessageHandlers({
 
   const handleRecall = useCallback(
     (msg: any) => {
-      if (!canRecallMessage(msg)) return;
+      const currentUser = useAuthStore.getState().user;
+      const isMine = currentUser?.id
+        ? msg.sender?.id === currentUser.id
+        : false;
+      if (!canRecallMessage(msg, isMine)) return;
       if (!socket || !socket.connected) return;
 
       const original = { ...msg };
