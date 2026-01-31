@@ -200,6 +200,7 @@ function CallPageContentInner() {
       roomId: roomId,
       actionUserId: currentUserId,
       status,
+      callId: searchParams.get("callId") || "",
     });
   }, [callStatus, currentUserId, endCall, roomId, searchParams]);
 
@@ -221,6 +222,7 @@ function CallPageContentInner() {
 
   const handleAccept = () => {
     acceptCall({
+      callId: searchParams.get("callId") || "",
       currentUser: currentUser,
       members: members,
       roomId: roomId,

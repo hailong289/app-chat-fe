@@ -7,7 +7,8 @@ import useRoomStore from "@/store/useRoomStore";
 import type { RoomsState } from "@/store/types/room.state";
 import { useSocket } from "../../providers/SocketProvider";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageType } from "@/store/types/message.state";
+import { MessageType, MessageGroup as MessageGroupType } from "@/store/types/message.state";
+import { sliceVisibleGroups } from "@/libs/timeline-helpers"; 
 import { emitWithAck } from "../../../utils/messageHelpers";
 import { MESSAGES_PER_GROUP } from "../constants/messageConstants";
 import { useChatMessagesState } from "../hooks/useChatMessagesState";
@@ -18,10 +19,11 @@ import { ChatLoadingSkeleton } from "./ChatLoadingSkeleton";
 import { ChatEmptyState } from "./ChatEmptyState";
 import { ChatLoadingIndicator } from "./ChatLoadingIndicator";
 import { ScrollToBottomButton } from "./ScrollToBottomButton";
-import { MessageGroup } from "./MessageGroup";
+import MessageGroup from "./MessageGroup";
 import { useTranslation } from "react-i18next";
 
 const EMPTY_MESSAGES: MessageType[] = [];
+const EMPTY_GROUPS: MessageGroupType[] = [];
 
 const selectMarkMessageAsRead = (state: RoomsState) => state.markMessageAsRead;
 
@@ -70,13 +72,26 @@ export const ChatMessages = memo(
       [lastReadId, lastServerMessageId, unreadCount, isRead]
     );
 
-    // Optimize store subscription
-    const messages = useMessageStore(
-      useCallback(
-        (state) => state.messagesRoom[chatId]?.messages || EMPTY_MESSAGES,
-        [chatId]
-      )
+    // Fetch pre-calculated visible groups from store
+    // Use separate selectors to avoid unnecessary re-renders when return value is a new object
+    const groups = useMessageStore(
+      useCallback((state) => state.messagesRoom[chatId]?.groups || EMPTY_GROUPS, [chatId])
     );
+    
+    const displayedMessagesCount = useMessageStore(
+      useCallback((state) => state.messagesRoom[chatId]?.displayedMessagesCount || 20, [chatId])
+    );
+
+    // Optimize store subscription
+    // Derived messages for local usage if needed (e.g. for length checks)
+    const messages = useMemo(() => groups.flatMap(g => g.messages), [groups]);
+
+    // Compute visible groups from all groups
+    const visibleGroups = useMemo(
+      () => sliceVisibleGroups(groups, displayedMessagesCount),
+      [groups, displayedMessagesCount]
+    );
+
     const isLoadingMessage = useMessageStore((state) => state.isLoading);
     const fetchMessagesFromAPI = useMessageStore(
       (state) => state.fetchMessagesFromAPI
@@ -158,6 +173,23 @@ export const ChatMessages = memo(
     const lastMsgId = roomMeta.lastServerMessageId ?? latestMessageId ?? "null";
     const scrollTargetId = roomMeta.lastReadId ?? lastMsgId;
 
+    const storeSetDisplayedCount = useMessageStore(
+      (state) => state.setDisplayedMessagesCount
+    );
+
+    const handleSetDisplayedCount = useCallback(
+      (countOrUpdater: number | ((prev: number) => number)) => {
+        let newCount: number;
+        if (typeof countOrUpdater === "function") {
+          newCount = countOrUpdater(displayedMessagesCount);
+        } else {
+          newCount = countOrUpdater;
+        }
+        storeSetDisplayedCount(chatId, newCount);
+      },
+      [chatId, displayedMessagesCount, storeSetDisplayedCount]
+    );
+
     // State management hook
     const state = useChatMessagesState(chatId);
 
@@ -165,11 +197,11 @@ export const ChatMessages = memo(
     const { scrollToTop, scrollToBottom, scrollToMessage } = useChatScroll({
       containerRef: state.containerRef,
       bottomRef: state.bottomRef,
-      displayedMessagesCount: state.displayedMessagesCount,
+      displayedMessagesCount, // Use consistent count
       messages,
       chatId,
       messageState,
-      setDisplayedMessagesCount: state.setDisplayedMessagesCount,
+      setDisplayedMessagesCount: handleSetDisplayedCount, // Use store setter wrapper
       setIsLoadingOlder: state.setIsLoadingOlder,
       setHasMoreOnServer: state.setHasMoreOnServer,
     });
@@ -203,7 +235,7 @@ export const ChatMessages = memo(
     );
 
     // Load more handler
-    const hasMoreLocalMessages = state.displayedMessagesCount < messages.length;
+    const hasMoreLocalMessages = displayedMessagesCount < messages.length;
     const hasLoadedAllLocal = messages.length > 0 && !hasMoreLocalMessages;
 
     const handleLoadMore = useCallback(
@@ -230,7 +262,7 @@ export const ChatMessages = memo(
           const scrollHeightBefore = container.scrollHeight;
 
           setTimeout(() => {
-            state.setDisplayedMessagesCount((prev) =>
+            handleSetDisplayedCount((prev) =>
               Math.min(prev + MESSAGES_PER_GROUP, messages.length)
             );
             state.setIsLoadingOlder(false);
@@ -308,7 +340,8 @@ export const ChatMessages = memo(
         state.containerRef,
         state.loadingTimeoutRef,
         state.setIsLoadingOlder,
-        state.setDisplayedMessagesCount,
+        // Removed state.setDisplayedMessagesCount
+        handleSetDisplayedCount,
         state.setIsLoadingFromAPI,
         state.setHasMoreOnServer,
         hasMoreLocalMessages,
@@ -322,13 +355,13 @@ export const ChatMessages = memo(
     );
 
     // Effects hook
-    const { visibleGroups } = useChatMessagesEffects({
+    useChatMessagesEffects({
       chatId,
-      messages,
+      groups, // Changed from messages
       lastReadId: roomMeta.lastReadId,
       scrollTargetId,
       lastServerMessageId: roomMeta.lastServerMessageId,
-      displayedMessagesCount: state.displayedMessagesCount,
+      displayedMessagesCount, // Use consistent count
       isSwitchingChat: state.isSwitchingChat,
       isBottomVisible: state.isBottomVisible,
       isLoadingOlder: state.isLoadingOlder,
@@ -350,7 +383,7 @@ export const ChatMessages = memo(
       socket,
       setIsSwitchingChat: state.setIsSwitchingChat,
       setShouldAnimate: state.setShouldAnimate,
-      setDisplayedMessagesCount: state.setDisplayedMessagesCount,
+      setDisplayedMessagesCount: handleSetDisplayedCount, // Use store setter
       setHasMoreOnServer: state.setHasMoreOnServer,
       setExpandedMessages: state.setExpandedMessages,
       setIsBottomVisible: state.setIsBottomVisible,
@@ -413,7 +446,7 @@ export const ChatMessages = memo(
                 <div className="text-xs text-gray-400 dark:text-gray-500">
                   📜{" "}
                   {t("chat.messages.scroll.more", {
-                    count: messages.length - state.displayedMessagesCount,
+                    count: messages.length - displayedMessagesCount,
                   })}{" "}
                   <button
                     className="text-blue-500 dark:text-blue-400 cursor-pointer"

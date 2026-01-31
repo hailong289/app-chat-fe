@@ -9,6 +9,7 @@ import { ReplyPreview } from "./ReplyPreview";
 import { MessageType } from "@/store/types/message.state";
 import { ArrowPathIcon, EyeDropperIcon } from "@heroicons/react/16/solid";
 import { useTranslation } from "react-i18next";
+import useAuthStore from "@/store/useAuthStore";
 
 interface MessageItemProps {
   msg: MessageType;
@@ -41,7 +42,8 @@ interface MessageItemProps {
   messageState: any;
 }
 
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect } from "react";
+import isEqual from "react-fast-compare";
 
 export const MessageItem = memo(function MessageItem({
   msg,
@@ -74,21 +76,9 @@ export const MessageItem = memo(function MessageItem({
   messageState,
 }: Readonly<MessageItemProps>) {
   const { t } = useTranslation();
-  const [expandedSummaryIds, setExpandedSummaryIds] = useState<Set<string>>(
-    () => new Set()
-  );
-
-  const toggleSummaryExpanded = (id: string) => {
-    setExpandedSummaryIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
+  const currentUser = useAuthStore((state) => state.user);
+  const currentUserId = currentUser?.id;
+  const isMine = currentUserId ? msg.sender?.id === currentUserId : false;
 
   useEffect(() => {
     if (renderedMessageIds && !renderedMessageIds.current.has(msg.id)) {
@@ -98,14 +88,13 @@ export const MessageItem = memo(function MessageItem({
 
   const isSameSenderAsPrev = prevMsg?.sender._id === msg.sender._id;
   const isSameSenderAsNext = nextMsg?.sender._id === msg.sender._id;
-  const shouldAnimateThis = shouldAnimate && isNewMessage;
-  const isAiProcessing = !!msg.aiProcessing;
+  const shouldAnimateThis = shouldAnimate && isNewMessage && !renderedMessageIds?.current.has(msg.id);
 
   const PinnedIcon = () => {
     return (
       <button
         className={`absolute top-2 ${
-          msg.isMine ? "right-4" : "left-4"
+          isMine ? "right-4" : "left-4"
         } bg-blue-500 dark:bg-blue-400 rounded-full p-1 shadow-md hover:bg-blue-600 dark:hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-300 z-10`}
         onDoubleClick={() => onTogglePin(msg)}
       >
@@ -115,10 +104,13 @@ export const MessageItem = memo(function MessageItem({
       </button>
     );
   };
-
+  
+  // Custom pinned icon if needed logic check uses isMine which is available in scope
+  // The PinnedIcon component was accessing isMine correctly as long as it's defined in outer scope
+  
   // Small helper that renders the "Tin chưa đọc" divider
   const UnreadDivider = () => {
-    if (!(isUnreadDivider && !msg.isRead && !msg.isMine)) return null;
+    if (!isUnreadDivider) return null;
     return (
       <motion.div
         initial={shouldAnimate ? { opacity: 0, scale: 0.8 } : false}
@@ -136,7 +128,7 @@ export const MessageItem = memo(function MessageItem({
             duration: shouldAnimate ? 0.6 : 0,
             delay: shouldAnimate ? 0.2 : 0,
           }}
-          className="flex-1 h-px bg-gradient-to-r from-transparent via-red-400 dark:via-red-500 to-transparent"
+          className="flex-1 h-px bg-linear-to-r from-transparent via-red-400 dark:via-red-500 to-transparent"
         ></motion.div>
         <motion.span
           initial={shouldAnimate ? { scale: 0 } : false}
@@ -151,7 +143,7 @@ export const MessageItem = memo(function MessageItem({
                 }
               : { duration: 0 }
           }
-          className="bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-lg"
+          className="bg-linear-to-r from-red-500 to-pink-500 text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-lg"
         >
           ✨ {t("chat.messages.item.unread")}
         </motion.span>
@@ -162,7 +154,7 @@ export const MessageItem = memo(function MessageItem({
             duration: shouldAnimate ? 0.6 : 0,
             delay: shouldAnimate ? 0.2 : 0,
           }}
-          className="flex-1 h-px bg-gradient-to-r from-transparent via-red-400 dark:via-red-500 to-transparent"
+          className="flex-1 h-px bg-linear-to-r from-transparent via-red-400 dark:via-red-500 to-transparent"
         ></motion.div>
       </motion.div>
     );
@@ -170,13 +162,14 @@ export const MessageItem = memo(function MessageItem({
 
   // Renders small read avatars + overflow count
   const ReadAvatars = ({ reads, count }: { reads?: any[]; count?: number }) => {
+    console.log("🚀 ~ ReadAvatars ~ reads:", reads)
     if (!reads || (count ?? 0) <= 0) return null;
     return (
       <div className="flex gap-1 items-end mb-1">
         {(reads || []).slice(0, 3).map((read_by: any) => (
           <Tooltip
             key={read_by.user.id}
-            content={read_by.user.fullname || "User"}
+            content={`${read_by.user.fullname || "User"} • ${formatMessageTime(read_by.readAt)}`}
             size="sm"
           >
             <Avatar
@@ -197,10 +190,10 @@ export const MessageItem = memo(function MessageItem({
 
   // Avatar slot component to avoid duplicating markup
   const AvatarSlot = ({ side }: { side: "left" | "right" }) => {
-    if (side === "left" && msg.isMine) return null;
-    if (side === "right" && !msg.isMine) return null;
+    if (side === "left" && isMine) return null;
+    if (side === "right" && !isMine) return null;
     return (
-      <div className="w-8 flex-shrink-0">
+      <div className="w-8 shrink-0">
         {showAvatar ? (
           <Avatar
             src={msg.sender.avatar || undefined}
@@ -222,10 +215,10 @@ export const MessageItem = memo(function MessageItem({
     return (
       <div
         className={`flex items-center gap-1 mt-1 ${
-          msg.isMine ? "flex-row-reverse" : "flex-row"
+          isMine ? "flex-row-reverse" : "flex-row"
         }`}
       >
-        {msg.status === "failed" && msg.isMine && (
+        {msg.status === "failed" && isMine && (
           <Button
             size="sm"
             color="danger"
@@ -243,9 +236,10 @@ export const MessageItem = memo(function MessageItem({
         <span className="text-xs text-gray-400 dark:text-gray-500">
           {formatMessageTime(msg.createdAt)}
         </span>
-        {msg.isMine && msg.status === "sent" && (
+        {isMine && msg.status === "sent" && (
           <span className="text-xs text-gray-400 dark:text-gray-500">
-            {(msg.read_by_count ?? 0) > 0 ? (
+            {/* Prefer read_by array length if available, fallback to count or 0 */}
+            {(msg.read_by?.length ?? msg.read_by_count ?? 0) > 0 ? (
               <Tooltip
                 content={t("chat.messages.item.seen")}
                 size="sm"
@@ -264,7 +258,7 @@ export const MessageItem = memo(function MessageItem({
             )}
           </span>
         )}
-        {msg.isMine &&
+        {isMine &&
           (msg.status === "pending" || msg.status === "uploading") && (
             <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center">
               <Tooltip
@@ -287,74 +281,68 @@ export const MessageItem = memo(function MessageItem({
   };
 
   return (
-    <motion.div
-      key={msg.id}
-      initial={
-        shouldAnimateThis
-          ? {
-              opacity: 0,
-              x: msg.isMine ? 20 : -20,
-              scale: 0.95,
-            }
-          : false
-      }
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={shouldAnimateThis ? { opacity: 0, scale: 0.95 } : undefined}
-      transition={{
-        duration: shouldAnimateThis ? 0.2 : 0,
-        ease: "easeOut",
-      }}
+    <div
       className={messageSpacing}
     >
+      <motion.div
+        layout
+        key={`msg-box-${msg.id}`}
+        initial={
+          shouldAnimateThis
+            ? {
+                opacity: 0,
+                x: isMine ? 20 : -20,
+                scale: 0.95,
+              }
+            : false
+        }
+        animate={{ opacity: 1, x: 0, scale: 1 }}
+        exit={shouldAnimateThis ? { opacity: 0, scale: 0.95 } : undefined}
+        transition={{
+          layout: { duration: 0.2, ease: "easeOut" },
+          opacity: { duration: 0.2 },
+          default: { duration: 0.2, ease: "easeOut" }
+        }}
+      >
       <UnreadDivider />
 
       <fieldset
         ref={setMessageRef(msg.id)}
         className={`relative flex items-end gap-2 group ${
-          msg.isMine ? "justify-end" : "justify-start"
+          isMine ? "justify-end" : "justify-start"
         }`}
         data-mid={msg.id}
       >
         {/* Pinned icon */}
-        {!msg.hiddenByMe && !msg.isDeleted && msg.pinned && <PinnedIcon />}
+        {!(currentUserId && msg.hiddenBy?.includes(currentUserId)) && !msg.isDeleted && msg.pinned && <PinnedIcon />}
 
         {/* Read avatars cho tin của mình (bên trái bubble) */}
-        {isLastInGroup && msg.isMine && (
-          <ReadAvatars reads={msg.read_by} count={msg.read_by_count} />
+        {isLastInGroup && isMine && (
+        <ReadAvatars reads={msg.read_by} count={msg.read_by_count} />
         )}
 
         <div
           className={`flex w-full items-end gap-2 group ${
-            msg.isMine ? "justify-end" : "justify-start"
+            isMine ? "justify-end" : "justify-start"
           }`}
         >
           {/* Avatar bên trái (tin người khác) */}
           <AvatarSlot side="left" />
 
           {/* Message bubble */}
-          <div className="relative">
-            {isAiProcessing ? (
-              <div
-                className={`pointer-events-none absolute -top-5 ${msg.isMine ? "right-10" : "left-10"} z-20 flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full bg-blue-600 text-white shadow-md shadow-blue-500/30 animate-pulse`}
-              >
-                <span className="h-2 w-2 rounded-full bg-white animate-ping" aria-hidden />
-                <span>{t("chat.messages.bubble.aiProcessing", "Đang xử lý AI")}</span>
-              </div>
-            ) : null}
-
-            <div
-              className={`relative flex flex-col max-w-md ${
-                msg.isMine ? "items-end" : "items-start"
-              }`}
-            >
+          <div
+            className={`flex flex-col max-w-md ${
+              isMine ? "items-end" : "items-start"
+            }`}
+          >
             <div
               className={`gap-3 flex justify-end items-center ${
-                msg.isMine ? "" : "flex-row-reverse"
+                isMine ? "" : "flex-row-reverse"
               }`}
             >
               <div
                 className={`flex gap-2 items-center ${
-                  msg.isMine ? "" : "flex-row-reverse"
+                  isMine ? "" : "flex-row-reverse"
                 }`}
               >
                 <MessageActions
@@ -375,7 +363,7 @@ export const MessageItem = memo(function MessageItem({
 
               <div
                 className={`flex flex-col ${
-                  msg.isMine ? "items-end" : "items-start"
+                  isMine ? "items-end" : "items-start"
                 }`}
               >
                 {/* Reply preview */}
@@ -384,7 +372,7 @@ export const MessageItem = memo(function MessageItem({
                 )}
 
                 {/* Tên người gửi */}
-                {!msg.isMine && !isSameSenderAsPrev && (
+                {!isMine && !isSameSenderAsPrev && (
                   <span className="text-xs text-gray-500 dark:text-gray-300 mb-1 ml-3 font-medium">
                     {msg.sender.fullname || "User"}
                   </span>
@@ -414,86 +402,6 @@ export const MessageItem = memo(function MessageItem({
                   callHistory={msg.call_history ?? null}
                 />
 
-                {msg.summary && msg.type !== "document" ? (
-                  <div className="mt-3 w-full max-w-md">
-                    <div className="relative rounded-2xl bg-gradient-to-r from-fuchsia-500 via-blue-500 to-cyan-400 p-[1px] shadow-lg shadow-blue-500/20">
-                      {(() => {
-                        const maxChars = 120;
-                        const isExpanded = expandedSummaryIds.has(msg.id);
-                        const needsClamp = (msg.summary?.text?.length || 0) > maxChars;
-                        const displayText =
-                          isExpanded || !needsClamp
-                            ? msg.summary.text
-                            : msg.summary.text.slice(0, maxChars) + "...";
-                        const keyPoints = msg.summary.keyPoints || [];
-                        const visibleKeyPoints = isExpanded
-                          ? keyPoints
-                          : keyPoints.slice(0, 2);
-
-                        return (
-                          <div
-                            className={`relative flex flex-col gap-2 rounded-[14px] px-4 py-3 text-sm backdrop-blur-sm ${
-                              msg.isMine
-                                ? "bg-blue-50/90 text-blue-900 dark:bg-blue-900/40 dark:text-blue-50"
-                                : "bg-white text-gray-800 dark:bg-gray-900/80 dark:text-gray-100"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <div className="h-5 w-1 rounded-full bg-gradient-to-b from-fuchsia-500 via-blue-500 to-cyan-400" />
-                                <span className="font-semibold text-xs uppercase tracking-wide">
-                                  {t(
-                                    "chat.messages.bubble.summaryTitle",
-                                    "Tóm tắt tài liệu"
-                                  )}
-                                </span>
-                              </div>
-                              {msg.summary.language ? (
-                                <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-200">
-                                  {msg.summary.language}
-                                </span>
-                              ) : null}
-                            </div>
-
-                            {msg.summary.title ? (
-                              <div className="text-sm font-semibold leading-snug">
-                                {msg.summary.title}
-                              </div>
-                            ) : null}
-
-                            <p className="leading-relaxed whitespace-pre-wrap">
-                              {displayText}
-                            </p>
-
-                            {needsClamp ? (
-                              <button
-                                onClick={() => toggleSummaryExpanded(msg.id)}
-                                className={`self-start text-xs font-semibold inline-flex items-center gap-1 px-2 py-1 rounded-md transition-colors ${
-                                  msg.isMine
-                                    ? "text-blue-900 bg-blue-100 hover:bg-blue-200 dark:text-blue-50 dark:bg-blue-800/60 dark:hover:bg-blue-800"
-                                    : "text-blue-800 bg-blue-100 hover:bg-blue-200 dark:text-blue-100 dark:bg-blue-800/40 dark:hover:bg-blue-800/60"
-                                }`}
-                              >
-                                {isExpanded
-                                  ? t("chat.messages.bubble.collapse")
-                                  : t("chat.messages.bubble.seeMore")}
-                              </button>
-                            ) : null}
-
-                            {visibleKeyPoints.length > 0 ? (
-                              <ul className="list-disc ml-5 space-y-1 text-sm marker:text-blue-500 dark:marker:text-blue-300">
-                                {visibleKeyPoints.map((point, idx) => (
-                                  <li key={`${msg.id}-kp-${idx}`}>{point}</li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                ) : null}
-
                 {/* Reactions display */}
                 {!msg.isDeleted &&
                   msg.status !== "recalled" &&
@@ -503,7 +411,6 @@ export const MessageItem = memo(function MessageItem({
                   )}
               </div>
             </div>
-          </div>
 
             {/* Timestamp - chỉ hiện ở tin cuối nhóm */}
             <TimestampAndStatus />
@@ -514,10 +421,41 @@ export const MessageItem = memo(function MessageItem({
         </div>
 
         {/* Read avatars for other people's last message */}
-        {!msg.isMine && msg.id === lastMsgId && (
-          <ReadAvatars reads={msg.read_by} count={msg.read_by_count} />
+        {!isMine && msg.id === lastMsgId && (
+        <ReadAvatars reads={msg.read_by} count={msg.read_by_count} />
         )}
       </fieldset>
-    </motion.div>
+      </motion.div>
+    </div>
   );
+}, (prevProps, nextProps) => {
+  // Custom comparison to prevent unnecessary re-renders
+  // We ignore handlers and refs as they should be stable or don't affect render output directly
+  
+  if (
+    prevProps.isFirstInGroup !== nextProps.isFirstInGroup ||
+    prevProps.isLastInGroup !== nextProps.isLastInGroup ||
+    prevProps.showAvatar !== nextProps.showAvatar ||
+    prevProps.messageSpacing !== nextProps.messageSpacing ||
+    prevProps.shouldAnimate !== nextProps.shouldAnimate ||
+    prevProps.isNewMessage !== nextProps.isNewMessage ||
+    prevProps.isExpanded !== nextProps.isExpanded ||
+    prevProps.isUnreadDivider !== nextProps.isUnreadDivider ||
+    prevProps.lastMsgId !== nextProps.lastMsgId ||
+    prevProps.chatId !== nextProps.chatId ||
+    prevProps.noAction !== nextProps.noAction
+  ) {
+    return false;
+  }
+
+  // Compare message content deeply if references change
+  if (prevProps.msg !== nextProps.msg) {
+     if (!isEqual(prevProps.msg, nextProps.msg)) return false;
+  }
+
+  // Check neighbors context (only sender ID matters for rendering groups)
+  if (prevProps.prevMsg?.sender._id !== nextProps.prevMsg?.sender._id) return false;
+  if (prevProps.nextMsg?.sender._id !== nextProps.nextMsg?.sender._id) return false;
+  
+  return true;
 });

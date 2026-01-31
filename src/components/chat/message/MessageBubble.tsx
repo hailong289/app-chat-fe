@@ -141,7 +141,32 @@ function DocumentMessageBubble({ msg }: Readonly<{ msg: MessageType }>) {
         </div>
       </div>
 
-      {/* Summary is disabled for system document bubbles */}
+      {msg.summary ? (
+        <div
+          className={`mt-3 w-full rounded-xl border px-4 py-3 text-sm shadow-sm ${
+            msg.isMine
+              ? "bg-blue-50 border-blue-100 text-blue-900 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-50"
+              : "bg-gray-50 border-gray-200 text-gray-800 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+          }`}
+        >
+          <div className="font-semibold text-xs mb-1">
+            {t(
+              "chat.messages.bubble.summaryTitle",
+              "Tóm tắt tài liệu"
+            )}
+          </div>
+          <p className="leading-relaxed whitespace-pre-wrap">
+            {msg.summary.text}
+          </p>
+          {msg.summary.keyPoints && msg.summary.keyPoints.length > 0 ? (
+            <ul className="list-disc ml-4 mt-2 space-y-1">
+              {msg.summary.keyPoints.map((point, idx) => (
+                <li key={`${msg.id}-kp-${idx}`}>{point}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -222,29 +247,20 @@ function RegularMessageBubble({
         </p>
 
         {msg.translation?.text ? (
-          <div className="mt-3 relative">
-            <div
-              className="absolute inset-0 rounded-2xl bg-gradient-to-r from-fuchsia-500 via-blue-500 to-cyan-400 opacity-50 blur-md"
-              aria-hidden
-            />
-            <div className="relative rounded-2xl bg-gradient-to-r from-fuchsia-500 via-blue-500 to-cyan-400 p-[1px] shadow-md shadow-blue-500/20">
-              <div
-                className={`relative text-xs rounded-[14px] px-3 py-2 leading-relaxed backdrop-blur-sm ${
-                  msg.isMine
-                    ? "bg-white/15 text-white"
-                    : "bg-white text-gray-800 dark:bg-gray-900/80 dark:text-gray-100"
-                }`}
-              >
-                <div className="font-semibold mb-1 flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-gradient-to-r from-fuchsia-500 via-blue-500 to-cyan-400" />
-                  {t(
-                    "chat.messages.bubble.translatedLabel",
-                    `Translated (${msg.translation.from || "auto"} → ${msg.translation.to})`
-                  )}
-                </div>
-                <p className="whitespace-pre-wrap">{msg.translation.text}</p>
-              </div>
+          <div
+            className={`mt-2 text-xs rounded-lg px-3 py-2 leading-relaxed ${
+              msg.isMine
+                ? "bg-white/15 text-white"
+                : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
+            }`}
+          >
+            <div className="font-semibold mb-1">
+              {t(
+                "chat.messages.bubble.translatedLabel",
+                `Translated (${msg.translation.from || "auto"} → ${msg.translation.to})`
+              )}
             </div>
+            <p className="whitespace-pre-wrap">{msg.translation.text}</p>
           </div>
         ) : null}
 

@@ -72,26 +72,20 @@ const useCallStore = create<CallState>()((set, get) => ({
       "",
       "width=800,height=600"
     );
-    socket?.emit("call:request", {
-      actionUserId: currentUser.id,
-      membersIds: members.map((m: User) => m.id),
-      roomId: roomId,
-      callType: mode,
-    });
   },
   handleRequestCall: async (payload: any) => {
     // incoming: người bị gọi
-    const { roomId, members, actionUserId, callType } = payload;
+    const { roomId, members, callType, callId } = payload;
     const encodedMemberInfo = Helpers.enCryptUserInfo(members);
     window.open(
-      `/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${callType}&status=incoming`,
+      `/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${callType}&status=incoming&callId=${callId}`,
       "",
       "width=800,height=600"
     );
   },
   acceptCall: async (payload) => {
     // accepted: người bị gọi
-    const { roomId, members, currentUser, socket } = payload;
+    const { roomId, members, currentUser, socket, callId } = payload;
     const actionUserId = currentUser.id;
     const membersNew = members.map((m: CallMember) => ({
       ...m,
@@ -116,12 +110,13 @@ const useCallStore = create<CallState>()((set, get) => ({
         roomId: roomId,
         targetUserId: member.id,
         offer: Helpers.enCryptUserInfo(offer),
+        callId: callId,
       });
     }
   },
   handleAcceptCall: async (payload: any) => {
     // accepted: người gọi
-    const { roomId, offer, members, actionUserId } = payload;
+    const { roomId, offer, members, actionUserId, callId } = payload;
     const socket = get().socket;
     const currentUser = useAuthStore.getState().user;
     if (!currentUser) {
@@ -149,9 +144,10 @@ const useCallStore = create<CallState>()((set, get) => ({
     });
     set({ status: "accepted", answer: Helpers.enCryptUserInfo(answerCreated) });
     Helpers.updateURLParams("status", "accepted");
+    Helpers.updateURLParams("callId", callId);
   },
   endCall: async (payload: any) => {
-    const { roomId, actionUserId, status } = payload;
+    const { roomId, actionUserId, status, callId } = payload;
     const socket = get().socket;
     const key = `${roomId}-${actionUserId}`;
     // xóa stream
@@ -183,6 +179,7 @@ const useCallStore = create<CallState>()((set, get) => ({
       roomId: roomId,
       actionUserId: actionUserId,
       status: status,
+      callId: callId,
     });
     // close window
     window.opener && window.close();
@@ -433,6 +430,7 @@ const useCallStore = create<CallState>()((set, get) => ({
   },
   updateCallState: async (state) => {
     const currentUser = useAuthStore.getState().user;
+    const socket = state.socket;
     if (state.status === "accepted") {
       set({ action: { ...get().action, duration: 0 } });
       const interval = setInterval(() => {
@@ -442,7 +440,7 @@ const useCallStore = create<CallState>()((set, get) => ({
         }));
       }, 1000);
       return () => clearInterval(interval);
-    } else if (state.status === "joined" && state.socket) {
+    } else if (state.status === "joined" && socket) {
       set((prev) => ({
         ...prev,
         socket: state.socket,
@@ -455,6 +453,13 @@ const useCallStore = create<CallState>()((set, get) => ({
           socket: state.socket,
         });
       }, 1000);
+    } else if (state.status === "calling" && socket) {
+      socket?.emit("call:request", {
+        actionUserId: currentUser?.id || "",
+        membersIds: state.members?.map((m: CallMember) => m.id) || [],
+        roomId: state.roomId,
+        callType: state.mode,
+      });
     }
     set((prev) => ({
       ...prev,

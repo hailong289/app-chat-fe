@@ -3,6 +3,7 @@ import { CallMember } from "./call.state";
 
 export type MessageSender = {
   _id: string;
+  id: string;
   fullname: string;
   avatar: string;
 };
@@ -22,6 +23,7 @@ export type FilePreview = {
   uploadedUrl?: string; // URL sau khi upload thành công
   file?: File; // File gốc để upload
   uploadError?: any; // optional structured error info when upload failed
+  summary?: string; // AI Summary of the attachment
 };
 
 export type MessageSummary = {
@@ -75,13 +77,13 @@ export type MessageType = {
       _id: string;
       name: string;
     };
-    isMine: boolean;
-    hiddenByMe: boolean;
-    isDeleted: boolean;
+   hiddenBy?: string[]; // List of user IDs who hid this message
+   hiddenAt: string | null;
+    isDeleted?: boolean;
+    isDelete?: boolean; // From new pipeline
   };
-  isMine: boolean;
-  isRead: boolean;
-  hiddenByMe: boolean;
+ 
+  hiddenBy?: string[]; // List of user IDs who hid this message
   hiddenAt: string | null;
   read_by: Array<{
     readAt: string;
@@ -106,8 +108,6 @@ export type MessageType = {
   call_history?: CallHistoryType | null;
   summary?: MessageSummary | null;
   translation?: MessageTranslation | null;
-  aiProcessing?: boolean;
-  aiTask?: "translate" | "summary" | string;
 };
 
 export interface CallHistoryType {
@@ -145,8 +145,17 @@ export interface RoomGallery {
   hasMoreLinks: boolean;
 }
 
-export interface RoomData {
+export type MessageGroup = {
+  dateLabel: string;
   messages: MessageType[];
+  isNewMessageDivider?: boolean;
+  newMessageIndex?: number;
+};
+
+export interface RoomData {
+  groups: MessageGroup[]; // Groups for ALL messages
+  displayedMessagesCount: number;
+  lastReadMessageId?: string | null;
   input: string | null;
   attachments: FilePreview[] | null;
   // ghim: string[] | null;
@@ -225,12 +234,8 @@ export interface MessageState {
     messageId: string,
     translation: MessageTranslation | null
   ) => Promise<void>;
-  setMessageAiProcessing: (
-    roomId: string,
-    messageId: string,
-    aiProcessing: boolean,
-    aiTask?: "translate" | "summary" | string
-  ) => void;
+  setLastReadMessageId: (roomId: string, messageId: string | null) => void;
+  setDisplayedMessagesCount: (roomId: string, count: number) => void;
 }
 export type msg = {
   input: string | null;

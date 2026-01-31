@@ -197,10 +197,6 @@ export function useMessageHandlers({
       const from = "auto";
 
       try {
-        useMessageStore
-          .getState()
-          .setMessageAiProcessing(chatId, msg.id, true, "translate");
-
         const result = await aiService.translate(msg.content, from, to);
 
         await useMessageStore
@@ -217,10 +213,6 @@ export function useMessageHandlers({
         toast.error(
           t("chat.hooks.translate.error", "Không thể dịch tin nhắn")
         );
-      } finally {
-        useMessageStore
-          .getState()
-          .setMessageAiProcessing(chatId, msg.id, false);
       }
     },
     [chatId, i18n.language, t, toast]
@@ -229,34 +221,29 @@ export function useMessageHandlers({
   const handleSummarize = useCallback(
     async (msg: MessageType) => {
       try {
-        useMessageStore
-          .getState()
-          .setMessageAiProcessing(chatId, msg.id, true, "summary");
-
         const attachment = (msg.attachments || []).find(
           (att) => att.uploadedUrl || att.url
         );
-     
+        let result;
         if (!attachment ) {
           toast.error(
             t("chat.hooks.summary.noFile", "Không tìm thấy tệp để tóm tắt")
           );
           return;
+        }else{
+          const fileUrl = attachment.uploadedUrl || attachment.url;
+          const response = await fetch(fileUrl);
+          if (!response.ok) {
+            throw new Error("Failed to download file for summary");
+          }
+  
+          const blob = await response.blob();
+          const fileName = attachment.name || `document-${msg.id}`;
+          const fileType = attachment.mimeType || blob.type || "application/octet-stream";
+          const file = new File([blob], fileName, { type: fileType });
+  
+         result = await aiService.summaryDocument(file);
         }
-        const fileUrl = attachment.uploadedUrl || attachment.url;
-        const proxyUrl = `/api/file-proxy?url=${encodeURIComponent(fileUrl)}`;
-        const response = await fetch(proxyUrl);
-        if (!response.ok) {
-          throw new Error("Failed to download file for summary");
-        }
-
-        const blob = await response.blob();
-        const fileName = attachment.name || `document-${msg.id}`;
-        const fileType = attachment.mimeType || blob.type || "application/octet-stream";
-        const file = new File([blob], fileName, { type: fileType });
-        console.log("🚀 ~ useMessageHandlers ~ file:", file)
-
-     const  result = await aiService.summaryDocument(file);
 
 
         await useMessageStore
@@ -274,10 +261,6 @@ export function useMessageHandlers({
         toast.error(
           t("chat.hooks.summary.error", "Không thể tóm tắt tài liệu")
         );
-      } finally {
-        useMessageStore
-          .getState()
-          .setMessageAiProcessing(chatId, msg.id, false);
       }
     },
     [chatId, t, toast]

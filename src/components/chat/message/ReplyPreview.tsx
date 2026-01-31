@@ -12,9 +12,13 @@ export function ReplyPreview({ reply, onJump }: ReplyPreviewProps) {
   if (!reply) return null;
 
   // Field mapping:
-  // - reply.isDeleted (or reply.status === 'recalled') => message was recalled (thu hồi)
-  // - reply.hiddenByMe => message was deleted by me (xoá)
-  const isRecalled = !!reply.isDeleted || reply.status === "recalled";
+  // - reply.isDeleted (or reply.status === 'recalled' or reply.isDelete) => message was recalled/deleted by sender
+  // - reply.hiddenByMe => message was hidden by me
+  const isRecalled = 
+    !!reply.isDeleted || 
+    !!reply.isDelete || 
+    reply.status === "recalled";
+    
   const isDeleted = !!reply.hiddenByMe;
 
   const badge =

@@ -16,7 +16,7 @@ export const SocketEventChatGlobal = () => {
   const callStore = useCallStore((state) => state);
   useEffect(() => {
     if (!socket) return;
-    socket.on(socketEvent.ROOMUPSERT, roomState.updateRoomSocket);
+    // socket.on(socketEvent.ROOMUPSERT, roomState.updateRoomSocket);
     socket.on(socketEvent.MSGUPSERT, messageState.upsetMsg);
     socket.on(socketEvent.MSGMARKREAD, roomState.setRoomReaded);
     socket.on(socketEvent.STATUS, contactState.socketHandleOnline);
@@ -26,7 +26,7 @@ export const SocketEventChatGlobal = () => {
     socket.on(socketEvent.CALL, (payload: any) => callStore.eventCall("request", payload));
     return () => {
       socket.off(socketEvent.CALL, (payload: any) => callStore.eventCall("request", payload));
-      socket.off(socketEvent.ROOMUPSERT, roomState.updateRoomSocket);
+      // socket.off(socketEvent.ROOMUPSERT, roomState.updateRoomSocket);
       socket.off(socketEvent.MSGUPSERT, messageState.upsetMsg);
       socket.off(socketEvent.MSGMARKREAD, roomState.setRoomReaded);
       socket.off(socketEvent.STATUS, contactState.socketHandleOnline);
