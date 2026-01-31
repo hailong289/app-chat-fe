@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card, CardBody, Button } from "@heroui/react";
+import { useEffect, useState, useCallback } from "react";
+import { Card, CardBody, Button, Pagination } from "@heroui/react";
 import { AcademicCapIcon } from "@heroicons/react/24/outline";
 import { PencilIcon, TrashIcon, PaperAirplaneIcon } from "@heroicons/react/16/solid";
 import QuizzService from "@/service/quizz.service";
@@ -26,6 +26,9 @@ export default function QuizzList({
   const [isLoadingQuizzes, setIsLoadingQuizzes] = useState(false);
   const [openEditQuizzModal, setOpenEditQuizzModal] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<QuizzResponse | undefined>();
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10); // Số lượng quizz mỗi trang
+  const [total_item, setTotalItem] = useState(0);
 
   // Kiểm tra xem user hiện tại có phải là người tạo quizz không
   const isQuizCreator = (quiz: QuizzResponse) => {
@@ -37,33 +40,43 @@ export default function QuizzList({
     );
   };
 
+  // Hàm fetch quizzes tái sử dụng
+  const fetchQuizzes = useCallback(async (currentPage: number) => {
+    if (!roomId) return;
+
+    setIsLoadingQuizzes(true);
+    try {
+      const response = await QuizzService.getQuizzes({
+        roomId,
+        page: currentPage,
+        limit,
+      });
+      const responseData = response?.data as any;
+      const metadata = responseData?.metadata as any;
+      setQuizzes(metadata?.data || []);
+      setTotalItem(metadata?.total_item || 0);
+    } catch (error) {
+      console.error("Error fetching quizzes:", error);
+      setQuizzes([]);
+      setTotalItem(0);
+    } finally {
+      setIsLoadingQuizzes(false);
+    }
+  }, [roomId, limit]);
+
+  // Reset về trang 1 khi roomId hoặc refreshTrigger thay đổi
   useEffect(() => {
-    const fetchQuizzes = async () => {
-      if (!roomId) return;
-
-      setIsLoadingQuizzes(true);
-      try {
-        const response = await QuizzService.getQuizzes({
-          roomId,
-          page: 1,
-          limit: 100,
-        });
-
-        if (response?.data?.metadata) {
-          setQuizzes(response.data.metadata);
-        } else if (Array.isArray(response?.data)) {
-          setQuizzes(response.data);
-        }
-      } catch (error) {
-        console.error("Error fetching quizzes:", error);
-        setQuizzes([]);
-      } finally {
-        setIsLoadingQuizzes(false);
-      }
-    };
-
-    fetchQuizzes();
+    if (roomId) {
+      setPage(1);
+    }
   }, [roomId, refreshTrigger]);
+
+  // Fetch quizzes khi page hoặc roomId/refreshTrigger thay đổi
+  useEffect(() => {
+    if (roomId) {
+      fetchQuizzes(page);
+    }
+  }, [page, roomId, refreshTrigger, fetchQuizzes]);
 
   const handleEdit = (quiz: QuizzResponse) => {
     setSelectedQuiz(quiz);
@@ -74,18 +87,11 @@ export default function QuizzList({
     if (confirm("Bạn có chắc chắn muốn xóa quizz này không?")) {
       try {
         await QuizzService.deleteQuizz(quizId);
-        // Refresh danh sách
-        const response = await QuizzService.getQuizzes({
-          roomId: roomId || "",
-          page: 1,
-          limit: 100,
-        });
-
-        if (response?.data?.metadata) {
-          setQuizzes(response.data.metadata);
-        } else if (Array.isArray(response?.data)) {
-          setQuizzes(response.data);
-        }
+        // Refresh danh sách ở trang hiện tại
+        // Nếu trang hiện tại không còn item nào sau khi xóa, quay về trang trước
+        const currentPage = quizzes.length === 1 && page > 1 ? page - 1 : page;
+        setPage(currentPage);
+        await fetchQuizzes(currentPage);
       } catch (error) {
         console.error("Error deleting quiz:", error);
         alert("Có lỗi xảy ra khi xóa quizz");
@@ -94,32 +100,12 @@ export default function QuizzList({
   };
 
   const handleEditSuccess = () => {
-    // Refresh danh sách sau khi chỉnh sửa thành công
-    const fetchQuizzes = async () => {
-      if (!roomId) return;
+    // Refresh danh sách sau khi chỉnh sửa thành công ở trang hiện tại
+    fetchQuizzes(page);
+  };
 
-      setIsLoadingQuizzes(true);
-      try {
-        const response = await QuizzService.getQuizzes({
-          roomId,
-          page: 1,
-          limit: 100,
-        });
-
-        if (response?.data?.metadata) {
-          setQuizzes(response.data.metadata);
-        } else if (Array.isArray(response?.data)) {
-          setQuizzes(response.data);
-        }
-      } catch (error) {
-        console.error("Error fetching quizzes:", error);
-        setQuizzes([]);
-      } finally {
-        setIsLoadingQuizzes(false);
-      }
-    };
-
-    fetchQuizzes();
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
   };
 
   return (
@@ -141,13 +127,13 @@ export default function QuizzList({
                 0
               ) || 0;
             const statusColor =
-              quiz.quiz_status === "published"
+              quiz.quiz_status === "active"
                 ? "text-success"
                 : quiz.quiz_status === "draft"
                 ? "text-warning"
                 : "text-gray-500";
             const statusText =
-              quiz.quiz_status === "published"
+              quiz.quiz_status === "active"
                 ? "Đã xuất bản"
                 : quiz.quiz_status === "draft"
                 ? "Bản nháp"
@@ -230,6 +216,21 @@ export default function QuizzList({
           })
         )}
       </div>
+      
+      {/* Pagination */}
+      {!isLoadingQuizzes && quizzes.length > 0 && total_item > limit && (
+        <div className="flex justify-center mt-4">
+          <Pagination
+            total={Math.ceil(total_item / limit)}
+            page={page}
+            onChange={handlePageChange}
+            showControls
+            color="primary"
+            size="sm"
+          />
+        </div>
+      )}
+      
       <EditQuizzModal
         isOpen={openEditQuizzModal}
         onClose={() => {

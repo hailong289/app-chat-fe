@@ -14,7 +14,7 @@ interface GenerateQuizzPayload {
 interface CreateQuizzPayload {
   quiz_title: string;
   quiz_description: string;
-  quiz_status: "draft" | "published";
+  quiz_status: "draft" | "active";
   quiz_roomId: string;
   quiz_createdBy: string;
   quiz_questions: QuizzResponse["quiz_questions"];
