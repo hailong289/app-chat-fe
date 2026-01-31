@@ -509,5 +509,72 @@
       "voice": "Voice Call"
     },
     "members_count": "với {{count}} người khác"
+  },
+  "flashcard": {
+    "modal": {
+      "createDeck": {
+        "title": "Tạo bộ flashcard mới",
+        "nameLabel": "Tên bộ thẻ",
+        "namePlaceholder": "Nhập tên bộ thẻ",
+        "descriptionLabel": "Mô tả",
+        "descriptionPlaceholder": "Nhập mô tả cho bộ thẻ (tùy chọn)",
+        "imageLabel": "URL ảnh",
+        "imagePlaceholder": "https://example.com/image.jpg (tùy chọn)",
+        "tagsLabel": "Thẻ (Tags)",
+        "tagsPlaceholder": "Nhập thẻ và nhấn Enter (tùy chọn)",
+        "addTag": "Thêm",
+        "levelLabel": "Mức độ",
+        "levelPlaceholder": "Chọn mức độ (tùy chọn)",
+        "languageLabel": "Ngôn ngữ",
+        "languagePlaceholder": "Ví dụ: Tiếng Việt, English (tùy chọn)",
+        "isPublicLabel": "Công khai bộ thẻ này",
+        "createCardLabel": "Tạo thẻ",
+        "addCard": "Thêm thẻ",
+        "cardNumber": "Thẻ {{number}}",
+        "cardFormTitle": "Thông tin thẻ",
+        "cardFrontLabel": "Mặt trước",
+        "cardFrontPlaceholder": "Nhập nội dung mặt trước",
+        "cardBackLabel": "Mặt sau",
+        "cardBackPlaceholder": "Nhập nội dung mặt sau",
+        "cardHintLabel": "Gợi ý",
+        "cardHintPlaceholder": "Nhập gợi ý (tùy chọn)",
+        "cardTagsLabel": "Thẻ (Tags)",
+        "cardTagsPlaceholder": "Nhập thẻ và nhấn Enter (tùy chọn)",
+        "cardImageLabel": "URL ảnh",
+        "cardImagePlaceholder": "https://example.com/image.jpg (tùy chọn)",
+        "cardAudioLabel": "URL âm thanh",
+        "cardAudioPlaceholder": "https://example.com/audio.mp3 (tùy chọn)",
+        "cardDifficultyLabel": "Độ khó",
+        "cardDifficultyPlaceholder": "Chọn mức độ khó (tùy chọn)",
+        "cardIsPublicLabel": "Công khai thẻ này",
+        "cancel": "Hủy",
+        "create": "Tạo bộ"
+      }
+    },
+    "validation": {
+      "nameRequired": "Tên bộ thẻ không để trống",
+      "nameMaxLength": "Tên bộ thẻ không được vượt quá 255 ký tự",
+      "descriptionMaxLength": "Mô tả không được vượt quá 1000 ký tự",
+      "imageInvalid": "URL ảnh không hợp lệ",
+      "tagsMustBeArray": "Tags phải là mảng",
+      "isPublicMustBeBoolean": "Công khai phải là boolean",
+      "levelInvalid": "Mức độ không hợp lệ",
+      "languageMustBeString": "Ngôn ngữ phải là chuỗi",
+      "cardFrontRequired": "Mặt trước không để trống",
+      "cardFrontMaxLength": "Mặt trước không được vượt quá 1000 ký tự",
+      "cardBackRequired": "Mặt sau không để trống",
+      "cardBackMaxLength": "Mặt sau không được vượt quá 2000 ký tự",
+      "cardHintMaxLength": "Gợi ý không được vượt quá 500 ký tự",
+      "audioInvalid": "URL âm thanh không hợp lệ",
+      "difficultyMustBeNumber": "Độ khó phải là số",
+      "difficultyMin": "Độ khó tối thiểu là 1",
+      "difficultyMax": "Độ khó tối đa là 5"
+    },
+    "levels": {
+      "beginner": "Người mới bắt đầu",
+      "intermediate": "Trung bình",
+      "advanced": "Nâng cao",
+      "expert": "Chuyên gia"
+    }
   }
 }

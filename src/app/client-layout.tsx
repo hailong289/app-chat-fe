@@ -55,6 +55,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     (route) => path === route || path.startsWith(`${route}/`)
   );
 
+  const isDisableLeftSide = path.includes("/flash-card");
+
   // Dùng layout đơn giản cho: auth + các route không thuộc appRoutes (kiểu 404 / intro riêng)
   const useSimpleLayout = isAuthPage || !isInAppRoute;
 
@@ -70,7 +72,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     requestPermission();
   }, [firebase]);
   // Define valid routes
-  const validRoutes = ["/", "/chat", "/settings", "/contacts"];
+  const validRoutes = ["/", "/chat", "/settings", "/contacts", '/flash-card'];
   const isValidRoute =
     !validRoutes.some(
       (route) => path === route || path.startsWith(route + "/")
@@ -178,27 +180,32 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 h-screen flex overflow-hidden">
         {/* Global socket listener / toasts / events */}
 
-        <div
-          ref={sidebarRef}
-          className="relative h-full shrink-0"
-          style={{ width: `${sidebarWidth}px` }}
-        >
-          <div className="absolute top-3 right-3 z-20">{collapseButton}</div>
-          <Suspense fallback={<div className="h-full" />}>
-            <LeftSide />
-          </Suspense>
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            tabIndex={0}
-            className={`absolute top-0 right-0 h-full w-1 cursor-col-resize transition-colors ${
-              isResizing
-                ? "bg-primary/40"
-                : "bg-transparent hover:bg-primary/20"
-            }`}
-            onPointerDown={handleResizeStart}
-          />
-        </div>
+        {!isDisableLeftSide && 
+        (
+          <>
+            <div
+              ref={sidebarRef}
+              className="relative h-full shrink-0"
+              style={{ width: `${sidebarWidth}px` }}
+            >
+              <div className="absolute top-3 right-3 z-20">{collapseButton}</div>
+              <Suspense fallback={<div className="h-full" />}>
+                {/* <LeftSide /> */}
+              </Suspense>
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                tabIndex={0}
+                className={`absolute top-0 right-0 h-full w-1 cursor-col-resize transition-colors ${
+                  isResizing
+                    ? "bg-primary/40"
+                    : "bg-transparent hover:bg-primary/20"
+                }`}
+                onPointerDown={handleResizeStart}
+              />
+            </div>
+          </>
+        )}
 
         <div className="flex-1 overflow-y-auto h-screen">{children}</div>
       </main>
