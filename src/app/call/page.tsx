@@ -33,7 +33,7 @@ import { useTranslation } from "react-i18next";
 function CallPageContentInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { socket } = useSocket("/chat");
+  const { socket } = useSocket("/call");
   const [isMounted, setIsMounted] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { t } = useTranslation();
@@ -71,6 +71,7 @@ function CallPageContentInner() {
     setUserIdGhimmed,
     getDevices,
     setDevice,
+    handleSFUSignal,
   } = useCallStore();
 
   // handle socket event
@@ -84,6 +85,7 @@ function CallPageContentInner() {
       eventCall("candidate", payload),
     );
     socket?.on("call:end", (payload: any) => eventCall("end", payload));
+    socket?.on("signal", (payload: any) => handleSFUSignal(payload));
 
     socket?.on("call:share-screen", (payload: any) => {
       if (payload.isSharing) {
@@ -108,6 +110,7 @@ function CallPageContentInner() {
         eventCall("answer", payload),
       );
       socket?.off("call:end", (payload: any) => eventCall("end", payload));
+      socket?.off("signal");
       socket?.off("call:share-screen");
     };
   }, [socket]);
@@ -144,6 +147,7 @@ function CallPageContentInner() {
           | "accepted"
           | "declined",
         mode: searchParams.get("callType") as "audio" | "video",
+        callMode: (searchParams.get("callMode") as "p2p" | "sfu") || "p2p",
         members: Helpers.decryptUserInfo(
           searchParams.get("members") || "[]",
         ) as CallMember[],

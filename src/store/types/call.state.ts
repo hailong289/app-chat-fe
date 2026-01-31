@@ -1,6 +1,7 @@
 import { User } from "@/types/auth.type";
 import { is } from "date-fns/locale";
 import { Socket } from "socket.io-client";
+import * as mediasoupClient from "mediasoup-client";
 
 export interface CallMember {
   id: string;
@@ -8,21 +9,30 @@ export interface CallMember {
   fullname: string;
   avatar: string;
   is_caller: boolean;
-  status:  | 'initiated'
-  | 'started'
-  | 'pending'
-  | 'accepted'
-  | 'cancelled' // người gọi đã hủy cuộc gọi
-  | 'rejected' // người nhận đã từ chối cuộc gọi
-  | 'missed' // người nhận đã bỏ qua cuộc gọi
-  | 'ended' // người nhận hoặc người gọi đã kết thúc cuộc gọi
-  | 'joined'; // người nhận đã tham gia cuộc gọi
+  status:
+    | "initiated"
+    | "started"
+    | "pending"
+    | "accepted"
+    | "cancelled" // người gọi đã hủy cuộc gọi
+    | "rejected" // người nhận đã từ chối cuộc gọi
+    | "missed" // người nhận đã bỏ qua cuộc gọi
+    | "ended" // người nhận hoặc người gọi đã kết thúc cuộc gọi
+    | "joined"; // người nhận đã tham gia cuộc gọi
 }
 
 export interface CallState {
   roomId: string | null;
-  status: 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined' | 'joined'; // idle: không có cuộc gọi, calling: người gọi, incoming: người bị gọi, ended: kết thúc cuộc gọi, accepted: đã chấp nhận cuộc gọi, declined: đã từ chối cuộc gọi, joined: đã tham gia cuộc gọi
-  mode: 'audio' | 'video'; // audio: audio, video: video only
+  status:
+    | "idle"
+    | "calling"
+    | "incoming"
+    | "ended"
+    | "accepted"
+    | "declined"
+    | "joined"; // idle: không có cuộc gọi, calling: người gọi, incoming: người bị gọi, ended: kết thúc cuộc gọi, accepted: đã chấp nhận cuộc gọi, declined: đã từ chối cuộc gọi, joined: đã tham gia cuộc gọi
+  mode: "audio" | "video"; // audio: audio, video: video only
+  callMode: "p2p" | "sfu"; // p2p: direct connection (1-1), sfu: server-routed (groups)
   members: CallMember[];
   error: string | null;
   isWindowOpen: boolean;
@@ -37,6 +47,13 @@ export interface CallState {
     localStream: MediaStream | null;
     remoteStreams: Map<string, MediaStream>;
     peerConnections: Map<string, RTCPeerConnection>;
+  };
+  sfu?: {
+    device: mediasoupClient.types.Device | null;
+    sendTransport: mediasoupClient.types.Transport | null;
+    recvTransport: mediasoupClient.types.Transport | null;
+    producers: Map<string, mediasoupClient.types.Producer>;
+    consumers: Map<string, mediasoupClient.types.Consumer>;
   };
   pendingCandidates: Map<string, RTCIceCandidate[]>;
   action: {
@@ -65,16 +82,16 @@ export interface CallState {
   handleCreateLocalStream: () => void;
   handleCreatePeerConnection: (
     roomId: string,
-    actionUserId: string
+    actionUserId: string,
   ) => Promise<RTCPeerConnection>;
   updateCallState: (state: Partial<CallState>) => void;
   flushPendingCandidates: (
     roomId: string,
-    actionUserId: string
+    actionUserId: string,
   ) => Promise<void>;
   actionToggleTrack: (
     action: "mic" | "video" | "speaker" | "shareScreen",
-    value: boolean
+    value: boolean,
   ) => Promise<void>;
   handleEndCall: (data: any) => void;
   handleRequestCall: (data: any) => void;
@@ -82,5 +99,10 @@ export interface CallState {
   handleShareScreen: (value: boolean) => Promise<void>;
   setUserIdGhimmed: (userId: string) => void;
   getDevices: () => Promise<void>;
-  setDevice: (type: 'audioInput' | 'audioOutput' | 'videoInput', deviceId: string) => Promise<void>;
+  setDevice: (
+    type: "audioInput" | "audioOutput" | "videoInput",
+    deviceId: string,
+  ) => Promise<void>;
+  initSFU: () => Promise<void>;
+  handleSFUSignal: (payload: any) => Promise<void>;
 }

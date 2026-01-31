@@ -11,6 +11,7 @@ import { useOnlinePresence } from "./hooks/useOnlinePresence";
 
 export const SocketEventChatGlobal = () => {
   const { socket } = useSocket("/chat");
+  const { socket: call } = useSocket("/call");
   const roomState = useRoomStore((state) => state);
   const contactState = useContactStore((state) => state);
   const messageState = useMessageStore((state) => state);
@@ -28,14 +29,14 @@ export const SocketEventChatGlobal = () => {
     socket.on(socketEvent.ROOMDELETE, roomState.roomDeleteSocket);
     socket.on(socketEvent.ERRORMSG, messageState.upsetMsgError);
     socket.on(socketEvent.STATUSTYPING, roomState.handleTypingEvent);
-    socket.on(socketEvent.CALL, (payload: any) =>
+    call.on(socketEvent.CALL, (payload: any) =>
       callStore.eventCall("request", payload),
     );
     socket.on(socketEvent.ROOM_REFRESH, (data: any) => {
       return roomState.fetchAndUpdateRoom(data.roomId);
     });
     return () => {
-      socket.off(socketEvent.CALL, (payload: any) =>
+      call.off(socketEvent.CALL, (payload: any) =>
         callStore.eventCall("request", payload),
       );
       // socket.off(socketEvent.ROOMUPSERT, roomState.updateRoomSocket);
@@ -49,6 +50,6 @@ export const SocketEventChatGlobal = () => {
         roomState.fetchAndUpdateRoom(data.roomId);
       });
     };
-  }, [socket]);
+  }, [socket, call]);
   return <></>;
 };
