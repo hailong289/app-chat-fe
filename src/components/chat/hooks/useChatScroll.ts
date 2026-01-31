@@ -130,8 +130,9 @@ export function useChatScroll({
           }
 
           // Get fresh messages from store
-          const currentMessages =
-            useMessageStore.getState().messagesRoom[chatId]?.messages || [];
+          const roomData = useMessageStore.getState().messagesRoom[chatId];
+          const groups = roomData?.groups.sort((a, b) => new Date(a.dateLabel).getTime() - new Date(b.dateLabel).getTime());
+          const currentMessages = groups?.[0]?.messages || [];
           messageIndex = currentMessages.findIndex(
             (msg: MessageType) => msg.id === id
           );
@@ -160,8 +161,9 @@ export function useChatScroll({
       // At this point, message is in state (either initially or after fetch)
       // We need to ensure it's within displayedMessagesCount
 
-      const currentMessages =
-        useMessageStore.getState().messagesRoom[chatId]?.messages || messages;
+      const roomData = useMessageStore.getState().messagesRoom[chatId];
+      const groups = roomData?.groups.sort((a, b) => new Date(a.dateLabel).getTime() - new Date(b.dateLabel).getTime());
+      const currentMessages = groups?.[0]?.messages || messages;
 
       // Recalculate index in case it changed
       messageIndex = currentMessages.findIndex(
