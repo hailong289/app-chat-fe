@@ -7,8 +7,11 @@ import useRoomStore from "@/store/useRoomStore";
 import type { RoomsState } from "@/store/types/room.state";
 import { useSocket } from "../../providers/SocketProvider";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageType, MessageGroup as MessageGroupType } from "@/store/types/message.state";
-import { sliceVisibleGroups } from "@/libs/timeline-helpers"; 
+import {
+  MessageType,
+  MessageGroup as MessageGroupType,
+} from "@/store/types/message.state";
+import { sliceVisibleGroups } from "@/libs/timeline-helpers";
 import { emitWithAck } from "../../../utils/messageHelpers";
 import { MESSAGES_PER_GROUP } from "../constants/messageConstants";
 import { useChatMessagesState } from "../hooks/useChatMessagesState";
@@ -69,42 +72,47 @@ export const ChatMessages = memo(
     const isRead = useRoomStore(selectIsRead);
     const roomMeta = useMemo(
       () => ({ lastReadId, lastServerMessageId, unreadCount, isRead }),
-      [lastReadId, lastServerMessageId, unreadCount, isRead]
+      [lastReadId, lastServerMessageId, unreadCount, isRead],
     );
 
     // Fetch pre-calculated visible groups from store
-    // Use separate selectors to avoid unnecessary re-renders when return value is a new object
+    // Direct selectors without useCallback - Zustand handles identity internally
     const groups = useMessageStore(
-      useCallback((state) => state.messagesRoom[chatId]?.groups || EMPTY_GROUPS, [chatId])
+      (state) => state.messagesRoom[chatId]?.groups || EMPTY_GROUPS,
     );
-    
+
     const displayedMessagesCount = useMessageStore(
-      useCallback((state) => state.messagesRoom[chatId]?.displayedMessagesCount || 20, [chatId])
+      (state) => state.messagesRoom[chatId]?.displayedMessagesCount || 20,
     );
 
     // Optimize store subscription
     // Derived messages for local usage if needed (e.g. for length checks)
-    const messages = useMemo(() => groups.flatMap(g => g.messages), [groups]);
+    const messages = useMemo(() => groups.flatMap((g) => g.messages), [groups]);
 
     // Compute visible groups from all groups
     const visibleGroups = useMemo(
       () => sliceVisibleGroups(groups, displayedMessagesCount),
-      [groups, displayedMessagesCount]
+      [groups, displayedMessagesCount],
+    );
+
+    console.log(
+      `🔄 ~ ChatMessages render ~ chatId: ${chatId} - groups: ${groups.length} - messages: ${groups.flatMap((g) => g.messages).length} - displayedCount: ${displayedMessagesCount} - visibleGroups: ${visibleGroups.length}`,
     );
 
     const isLoadingMessage = useMessageStore((state) => state.isLoading);
     const fetchMessagesFromAPI = useMessageStore(
-      (state) => state.fetchMessagesFromAPI
+      (state) => state.fetchMessagesFromAPI,
     );
     const getMessageByRoomId = useMessageStore(
-      (state) => state.getMessageByRoomId
+      (state) => state.getMessageByRoomId,
     );
     const loadOlderMessages = useMessageStore(
-      (state) => state.loadOlderMessages
+      (state) => state.loadOlderMessages,
     );
     const findMessage = useMessageStore((state) => state.findMessage);
     const resendMessage = useMessageStore((state) => state.resendMessage);
     const fetchNewMessages = useMessageStore((state) => state.fetchNewMessages);
+    const upsetMsg = useMessageStore((state) => state.upsetMsg);
 
     // Create a stable messageState object for hooks that need it
     // This avoids re-rendering when unrelated parts of the store change
@@ -117,6 +125,7 @@ export const ChatMessages = memo(
         findMessage,
         resendMessage,
         fetchNewMessages,
+        upsetMsg,
       }),
       [
         isLoadingMessage,
@@ -126,7 +135,8 @@ export const ChatMessages = memo(
         findMessage,
         resendMessage,
         fetchNewMessages,
-      ]
+        upsetMsg,
+      ],
     );
 
     // Memoize handlers to prevent re-creation on every render
@@ -134,7 +144,7 @@ export const ChatMessages = memo(
       (event: string, payload: any, timeout = 5000) => {
         return emitWithAck(socket, event, payload, timeout);
       },
-      [socket]
+      [socket],
     );
 
     const handlers = useMessageHandlers({
@@ -165,7 +175,7 @@ export const ChatMessages = memo(
         handlers.handleCopy,
         handlers.handleTranslate,
         handlers.handleSummarize,
-      ]
+      ],
     );
 
     // Compute the most up-to-date message id to use for grouping/scrolling
@@ -174,7 +184,7 @@ export const ChatMessages = memo(
     const scrollTargetId = roomMeta.lastReadId ?? lastMsgId;
 
     const storeSetDisplayedCount = useMessageStore(
-      (state) => state.setDisplayedMessagesCount
+      (state) => state.setDisplayedMessagesCount,
     );
 
     const handleSetDisplayedCount = useCallback(
@@ -187,7 +197,7 @@ export const ChatMessages = memo(
         }
         storeSetDisplayedCount(chatId, newCount);
       },
-      [chatId, displayedMessagesCount, storeSetDisplayedCount]
+      [chatId, displayedMessagesCount, storeSetDisplayedCount],
     );
 
     // State management hook
@@ -231,7 +241,7 @@ export const ChatMessages = memo(
           return newSet;
         });
       },
-      [state.setExpandedMessages]
+      [state.setExpandedMessages],
     );
 
     // Load more handler
@@ -263,7 +273,7 @@ export const ChatMessages = memo(
 
           setTimeout(() => {
             handleSetDisplayedCount((prev) =>
-              Math.min(prev + MESSAGES_PER_GROUP, messages.length)
+              Math.min(prev + MESSAGES_PER_GROUP, messages.length),
             );
             state.setIsLoadingOlder(false);
 
@@ -351,7 +361,7 @@ export const ChatMessages = memo(
         messages.length,
         chatId,
         messageState,
-      ]
+      ],
     );
 
     // Effects hook
@@ -562,7 +572,7 @@ export const ChatMessages = memo(
         />
       </>
     );
-  }
+  },
 );
 
 ChatMessages.displayName = "ChatMessages";

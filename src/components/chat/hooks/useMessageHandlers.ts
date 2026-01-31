@@ -6,6 +6,7 @@ import { emitWithAck, canRecallMessage } from "../../../utils/messageHelpers";
 import { socketEvent } from "@/types/socketEvent.type";
 import { useTranslation } from "react-i18next";
 import { aiService } from "@/service/ai.service";
+import useAuthStore from "@/store/useAuthStore";
 
 interface UseMessageHandlersProps {
   chatId: string;
@@ -14,7 +15,7 @@ interface UseMessageHandlersProps {
   emitWithAckHelper: (
     event: string,
     payload: any,
-    timeout?: number
+    timeout?: number,
   ) => Promise<any>;
 }
 
@@ -25,19 +26,65 @@ export function useMessageHandlers({
   emitWithAckHelper,
 }: UseMessageHandlersProps) {
   const toast = useToast();
- const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const handleReply = useCallback(
     (msg: MessageType) => {
       useMessageStore.getState().setReplyMessage(chatId, msg);
       // TODO: Scroll to input and focus
     },
-    [chatId]
+    [chatId],
   );
 
   const handleReact = useCallback(
     (msg: MessageType, emoji: string) => {
       if (!socket || !socket.connected) return;
+      const currentUser = useAuthStore.getState().user;
+      if (!currentUser) return;
+
+      const original = { ...msg }; // Shallow copy is ok for rollback if we don't mutate deep
+      // Deep clone for updates to avoid mutating state directly before setting
+      const updated = JSON.parse(JSON.stringify(msg));
+
+      updated.reactions = updated.reactions || [];
+
+      // 1. Remove user from all existing reactions (to handle switch emoji)
+      updated.reactions = updated.reactions
+        .map((r: any) => ({
+          ...r,
+          users: r.users.filter((u: any) => u._id !== currentUser._id),
+        }))
+        .map((r: any) => ({
+          ...r,
+          count: r.users.length,
+        }))
+        .filter((r: any) => r.count > 0);
+
+      // 2. Add user to new emoji group
+      const targetReaction = updated.reactions.find(
+        (r: any) => r.emoji === emoji,
+      );
+
+      const reactionUser = {
+        _id: currentUser._id,
+        usr_id: currentUser.id,
+        usr_fullname: currentUser.fullname,
+        usr_avatar: currentUser.avatar,
+      };
+
+      if (targetReaction) {
+        targetReaction.users.push(reactionUser);
+        targetReaction.count++;
+      } else {
+        updated.reactions.push({
+          emoji,
+          count: 1,
+          users: [reactionUser],
+        });
+      }
+
+      // Optimistic update
+      messageState.upsetMsg(updated);
 
       socket.emit(
         socketEvent.MSGREACT,
@@ -46,10 +93,10 @@ export function useMessageHandlers({
           msgId: msg.id,
           emoji: emoji,
         },
-        () => {}
+        () => {},
       );
     },
-    [chatId, socket]
+    [chatId, socket, messageState],
   );
 
   const handleCopy = useCallback((content: string) => {
@@ -74,7 +121,7 @@ export function useMessageHandlers({
       emitWithAckHelper(
         socketEvent.MSGDELETE,
         { roomId: chatId, msgId: msg.id },
-        5000
+        5000,
       )
         .then((ack) => {
           console.debug("emit:message:delete ack:", ack, "msgId:", msg.id);
@@ -93,7 +140,7 @@ export function useMessageHandlers({
           toast.error(t("chat.hooks.delete.connectionError"));
         });
     },
-    [chatId, socket, emitWithAckHelper, toast, t]
+    [chatId, socket, emitWithAckHelper, toast, t],
   );
 
   const handleRecall = useCallback(
@@ -119,7 +166,7 @@ export function useMessageHandlers({
           msgId: msg.id,
           placeholder: t("chat.hooks.recall.placeholder"),
         },
-        5000
+        5000,
       )
         .then((ack) => {
           console.debug("emit:message:recall ack:", ack, "msgId:", msg.id);
@@ -137,7 +184,7 @@ export function useMessageHandlers({
           toast.error(t("chat.hooks.recall.connectionError"));
         });
     },
-    [chatId, emitWithAckHelper, messageState, toast, t]
+    [chatId, emitWithAckHelper, messageState, toast, t],
   );
 
   const handleTogglePin = useCallback(
@@ -162,7 +209,7 @@ export function useMessageHandlers({
             msgId: msg.id,
             pinned: !msg.pinned,
           },
-          4000
+          4000,
         )
           .then((ack) => {
             console.debug("emit:message:pin ack:", ack, "msgId:", msg.id);
@@ -173,7 +220,7 @@ export function useMessageHandlers({
               toast.success(
                 !msg.pinned
                   ? t("chat.hooks.pin.pinned")
-                  : t("chat.hooks.pin.unpinned")
+                  : t("chat.hooks.pin.unpinned"),
               );
             }
           })
@@ -186,7 +233,7 @@ export function useMessageHandlers({
         console.error("❌ Error toggling pin:", err);
       }
     },
-    [chatId, emitWithAckHelper, messageState, toast, t]
+    [chatId, emitWithAckHelper, messageState, toast, t],
   );
 
   const handleTranslate = useCallback(
@@ -199,71 +246,65 @@ export function useMessageHandlers({
       try {
         const result = await aiService.translate(msg.content, from, to);
 
-        await useMessageStore
-          .getState()
-          .setMessageTranslation(chatId, msg.id, {
-            text: result.translated,
-            from: result.from,
-            to: result.to,
-          });
+        await useMessageStore.getState().setMessageTranslation(chatId, msg.id, {
+          text: result.translated,
+          from: result.from,
+          to: result.to,
+        });
 
         toast.success(t("chat.hooks.translate.success", "Đã dịch tin nhắn"));
       } catch (error) {
         console.error("❌ translate error", error);
-        toast.error(
-          t("chat.hooks.translate.error", "Không thể dịch tin nhắn")
-        );
+        toast.error(t("chat.hooks.translate.error", "Không thể dịch tin nhắn"));
       }
     },
-    [chatId, i18n.language, t, toast]
+    [chatId, i18n.language, t, toast],
   );
 
   const handleSummarize = useCallback(
     async (msg: MessageType) => {
       try {
         const attachment = (msg.attachments || []).find(
-          (att) => att.uploadedUrl || att.url
+          (att) => att.uploadedUrl || att.url,
         );
         let result;
-        if (!attachment ) {
+        if (!attachment) {
           toast.error(
-            t("chat.hooks.summary.noFile", "Không tìm thấy tệp để tóm tắt")
+            t("chat.hooks.summary.noFile", "Không tìm thấy tệp để tóm tắt"),
           );
           return;
-        }else{
+        } else {
           const fileUrl = attachment.uploadedUrl || attachment.url;
           const response = await fetch(fileUrl);
           if (!response.ok) {
             throw new Error("Failed to download file for summary");
           }
-  
+
           const blob = await response.blob();
           const fileName = attachment.name || `document-${msg.id}`;
-          const fileType = attachment.mimeType || blob.type || "application/octet-stream";
+          const fileType =
+            attachment.mimeType || blob.type || "application/octet-stream";
           const file = new File([blob], fileName, { type: fileType });
-  
-         result = await aiService.summaryDocument(file);
+
+          result = await aiService.summaryDocument(file);
         }
 
-
-        await useMessageStore
-          .getState()
-          .setMessageSummary(chatId, msg.id, {
-            text: result.summary,
-            title: result.title,
-            keyPoints: result.keyPoints,
-            language: result.language,
-          });
+        await useMessageStore.getState().setMessageSummary(chatId, msg.id, {
+          text: result.summary,
+          title: result.title,
+          keyPoints: result.keyPoints,
+          language: result.language,
+        });
 
         toast.success(t("chat.hooks.summary.success", "Đã tóm tắt tài liệu"));
       } catch (error) {
         console.error("❌ summary error", error);
         toast.error(
-          t("chat.hooks.summary.error", "Không thể tóm tắt tài liệu")
+          t("chat.hooks.summary.error", "Không thể tóm tắt tài liệu"),
         );
       }
     },
-    [chatId, t, toast]
+    [chatId, t, toast],
   );
 
   return {

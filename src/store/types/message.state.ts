@@ -158,9 +158,7 @@ export interface RoomData {
   lastReadMessageId?: string | null;
   input: string | null;
   attachments: FilePreview[] | null;
-  // ghim: string[] | null;
-  // updatedAt: string | null;
-  reply: MessageType | null;
+   reply: MessageType | null;
   gallery?: RoomGallery;
 }
 
