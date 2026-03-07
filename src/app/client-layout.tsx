@@ -194,7 +194,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
             >
               <div className="absolute top-3 right-3 z-20">{collapseButton}</div>
               <Suspense fallback={<div className="h-full" />}>
-                {/* <LeftSide /> */}
+                <LeftSide />
               </Suspense>
               <div
                 role="separator"
