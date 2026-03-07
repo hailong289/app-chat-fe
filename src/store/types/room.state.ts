@@ -16,6 +16,7 @@ export interface RoomsState {
   clearRooms: () => void;
   setRooms: (rooms: roomType[]) => void;
   getRoomById: (id: string) => Promise<roomType | undefined>;
+  fetchAndUpdateRoom: (roomId: string) => Promise<void>;
   getRoomsByType: (type: string) => Promise<roomType[]>;
   changeRoomName: (id: string, name: string) => Promise<void>;
   leavingRoom: () => Promise<boolean>;
@@ -27,7 +28,7 @@ export interface RoomsState {
   createRoom: (
     type: "group" | "private" | "channel",
     name: string | undefined,
-    memberIds: string[]
+    memberIds: string[],
   ) => Promise<void>;
   addMember: (memberIds: string[]) => Promise<void>;
   updateRoomSocket: (room: roomType) => void;
@@ -46,7 +47,7 @@ export interface RoomsState {
   updateBlockStatus: (
     roomId: string,
     isBlocked: boolean,
-    blockByMine: boolean
+    blockByMine: boolean,
   ) => void;
   pinnedRoom: (roomId: string, pinned: boolean) => Promise<void>;
   mutedRoom: (roomId: string, muted: boolean) => Promise<void>;

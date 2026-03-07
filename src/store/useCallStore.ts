@@ -3,11 +3,13 @@ import { CallMember, CallState } from "./types/call.state";
 import Helpers from "@/libs/helpers";
 import useAuthStore from "./useAuthStore";
 import { User } from "@/types/auth.type";
+import { Device } from "mediasoup-client";
 
 const useCallStore = create<CallState>()((set, get) => ({
   roomId: null,
   status: "idle",
   mode: "audio",
+  callMode: "p2p",
   members: [] as CallMember[],
   error: null,
   isWindowOpen: false,
@@ -37,6 +39,13 @@ const useCallStore = create<CallState>()((set, get) => ({
     remoteStreams: new Map<string, MediaStream>(),
     peerConnections: new Map<string, RTCPeerConnection>(),
   },
+  sfu: {
+    device: null,
+    sendTransport: null,
+    recvTransport: null,
+    producers: new Map(),
+    consumers: new Map(),
+  },
   pendingCandidates: new Map<string, RTCIceCandidate[]>(),
   action: {
     isMicEnabled: true,
@@ -59,7 +68,14 @@ const useCallStore = create<CallState>()((set, get) => ({
   answer: null,
   openCall: (payload) => {
     // calling: người gọi
-    const { roomId, mode, members, currentUser, socket } = payload;
+    const {
+      roomId,
+      mode,
+      members,
+      currentUser,
+      socket,
+      callMode = "p2p",
+    } = payload;
     const memberMap = members.map((m: User) => ({
       id: m.id,
       fullname: m.fullname,
@@ -68,19 +84,19 @@ const useCallStore = create<CallState>()((set, get) => ({
     }));
     const encodedMemberInfo = Helpers.enCryptUserInfo(memberMap);
     window.open(
-      `/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${mode}&status=calling&isCaller=true`,
+      `/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${mode}&callMode=${callMode}&status=calling&isCaller=true`,
       "",
-      "width=800,height=600"
+      "width=800,height=600",
     );
   },
   handleRequestCall: async (payload: any) => {
     // incoming: người bị gọi
-    const { roomId, members, callType, callId } = payload;
+    const { roomId, members, callType, callId, callMode = "p2p" } = payload;
     const encodedMemberInfo = Helpers.enCryptUserInfo(members);
     window.open(
-      `/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${callType}&status=incoming&callId=${callId}`,
+      `/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${callType}&callMode=${callMode}&status=incoming&callId=${callId}`,
       "",
-      "width=800,height=600"
+      "width=800,height=600",
     );
   },
   acceptCall: async (payload) => {
@@ -95,7 +111,7 @@ const useCallStore = create<CallState>()((set, get) => ({
     Helpers.updateURLParams("status", "accepted");
     Helpers.updateURLParams("members", Helpers.enCryptUserInfo(membersNew));
     const otherMembers = membersNew.filter(
-      (m: CallMember) => m.id !== currentUser.id
+      (m: CallMember) => m.id !== currentUser.id,
     );
     for (const member of otherMembers) {
       // Tạo peer connection
@@ -124,7 +140,7 @@ const useCallStore = create<CallState>()((set, get) => ({
       return;
     }
     const userStarted = members.find(
-      (m: CallMember) => m.id === currentUser.id && m.status === "started"
+      (m: CallMember) => m.id === currentUser.id && m.status === "started",
     );
     if (!userStarted) {
       console.error("User not found in members");
@@ -181,13 +197,28 @@ const useCallStore = create<CallState>()((set, get) => ({
       status: status,
       callId: callId,
     });
+
+    if (get().callMode === "sfu") {
+      get().sfu?.sendTransport?.close();
+      get().sfu?.recvTransport?.close();
+      set({
+        sfu: {
+          device: null,
+          sendTransport: null,
+          recvTransport: null,
+          producers: new Map(),
+          consumers: new Map(),
+        },
+      });
+    }
+
     // close window
     window.opener && window.close();
   },
   handleEndCall: (payload: any) => {
     const { roomId, actionUserId, members } = payload;
     const isCallerEnded = members.some(
-      (m: CallMember) => m.is_caller && m.status === "ended"
+      (m: CallMember) => m.is_caller && m.status === "ended",
     );
     if (members.length > 2 && !isCallerEnded) {
       // nếu có nhiều hơn 2 người và người gọi không kết thúc cuộc gọi thì không kết thúc cuộc gọi
@@ -254,6 +285,19 @@ const useCallStore = create<CallState>()((set, get) => ({
       },
     });
     // socket emit end call
+    if (get().callMode === "sfu") {
+      get().sfu?.sendTransport?.close();
+      get().sfu?.recvTransport?.close();
+      set({
+        sfu: {
+          device: null,
+          sendTransport: null,
+          recvTransport: null,
+          producers: new Map(),
+          consumers: new Map(),
+        },
+      });
+    }
     window.opener && window.close();
   },
   eventCall: async (event: string, payload: any) => {
@@ -307,7 +351,7 @@ const useCallStore = create<CallState>()((set, get) => ({
         // and be in "have-local-offer" state to receive an answer
         if (pc.signalingState === "stable" && !pc.localDescription) {
           console.error(
-            "Cannot set remote answer: peer connection is stable but has no local description"
+            "Cannot set remote answer: peer connection is stable but has no local description",
           );
           return;
         }
@@ -321,7 +365,7 @@ const useCallStore = create<CallState>()((set, get) => ({
 
         try {
           await pc.setRemoteDescription(
-            new RTCSessionDescription(answerDescription)
+            new RTCSessionDescription(answerDescription),
           );
           await get().flushPendingCandidates(roomId, actionUserId);
         } catch (error) {
@@ -365,17 +409,24 @@ const useCallStore = create<CallState>()((set, get) => ({
     }
     const currentState = get();
     const constraints: MediaStreamConstraints = {
-      audio: currentState.devices.selectedAudioInput ? { deviceId: { exact: currentState.devices.selectedAudioInput } } : true,
-      video: currentState.mode === "video" ? (currentState.devices.selectedVideoInput ? { deviceId: { exact: currentState.devices.selectedVideoInput } } : true) : false,
+      audio: currentState.devices.selectedAudioInput
+        ? { deviceId: { exact: currentState.devices.selectedAudioInput } }
+        : true,
+      video:
+        currentState.mode === "video"
+          ? currentState.devices.selectedVideoInput
+            ? { deviceId: { exact: currentState.devices.selectedVideoInput } }
+            : true
+          : false,
     };
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       set({ stream: { ...get().stream, localStream: stream } });
-      
+
       // Populate devices list if empty
       if (currentState.devices.audioInputs.length === 0) {
-          await get().getDevices();
+        await get().getDevices();
       }
     } catch (error) {
       console.error("Error creating local stream:", error);
@@ -388,7 +439,7 @@ const useCallStore = create<CallState>()((set, get) => ({
     }
     const socket = get().socket;
     const pc = new RTCPeerConnection(
-      get().configPeerConnection as RTCConfiguration
+      get().configPeerConnection as RTCConfiguration,
     );
     // Khi nhận được ICE Candidate từ bên kia
     pc.onicecandidate = (event) => {
@@ -445,15 +496,33 @@ const useCallStore = create<CallState>()((set, get) => ({
         ...prev,
         socket: state.socket,
       }));
-      setTimeout(async () => {
-        await get().acceptCall({
+
+      if (get().callMode === "sfu") {
+        await get().initSFU();
+        socket?.emit("signal", {
+          type: "join",
           roomId: state.roomId,
-          members: state.members,
-          currentUser: currentUser,
-          socket: state.socket,
+          target: "sfu",
         });
-      }, 1000);
+      } else {
+        setTimeout(async () => {
+          await get().acceptCall({
+            roomId: state.roomId,
+            members: state.members,
+            currentUser: currentUser,
+            socket: state.socket,
+          });
+        }, 1000);
+      }
     } else if (state.status === "calling" && socket) {
+      if (get().callMode === "sfu") {
+        await get().initSFU();
+        socket?.emit("signal", {
+          type: "join",
+          roomId: state.roomId,
+          target: "sfu",
+        });
+      }
       socket?.emit("call:request", {
         actionUserId: currentUser?.id || "",
         membersIds: state.members?.map((m: CallMember) => m.id) || [],
@@ -480,7 +549,7 @@ const useCallStore = create<CallState>()((set, get) => ({
     const candidates = pendingCandidates || [];
     if (candidates && candidates.length > 0) {
       console.log(
-        `✅ Flushing ${candidates.length} pending ICE candidates for room ${roomId}`
+        `✅ Flushing ${candidates.length} pending ICE candidates for room ${roomId}`,
       );
       for (const candidate of candidates) {
         try {
@@ -495,7 +564,7 @@ const useCallStore = create<CallState>()((set, get) => ({
   },
   actionToggleTrack: async (
     action: "mic" | "video" | "speaker" | "shareScreen",
-    value: boolean
+    value: boolean,
   ) => {
     const currentState = get();
     const localStream = currentState.stream.localStream;
@@ -646,14 +715,13 @@ const useCallStore = create<CallState>()((set, get) => ({
             },
           }));
         }
-        
+
         // Emit event to notify others
         currentState.socket?.emit("call:share-screen", {
-            roomId,
-            actionUserId: useAuthStore.getState().user?.id,
-            isSharing: true
+          roomId,
+          actionUserId: useAuthStore.getState().user?.id,
+          isSharing: true,
         });
-
       } catch (err) {
         console.error("User cancelled screen share or error:", err);
         // Reset lại nút toggle nếu user hủy
@@ -716,11 +784,10 @@ const useCallStore = create<CallState>()((set, get) => ({
 
         // Emit event to notify others
         currentState.socket?.emit("call:share-screen", {
-            roomId,
-            actionUserId: useAuthStore.getState().user?.id,
-            isSharing: false
+          roomId,
+          actionUserId: useAuthStore.getState().user?.id,
+          isSharing: false,
         });
-
       } catch (err) {
         console.error("Error reverting to camera:", err);
         set((prev) => ({
@@ -741,11 +808,17 @@ const useCallStore = create<CallState>()((set, get) => ({
       // Request permission first to get labels if not already granted
       // This might trigger a permission prompt
       // await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-      
+
       const devices = await navigator.mediaDevices.enumerateDevices();
-      const audioInputs = devices.filter((device) => device.kind === "audioinput");
-      const audioOutputs = devices.filter((device) => device.kind === "audiooutput");
-      const videoInputs = devices.filter((device) => device.kind === "videoinput");
+      const audioInputs = devices.filter(
+        (device) => device.kind === "audioinput",
+      );
+      const audioOutputs = devices.filter(
+        (device) => device.kind === "audiooutput",
+      );
+      const videoInputs = devices.filter(
+        (device) => device.kind === "videoinput",
+      );
 
       set((prev) => ({
         ...prev,
@@ -754,9 +827,12 @@ const useCallStore = create<CallState>()((set, get) => ({
           audioInputs,
           audioOutputs,
           videoInputs,
-          selectedAudioInput: prev.devices.selectedAudioInput || audioInputs[0]?.deviceId || "",
-          selectedAudioOutput: prev.devices.selectedAudioOutput || audioOutputs[0]?.deviceId || "",
-          selectedVideoInput: prev.devices.selectedVideoInput || videoInputs[0]?.deviceId || "",
+          selectedAudioInput:
+            prev.devices.selectedAudioInput || audioInputs[0]?.deviceId || "",
+          selectedAudioOutput:
+            prev.devices.selectedAudioOutput || audioOutputs[0]?.deviceId || "",
+          selectedVideoInput:
+            prev.devices.selectedVideoInput || videoInputs[0]?.deviceId || "",
         },
       }));
     } catch (error) {
@@ -766,54 +842,257 @@ const useCallStore = create<CallState>()((set, get) => ({
   setDevice: async (type, deviceId) => {
     set((prev) => ({
       ...prev,
-      devices: { ...prev.devices, [type === 'audioInput' ? 'selectedAudioInput' : type === 'audioOutput' ? 'selectedAudioOutput' : 'selectedVideoInput']: deviceId },
+      devices: {
+        ...prev.devices,
+        [type === "audioInput"
+          ? "selectedAudioInput"
+          : type === "audioOutput"
+            ? "selectedAudioOutput"
+            : "selectedVideoInput"]: deviceId,
+      },
     }));
-
     // If changing input device, we need to restart the stream
-    if (type === 'audioInput' || type === 'videoInput') {
-        const currentState = get();
-        const currentStream = currentState.stream.localStream;
-        
-        if (currentStream) {
-            // Stop current tracks
-            currentStream.getTracks().forEach(track => track.stop());
-            
-            // Create new stream with selected devices
-            const constraints = {
-                audio: { deviceId: { exact: type === 'audioInput' ? deviceId : currentState.devices.selectedAudioInput } },
-                video: currentState.mode === 'video' ? { deviceId: { exact: type === 'videoInput' ? deviceId : currentState.devices.selectedVideoInput } } : false
-            };
-            
-            try {
-                const newStream = await navigator.mediaDevices.getUserMedia(constraints);
-                
-                // Replace tracks in peer connections
-                const peerConnections = currentState.stream.peerConnections;
-                for (const [key, pc] of peerConnections.entries()) {
-                    const senders = pc.getSenders();
-                    
-                    const audioTrack = newStream.getAudioTracks()[0];
-                    const videoTrack = newStream.getVideoTracks()[0];
-                    
-                    if (audioTrack) {
-                        const audioSender = senders.find(s => s.track?.kind === 'audio');
-                        if (audioSender) await audioSender.replaceTrack(audioTrack);
-                    }
-                    
-                    if (videoTrack) {
-                        const videoSender = senders.find(s => s.track?.kind === 'video');
-                        if (videoSender) await videoSender.replaceTrack(videoTrack);
-                    }
+    if (type === "audioInput" || type === "videoInput") {
+      const currentState = get();
+      const currentStream = currentState.stream.localStream;
+
+      if (currentStream) {
+        // Stop current tracks
+        currentStream.getTracks().forEach((track) => track.stop());
+
+        // Create new stream with selected devices
+        const constraints = {
+          audio: {
+            deviceId: {
+              exact:
+                type === "audioInput"
+                  ? deviceId
+                  : currentState.devices.selectedAudioInput,
+            },
+          },
+          video:
+            currentState.mode === "video"
+              ? {
+                  deviceId: {
+                    exact:
+                      type === "videoInput"
+                        ? deviceId
+                        : currentState.devices.selectedVideoInput,
+                  },
                 }
-                
-                set((prev) => ({
-                    ...prev,
-                    stream: { ...prev.stream, localStream: newStream }
-                }));
-            } catch (error) {
-                console.error("Error switching device:", error);
+              : false,
+        };
+
+        try {
+          const newStream =
+            await navigator.mediaDevices.getUserMedia(constraints);
+
+          // Replace tracks in peer connections
+          const peerConnections = currentState.stream.peerConnections;
+          for (const [key, pc] of peerConnections.entries()) {
+            const senders = pc.getSenders();
+
+            const audioTrack = newStream.getAudioTracks()[0];
+            const videoTrack = newStream.getVideoTracks()[0];
+
+            if (audioTrack) {
+              const audioSender = senders.find(
+                (s) => s.track?.kind === "audio",
+              );
+              if (audioSender) await audioSender.replaceTrack(audioTrack);
             }
+
+            if (videoTrack) {
+              const videoSender = senders.find(
+                (s) => s.track?.kind === "video",
+              );
+              if (videoSender) await videoSender.replaceTrack(videoTrack);
+            }
+          }
+
+          set((prev) => ({
+            ...prev,
+            stream: { ...prev.stream, localStream: newStream },
+          }));
+        } catch (error) {
+          console.error("Error switching device:", error);
         }
+      }
+    }
+  },
+  initSFU: async () => {
+    try {
+      if (get().sfu?.device) return;
+
+      const device = new Device();
+      set({
+        sfu: {
+          ...get().sfu!,
+          device,
+        },
+      });
+      console.log("SFU Device initialized");
+    } catch (error) {
+      console.error("Failed to initialize SFU device:", error);
+    }
+  },
+  handleSFUSignal: async (payload: any) => {
+    const {
+      type,
+      ok,
+      rtpCapabilities,
+      sender,
+      target,
+      transportId,
+      iceParameters,
+      iceCandidates,
+      dtlsParameters,
+      producerId,
+      kind,
+      rtpParameters,
+      consumerId,
+      message,
+    } = payload;
+    const { socket, sfu, roomId, stream } = get();
+    const userId = useAuthStore.getState().user?.id;
+
+    if (!ok) {
+      console.error(`SFU Signal error (${type}):`, message);
+      return;
+    }
+
+    switch (type) {
+      case "join": {
+        if (!sfu?.device) return;
+        await sfu.device.load({ routerRtpCapabilities: rtpCapabilities });
+
+        // After joining and loading device, create send transport
+        socket?.emit("signal", {
+          type: "createTransport",
+          roomId,
+          target: "sfu",
+          direction: "send",
+        });
+        break;
+      }
+
+      case "createTransport": {
+        if (!sfu?.device || !roomId) return;
+
+        const isSend = !sfu.sendTransport;
+        const transport = isSend
+          ? sfu.device.createSendTransport({
+              id: transportId,
+              iceParameters,
+              iceCandidates,
+              dtlsParameters,
+            })
+          : sfu.device.createRecvTransport({
+              id: transportId,
+              iceParameters,
+              iceCandidates,
+              dtlsParameters,
+            });
+
+        transport.on("connect", ({ dtlsParameters }, callback, errback) => {
+          socket?.emit("signal", {
+            type: "connectTransport",
+            roomId,
+            target: "sfu",
+            transportId: transport.id,
+            dtlsParameters,
+          });
+          // For now we assume success, ideally we'd wait for an ack from socket
+          callback();
+        });
+
+        if (isSend) {
+          transport.on(
+            "produce",
+            async ({ kind, rtpParameters, appData }, callback, errback) => {
+              socket?.emit("signal", {
+                type: "produce",
+                roomId,
+                target: "sfu",
+                transportId: transport.id,
+                kind,
+                rtpParameters,
+                appData,
+              });
+              // We'll get the producerId back in a 'produce' signal or an ack
+              // For simplicity in this unified signal handler, we'll wait for the next 'produce' signal with target: 'me'
+              // OR we can use a callback-based approach if dispatchGrpcRequest supports it.
+              // But here we rely on the backend emitting back.
+            },
+          );
+
+          set({ sfu: { ...sfu, sendTransport: transport } });
+
+          // Start producing if we have a local stream
+          if (stream.localStream) {
+            const audioTrack = stream.localStream.getAudioTracks()[0];
+            const videoTrack = stream.localStream.getVideoTracks()[0];
+
+            if (audioTrack) await transport.produce({ track: audioTrack });
+            if (videoTrack) await transport.produce({ track: videoTrack });
+          }
+
+          // Also create receive transport
+          socket?.emit("signal", {
+            type: "createTransport",
+            roomId,
+            target: "sfu",
+            direction: "recv",
+          });
+        } else {
+          set({ sfu: { ...sfu, recvTransport: transport } });
+        }
+        break;
+      }
+
+      case "produce": {
+        if (target === "me") {
+          // Acknowledgment of our own production
+          console.log(`Our ${kind} producer created: ${producerId}`);
+        } else if (target === "broadcast") {
+          // Someone else is producing, we should consume
+          socket?.emit("signal", {
+            type: "consume",
+            roomId,
+            target: "sfu",
+            transportId: sfu?.recvTransport?.id,
+            producerId,
+            rtpCapabilities: sfu?.device?.rtpCapabilities,
+          });
+        }
+        break;
+      }
+
+      case "consume": {
+        if (!sfu?.recvTransport) return;
+
+        const consumer = await sfu.recvTransport.consume({
+          id: consumerId,
+          producerId,
+          kind,
+          rtpParameters,
+        });
+
+        const remoteStream = new MediaStream([consumer.track]);
+        const key = `${roomId}-${payload.userId || producerId}`; // Use userId if available, else producerId as fallback
+
+        const newRemoteStreams = new Map(stream.remoteStreams);
+        newRemoteStreams.set(key, remoteStream);
+
+        set({
+          stream: { ...stream, remoteStreams: newRemoteStreams },
+          sfu: {
+            ...sfu,
+            consumers: new Map(sfu.consumers).set(consumer.id, consumer),
+          },
+        });
+        break;
+      }
     }
   },
 }));

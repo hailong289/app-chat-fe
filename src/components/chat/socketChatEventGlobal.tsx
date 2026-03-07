@@ -7,13 +7,19 @@ import useMessageStore from "@/store/useMessageStore";
 import useContactStore from "@/store/useContactStore";
 import { socketEvent } from "@/types/socketEvent.type";
 import useCallStore from "@/store/useCallStore";
+import { useOnlinePresence } from "./hooks/useOnlinePresence";
 
 export const SocketEventChatGlobal = () => {
   const { socket } = useSocket("/chat");
+  const { socket: call } = useSocket("/call");
   const roomState = useRoomStore((state) => state);
   const contactState = useContactStore((state) => state);
   const messageState = useMessageStore((state) => state);
   const callStore = useCallStore((state) => state);
+
+  // Enable online presence heartbeat
+  useOnlinePresence(socket);
+
   useEffect(() => {
     if (!socket) return;
     // socket.on(socketEvent.ROOMUPSERT, roomState.updateRoomSocket);
@@ -23,9 +29,16 @@ export const SocketEventChatGlobal = () => {
     socket.on(socketEvent.ROOMDELETE, roomState.roomDeleteSocket);
     socket.on(socketEvent.ERRORMSG, messageState.upsetMsgError);
     socket.on(socketEvent.STATUSTYPING, roomState.handleTypingEvent);
-    socket.on(socketEvent.CALL, (payload: any) => callStore.eventCall("request", payload));
+    call.on(socketEvent.CALL, (payload: any) =>
+      callStore.eventCall("request", payload),
+    );
+    socket.on(socketEvent.ROOM_REFRESH, (data: any) => {
+      return roomState.fetchAndUpdateRoom(data.roomId);
+    });
     return () => {
-      socket.off(socketEvent.CALL, (payload: any) => callStore.eventCall("request", payload));
+      call.off(socketEvent.CALL, (payload: any) =>
+        callStore.eventCall("request", payload),
+      );
       // socket.off(socketEvent.ROOMUPSERT, roomState.updateRoomSocket);
       socket.off(socketEvent.MSGUPSERT, messageState.upsetMsg);
       socket.off(socketEvent.MSGMARKREAD, roomState.setRoomReaded);
@@ -33,7 +46,10 @@ export const SocketEventChatGlobal = () => {
       socket.off(socketEvent.ROOMDELETE, roomState.roomDeleteSocket);
       socket.off(socketEvent.ERRORMSG, messageState.upsetMsgError);
       socket.off(socketEvent.STATUSTYPING, roomState.handleTypingEvent);
+      socket.off(socketEvent.ROOM_REFRESH, (data: any) => {
+        roomState.fetchAndUpdateRoom(data.roomId);
+      });
     };
-  }, [socket]);
+  }, [socket, call]);
   return <></>;
 };

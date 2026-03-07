@@ -1,3 +1,4 @@
+import useAuthStore from "@/store/useAuthStore";
 import axios from "axios";
 import { deleteCookie, getCookie } from "cookies-next";
 import { redirect } from "next/navigation";
@@ -29,8 +30,10 @@ class ApiService {
         config.headers["Content-Type"] = "text/plain";
       }
       // Kiểm tra và thêm header Authorization nếu token tồn tại
+      // Chỉ tự động thêm token nếu header Authorization CHƯA ĐƯỢC SET (undefined)
+      // Nếu đã set (kể cả set là string rỗng để bypass), thì giữ nguyên
       const tokens = getCookie("tokens")?.toString();
-      if (tokens) {
+      if (tokens && config.headers["Authorization"] === undefined) {
         const { accessToken: token } = JSON.parse(tokens);
         config.headers["Authorization"] = `Bearer ${token}`;
       }
@@ -48,6 +51,7 @@ class ApiService {
         const responseData = error.response?.data;
         if (statusCode === 401) {
           deleteCookie("tokens", { path: "/" });
+         useAuthStore.getState().setAuth(false);
         }
         return Promise.reject({
           success: false,

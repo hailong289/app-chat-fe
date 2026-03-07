@@ -1,8 +1,11 @@
 import { MessageType } from "@/store/types/message.state";
 import { RECALL_TIME_LIMIT_MINUTES } from "../components/chat/constants/messageConstants";
 
-export const canRecallMessage = (msg: MessageType): boolean => {
-  if (!msg.isMine) return false;
+export const canRecallMessage = (
+  msg: MessageType,
+  isMine: boolean,
+): boolean => {
+  if (!isMine) return false;
   const sentAt = new Date(msg.createdAt).getTime();
   const now = Date.now();
   const diffMs = now - sentAt;
@@ -14,7 +17,7 @@ export const emitWithAck = (
   socket: any,
   event: string,
   payload: any,
-  timeout = 5000
+  timeout = 5000,
 ): Promise<any> => {
   // This helper intentionally resolves with a standardized ack object
   // instead of rejecting the promise. This avoids unhandled promise

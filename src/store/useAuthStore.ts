@@ -2,17 +2,19 @@ import { create } from "zustand";
 import { AuthState } from "./types/auth.state";
 import { createJSONStorage, persist } from "zustand/middleware";
 import AuthService from "@/service/auth.service";
-import { deleteCookie, setCookie } from "cookies-next";
+import { deleteCookie, getCookie, setCookie } from "cookies-next";
 import Dexie from "dexie";
 import * as LocalStorageUtils from "@/utils/localStorage";
 import { AuthResponse } from "@/types/auth.type";
-import apiService from "@/service/api.service";
+import { cleanupFirebaseMessaging, messaging } from "@/libs/firebase";
+import useMessageStore from "./useMessageStore";
+import useRoomStore from "./useRoomStore";
 
 // Lưu trạng thái xác thực trong localStorage
 const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      isAuthenticated: false,
+      isAuthenticated: Boolean(getCookie("tokens")),
       isLoading: false,
       user: null,
       tokens: {
@@ -54,7 +56,7 @@ const useAuthStore = create<AuthState>()(
             {
               maxAge: response.data.metadata?.expiresIn || 0,
               path: "/",
-            }
+            },
           );
           payload.callback?.();
         } catch (error) {
@@ -91,15 +93,52 @@ const useAuthStore = create<AuthState>()(
       logout: async (callback) => {
         set({ isLoading: true });
         try {
-          await AuthService.logout();
+          let fcmToken: string | undefined;
+          if (messaging) {
+            try {
+              // Try to get the current token to send to backend for cleanup
+              // We use the same VAPID key as likely used during login/requestPermission
+              const { getToken } = await import("firebase/messaging");
+              fcmToken = await getToken(messaging, {
+                vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+              });
+            } catch (err) {
+              console.warn(
+                "Could not retrieve FCM token for logout cleanup",
+                err,
+              );
+            }
+          }
+
+          await AuthService.logout({ fcmToken });
+
+          // Cleanup Firebase
+          await cleanupFirebaseMessaging();
+
           await Dexie.delete("app-chat-db");
           LocalStorageUtils.clearAllLocalStorage();
+
+          // Reset Stores
+          useMessageStore.setState({
+            messagesRoom: {},
+            isLoading: false,
+          });
+          useRoomStore.setState({
+            rooms: [],
+            room: null,
+            isLoading: false,
+          });
 
           set({
             isAuthenticated: false,
             isLoading: false,
             user: null,
-            tokens: null,
+            tokens: {
+              accessToken: null,
+              refreshToken: null,
+              expiresIn: 0,
+              expiredAt: 0,
+            },
           });
           deleteCookie("tokens", { path: "/" });
           callback?.();
@@ -159,10 +198,10 @@ const useAuthStore = create<AuthState>()(
             {
               maxAge: metadata.expiresIn,
               path: "/",
-            }
+            },
           );
-        } catch (error) {
-          console.error("Manual refresh failed:", error);
+        } catch (error: any) {
+          console.error("Manual refresh failed:", error?.message || error);
           // 5. Nếu refresh thất bại (token hết hạn hẳn hoặc bị revoke) -> Logout
           get().logout();
         }
@@ -266,8 +305,8 @@ const useAuthStore = create<AuthState>()(
     {
       name: "auth-storage", // unique name
       storage: createJSONStorage(() => localStorage), // (optional) by default, 'localStorage' is used
-    }
-  )
+    },
+  ),
 );
 
 export default useAuthStore;

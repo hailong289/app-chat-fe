@@ -3,7 +3,7 @@ name: Build Tauri Desktop
 on:
   push:
     branches:
-      - developer
+      - master
 
 jobs:
   build-desktop:

@@ -31,6 +31,8 @@ interface MessageBubbleProps {
     | "gif"
     | "call";
   callHistory: CallHistoryType | null;
+  isMine: boolean; // Computed by parent: msg.sender.id === currentUser.id
+  hiddenByMe: boolean; // Computed by parent: msg.hiddenBy?.includes(currentUser.id)
 }
 
 function DeletedMessageBubble({ isMine }: Readonly<{ isMine: boolean }>) {
@@ -71,7 +73,10 @@ function RecalledMessageBubble({ isMine }: Readonly<{ isMine: boolean }>) {
   );
 }
 
-function DocumentMessageBubble({ msg }: Readonly<{ msg: MessageType }>) {
+function DocumentMessageBubble({
+  msg,
+  isMine,
+}: Readonly<{ msg: MessageType; isMine: boolean }>) {
   const router = useRouter();
   const { t } = useTranslation();
 
@@ -89,7 +94,7 @@ function DocumentMessageBubble({ msg }: Readonly<{ msg: MessageType }>) {
           relative p-3 rounded-2xl shadow-sm border flex items-center gap-3 cursor-pointer
           transition-all hover:shadow-md outline-none focus:ring-2 focus:ring-blue-500
           ${
-            msg.isMine
+            isMine
               ? "bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800"
               : "bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700"
           }
@@ -101,7 +106,7 @@ function DocumentMessageBubble({ msg }: Readonly<{ msg: MessageType }>) {
         {/* Icon Box */}
         <div
           className={`p-2.5 rounded-lg flex-shrink-0 ${
-            msg.isMine
+            isMine
               ? "bg-blue-100 text-blue-600 dark:bg-blue-800 dark:text-blue-300"
               : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
           }`}
@@ -113,7 +118,7 @@ function DocumentMessageBubble({ msg }: Readonly<{ msg: MessageType }>) {
         <div className="flex-1 min-w-0">
           <h4
             className={`text-sm font-semibold truncate mb-0.5 ${
-              msg.isMine
+              isMine
                 ? "text-blue-900 dark:text-blue-100"
                 : "text-gray-900 dark:text-gray-100"
             }`}
@@ -123,7 +128,7 @@ function DocumentMessageBubble({ msg }: Readonly<{ msg: MessageType }>) {
           <div className="flex items-center justify-between">
             <p
               className={`text-xs truncate ${
-                msg.isMine
+                isMine
                   ? "text-blue-700/80 dark:text-blue-200/70"
                   : "text-gray-500 dark:text-gray-400"
               }`}
@@ -132,7 +137,7 @@ function DocumentMessageBubble({ msg }: Readonly<{ msg: MessageType }>) {
             </p>
             <ArrowTopRightOnSquareIcon
               className={`w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity ${
-                msg.isMine
+                isMine
                   ? "text-blue-600 dark:text-blue-300"
                   : "text-gray-500 dark:text-gray-400"
               }`}
@@ -144,16 +149,13 @@ function DocumentMessageBubble({ msg }: Readonly<{ msg: MessageType }>) {
       {msg.summary ? (
         <div
           className={`mt-3 w-full rounded-xl border px-4 py-3 text-sm shadow-sm ${
-            msg.isMine
+            isMine
               ? "bg-blue-50 border-blue-100 text-blue-900 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-50"
               : "bg-gray-50 border-gray-200 text-gray-800 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
           }`}
         >
           <div className="font-semibold text-xs mb-1">
-            {t(
-              "chat.messages.bubble.summaryTitle",
-              "Tóm tắt tài liệu"
-            )}
+            {t("chat.messages.bubble.summaryTitle", "Tóm tắt tài liệu")}
           </div>
           <p className="leading-relaxed whitespace-pre-wrap">
             {msg.summary.text}
@@ -172,14 +174,15 @@ function DocumentMessageBubble({ msg }: Readonly<{ msg: MessageType }>) {
 }
 
 function getBubbleClasses(
-  msg: MessageType,
+  isMine: boolean,
   isSameSenderAsPrev: boolean,
-  isSameSenderAsNext: boolean
+  isSameSenderAsNext: boolean,
+  status?: string,
 ) {
   return `
     relative px-4 py-2.5 rounded-2xl shadow-sm
     ${
-      msg.isMine
+      isMine
         ? `
           bg-gradient-to-br from-blue-500 to-blue-600 text-white
           dark:from-blue-500 dark:to-blue-600 dark:text-white
@@ -189,18 +192,12 @@ function getBubbleClasses(
           dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700
         `
     }
-    ${!isSameSenderAsPrev && msg.isMine ? "rounded-tr-md" : ""}
-    ${!isSameSenderAsPrev && !msg.isMine ? "rounded-tl-md" : ""}
-    ${!isSameSenderAsNext && msg.isMine ? "rounded-br-md" : ""}
-    ${!isSameSenderAsNext && !msg.isMine ? "rounded-bl-md" : ""}
-    ${
-      msg.status === "pending" || msg.status === "uploading" ? "opacity-60" : ""
-    }
-    ${
-      msg.status === "failed"
-        ? "opacity-80 border-2 border-red-400 dark:border-red-500"
-        : ""
-    }
+    ${!isSameSenderAsPrev && isMine ? "rounded-tr-md" : ""}
+    ${!isSameSenderAsPrev && !isMine ? "rounded-tl-md" : ""}
+    ${!isSameSenderAsNext && isMine ? "rounded-br-md" : ""}
+    ${!isSameSenderAsNext && !isMine ? "rounded-bl-md" : ""}
+    ${status === "pending" || status === "uploading" ? "opacity-60" : ""}
+    ${status === "failed" ? "opacity-80 border-2 border-red-400 dark:border-red-500" : ""}
   `;
 }
 
@@ -214,12 +211,14 @@ function UploadingIndicator() {
 
 function RegularMessageBubble({
   msg,
+  isMine,
   isSameSenderAsPrev,
   isSameSenderAsNext,
   isExpanded,
   onToggleExpanded,
 }: Readonly<{
   msg: MessageType;
+  isMine: boolean;
   isSameSenderAsPrev: boolean;
   isSameSenderAsNext: boolean;
   isExpanded: boolean;
@@ -237,9 +236,10 @@ function RegularMessageBubble({
     <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
       <div
         className={getBubbleClasses(
-          msg,
+          isMine,
           isSameSenderAsPrev,
-          isSameSenderAsNext
+          isSameSenderAsNext,
+          msg.status,
         )}
       >
         <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
@@ -249,7 +249,7 @@ function RegularMessageBubble({
         {msg.translation?.text ? (
           <div
             className={`mt-2 text-xs rounded-lg px-3 py-2 leading-relaxed ${
-              msg.isMine
+              isMine
                 ? "bg-white/15 text-white"
                 : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100"
             }`}
@@ -257,7 +257,7 @@ function RegularMessageBubble({
             <div className="font-semibold mb-1">
               {t(
                 "chat.messages.bubble.translatedLabel",
-                `Translated (${msg.translation.from || "auto"} → ${msg.translation.to})`
+                `Translated (${msg.translation.from || "auto"} → ${msg.translation.to})`,
               )}
             </div>
             <p className="whitespace-pre-wrap">{msg.translation.text}</p>
@@ -269,7 +269,7 @@ function RegularMessageBubble({
           <button
             onClick={() => onToggleExpanded(msg.id)}
             className={`text-xs mt-1 font-medium hover:underline ${
-              msg.isMine ? "text-blue-100" : "text-blue-600 dark:text-blue-400"
+              isMine ? "text-blue-100" : "text-blue-600 dark:text-blue-400"
             }`}
           >
             {isExpanded
@@ -285,7 +285,7 @@ function RegularMessageBubble({
       {/* Link Preview - hiển thị nếu có URL */}
       {previewUrl ? (
         <div className="mt-2">
-          <LinkPreview url={previewUrl} isMine={msg.isMine} />
+          <LinkPreview url={previewUrl} isMine={isMine} />
         </div>
       ) : null}
     </div>
@@ -294,11 +294,13 @@ function RegularMessageBubble({
 
 function CallMessageBubble({
   msg,
+  isMine,
   isSameSenderAsPrev,
   isSameSenderAsNext,
   callHistory,
 }: Readonly<{
   msg: MessageType;
+  isMine: boolean;
   isSameSenderAsPrev: boolean;
   isSameSenderAsNext: boolean;
   callHistory: CallHistoryType;
@@ -311,10 +313,10 @@ function CallMessageBubble({
   const isVideoCall = callHistory.call_type === "video";
 
   const currentUser = callHistory.members.find(
-    (member) => member.id === user?.id
+    (member) => member.id === user?.id,
   );
   const otherUser = callHistory.members.find(
-    (member) => member.id !== user?.id
+    (member) => member.id !== user?.id,
   );
 
   // Determine status
@@ -361,8 +363,12 @@ function CallMessageBubble({
 
   const handleJoinCall = () => {
     const encodedMemberInfo = Helpers.enCryptUserInfo(callHistory.members);
-    window.open(`/call?roomId=${msg.roomId}&members=${encodedMemberInfo}&callType=${callHistory.call_type}&status=joined&isCaller=false`, '', 'width=800,height=600');
-  }
+    window.open(
+      `/call?roomId=${msg.roomId}&members=${encodedMemberInfo}&callType=${callHistory.call_type}&status=joined&isCaller=false`,
+      "",
+      "width=800,height=600",
+    );
+  };
 
   return (
     <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
@@ -370,7 +376,7 @@ function CallMessageBubble({
         className={`
         relative p-3 rounded-2xl shadow-sm border flex items-center gap-3
         ${
-          msg.isMine
+          isMine
             ? "bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800"
             : "bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700"
         }
@@ -389,7 +395,7 @@ function CallMessageBubble({
         <div className="flex-1 min-w-0">
           <h4
             className={`font-semibold text-sm truncate ${
-              msg.isMine
+              isMine
                 ? "text-blue-900 dark:text-blue-100"
                 : "text-gray-900 dark:text-gray-100"
             }`}
@@ -398,7 +404,7 @@ function CallMessageBubble({
           </h4>
           <p
             className={`text-xs truncate mb-0.5 ${
-              msg.isMine
+              isMine
                 ? "text-blue-700/80 dark:text-blue-200/70"
                 : "text-gray-500 dark:text-gray-400"
             }`}
@@ -417,17 +423,17 @@ function CallMessageBubble({
             )}
           </div>
           {isPending && isGroupCall && (
-              <div className="flex items-start gap-2 text-xs my-2">
-                <Button
-                  size="sm"
-                  color="primary"
-                  variant="solid"
-                  onPress={handleJoinCall}
-                >
-                  {t("call.status.join", "Tham gia")}
-                </Button>
-              </div>
-            )}
+            <div className="flex items-start gap-2 text-xs my-2">
+              <Button
+                size="sm"
+                color="primary"
+                variant="solid"
+                onPress={handleJoinCall}
+              >
+                {t("call.status.join", "Tham gia")}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -442,23 +448,26 @@ export function MessageBubble({
   onToggleExpanded,
   type,
   callHistory,
+  isMine,
+  hiddenByMe,
 }: Readonly<MessageBubbleProps>) {
-  if (msg.hiddenByMe) {
-    return <DeletedMessageBubble isMine={msg.isMine} />;
+  if (hiddenByMe) {
+    return <DeletedMessageBubble isMine={isMine} />;
   }
 
   if (msg.isDeleted) {
-    return <RecalledMessageBubble isMine={msg.isMine} />;
+    return <RecalledMessageBubble isMine={isMine} />;
   }
 
   if (msg.type === "document") {
-    return <DocumentMessageBubble msg={msg} />;
+    return <DocumentMessageBubble msg={msg} isMine={isMine} />;
   }
 
   if (msg.content) {
     return (
       <RegularMessageBubble
         msg={msg}
+        isMine={isMine}
         isSameSenderAsPrev={isSameSenderAsPrev}
         isSameSenderAsNext={isSameSenderAsNext}
         isExpanded={isExpanded}
@@ -471,6 +480,7 @@ export function MessageBubble({
     return (
       <CallMessageBubble
         msg={msg}
+        isMine={isMine}
         isSameSenderAsPrev={isSameSenderAsPrev}
         isSameSenderAsNext={isSameSenderAsNext}
         callHistory={callHistory}

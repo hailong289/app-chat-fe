@@ -3,6 +3,7 @@ import {
   getMessaging,
   getToken,
   onMessage,
+  deleteToken,
   Messaging,
 } from "firebase/messaging";
 
@@ -26,12 +27,12 @@ const requiredConfigKeys = [
   "appId",
 ];
 const missingKeys = requiredConfigKeys.filter(
-  (key) => !firebaseConfig[key as keyof typeof firebaseConfig]
+  (key) => !firebaseConfig[key as keyof typeof firebaseConfig],
 );
 
 if (missingKeys.length > 0) {
   const errorMessage = `Firebase configuration incomplete. Missing: ${missingKeys.join(
-    ", "
+    ", ",
   )}`;
 
   // Chỉ warn trong build time, không throw error
@@ -41,10 +42,10 @@ if (missingKeys.length > 0) {
   ) {
     console.warn(
       "⚠️  Firebase configuration warning during build:",
-      errorMessage
+      errorMessage,
     );
     console.warn(
-      "Firebase features will be disabled until environment variables are provided at runtime."
+      "Firebase features will be disabled until environment variables are provided at runtime.",
     );
   } else if (globalThis.window !== undefined) {
     // Throw error ở client side khi thực sự cần dùng Firebase
@@ -74,7 +75,7 @@ const initializeFirebase = () => {
           firebaseMessaging = getMessaging(firebaseApp);
         } else {
           console.warn(
-            "⚠️ Browser không hỗ trợ Firebase Messaging (thiếu Notification hoặc ServiceWorker)"
+            "⚠️ Browser không hỗ trợ Firebase Messaging (thiếu Notification hoặc ServiceWorker)",
           );
         }
       } catch (error) {
@@ -90,5 +91,19 @@ const initializeFirebase = () => {
 };
 
 const { app, messaging } = initializeFirebase();
+
+/**
+ * Xóa token FCM (dùng khi logout)
+ */
+export const cleanupFirebaseMessaging = async () => {
+  if (messaging) {
+    try {
+      await deleteToken(messaging);
+      console.log("✅ FCM Token deleted successfully");
+    } catch (error) {
+      console.error("❌ Error deleting FCM Token:", error);
+    }
+  }
+};
 
 export { app, messaging, firebaseConfig };

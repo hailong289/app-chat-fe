@@ -2,7 +2,17 @@
 
 import { useRef, useState, useEffect, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button, Avatar, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Select, SelectItem } from "@heroui/react";
+import {
+  Button,
+  Avatar,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Select,
+  SelectItem,
+} from "@heroui/react";
 import {
   MicrophoneIcon,
   PhoneXMarkIcon,
@@ -23,7 +33,7 @@ import { useTranslation } from "react-i18next";
 function CallPageContentInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { socket } = useSocket("/chat");
+  const { socket } = useSocket("/call");
   const [isMounted, setIsMounted] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { t } = useTranslation();
@@ -61,44 +71,46 @@ function CallPageContentInner() {
     setUserIdGhimmed,
     getDevices,
     setDevice,
+    handleSFUSignal,
   } = useCallStore();
 
   // handle socket event
   useEffect(() => {
     socket?.on("call:accepted", (payload: any) =>
-      eventCall("accepted", payload)
+      eventCall("accepted", payload),
     );
     // socket?.on("call:start", (payload: any) => eventCall("start", payload));
     socket?.on("call:answer", (payload: any) => eventCall("answer", payload));
     socket?.on("call:candidate", (payload: any) =>
-      eventCall("candidate", payload)
+      eventCall("candidate", payload),
     );
     socket?.on("call:end", (payload: any) => eventCall("end", payload));
-    
+    socket?.on("signal", (payload: any) => handleSFUSignal(payload));
+
     socket?.on("call:share-screen", (payload: any) => {
-        if (payload.isSharing) {
-            setUserIdGhimmed(payload.actionUserId);
-        } else {
-           
-            const currentPinned = useCallStore.getState().action.userIdGhimmed;
-            if (currentPinned === payload.actionUserId) {
-                setUserIdGhimmed("");
-            }
+      if (payload.isSharing) {
+        setUserIdGhimmed(payload.actionUserId);
+      } else {
+        const currentPinned = useCallStore.getState().action.userIdGhimmed;
+        if (currentPinned === payload.actionUserId) {
+          setUserIdGhimmed("");
         }
+      }
     });
 
     return () => {
       socket?.off("call:accepted", (payload: any) =>
-        eventCall("accepted", payload)
+        eventCall("accepted", payload),
       );
       // socket?.off("call:start", (payload: any) => eventCall("start", payload));
       socket?.off("call:candidate", (payload: any) =>
-        eventCall("candidate", payload)
+        eventCall("candidate", payload),
       );
       socket?.off("call:answer", (payload: any) =>
-        eventCall("answer", payload)
+        eventCall("answer", payload),
       );
       socket?.off("call:end", (payload: any) => eventCall("end", payload));
+      socket?.off("signal");
       socket?.off("call:share-screen");
     };
   }, [socket]);
@@ -127,10 +139,17 @@ function CallPageContentInner() {
     (async () => {
       await updateCallState({
         roomId: searchParams.get("roomId") || "",
-        status: searchParams.get("status") as 'idle' | 'calling' | 'incoming' | 'ended' | 'accepted' | 'declined',
-        mode: searchParams.get("callType") as 'audio' | 'video',
+        status: searchParams.get("status") as
+          | "idle"
+          | "calling"
+          | "incoming"
+          | "ended"
+          | "accepted"
+          | "declined",
+        mode: searchParams.get("callType") as "audio" | "video",
+        callMode: (searchParams.get("callMode") as "p2p" | "sfu") || "p2p",
         members: Helpers.decryptUserInfo(
-          searchParams.get("members") || "[]"
+          searchParams.get("members") || "[]",
         ) as CallMember[],
         action: {
           isMicEnabled: true,
@@ -147,7 +166,11 @@ function CallPageContentInner() {
 
   useEffect(() => {
     if (!socket) return;
-    if (callStatus === 'incoming' || callStatus === 'calling' || callStatus === 'joined') {
+    if (
+      callStatus === "incoming" ||
+      callStatus === "calling" ||
+      callStatus === "joined"
+    ) {
       handleCreateLocalStream();
     }
     console.log("callStatus", callStatus);
@@ -155,15 +178,16 @@ function CallPageContentInner() {
 
   // Update audio output device
   useEffect(() => {
-      if (devices.selectedAudioOutput) {
-          remoteVideoRefs.current.forEach((videoEl) => {
-              if (videoEl && 'setSinkId' in videoEl) {
-                  // @ts-ignore
-                  videoEl.setSinkId(devices.selectedAudioOutput)
-                      .catch((err: any) => console.error("Error setting sinkId:", err));
-              }
-          });
-      }
+    if (devices.selectedAudioOutput) {
+      remoteVideoRefs.current.forEach((videoEl) => {
+        if (videoEl && "setSinkId" in videoEl) {
+          // @ts-ignore
+          videoEl
+            .setSinkId(devices.selectedAudioOutput)
+            .catch((err: any) => console.error("Error setting sinkId:", err));
+        }
+      });
+    }
   }, [devices.selectedAudioOutput, remoteStreams]);
 
   const formatDuration = (seconds: number) => {
@@ -250,7 +274,7 @@ function CallPageContentInner() {
         id: "0",
         fullname: unknownLabel,
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-          unknownLabel
+          unknownLabel,
         )}`,
       };
     }
@@ -259,17 +283,16 @@ function CallPageContentInner() {
       id: "0",
       fullname: groupLabel,
       avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        groupLabel
+        groupLabel,
       )}`,
     };
   }, [currentUserId, members, t]);
 
   const getUserInfoLabel = useCallback(() => {
     const countMembers = members.length;
-    const isCaller = !!currentUserId &&
-      members.some(
-        (m: CallMember) => m.id === currentUserId && m.is_caller
-      );
+    const isCaller =
+      !!currentUserId &&
+      members.some((m: CallMember) => m.id === currentUserId && m.is_caller);
     if (countMembers > 2) {
       if (isCaller) {
         return t("callPage.status.groupCaller", { count: countMembers - 1 });
@@ -279,7 +302,7 @@ function CallPageContentInner() {
 
     if (isCaller) {
       const callee = members.find(
-        (m: CallMember) => m.id !== currentUserId && !m.is_caller
+        (m: CallMember) => m.id !== currentUserId && !m.is_caller,
       );
       return t("callPage.status.oneOnOneCaller", {
         name: callee?.fullname || t("callPage.labels.unknownUser"),
@@ -287,7 +310,7 @@ function CallPageContentInner() {
     }
 
     const caller = members.find(
-      (m: CallMember) => m.id !== currentUserId && m.is_caller
+      (m: CallMember) => m.id !== currentUserId && m.is_caller,
     );
     return t("callPage.status.oneOnOneReceiver", {
       name: caller?.fullname || t("callPage.labels.unknownUser"),
@@ -314,7 +337,11 @@ function CallPageContentInner() {
     return "grid-cols-4"; // 7+ streams
   };
 
-  if (!isMounted || !socket) {
+  if (!isMounted) {
+    return null;
+  }
+
+  if (!socket) {
     return (
       <div className="bg-dark h-screen w-full flex items-center justify-center">
         <p className="text-gray-500">{t("callPage.loading.connecting")}</p>
@@ -322,7 +349,7 @@ function CallPageContentInner() {
     );
   }
 
-  if (!members || callStatus === 'idle' || callStatus === 'joined') {
+  if (!members || callStatus === "idle" || callStatus === "joined") {
     return (
       <div className="bg-dark h-screen w-full flex items-center justify-center">
         <p className="text-gray-500">{t("callPage.loading.callInfo")}</p>
@@ -335,18 +362,23 @@ function CallPageContentInner() {
       {/* Remote video (main view) */}
       <div className="absolute inset-0 bg-black">
         {mode === "video" && (remoteStreams.size > 0 || userIdGhimmed) ? (
-          (userIdGhimmed || remoteStreams.size === 1) ? (
+          userIdGhimmed || remoteStreams.size === 1 ? (
             // Single stream - full screen (Pinned or only one remote)
             (() => {
-              const key = userIdGhimmed ? `${roomId}-${userIdGhimmed}` : Array.from(remoteStreams.keys())[0];
+              const key = userIdGhimmed
+                ? `${roomId}-${userIdGhimmed}`
+                : Array.from(remoteStreams.keys())[0];
               const stream = remoteStreams.get(key);
               const member = getMemberFromStreamKey(key);
-              
-              if (!stream) return (
+
+              if (!stream)
+                return (
                   <div className="w-full h-full flex items-center justify-center">
-                    <p className="text-gray-500">{t("callPage.loading.stream")}</p>
+                    <p className="text-gray-500">
+                      {t("callPage.loading.stream")}
+                    </p>
                   </div>
-              );
+                );
 
               const videoRef = (el: HTMLVideoElement | null) => {
                 if (el) {
@@ -365,7 +397,9 @@ function CallPageContentInner() {
                     autoPlay
                     playsInline
                     muted={!isSpeakerphoneEnabled}
-                    onClick={() => setUserIdGhimmed(userIdGhimmed ? "" : member?.id || "")}
+                    onClick={() =>
+                      setUserIdGhimmed(userIdGhimmed ? "" : member?.id || "")
+                    }
                   />
                   {/* User info overlay */}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 pointer-events-none">
@@ -400,7 +434,7 @@ function CallPageContentInner() {
             // Multiple streams - grid layout
             <div
               className={`w-full h-full grid ${getGridLayout(
-                remoteStreams.size
+                remoteStreams.size,
               )} gap-2 p-2`}
             >
               {Array.from(remoteStreams.entries()).map(([key, stream]) => {
@@ -432,7 +466,9 @@ function CallPageContentInner() {
                       <div className="flex items-center gap-2">
                         <Avatar
                           src={member?.avatar}
-                          name={member?.fullname || t("callPage.labels.unknown")}
+                          name={
+                            member?.fullname || t("callPage.labels.unknown")
+                          }
                           className="w-6 h-6 text-xs"
                         />
                         <span className="text-white text-xs font-medium truncate">
@@ -479,40 +515,40 @@ function CallPageContentInner() {
           />
         </div>
       )}
-      
+
       {/* Other remote streams when one is pinned */}
       {userIdGhimmed && remoteStreams.size > 1 && (
-          <div className="absolute bottom-24 left-4 flex gap-2 z-20 overflow-x-auto max-w-[calc(100%-14rem)]">
-              {Array.from(remoteStreams.entries()).map(([key, stream]) => {
-                  const member = getMemberFromStreamKey(key);
-                  if (member?.id === userIdGhimmed) return null;
-                  
-                  const videoRef = (el: HTMLVideoElement | null) => {
-                    if (el) {
-                      remoteVideoRefs.current.set(key, el);
-                      if (el.srcObject !== stream) el.srcObject = stream;
-                    } else {
-                      remoteVideoRefs.current.delete(key);
-                    }
-                  };
+        <div className="absolute bottom-24 left-4 flex gap-2 z-20 overflow-x-auto max-w-[calc(100%-14rem)]">
+          {Array.from(remoteStreams.entries()).map(([key, stream]) => {
+            const member = getMemberFromStreamKey(key);
+            if (member?.id === userIdGhimmed) return null;
 
-                  return (
-                      <div 
-                        key={key} 
-                        className="w-32 h-24 rounded-lg overflow-hidden border border-white/50 bg-black cursor-pointer flex-shrink-0"
-                        onClick={() => setUserIdGhimmed(member?.id || "")}
-                      >
-                          <video
-                            ref={videoRef}
-                            className="w-full h-full object-cover"
-                            autoPlay
-                            playsInline
-                            muted={!isSpeakerphoneEnabled}
-                          />
-                      </div>
-                  );
-              })}
-          </div>
+            const videoRef = (el: HTMLVideoElement | null) => {
+              if (el) {
+                remoteVideoRefs.current.set(key, el);
+                if (el.srcObject !== stream) el.srcObject = stream;
+              } else {
+                remoteVideoRefs.current.delete(key);
+              }
+            };
+
+            return (
+              <div
+                key={key}
+                className="w-32 h-24 rounded-lg overflow-hidden border border-white/50 bg-black cursor-pointer flex-shrink-0"
+                onClick={() => setUserIdGhimmed(member?.id || "")}
+              >
+                <video
+                  ref={videoRef}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  playsInline
+                  muted={!isSpeakerphoneEnabled}
+                />
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {/* Call info overlay */}
@@ -622,8 +658,8 @@ function CallPageContentInner() {
               isIconOnly
               className="rounded-full h-14 w-14 p-0 bg-white/20 backdrop-blur-sm"
               onPress={() => {
-                  getDevices();
-                  setIsSettingsOpen(true);
+                getDevices();
+                setIsSettingsOpen(true);
               }}
             >
               <Cog6ToothIcon className="h-6 w-6 text-white" />
@@ -631,16 +667,18 @@ function CallPageContentInner() {
           </>
         )}
       </div>
-      
+
       <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)}>
         <ModalContent>
           <ModalHeader>{t("callPage.labels.deviceSettings")}</ModalHeader>
           <ModalBody>
             <div className="flex flex-col gap-4">
-              <Select 
+              <Select
                 label={t("callPage.labels.microphone")}
-                selectedKeys={devices.selectedAudioInput ? [devices.selectedAudioInput] : []}
-                onChange={(e) => setDevice('audioInput', e.target.value)}
+                selectedKeys={
+                  devices.selectedAudioInput ? [devices.selectedAudioInput] : []
+                }
+                onChange={(e) => setDevice("audioInput", e.target.value)}
               >
                 {devices.audioInputs.map((device) => (
                   <SelectItem key={device.deviceId}>
@@ -648,10 +686,14 @@ function CallPageContentInner() {
                   </SelectItem>
                 ))}
               </Select>
-              <Select 
+              <Select
                 label={t("callPage.labels.speaker")}
-                selectedKeys={devices.selectedAudioOutput ? [devices.selectedAudioOutput] : []}
-                onChange={(e) => setDevice('audioOutput', e.target.value)}
+                selectedKeys={
+                  devices.selectedAudioOutput
+                    ? [devices.selectedAudioOutput]
+                    : []
+                }
+                onChange={(e) => setDevice("audioOutput", e.target.value)}
               >
                 {devices.audioOutputs.map((device) => (
                   <SelectItem key={device.deviceId}>
@@ -659,10 +701,12 @@ function CallPageContentInner() {
                   </SelectItem>
                 ))}
               </Select>
-              <Select 
+              <Select
                 label={t("callPage.labels.camera")}
-                selectedKeys={devices.selectedVideoInput ? [devices.selectedVideoInput] : []}
-                onChange={(e) => setDevice('videoInput', e.target.value)}
+                selectedKeys={
+                  devices.selectedVideoInput ? [devices.selectedVideoInput] : []
+                }
+                onChange={(e) => setDevice("videoInput", e.target.value)}
               >
                 {devices.videoInputs.map((device) => (
                   <SelectItem key={device.deviceId}>

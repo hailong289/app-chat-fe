@@ -12,7 +12,7 @@ interface UseChatScrollProps {
   chatId: string;
   messageState: any;
   setDisplayedMessagesCount: (
-    count: number | ((prev: number) => number)
+    count: number | ((prev: number) => number),
   ) => void;
   setIsLoadingOlder: (loading: boolean) => void;
   setHasMoreOnServer: (hasMore: boolean) => void;
@@ -129,11 +129,12 @@ export function useChatScroll({
             return;
           }
 
-          // Get fresh messages from store
+          // Get fresh messages from store (flatten groups)
+          const roomData = useMessageStore.getState().messagesRoom[chatId];
           const currentMessages =
-            useMessageStore.getState().messagesRoom[chatId]?.messages || [];
+            roomData?.groups?.flatMap((g) => g.messages) || [];
           messageIndex = currentMessages.findIndex(
-            (msg: MessageType) => msg.id === id
+            (msg: MessageType) => msg.id === id,
           );
 
           if (messageIndex === -1) {
@@ -160,12 +161,14 @@ export function useChatScroll({
       // At this point, message is in state (either initially or after fetch)
       // We need to ensure it's within displayedMessagesCount
 
+      // Get fresh messages from store (flatten groups)
+      const roomData = useMessageStore.getState().messagesRoom[chatId];
       const currentMessages =
-        useMessageStore.getState().messagesRoom[chatId]?.messages || messages;
+        roomData?.groups?.flatMap((g) => g.messages) || messages;
 
       // Recalculate index in case it changed
       messageIndex = currentMessages.findIndex(
-        (msg: MessageType) => msg.id === id
+        (msg: MessageType) => msg.id === id,
       );
 
       if (messageIndex === -1) return; // Should not happen
@@ -187,7 +190,7 @@ export function useChatScroll({
         const currentScrollHeight = containerRef.current?.scrollHeight || 0;
 
         setDisplayedMessagesCount(
-          Math.min(requiredCount, currentMessages.length)
+          Math.min(requiredCount, currentMessages.length),
         );
 
         const waitForElementAndScroll = (retries = 20, delay = 50) => {
@@ -216,7 +219,7 @@ export function useChatScroll({
             } else if (retries > 0) {
               setTimeout(
                 () => waitForElementAndScroll(retries - 1, delay),
-                delay
+                delay,
               );
             }
           });
@@ -255,7 +258,7 @@ export function useChatScroll({
       setHasMoreOnServer,
       setDisplayedMessagesCount,
       addToast,
-    ]
+    ],
   );
 
   return {

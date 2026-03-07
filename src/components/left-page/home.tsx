@@ -47,6 +47,7 @@ import {
   BellIcon,
   StarIcon,
   TrashIcon,
+  PlusIcon,
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarIconSolid } from "@heroicons/react/24/solid";
 import { useTranslation } from "react-i18next";
@@ -80,7 +81,7 @@ export const Home = () => {
       limit,
       type: roomState.type,
     }),
-    [search, limit, roomState.type]
+    [search, limit, roomState.type],
   );
 
   // Load initial data once
@@ -98,6 +99,8 @@ export const Home = () => {
       setTimeout(async () => {
         try {
           await roomState.getRooms(queryRoom);
+          // Request online status for all contacts
+          contactState.checkOnlineStatus(socket);
         } catch (error) {
           console.error("❌ [SOCKET RECONNECT] Error fetching rooms:", error);
         }
@@ -105,6 +108,12 @@ export const Home = () => {
     };
 
     socket.on("connect", handleReconnect);
+
+    // Initial check if socket is already connected
+    if (socket.connected) {
+      contactState.checkOnlineStatus(socket);
+    }
+
     return () => {
       socket.off("connect", handleReconnect);
     };
@@ -150,7 +159,7 @@ export const Home = () => {
       {
         threshold: 0.5,
         rootMargin: "100px",
-      }
+      },
     );
 
     if (bottomRef.current) observer.observe(bottomRef.current);
@@ -159,19 +168,21 @@ export const Home = () => {
 
   const btnNewMsg = useMemo(
     () => (
-      <Tooltip content="Tin nhắn mới" placement="bottom">
+      <Tooltip content="Tạo nhóm mới" placement="bottom">
         <Button
-          variant="light"
-          size="sm"
-          onPress={() => setOpenModal(true)}
-          className="text-primary"
           isIconOnly
+          size="md"
+          variant="shadow"
+          color="primary"
+          radius="full"
+          onPress={() => setOpenModal(true)}
+          className="shadow-lg shadow-primary/20 w-10 h-10 min-w-0"
         >
-          <PencilSquareIcon className="w-5 h-5" />
+          <PlusIcon className="w-6 h-6" />
         </Button>
       </Tooltip>
     ),
-    []
+    [],
   );
 
   const handleChatClick = useCallback(
@@ -182,7 +193,7 @@ export const Home = () => {
       setSearch("");
       setTab(chat.id);
     },
-    [roomState, router]
+    [roomState, router],
   );
 
   const handleClickAction = useCallback(
@@ -198,14 +209,14 @@ export const Home = () => {
       setSearch("");
       setTab(chat.id);
     },
-    [roomState, router]
+    [roomState, router],
   );
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setSearch(e.target.value);
     },
-    []
+    [],
   );
 
   const handleSearchFocus = useCallback(() => {
@@ -223,7 +234,7 @@ export const Home = () => {
     (tabKey: string) => () => {
       router.push(`${pathname}?tab=${tabKey}`);
     },
-    [router, pathname]
+    [router, pathname],
   );
 
   const handleDeleteRoom = useCallback(
@@ -232,7 +243,7 @@ export const Home = () => {
       setPendingRoom(chat);
       setIsClearHistoryModalOpen(true);
     },
-    [isClearingHistory]
+    [isClearingHistory],
   );
 
   const handleModalOpenChange = useCallback(
@@ -243,7 +254,7 @@ export const Home = () => {
         setPendingRoom(null);
       }
     },
-    [isClearingHistory]
+    [isClearingHistory],
   );
 
   const handleConfirmDeleteRoom = useCallback(
@@ -261,7 +272,7 @@ export const Home = () => {
         setIsClearingHistory(false);
       }
     },
-    [pendingRoom, roomState]
+    [pendingRoom, roomState],
   );
 
   const handleCancelDeleteRoom = useCallback(
@@ -271,7 +282,7 @@ export const Home = () => {
       setIsClearHistoryModalOpen(false);
       setPendingRoom(null);
     },
-    [isClearingHistory]
+    [isClearingHistory],
   );
 
   return (
@@ -280,16 +291,34 @@ export const Home = () => {
       {!isSearchVisible && !countState.collapsedSidebar && (
         <Card className="rounded-none shadow-none border-b border-default dark:bg-slate-900">
           <CardBody className="p-4">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="font-semibold text-foreground">Hoạt động</h2>
-              <Button
-                variant="light"
-                size="sm"
-                className="text-primary"
-                onClick={handleTab("messages")}
-              >
-                Xem tất cả
-              </Button>
+            <div className="flex justify-between items-start mb-6 px-1">
+              <div className="flex flex-col gap-0.5">
+                <h2 className="font-extrabold text-xl text-foreground tracking-tight whitespace-nowrap">
+                  Hoạt động
+                </h2>
+                {contactState.online.length > 0 && (
+                  <div className="flex items-center gap-1.5 ml-0.5 mt-1">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-success"></span>
+                    </span>
+                    <span className="text-[10px] font-bold text-success uppercase tracking-wider opacity-90">
+                      {contactState.online.length} TRỰC TUYẾN
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="light"
+                  size="sm"
+                  className="text-[11px] font-bold text-default-400 hover:text-primary min-w-0 px-2 h-7 rounded-lg uppercase tracking-tight"
+                  onClick={handleTab("messages")}
+                >
+                  Xem tất cả
+                </Button>
+                {btnNewMsg}
+              </div>
             </div>
 
             <div className="flex space-x-4 overflow-x-auto p-1">
@@ -365,7 +394,6 @@ export const Home = () => {
                   )
                 }
               />
-              {isSearchVisible && btnNewMsg}
             </div>
 
             {!isSearchVisible && (
@@ -378,7 +406,7 @@ export const Home = () => {
                   selectedKey={roomState.type}
                   onSelectionChange={(key) =>
                     roomState.setType(
-                      key as "all" | "group" | "private" | "channel"
+                      key as "all" | "group" | "private" | "channel",
                     )
                   }
                   className="bg-content2 rounded-xl"

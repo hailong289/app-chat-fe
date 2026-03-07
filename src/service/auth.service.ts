@@ -27,12 +27,12 @@ export default class AuthService {
     return apiService.post<AuthResponse>("/auth/register", params);
   }
 
-  static logout() {
-    return apiService.post<AuthResponse>("/auth/logout");
+  static logout(data?: { fcmToken?: string }) {
+    return apiService.post<AuthResponse>("/auth/logout", data);
   }
 
   static forgotPassword(
-    data: Pick<ForgotPasswordPayload, "email" | "username">
+    data: Pick<ForgotPasswordPayload, "email" | "username">,
   ) {
     return apiService.post<AuthResponse>("/auth/forgot-password", data);
   }
@@ -40,7 +40,7 @@ export default class AuthService {
   static async resetPassword(data: ResetPasswordPayload) {
     return (await apiService.setAuthorization(data.token)).post<AuthResponse>(
       "/auth/reset-password",
-      { newPassword: data.newPassword }
+      { newPassword: data.newPassword },
     );
   }
 
@@ -62,7 +62,7 @@ export default class AuthService {
           "x-refresh-token": token,
           Authorization: "", // Xoá Bearer cũ để tránh conflict middleware
         },
-      }
+      },
     );
   }
 

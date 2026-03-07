@@ -36,15 +36,18 @@ export const CreateRoomModal = ({ isOpen, onClose }: Props) => {
         { value: "group", label: t("chat.modal.createRoom.types.group") },
         { value: "channel", label: t("chat.modal.createRoom.types.channel") },
       ] as const,
-    [t]
+    [t],
   );
 
   // Chỉ lấy đúng phần cần dùng để tránh rerender thừa
   const createRoom = useRoomStore((state) => state.createRoom);
-  const contacts = useContactStore((state) => state.contacts);
+  const contacts = useContactStore((state) => state.eligibleContacts);
 
   // Reset form mỗi lần modal đóng/mở
   useEffect(() => {
+    if (isOpen) {
+      useContactStore.getState().syncEligibleContacts();
+    }
     if (!isOpen) {
       setSearchTerm("");
       setMemberIds([]);

@@ -14,19 +14,11 @@ import { usePathname, useRouter } from "next/navigation";
 import useCounterStore from "@/store/useCounterStore";
 import useNotificationStore from "@/store/useNotificationStore";
 import { formatDistanceToNow } from "date-fns";
-import { vi } from "date-fns/locale";
-
-const formatRelativeTime = (value: string | null) => {
-  if (!value) return "Vừa xong";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Vừa xong";
-  return formatDistanceToNow(date, {
-    addSuffix: true,
-    locale: vi,
-  });
-};
+import { vi, enUS } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
 
 const Notification: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
   const isCollapsed = useCounterStore((state) => state.collapsedSidebar);
@@ -47,11 +39,21 @@ const Notification: React.FC = () => {
     router.push(pathname || "/");
   };
 
+  const formatRelativeTime = (value: string | null) => {
+    if (!value) return t("notifications.justNow");
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return t("notifications.justNow");
+    return formatDistanceToNow(date, {
+      addSuffix: true,
+      locale: i18n.language === "en" ? enUS : vi,
+    });
+  };
+
   if (isCollapsed) {
     return (
       <Card className="w-full h-full shadow-none border-none rounded-none bg-background/80 text-foreground">
         <CardBody className="flex flex-col items-center gap-4 py-4">
-          <Tooltip content="Đóng danh sách" placement="right">
+          <Tooltip content={t("notifications.close")} placement="right">
             <Button
               isIconOnly
               variant="light"
@@ -93,13 +95,15 @@ const Notification: React.FC = () => {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-default-200 dark:border-default-100">
           <div>
-            <h2 className="text-2xl font-semibold leading-tight">Thông báo</h2>
+            <h2 className="text-2xl font-semibold leading-tight">
+              {t("notifications.title")}
+            </h2>
             <p className="text-sm text-foreground-500 mt-1">
-              Lưu trữ và xem lại thông báo của bạn
+              {t("notifications.subtitle")}
             </p>
           </div>
           <div className="flex gap-2">
-            <Tooltip content="Đánh dấu tất cả đã đọc">
+            <Tooltip content={t("notifications.markAllRead")}>
               <Button
                 isIconOnly
                 variant="light"
@@ -129,7 +133,7 @@ const Notification: React.FC = () => {
           ) : notifications.length === 0 ? (
             <div className="flex items-center justify-center h-full py-10">
               <p className="text-sm text-foreground-500">
-                Bạn chưa có thông báo nào.
+                {t("notifications.empty")}
               </p>
             </div>
           ) : (

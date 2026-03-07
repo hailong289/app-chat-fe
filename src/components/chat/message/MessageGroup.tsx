@@ -116,10 +116,13 @@ export const MessageGroup = memo(
 
             const isExpanded = expandedMessages.has(msg.id);
 
-            const isMine = currentUserId ? msg.sender?._id === currentUserId : false;
-            const isReadByMe = currentUserId && msg.read_by 
-              ? msg.read_by.some(r => r.user?._id === currentUserId) 
+            const isMine = currentUserId
+              ? msg.sender?._id === currentUserId
               : false;
+            const isReadByMe =
+              currentUserId && msg.read_by
+                ? msg.read_by.some((r) => r.user?._id === currentUserId)
+                : false;
 
             const isUnreadDivider =
               group.newMessageIndex === msgIdx && !isReadByMe && !isMine;
@@ -181,7 +184,7 @@ export const MessageGroup = memo(
     const hasExpandedChange = prevProps.group.messages.some(
       (msg) =>
         prevProps.expandedMessages.has(msg.id) !==
-        nextProps.expandedMessages.has(msg.id)
+        nextProps.expandedMessages.has(msg.id),
     );
     if (hasExpandedChange) return false;
 
@@ -219,15 +222,20 @@ export const MessageGroup = memo(
         msg.id === nextMsg.id &&
         msg.status === nextMsg.status &&
         // Compatibility check for read_by (array/length) vs old count
-        (msg.read_by_count ?? msg.read_by?.length ?? 0) === 
-        (nextMsg.read_by_count ?? nextMsg.read_by?.length ?? 0) &&
+        (msg.read_by_count ?? msg.read_by?.length ?? 0) ===
+          (nextMsg.read_by_count ?? nextMsg.read_by?.length ?? 0) &&
         msg.editedAt === nextMsg.editedAt &&
         // Check for new hiddenBy field changes
-        (msg.hiddenBy?.length ?? 0) === (nextMsg.hiddenBy?.length ?? 0)
+        (msg.hiddenBy?.length ?? 0) === (nextMsg.hiddenBy?.length ?? 0) &&
+        msg.pinned === nextMsg.pinned &&
+        // Check reactions (reference or length)
+        // Since we use immutable updates, reference check usually suffices,
+        // but let's be safe with length check too or just use reference if we are confident.
+        // Given handleReact creates a deep clone, reference WILL change.
+        msg.reactions === nextMsg.reactions
       );
     });
-
-  }
+  },
 );
 
 export default MessageGroup;

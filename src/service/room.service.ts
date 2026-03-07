@@ -50,4 +50,8 @@ export default class RoomService {
   }
 
   // static
+  static getRoomById(roomId: string) {
+    console.log("🔄 [RoomService] getRoomById calling API for:", roomId);
+    return apiService.get(`/chat/room/${roomId}`);
+  }
 }

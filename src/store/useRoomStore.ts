@@ -63,6 +63,18 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     set({ room });
     return room;
   },
+  fetchAndUpdateRoom: async (roomId: string) => {
+    console.log("🔄 [useRoomStore] fetchAndUpdateRoom called with:", roomId);
+    try {
+      const response: any = await RoomService.getRoomById(roomId);
+      console.log("🔄 [useRoomStore] API Response:", response);
+      if (response.data?.statusCode === 200 && response.data?.metadata) {
+        get().updateRoomSocket(response.data.metadata);
+      }
+    } catch (e) {
+      console.error("❌ [useRoomStore] Error fetching room:", e);
+    }
+  },
   getRoomsByType: async (type: string) => {
     let rooms;
     if (type == "all") {
@@ -201,7 +213,7 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     if (!room) return;
     room.updatedAt = new Date().toISOString();
     room.members = room.members.map((member) =>
-      member.id === memberId ? { ...member, name: newName } : member
+      member.id === memberId ? { ...member, name: newName } : member,
     );
     if (room.type === "private" && room.id == memberId) {
       room.name = newName;
@@ -254,7 +266,7 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
   createRoom: async (
     type: "group" | "private" | "channel",
     name: string | undefined,
-    memberIds: string[]
+    memberIds: string[],
   ) => {
     set({ isLoading: true });
     const body = {
@@ -420,7 +432,7 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
   updateBlockStatus: (
     roomId: string,
     isBlocked: boolean,
-    blockByMine: boolean
+    blockByMine: boolean,
   ) => {
     set((state) => {
       const updatedRooms = state.rooms.map((r) => {

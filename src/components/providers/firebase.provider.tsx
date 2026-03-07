@@ -1,5 +1,11 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
 import { app, messaging } from "@/libs/firebase";
 import { getToken, onMessage, Messaging } from "firebase/messaging";
 import type { FirebaseApp } from "firebase/app";
@@ -61,7 +67,7 @@ export const FirebaseProvider = ({
         // Đăng ký service worker
         const reg = await navigator.serviceWorker.register(
           "/firebase-messaging-sw.js",
-          { scope: "/" }
+          { scope: "/" },
         );
 
         const readyReg = await navigator.serviceWorker.ready;
@@ -101,7 +107,7 @@ export const FirebaseProvider = ({
                     console.warn(
                       "Failed to parse message string to MessageType:",
                       msgData,
-                      e
+                      e,
                     );
                   }
                 } else if (msgData) {
@@ -114,7 +120,7 @@ export const FirebaseProvider = ({
                       console.warn(
                         "Failed to parse message string to MessageType:",
                         msgData,
-                        e
+                        e,
                       );
                     }
                   } else {
@@ -123,11 +129,14 @@ export const FirebaseProvider = ({
                 }
               } else {
                 // If roomData is a string, you need to fetch or construct a roomType object here.
-                // Example: fetchRoomById(roomData).then(room => roomState.updateRoomSocket(room));
-                console.warn(
-                  "roomState.updateRoomSocket expects a roomType object, but got:",
-                  roomData
-                );
+                if (typeof roomData === "object" && roomData !== null) {
+                  roomState.updateRoomSocket(roomData);
+                } else {
+                  console.warn(
+                    "Invalid room data for updateRoomSocket:",
+                    roomData,
+                  );
+                }
               }
             }
             const notificationOptions: NotificationOptions = {
@@ -141,7 +150,7 @@ export const FirebaseProvider = ({
 
             const notification = new Notification(
               notificationTitle,
-              notificationOptions
+              notificationOptions,
             );
             notification.onclick = () => {
               const d = notification.data as any;

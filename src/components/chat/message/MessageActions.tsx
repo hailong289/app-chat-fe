@@ -32,6 +32,8 @@ interface MessageActionsProps {
   readonly onTranslate?: (msg: MessageType) => void;
   readonly onSummarize?: (msg: MessageType) => void;
   readonly noAction?: boolean;
+  readonly isMine: boolean;
+  readonly hiddenByMe: boolean;
 }
 
 export function MessageActions({
@@ -47,6 +49,8 @@ export function MessageActions({
   onTranslate,
   onSummarize,
   noAction = false,
+  isMine,
+  hiddenByMe,
 }: MessageActionsProps) {
   const { t } = useTranslation();
   const [isTranslating, setIsTranslating] = useState(false);
@@ -77,17 +81,17 @@ export function MessageActions({
     }
   };
   // Actions are hidden for deleted/hidden messages
-  if (msg.isDeleted || msg.hiddenByMe) return null;
+  if (msg.isDeleted || hiddenByMe) return null;
 
   return (
     <div
       className={`gap-3 flex justify-end items-center ${
-        msg.isMine ? "" : "flex-row-reverse"
+        isMine ? "" : "flex-row-reverse"
       }`}
     >
       <div
         className={`flex gap-2 items-center ${
-          msg.isMine ? "" : "flex-row-reverse"
+          isMine ? "" : "flex-row-reverse"
         }`}
       >
         <Dropdown backdrop="blur">
@@ -147,10 +151,10 @@ export function MessageActions({
               </DropdownItem>
             ) : null}
             {/* Actions limited to messages created by me */}
-            {msg.isMine ? (
+            {isMine ? (
               <>
                 {/* Nếu trong 30 phút → cho thu hồi (recall) */}
-                {canRecallMessage(msg) ? (
+                {canRecallMessage(msg, isMine) ? (
                   <DropdownItem
                     className="text-danger"
                     color="danger"
