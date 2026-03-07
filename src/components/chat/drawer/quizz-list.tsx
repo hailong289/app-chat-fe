@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Card, CardBody, Button, Pagination } from "@heroui/react";
-import { AcademicCapIcon } from "@heroicons/react/24/outline";
+import { AcademicCapIcon, PlayCircleIcon } from "@heroicons/react/24/outline";
 import { PencilIcon, TrashIcon, PaperAirplaneIcon } from "@heroicons/react/16/solid";
 import QuizzService from "@/service/quizz.service";
 import { QuizzResponse } from "@/types/quizz.type";
 import { EditQuizzModal } from "../modals/edit-quizz.modal";
+import { TakeQuizzModal } from "../modals/take-quizz.modal";
 import { User } from "@/types/auth.type";
 
 interface QuizzListProps {
@@ -25,6 +26,7 @@ export default function QuizzList({
   const [quizzes, setQuizzes] = useState<QuizzResponse[]>([]);
   const [isLoadingQuizzes, setIsLoadingQuizzes] = useState(false);
   const [openEditQuizzModal, setOpenEditQuizzModal] = useState(false);
+  const [openTakeQuizzModal, setOpenTakeQuizzModal] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<QuizzResponse | undefined>();
   const [page, setPage] = useState(1);
   const [limit] = useState(10); // Số lượng quizz mỗi trang
@@ -81,6 +83,11 @@ export default function QuizzList({
   const handleEdit = (quiz: QuizzResponse) => {
     setSelectedQuiz(quiz);
     setOpenEditQuizzModal(true);
+  };
+
+  const handleTakeQuiz = (quiz: QuizzResponse) => {
+    setSelectedQuiz(quiz);
+    setOpenTakeQuizzModal(true);
   };
 
   const handleDelete = async (quizId: string) => {
@@ -171,6 +178,17 @@ export default function QuizzList({
                         </span>
                       </div>
                       <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          className="min-w-0 w-7 h-7"
+                          onPress={() => handleTakeQuiz(quiz)}
+                          aria-label="Làm bài kiểm tra"
+                          title="Làm bài"
+                        >
+                          <PlayCircleIcon className="w-4 h-4 text-gray-400 hover:text-primary" />
+                        </Button>
                         {onSendQuiz && (
                           <Button
                             isIconOnly
@@ -240,6 +258,20 @@ export default function QuizzList({
         quiz={selectedQuiz}
         onSuccess={handleEditSuccess}
       />
+
+      {selectedQuiz && openTakeQuizzModal && (
+        <TakeQuizzModal
+          isOpen={openTakeQuizzModal}
+          onClose={() => {
+            setOpenTakeQuizzModal(false);
+            setSelectedQuiz(undefined);
+          }}
+          quiz={selectedQuiz}
+          userId={user?._id ?? user?.id ?? "anonymous"}
+          userFullname={user?.fullname ?? "Người dùng"}
+          userAvatar={user?.avatar}
+        />
+      )}
     </div>
   );
 }

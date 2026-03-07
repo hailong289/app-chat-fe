@@ -838,22 +838,19 @@ export default function ChatDrawer({
                             user={user}
                             onSendQuiz={(quiz: QuizzResponse) => {
                               if (!roomState.room?._id || !user) return;
-                              
-                              // Tạo nội dung message với thông tin quizz
-                              const quizContent = `📝 **${quiz.quiz_title}**\n\n${quiz.quiz_description || ""}\n\n📊 ${quiz.quiz_questions?.length || 0} câu hỏi - Tổng điểm: ${quiz.quiz_questions?.reduce((sum, q) => sum + (q.points || 0), 0) || 0}`;
-                              
+
                               sendMessage({
-                                roomId: roomState.room.id,
-                                content: quizContent,
+                                roomId: roomState.room._id,
+                                content: quiz.quiz_title,
                                 attachments: [],
-                                type: "text",
+                                type: "quiz",
                                 socket,
                                 userId: user._id || user.id,
                                 userFullname: user.fullname,
                                 userAvatar: user.avatar,
+                                quiz,
                               });
-                              
-                              // Đóng drawer sau khi gửi
+
                               onClose();
                             }}
                           />

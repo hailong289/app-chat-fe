@@ -10,9 +10,11 @@ import {
   ModalHeader,
   Select,
   SelectItem,
+  Switch,
   Textarea,
   Divider,
 } from "@heroui/react";
+import { CalendarDaysIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 import { useState, useEffect } from "react";
 import QuizzService from "@/service/quizz.service";
 import {
@@ -194,9 +196,36 @@ export const EditQuizzModal = ({
     );
   };
 
+  // Chuyển ISO string → giá trị input datetime-local (yyyy-MM-ddTHH:mm)
+  const toDatetimeLocal = (iso?: string): string => {
+    if (!iso) return "";
+    try {
+      const d = new Date(iso);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } catch {
+      return "";
+    }
+  };
+
+  // Chuyển giá trị datetime-local → ISO string
+  const fromDatetimeLocal = (val: string): string | undefined => {
+    if (!val) return undefined;
+    return new Date(val).toISOString();
+  };
+
   const handleSave = async () => {
     if (!editedQuizz || !editedQuizz.quiz_id) {
       setError("Thiếu thông tin quizz");
+      return;
+    }
+
+    if (
+      editedQuizz.quiz_startTime &&
+      editedQuizz.quiz_endTime &&
+      new Date(editedQuizz.quiz_endTime) <= new Date(editedQuizz.quiz_startTime)
+    ) {
+      setError("Thời gian kết thúc phải sau thời gian bắt đầu");
       return;
     }
 
@@ -209,6 +238,12 @@ export const EditQuizzModal = ({
         quiz_description: editedQuizz.quiz_description,
         quiz_status: editedQuizz.quiz_status,
         quiz_questions: editedQuizz.quiz_questions,
+        quiz_startTime: editedQuizz.quiz_startTime,
+        quiz_endTime: editedQuizz.quiz_endTime,
+        quiz_allowRetake: editedQuizz.quiz_allowRetake,
+        quiz_maxAttempts: editedQuizz.quiz_allowRetake
+          ? editedQuizz.quiz_maxAttempts
+          : undefined,
       };
 
       await QuizzService.updateQuizz(editedQuizz.quiz_id, payload);
@@ -319,7 +354,7 @@ export const EditQuizzModal = ({
                 }}
               >
                 <SelectItem key="draft">Bản nháp</SelectItem>
-                <SelectItem key="active">Đã xuất</SelectItem>
+                <SelectItem key="active">Đã xuất bản</SelectItem>
               </Select>
 
               <div className="flex items-center gap-4 text-sm text-gray-600">
@@ -327,6 +362,102 @@ export const EditQuizzModal = ({
                   <strong>{totalPoints}</strong> (điểm) - <strong>{totalQuestions}</strong> (câu hỏi)
                 </span>
               </div>
+            </div>
+
+            <Divider />
+
+            {/* Cài đặt thời gian & làm lại */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-default-700 flex items-center gap-2">
+                <CalendarDaysIcon className="w-4 h-4" />
+                Cài đặt thời gian &amp; làm lại
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  type="datetime-local"
+                  label="Thời gian bắt đầu"
+                  placeholder="Chọn thời gian bắt đầu"
+                  value={toDatetimeLocal(editedQuizz.quiz_startTime)}
+                  onChange={(e) =>
+                    updateQuizzField(
+                      "quiz_startTime",
+                      fromDatetimeLocal(e.target.value)
+                    )
+                  }
+                  startContent={
+                    <CalendarDaysIcon className="w-4 h-4 text-default-400 shrink-0" />
+                  }
+                  description="Để trống nếu không giới hạn"
+                  classNames={{ input: "text-sm" }}
+                />
+
+                <Input
+                  type="datetime-local"
+                  label="Thời gian kết thúc"
+                  placeholder="Chọn thời gian kết thúc"
+                  value={toDatetimeLocal(editedQuizz.quiz_endTime)}
+                  min={toDatetimeLocal(editedQuizz.quiz_startTime)}
+                  onChange={(e) =>
+                    updateQuizzField(
+                      "quiz_endTime",
+                      fromDatetimeLocal(e.target.value)
+                    )
+                  }
+                  startContent={
+                    <CalendarDaysIcon className="w-4 h-4 text-default-400 shrink-0" />
+                  }
+                  description="Để trống nếu không giới hạn"
+                  classNames={{ input: "text-sm" }}
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center p-4 rounded-xl border border-default-200 bg-default-50">
+                <div className="flex items-center gap-3 flex-1">
+                  <ArrowPathIcon className="w-5 h-5 text-default-500 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">Cho phép làm lại</p>
+                    <p className="text-xs text-default-400">
+                      Người dùng có thể nộp bài nhiều lần
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  isSelected={editedQuizz.quiz_allowRetake ?? false}
+                  onValueChange={(val) => {
+                    updateQuizzField("quiz_allowRetake", val);
+                    if (!val) updateQuizzField("quiz_maxAttempts", undefined);
+                  }}
+                  color="primary"
+                  size="sm"
+                />
+              </div>
+
+              {editedQuizz.quiz_allowRetake && (
+                <Input
+                  type="number"
+                  label="Số lần làm lại tối đa"
+                  placeholder="Nhập số lần (để trống = không giới hạn)"
+                  value={
+                    editedQuizz.quiz_maxAttempts !== undefined
+                      ? String(editedQuizz.quiz_maxAttempts)
+                      : ""
+                  }
+                  min={1}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    updateQuizzField(
+                      "quiz_maxAttempts",
+                      val === "" ? undefined : Math.max(1, parseInt(val) || 1)
+                    );
+                  }}
+                  startContent={
+                    <ArrowPathIcon className="w-4 h-4 text-default-400 shrink-0" />
+                  }
+                  description="Để trống = không giới hạn số lần làm lại"
+                  classNames={{ input: "text-sm" }}
+                />
+              )}
             </div>
 
             <Divider />

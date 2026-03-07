@@ -1,3 +1,4 @@
+import { QuizzResponse } from "@/types/quizz.type";
 import { SendMessageArgs } from "../useMessageStore";
 import { CallMember } from "./call.state";
 
@@ -50,7 +51,8 @@ export type MessageType = {
     | "audio"
     | "gif"
     | "document"
-    | "call";
+    | "call"
+    | "quiz";
   content: string;
   createdAt: string;
   editedAt?: string | null;
@@ -109,6 +111,7 @@ export type MessageType = {
   call_history?: CallHistoryType | null;
   summary?: MessageSummary | null;
   translation?: MessageTranslation | null;
+  quiz?: QuizzResponse;
 };
 
 export interface CallHistoryType {

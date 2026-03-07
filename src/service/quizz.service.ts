@@ -1,6 +1,12 @@
 import ApiResponse from "@/types/api.type";
 import apiService from "./api.service";
-import { QuizzResponse } from "@/types/quizz.type";
+import {
+  QuizzResponse,
+  SubmitQuizResultPayload,
+  QuizResultResponse,
+  QuizResultsListResponse,
+  LeaderboardEntry,
+} from "@/types/quizz.type";
 
 interface GenerateQuizzPayload {
   type: "document";
@@ -18,6 +24,10 @@ interface CreateQuizzPayload {
   quiz_roomId: string;
   quiz_createdBy: string;
   quiz_questions: QuizzResponse["quiz_questions"];
+  quiz_startTime?: string;
+  quiz_endTime?: string;
+  quiz_allowRetake?: boolean;
+  quiz_maxAttempts?: number;
 }
 
 interface UpdateQuizzPayload {
@@ -25,6 +35,10 @@ interface UpdateQuizzPayload {
   quiz_description?: string;
   quiz_status?: string;
   quiz_questions?: QuizzResponse["quiz_questions"];
+  quiz_startTime?: string;
+  quiz_endTime?: string;
+  quiz_allowRetake?: boolean;
+  quiz_maxAttempts?: number;
 }
 
 export default class QuizzService {
@@ -72,6 +86,26 @@ export default class QuizzService {
    */
   static getMyQuizzes(queryParams?: { page?: number; limit?: number; status?: string }) {
     return apiService.get<{ quizzes: QuizzResponse[]; total: number }>("/quizz/my", queryParams);
+  }
+
+  /**
+   * Nộp bài làm quiz
+   */
+  static submitResult(quizId: string, body: SubmitQuizResultPayload) {
+    return apiService.post<ApiResponse<QuizResultResponse>>(
+      `/ai/quizz/${quizId}/submit`,
+      body
+    );
+  }
+
+  /**
+   * Lấy danh sách kết quả / leaderboard của quiz
+   * Response: { results: QuizResultResponse[], quiz_id, quiz_title, total_participants, total_submissions }
+   */
+  static getResults(quizId: string) {
+    return apiService.get<QuizResultsListResponse>(
+      `/ai/quizz/${quizId}/results`
+    );
   }
 }
 

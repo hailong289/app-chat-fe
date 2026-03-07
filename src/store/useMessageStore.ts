@@ -87,13 +87,16 @@ export interface SendMessageArgs {
     | "video"
     | "audio"
     | "gif"
-    | "document";
+    | "document"
+    | "quiz";
   replyTo?: string;
   socket?: any; // Socket instance
   userId?: string; // User ID
   userFullname?: string; // User fullname
   userAvatar?: string; // User avatar
   documentId?: string; // Document ID
+  quizId?: string; // Quiz ID
+  quiz?: import("@/types/quizz.type").QuizzResponse; // Full quiz object for optimistic UI
 }
 import { upsertOne, deleteOne } from "@/libs/crud";
 import { db } from "@/libs/db";
@@ -454,6 +457,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       hiddenAt: null,
       isDeleted: false,
       read_by: [],
+      quiz: args.quiz,
     };
 
     // Thêm dữ liệu tạm
@@ -586,6 +590,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         replyTo,
         id,
         documentId: args.documentId, // Send documentId
+        quizId: args.quiz?._id, // Send quizId
       });
       get().autoMarkMessageSent(roomId, id, 3000);
     }

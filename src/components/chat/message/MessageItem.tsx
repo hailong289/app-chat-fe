@@ -6,6 +6,7 @@ import { MessageBubble } from "./MessageBubble";
 import { MessageActions } from "./MessageActions";
 import { MessageReactions } from "./MessageReactions";
 import { ReplyPreview } from "./ReplyPreview";
+import { QuizMessageCard } from "./QuizMessageCard";
 import { MessageType } from "@/store/types/message.state";
 import { ArrowPathIcon, EyeDropperIcon } from "@heroicons/react/16/solid";
 import { useTranslation } from "react-i18next";
@@ -79,6 +80,7 @@ export const MessageItem = memo(
     const { t } = useTranslation();
     const currentUser = useAuthStore((state) => state.user);
     const currentUserId = currentUser?.id;
+    console.log("🚀 ~ currentUser:", currentUser);
     const isMine = currentUserId ? msg.sender?.id === currentUserId : false;
     const hiddenByMe = currentUserId
       ? (msg.hiddenBy?.includes(currentUserId) ?? false)
@@ -291,6 +293,34 @@ export const MessageItem = memo(
       );
     };
 
+    // Quiz message — layout riêng, căn giữa
+    if (msg.type === "quiz" && msg.quiz && !msg.isDeleted) {
+      return (
+        <div className={messageSpacing}>
+          <motion.div
+            layout
+            key={`msg-box-${msg.id}`}
+            initial={shouldAnimateThis ? { opacity: 0, y: 10, scale: 0.95 } : false}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={shouldAnimateThis ? { opacity: 0, scale: 0.95 } : undefined}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+          >
+            <UnreadDivider />
+            <div
+              ref={setMessageRef(msg.id)}
+              data-mid={msg.id}
+              className="flex flex-col items-center gap-1.5 px-4 py-1"
+            >
+              <QuizMessageCard quiz={msg.quiz} currentUser={currentUser} />
+              <span className="text-[11px] text-default-400">
+                {msg.sender.fullname} • {formatMessageTime(msg.createdAt)}
+              </span>
+            </div>
+          </motion.div>
+        </div>
+      );
+    }
+
     return (
       <div className={messageSpacing}>
         <motion.div
@@ -408,7 +438,7 @@ export const MessageItem = memo(
                           />
                         </div>
                       )}
-
+                    
                     {/* Content bubble */}
                     <MessageBubble
                       msg={msg}
