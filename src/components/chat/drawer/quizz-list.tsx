@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { Card, CardBody, Button, Pagination } from "@heroui/react";
-import { AcademicCapIcon, PlayCircleIcon } from "@heroicons/react/24/outline";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { Card, CardBody, Button, Pagination, Chip } from "@heroui/react";
+import { AcademicCapIcon, ChartBarIcon, CalendarDaysIcon, ClockIcon } from "@heroicons/react/24/outline";
 import { PencilIcon, TrashIcon, PaperAirplaneIcon } from "@heroicons/react/16/solid";
 import QuizzService from "@/service/quizz.service";
 import { QuizzResponse } from "@/types/quizz.type";
 import { EditQuizzModal } from "../modals/edit-quizz.modal";
-import { TakeQuizzModal } from "../modals/take-quizz.modal";
+
+import { QuizResultsModal } from "../modals/quiz-results.modal";
 import { User } from "@/types/auth.type";
 
 interface QuizzListProps {
@@ -26,7 +27,7 @@ export default function QuizzList({
   const [quizzes, setQuizzes] = useState<QuizzResponse[]>([]);
   const [isLoadingQuizzes, setIsLoadingQuizzes] = useState(false);
   const [openEditQuizzModal, setOpenEditQuizzModal] = useState(false);
-  const [openTakeQuizzModal, setOpenTakeQuizzModal] = useState(false);
+  const [openResultsModal, setOpenResultsModal] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<QuizzResponse | undefined>();
   const [page, setPage] = useState(1);
   const [limit] = useState(10); // Số lượng quizz mỗi trang
@@ -66,28 +67,52 @@ export default function QuizzList({
     }
   }, [roomId, limit]);
 
-  // Reset về trang 1 khi roomId hoặc refreshTrigger thay đổi
-  useEffect(() => {
-    if (roomId) {
-      setPage(1);
-    }
-  }, [roomId, refreshTrigger]);
+  const prevRoomAndTrigger = useRef({ roomId, refreshTrigger });
+  const skipNextFetchRef = useRef(false);
 
-  // Fetch quizzes khi page hoặc roomId/refreshTrigger thay đổi
+  // Một effect duy nhất: đổi room/trigger → reset trang 1 và fetch 1 lần; đổi page → fetch page đó
   useEffect(() => {
-    if (roomId) {
+    if (!roomId) return;
+
+    const prev = prevRoomAndTrigger.current;
+    const roomOrTriggerChanged = prev.roomId !== roomId || prev.refreshTrigger !== refreshTrigger;
+
+    if (roomOrTriggerChanged) {
+      prevRoomAndTrigger.current = { roomId, refreshTrigger };
+      setPage(1);
+      fetchQuizzes(1);
+      skipNextFetchRef.current = true;
+    } else {
+      if (skipNextFetchRef.current) {
+        skipNextFetchRef.current = false;
+        return;
+      }
       fetchQuizzes(page);
     }
-  }, [page, roomId, refreshTrigger, fetchQuizzes]);
+  }, [roomId, refreshTrigger, page, fetchQuizzes]);
 
   const handleEdit = (quiz: QuizzResponse) => {
     setSelectedQuiz(quiz);
     setOpenEditQuizzModal(true);
   };
 
-  const handleTakeQuiz = (quiz: QuizzResponse) => {
+  const handleViewResults = (quiz: QuizzResponse) => {
     setSelectedQuiz(quiz);
-    setOpenTakeQuizzModal(true);
+    setOpenResultsModal(true);
+  };
+
+  const getQuizTimeStatus = (quiz: QuizzResponse) => {
+    const now = new Date();
+    if (quiz.quiz_endTime && new Date(quiz.quiz_endTime) < now) {
+      return { label: "Đã kết thúc", color: "danger" as const };
+    }
+    if (quiz.quiz_startTime && new Date(quiz.quiz_startTime) > now) {
+      return { label: "Chưa bắt đầu", color: "warning" as const };
+    }
+    if (quiz.quiz_status === "active") {
+      return { label: "Đang mở", color: "success" as const };
+    }
+    return null;
   };
 
   const handleDelete = async (quizId: string) => {
@@ -129,22 +154,8 @@ export default function QuizzList({
           quizzes.map((quiz) => {
             const totalQuestions = quiz.quiz_questions?.length || 0;
             const totalPoints =
-              quiz.quiz_questions?.reduce(
-                (sum, q) => sum + (q.points || 0),
-                0
-              ) || 0;
-            const statusColor =
-              quiz.quiz_status === "active"
-                ? "text-success"
-                : quiz.quiz_status === "draft"
-                ? "text-warning"
-                : "text-gray-500";
-            const statusText =
-              quiz.quiz_status === "active"
-                ? "Đã xuất bản"
-                : quiz.quiz_status === "draft"
-                ? "Bản nháp"
-                : quiz.quiz_status || "Chưa xác định";
+              quiz.quiz_questions?.reduce((sum, q) => sum + (q.points || 0), 0) || 0;
+            const timeStatus = getQuizTimeStatus(quiz);
 
             return (
               <Card
@@ -152,80 +163,104 @@ export default function QuizzList({
                 className="border border-gray-200 hover:shadow-md transition-shadow"
               >
                 <CardBody className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <h4 className="font-semibold text-gray-900 truncate">
-                          {quiz.quiz_title}
-                        </h4>
-                        <span
-                          className={`text-xs font-medium px-2 py-1 rounded-full bg-gray-100 ${statusColor} whitespace-nowrap flex-shrink-0`}
-                        >
-                          {statusText}
-                        </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h4 className="font-semibold text-gray-900 truncate text-sm">
+                        {quiz.quiz_title}
+                      </h4>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {timeStatus && (
+                          <Chip size="sm" color={timeStatus.color} variant="flat" className="text-[10px]">
+                            {timeStatus.label}
+                          </Chip>
+                        )}
+                        {quiz.is_send && (
+                          <Chip size="sm" color="primary" variant="flat" className="text-[10px]">
+                            Đã gửi
+                          </Chip>
+                        )}
                       </div>
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                        {quiz.quiz_description || "Không có mô tả"}
-                      </p>
-                      <div className="flex items-center gap-4 text-xs text-gray-500 mb-3">
-                        <span className="flex items-center gap-1">
-                          <AcademicCapIcon className="w-4 h-4" />
-                          {totalQuestions} câu hỏi
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <span className="font-semibold">Tổng điểm:</span>
-                          {totalPoints}
-                        </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mb-3 line-clamp-2">
+                      {quiz.quiz_description || "Không có mô tả"}
+                    </p>
+                    <div className="flex items-center gap-4 text-xs text-gray-500 mb-2">
+                      <span className="flex items-center gap-1">
+                        <AcademicCapIcon className="w-3.5 h-3.5" />
+                        {totalQuestions} câu hỏi
+                      </span>
+                      <span>
+                        <span className="font-semibold">Điểm:</span> {totalPoints}
+                      </span>
+                    </div>
+                    {(quiz.quiz_startTime || quiz.quiz_endTime) && (
+                      <div className="space-y-1 mb-3">
+                        {quiz.quiz_startTime && (
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                            <CalendarDaysIcon className="w-3.5 h-3.5 shrink-0 text-primary" />
+                            <span className="text-gray-400 w-16 shrink-0">Bắt đầu:</span>
+                            <span className="font-medium">
+                              {new Date(quiz.quiz_startTime).toLocaleString("vi-VN", {
+                                day: "2-digit", month: "2-digit", year: "numeric",
+                                hour: "2-digit", minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                        )}
+                        {quiz.quiz_endTime && (
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                            <ClockIcon className="w-3.5 h-3.5 shrink-0 text-danger" />
+                            <span className="text-gray-400 w-16 shrink-0">Kết thúc:</span>
+                            <span className="font-medium">
+                              {new Date(quiz.quiz_endTime).toLocaleString("vi-VN", {
+                                day: "2-digit", month: "2-digit", year: "numeric",
+                                hour: "2-digit", minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                    )}
+                    <div className="flex items-center gap-1 pt-2 border-t border-gray-200">
+                      {/* Nếu đã gửi: nút xem kết quả. Nếu chưa gửi: nút gửi đi */}
+                      {quiz.is_send ? (
                         <Button
-                          isIconOnly
-                          size="sm"
-                          variant="light"
-                          className="min-w-0 w-7 h-7"
-                          onPress={() => handleTakeQuiz(quiz)}
-                          aria-label="Làm bài kiểm tra"
-                          title="Làm bài"
+                          isIconOnly size="sm" variant="light" className="min-w-0 w-7 h-7"
+                          onPress={() => handleViewResults(quiz)}
+                          aria-label="Xem kết quả" title="Xem kết quả & thành viên"
                         >
-                          <PlayCircleIcon className="w-4 h-4 text-gray-400 hover:text-primary" />
+                          <ChartBarIcon className="w-4 h-4 text-primary" />
                         </Button>
-                        {onSendQuiz && (
+                      ) : (
+                        onSendQuiz && (
                           <Button
-                            isIconOnly
-                            size="sm"
-                            variant="light"
-                            className="min-w-0 w-7 h-7"
+                            isIconOnly size="sm" variant="light" className="min-w-0 w-7 h-7"
                             onPress={() => onSendQuiz(quiz)}
-                            aria-label="Gửi quizz"
+                            aria-label="Gửi quizz" title="Gửi vào chat"
                           >
                             <PaperAirplaneIcon className="w-4 h-4 text-gray-400 hover:text-success" />
                           </Button>
-                        )}
-                        {isQuizCreator(quiz) && (
-                          <>
-                            <Button
-                              isIconOnly
-                              size="sm"
-                              variant="light"
-                              className="min-w-0 w-7 h-7"
-                              onPress={() => handleEdit(quiz)}
-                              aria-label="Chỉnh sửa quizz"
-                            >
-                              <PencilIcon className="w-4 h-4 text-gray-400 hover:text-primary" />
-                            </Button>
-                            <Button
-                              isIconOnly
-                              size="sm"
-                              variant="light"
-                              className="min-w-0 w-7 h-7"
-                              onPress={() => quiz.quiz_id && handleDelete(quiz.quiz_id)}
-                              aria-label="Xóa quizz"
-                            >
-                              <TrashIcon className="w-4 h-4 text-gray-400 hover:text-danger" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                        )
+                      )}
+
+                      {isQuizCreator(quiz) && (
+                        <>
+                          <Button
+                            isIconOnly size="sm" variant="light" className="min-w-0 w-7 h-7"
+                            onPress={() => handleEdit(quiz)}
+                            aria-label="Chỉnh sửa"
+                          >
+                            <PencilIcon className="w-4 h-4 text-gray-400 hover:text-primary" />
+                          </Button>
+                          <Button
+                            isIconOnly size="sm" variant="light" className="min-w-0 w-7 h-7"
+                            onPress={() => quiz.quiz_id && handleDelete(quiz.quiz_id)}
+                            aria-label="Xóa"
+                          >
+                            <TrashIcon className="w-4 h-4 text-gray-400 hover:text-danger" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </CardBody>
@@ -256,20 +291,19 @@ export default function QuizzList({
           setSelectedQuiz(undefined);
         }}
         quiz={selectedQuiz}
+        roomId={roomId}
         onSuccess={handleEditSuccess}
       />
 
-      {selectedQuiz && openTakeQuizzModal && (
-        <TakeQuizzModal
-          isOpen={openTakeQuizzModal}
+
+      {selectedQuiz && (
+        <QuizResultsModal
+          isOpen={openResultsModal}
           onClose={() => {
-            setOpenTakeQuizzModal(false);
+            setOpenResultsModal(false);
             setSelectedQuiz(undefined);
           }}
           quiz={selectedQuiz}
-          userId={user?._id ?? user?.id ?? "anonymous"}
-          userFullname={user?.fullname ?? "Người dùng"}
-          userAvatar={user?.avatar}
         />
       )}
     </div>

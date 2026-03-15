@@ -17,6 +17,7 @@ export interface QuizzQuestion {
 }
 
 export interface QuizzResponse {
+  id?: string;
   _id?: string;
   quiz_id?: string;
   quiz_title: string;
@@ -32,6 +33,7 @@ export interface QuizzResponse {
   createdAt?: string;
   updatedAt?: string;
   quiz_results?: QuizResultResponse[]; // kết quả đã nộp
+  is_send?: boolean; // đã gửi vào chat chưa
 }
 
 export interface QuizzForm {

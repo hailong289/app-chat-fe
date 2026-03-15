@@ -35,6 +35,10 @@ export const SocketEventChatGlobal = () => {
     socket.on(socketEvent.ROOM_REFRESH, (data: any) => {
       return roomState.fetchAndUpdateRoom(data.roomId);
     });
+    const handleUpdateQuiz = (data: { roomId: string; quizId: string; payload: Record<string, unknown> }) => {
+      useMessageStore.getState().updateQuizInMessages(data.roomId, String(data.quizId), data.payload);
+    };
+    socket.on(socketEvent.UPDATE_QUIZ, handleUpdateQuiz);
     return () => {
       call.off(socketEvent.CALL, (payload: any) =>
         callStore.eventCall("request", payload),
@@ -49,6 +53,7 @@ export const SocketEventChatGlobal = () => {
       socket.off(socketEvent.ROOM_REFRESH, (data: any) => {
         roomState.fetchAndUpdateRoom(data.roomId);
       });
+      socket.off(socketEvent.UPDATE_QUIZ, handleUpdateQuiz);
     };
   }, [socket, call]);
   return <></>;

@@ -236,6 +236,12 @@ export interface MessageState {
     messageId: string,
     translation: MessageTranslation | null,
   ) => Promise<void>;
+  /** Cập nhật dữ liệu quiz trong các message có type quiz (ví dụ khi đổi thời gian). */
+  updateQuizInMessages: (
+    roomId: string,
+    quizId: string,
+    updatedQuiz: Partial<QuizzResponse>,
+  ) => Promise<void>;
   setLastReadMessageId: (roomId: string, messageId: string | null) => void;
   setDisplayedMessagesCount: (roomId: string, count: number) => void;
 }

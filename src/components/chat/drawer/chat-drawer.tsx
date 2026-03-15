@@ -840,7 +840,7 @@ export default function ChatDrawer({
                               if (!roomState.room?._id || !user) return;
 
                               sendMessage({
-                                roomId: roomState.room._id,
+                                roomId: roomState.room.roomId,
                                 content: quiz.quiz_title,
                                 attachments: [],
                                 type: "quiz",

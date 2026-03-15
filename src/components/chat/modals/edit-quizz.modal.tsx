@@ -16,6 +16,7 @@ import {
 } from "@heroui/react";
 import { CalendarDaysIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 import { useState, useEffect } from "react";
+import useMessageStore from "@/store/useMessageStore";
 import QuizzService from "@/service/quizz.service";
 import {
   QuizzResponse,
@@ -24,11 +25,15 @@ import {
 } from "@/types/quizz.type";
 import useToast from "@/hooks/useToast";
 import { QuizQuestionsList } from "./QuizQuestionsList";
+import useRoomStore from "@/store/useRoomStore";
+import { useSocket } from "@/components/providers/SocketProvider";
+import { socketEvent } from "@/types/socketEvent.type";
 
 interface EditQuizzModalProps {
   isOpen: boolean;
   onClose: () => void;
   quiz?: QuizzResponse; // Dữ liệu quiz được truyền trực tiếp
+  roomId?: string; // Để cập nhật quiz trong messages khi thời gian thay đổi
   onSuccess?: () => void; // Callback khi cập nhật thành công
 }
 
@@ -36,12 +41,14 @@ export const EditQuizzModal = ({
   isOpen,
   onClose,
   quiz,
+  roomId,
   onSuccess,
 }: EditQuizzModalProps) => {
   const [editedQuizz, setEditedQuizz] = useState<QuizzResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { success, error: showError } = useToast();
+  const { socket } = useSocket("/chat");
 
   // Load quizz data từ props khi modal mở
   useEffect(() => {
@@ -233,13 +240,15 @@ export const EditQuizzModal = ({
     setError(null);
 
     try {
+      const toISO = (v: string | undefined) =>
+        v ? new Date(v).toISOString() : undefined;
       const payload = {
         quiz_title: editedQuizz.quiz_title,
         quiz_description: editedQuizz.quiz_description,
         quiz_status: editedQuizz.quiz_status,
         quiz_questions: editedQuizz.quiz_questions,
-        quiz_startTime: editedQuizz.quiz_startTime,
-        quiz_endTime: editedQuizz.quiz_endTime,
+        quiz_startTime: toISO(editedQuizz.quiz_startTime),
+        quiz_endTime: toISO(editedQuizz.quiz_endTime),
         quiz_allowRetake: editedQuizz.quiz_allowRetake,
         quiz_maxAttempts: editedQuizz.quiz_allowRetake
           ? editedQuizz.quiz_maxAttempts
@@ -247,7 +256,19 @@ export const EditQuizzModal = ({
       };
 
       await QuizzService.updateQuizz(editedQuizz.quiz_id, payload);
-      
+
+      const quizId = editedQuizz._id ?? editedQuizz.quiz_id;
+      if (roomId && quizId) {
+        const roomStore = useRoomStore.getState();
+        const room = roomStore.rooms.find((r) => r._id === roomId || r.roomId === roomId);
+        await useMessageStore.getState().updateQuizInMessages(room?.roomId ?? roomId, String(quizId), payload);
+        socket?.emit(socketEvent.UPDATE_QUIZ, {
+          roomId: room?.roomId ?? roomId,
+          quizId: String(quizId),
+          payload: payload,
+        });
+      }
+
       if (onSuccess) {
         onSuccess();
       }

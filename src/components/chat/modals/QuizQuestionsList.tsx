@@ -36,6 +36,10 @@ interface QuizQuestionsListProps {
   onDeleteQuestion: (questionIndex: number) => void;
   onAddQuestion: () => void;
   isReadOnly?: boolean;
+  /** Callback khi bấm nút Gửi đi */
+  onSend?: () => void;
+  /** Nếu true, ẩn nút Gửi đi (quiz đã được gửi vào chat) */
+  isSent?: boolean;
 }
 
 export const QuizQuestionsList = ({
@@ -46,6 +50,8 @@ export const QuizQuestionsList = ({
   onDeleteQuestion,
   onAddQuestion,
   isReadOnly = false,
+  onSend,
+  isSent = false,
 }: QuizQuestionsListProps) => {
   const [visibleIndices, setVisibleIndices] = useState<Set<number>>(new Set());
   const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -572,6 +578,13 @@ export const QuizQuestionsList = ({
         <div className="flex justify-center pt-4">
           <Button color="primary" variant="flat" onPress={onAddQuestion}>
             + Thêm câu hỏi
+          </Button>
+        </div>
+      )}
+      {onSend && !isSent && (
+        <div className="flex justify-end pt-2">
+          <Button color="success" onPress={onSend}>
+            Gửi đi
           </Button>
         </div>
       )}

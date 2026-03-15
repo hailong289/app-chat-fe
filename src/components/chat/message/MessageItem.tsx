@@ -311,7 +311,7 @@ export const MessageItem = memo(
               data-mid={msg.id}
               className="flex flex-col items-center gap-1.5 px-4 py-1"
             >
-              <QuizMessageCard quiz={msg.quiz} currentUser={currentUser} />
+              <QuizMessageCard quiz={msg.quiz} currentUser={currentUser} isSender={isMine} roomId={chatId} />
               <span className="text-[11px] text-default-400">
                 {msg.sender.fullname} • {formatMessageTime(msg.createdAt)}
               </span>
