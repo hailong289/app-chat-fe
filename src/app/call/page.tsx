@@ -86,6 +86,9 @@ function CallPageContentInner() {
     );
     socket?.on("call:end", (payload: any) => eventCall("end", payload));
     socket?.on("signal", (payload: any) => handleSFUSignal(payload));
+    socket?.on("call:member-joined", (payload: any) =>
+      eventCall("member-joined", payload),
+    );
 
     socket?.on("call:share-screen", (payload: any) => {
       if (payload.isSharing) {
@@ -112,6 +115,7 @@ function CallPageContentInner() {
       socket?.off("call:end", (payload: any) => eventCall("end", payload));
       socket?.off("signal");
       socket?.off("call:share-screen");
+      socket?.off("call:member-joined");
     };
   }, [socket]);
 
@@ -120,18 +124,20 @@ function CallPageContentInner() {
     if (localVideoRef.current && localStream) {
       if (localVideoRef.current.srcObject !== localStream) {
         localVideoRef.current.srcObject = localStream;
+        localVideoRef.current.play().catch(() => {});
       }
     }
     remoteStreams.forEach((stream, key) => {
       const remoteVideoElement = remoteVideoRefs.current.get(key);
       if (remoteVideoElement && stream) {
-        // Chỉ set lại nếu stream khác với stream hiện tại để tránh nháy màn hình
+        // Only re-assign if stream changed to avoid interrupting ongoing playback
         if (remoteVideoElement.srcObject !== stream) {
           remoteVideoElement.srcObject = stream;
+          remoteVideoElement.play().catch(() => {});
         }
       }
     });
-  }, [localStream, remoteStreams]);
+  }, [localStream, remoteStreams, callStatus]);
 
   // update call state
   useEffect(() => {
@@ -145,9 +151,11 @@ function CallPageContentInner() {
           | "incoming"
           | "ended"
           | "accepted"
-          | "declined",
+          | "declined"
+          | "joined",
         mode: searchParams.get("callType") as "audio" | "video",
         callMode: (searchParams.get("callMode") as "p2p" | "sfu") || "p2p",
+        callId: searchParams.get("callId") || null,
         members: Helpers.decryptUserInfo(
           searchParams.get("members") || "[]",
         ) as CallMember[],
@@ -169,18 +177,19 @@ function CallPageContentInner() {
     if (
       callStatus === "incoming" ||
       callStatus === "calling" ||
-      callStatus === "joined"
+      callStatus === "joined" ||
+      callStatus === "accepted"
     ) {
       handleCreateLocalStream();
     }
     console.log("callStatus", callStatus);
   }, [callStatus, socket]);
 
-  // Update audio output device
+  // Update audio output device - only on elements that already have a stream
   useEffect(() => {
     if (devices.selectedAudioOutput) {
       remoteVideoRefs.current.forEach((videoEl) => {
-        if (videoEl && "setSinkId" in videoEl) {
+        if (videoEl && "setSinkId" in videoEl && videoEl.srcObject) {
           // @ts-ignore
           videoEl
             .setSinkId(devices.selectedAudioOutput)
@@ -195,6 +204,17 @@ function CallPageContentInner() {
     const secs = seconds % 60;
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
+
+  // Close the window when the call ends. Must set hasEndedRef BEFORE closing
+  // so that the beforeunload/pagehide handlers don't re-trigger endCall.
+  // This is the single source of truth for window.close() — both the local
+  // "End" button path and the remote "call:end" received path flow through here.
+  useEffect(() => {
+    if (callStatus === "ended") {
+      hasEndedRef.current = true;
+      window.opener && window.close();
+    }
+  }, [callStatus]);
 
   const handleEndCall = useCallback(() => {
     if (hasEndedRef.current) {
@@ -383,7 +403,13 @@ function CallPageContentInner() {
               const videoRef = (el: HTMLVideoElement | null) => {
                 if (el) {
                   remoteVideoRefs.current.set(key, el);
-                  if (el.srcObject !== stream) el.srcObject = stream;
+                  // Assign srcObject immediately on mount so streams that arrived
+                  // before this element was rendered are shown without waiting for
+                  // the useEffect to re-run (which only fires when deps change).
+                  if (stream && el.srcObject !== stream) {
+                    el.srcObject = stream;
+                    el.play().catch(() => {});
+                  }
                 } else {
                   remoteVideoRefs.current.delete(key);
                 }
@@ -442,7 +468,10 @@ function CallPageContentInner() {
                 const videoRef = (el: HTMLVideoElement | null) => {
                   if (el) {
                     remoteVideoRefs.current.set(key, el);
-                    if (el.srcObject !== stream) el.srcObject = stream;
+                    if (stream && el.srcObject !== stream) {
+                      el.srcObject = stream;
+                      el.play().catch(() => {});
+                    }
                   } else {
                     remoteVideoRefs.current.delete(key);
                   }
@@ -526,7 +555,10 @@ function CallPageContentInner() {
             const videoRef = (el: HTMLVideoElement | null) => {
               if (el) {
                 remoteVideoRefs.current.set(key, el);
-                if (el.srcObject !== stream) el.srcObject = stream;
+                if (stream && el.srcObject !== stream) {
+                  el.srcObject = stream;
+                  el.play().catch(() => {});
+                }
               } else {
                 remoteVideoRefs.current.delete(key);
               }

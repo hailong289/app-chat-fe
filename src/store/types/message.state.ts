@@ -116,6 +116,7 @@ export interface CallHistoryType {
   call_id: string;
   room_id: string;
   call_type: "audio" | "video";
+  call_mode?: "p2p" | "sfu";
   message_id: string;
   members: CallMember[];
   started_at: string;

@@ -114,6 +114,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
       })),
       currentUser: user,
       socket,
+      callMode: roomData.type !== "private" ? "sfu" : "p2p",
     });
   };
 

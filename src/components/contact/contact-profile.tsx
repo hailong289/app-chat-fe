@@ -93,6 +93,7 @@ export default function ContactProfile({
       })),
       currentUser: authState.user,
       socket,
+      callMode: room.type !== "private" ? "sfu" : "p2p",
     });
   };
   return (

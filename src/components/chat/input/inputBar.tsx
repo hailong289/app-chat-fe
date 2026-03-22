@@ -61,7 +61,6 @@ import { logError } from "@/utils/errorUtils";
 const maxFiles = 20;
 
 const EMPTY_MESSAGES: MessageType[] = [];
-const EMPTY_GROUPS: { messages: MessageType[] }[] = [];
 
 type ChatInputBarProps = Readonly<{
   chatId: string;
@@ -94,13 +93,8 @@ export default function ChatInputBar({
   const [suggestedEmojis, setSuggestedEmojis] = useState<string[]>([]);
   const [suggestedGifs, setSuggestedGifs] = useState<string[]>([]);
 
-  const groups = useMessageStore(
-    (state) => state.messagesRoom[chatId]?.groups ?? EMPTY_GROUPS,
-  );
-
-  const messages = useMemo(
-    () => groups.flatMap((g) => g.messages) || EMPTY_MESSAGES,
-    [groups],
+  const messages = useMessageStore(
+    (state) => state.messagesRoom[chatId]?.messages || EMPTY_MESSAGES
   );
 
   const emojiTab = useMemo(
@@ -115,7 +109,7 @@ export default function ChatInputBar({
       { name: t("chat.emoji.symbols"), category: Categories.SYMBOLS },
       { name: t("chat.emoji.flags"), category: Categories.FLAGS },
     ],
-    [t],
+    [t]
   );
 
   const fileMediaInputRef = useRef<HTMLInputElement>(null);
@@ -131,7 +125,7 @@ export default function ChatInputBar({
   const setReplyMessage = useMessageStore((state) => state.setReplyMessage);
 
   const replyingTo = useMessageStore(
-    (state) => state.messagesRoom[chatId]?.reply,
+    (state) => state.messagesRoom[chatId]?.reply
   );
 
   const auth = useAuthStore((state) => state.user);
@@ -171,7 +165,7 @@ export default function ChatInputBar({
 
   const isGuest = useMemo(() => {
     return room?.members?.some(
-      (member) => member.id === auth?.id && member.role === "guest",
+      (member) => member.id === auth?.id && member.role === "guest"
     );
   }, [room, auth]);
 
@@ -183,14 +177,14 @@ export default function ChatInputBar({
       maxFiles,
       compressImages,
     }),
-    [compressImages],
+    [compressImages]
   );
 
   const handleMaxFilesExceeded = useCallback(
     (current: number, max: number) => {
       toast.error(t("chat.input.maxFilesExceeded", { max, current }));
     },
-    [t],
+    [t]
   );
 
   // ====== SYNC LOCAL STATE VỚI STORE KHI ĐỔI CHAT ======
@@ -220,7 +214,7 @@ export default function ChatInputBar({
         return prev;
       });
     },
-    [],
+    []
   );
 
   const onPaste = useMemo(
@@ -228,9 +222,9 @@ export default function ChatInputBar({
       handlePasteFactory(
         setAttachmentsAsync as any,
         config,
-        handleMaxFilesExceeded,
+        handleMaxFilesExceeded
       ),
-    [config, handleMaxFilesExceeded, setAttachmentsAsync],
+    [config, handleMaxFilesExceeded, setAttachmentsAsync]
   );
 
   const onPick = useMemo(
@@ -238,9 +232,9 @@ export default function ChatInputBar({
       handleFilePickFactory(
         setAttachmentsAsync as any,
         config,
-        handleMaxFilesExceeded,
+        handleMaxFilesExceeded
       ),
-    [config, handleMaxFilesExceeded, setAttachmentsAsync],
+    [config, handleMaxFilesExceeded, setAttachmentsAsync]
   );
 
   const onDrop = useMemo(
@@ -249,9 +243,9 @@ export default function ChatInputBar({
         setAttachmentsAsync as any,
         config,
         setIsDragging,
-        handleMaxFilesExceeded,
+        handleMaxFilesExceeded
       ),
-    [config, handleMaxFilesExceeded, setAttachmentsAsync],
+    [config, handleMaxFilesExceeded, setAttachmentsAsync]
   );
 
   const onDragLeave = useMemo(() => handleDragLeaveFactory(setIsDragging), []);
@@ -275,7 +269,7 @@ export default function ChatInputBar({
       setIsLoadingGifs(true);
       try {
         const url = `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(
-          query,
+          query
         )}&key=${TENOR_API_KEY}&client_key=${TENOR_CLIENT_KEY}&limit=20&locale=vi_VN`;
         const response = await fetch(url);
         const data = await response.json();
@@ -287,7 +281,7 @@ export default function ChatInputBar({
         setIsLoadingGifs(false);
       }
     },
-    [TENOR_API_KEY],
+    [TENOR_API_KEY]
   );
 
   useEffect(() => {
@@ -327,7 +321,7 @@ export default function ChatInputBar({
         setMessage((prev) => prev + emoji);
       }
     },
-    [message],
+    [message]
   );
 
   const onGifClick = useCallback(
@@ -338,7 +332,7 @@ export default function ChatInputBar({
 
         const fileName = `${gifTitle.replaceAll(
           /[^a-z0-9]/gi,
-          "_",
+          "_"
         )}_${Date.now()}.gif`;
         const file = new File([blob], fileName, { type: "image/gif" });
         const previewUrl = URL.createObjectURL(blob);
@@ -373,7 +367,7 @@ export default function ChatInputBar({
         setMessage((prev) => prev + (prev ? " " : "") + gifUrl);
       }
     },
-    [auth, chatId, message, sendMessage, socket, setToggleInput, toggleInput],
+    [auth, chatId, message, sendMessage, socket, setToggleInput, toggleInput]
   );
 
   // ====== SEND TEXT / FILE MESSAGE ======
@@ -480,7 +474,7 @@ export default function ChatInputBar({
 
   async function waitForPreview(
     getPreview: () => any,
-    timeoutMs = 1200,
+    timeoutMs = 1200
   ): Promise<any | null> {
     const t0 = performance.now();
     return new Promise((resolve) => {
@@ -558,7 +552,7 @@ export default function ChatInputBar({
 
       setShowDocPicker(false);
     },
-    [chatId, socket, auth, sendMessage],
+    [chatId, socket, auth, sendMessage]
   );
 
   // ====== BLOCKED / NO ACTION ======
@@ -740,10 +734,9 @@ export default function ChatInputBar({
                 <div>
                   <span className="text-xs font-semibold text-teal-600 dark:text-teal-300">
                     {t("chat.input.replyingTo", {
-                      name:
-                        replyingTo.sender?.id === auth?.id
-                          ? t("chat.input.you")
-                          : replyingTo.sender?.fullname || "Unknown",
+                      name: replyingTo.isMine
+                        ? t("chat.input.you")
+                        : replyingTo.sender?.fullname || "Unknown",
                     })}
                   </span>
                   {replyingTo.type !== "text" && (
@@ -762,8 +755,6 @@ export default function ChatInputBar({
                       {replyingTo.type === "gif" && `🎬 ${t("chat.input.gif")}`}
                       {replyingTo.type === "audio" &&
                         `🎵 ${t("chat.input.audio")}`}
-                      {replyingTo.type === "call" &&
-                        `📞 ${t("chat.input.call", "Cuộc gọi")}`}
                     </Chip>
                   )}
                 </div>
@@ -773,9 +764,6 @@ export default function ChatInputBar({
                   {replyingTo.type === "video" && `🎥 ${t("chat.input.video")}`}
                   {replyingTo.type === "file" && `📎 ${t("chat.input.file")}`}
                   {replyingTo.type === "gif" && `🎬 ${t("chat.input.gif")}`}
-                  {replyingTo.type === "audio" && `🎵 ${t("chat.input.audio")}`}
-                  {replyingTo.type === "call" &&
-                    `📞 ${t("chat.input.call", "Cuộc gọi")}`}
                 </p>
               </div>
             </div>
@@ -959,7 +947,7 @@ export default function ChatInputBar({
                                   onClick={() =>
                                     onGifClick(
                                       gif.media_formats.gif.url,
-                                      gif.content_description || gif.id,
+                                      gif.content_description || gif.id
                                     )
                                   }
                                   className="
