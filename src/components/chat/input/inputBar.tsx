@@ -93,8 +93,10 @@ export default function ChatInputBar({
   const [suggestedEmojis, setSuggestedEmojis] = useState<string[]>([]);
   const [suggestedGifs, setSuggestedGifs] = useState<string[]>([]);
 
-  const messages = useMessageStore(
-    (state) => state.messagesRoom[chatId]?.messages || EMPTY_MESSAGES
+  const roomData = useMessageStore((state) => state.messagesRoom[chatId]);
+  const messages = useMemo(
+    () => roomData?.groups?.flatMap((g) => g.messages) ?? EMPTY_MESSAGES,
+    [roomData]
   );
 
   const emojiTab = useMemo(
@@ -734,9 +736,11 @@ export default function ChatInputBar({
                 <div>
                   <span className="text-xs font-semibold text-teal-600 dark:text-teal-300">
                     {t("chat.input.replyingTo", {
-                      name: replyingTo.isMine
-                        ? t("chat.input.you")
-                        : replyingTo.sender?.fullname || "Unknown",
+                      name:
+                        replyingTo.sender?._id === auth?.id ||
+                        replyingTo.sender?.id === auth?.id
+                          ? t("chat.input.you")
+                          : replyingTo.sender?.fullname || "Unknown",
                     })}
                   </span>
                   {replyingTo.type !== "text" && (

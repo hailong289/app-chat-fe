@@ -8,6 +8,31 @@ import { Device } from "mediasoup-client";
 // Module-level ref to the incoming call popup — persists across re-renders
 let _openCallWindow: Window | null = null;
 
+const _consumingProducerIds = new Set<string>();
+
+const CALL_ACTIVE_KEY = "appchat_call_active";
+
+function _setCallActive(callId: string) {
+  try {
+    localStorage.setItem(CALL_ACTIVE_KEY, callId);
+  } catch {}
+}
+
+function _clearCallActive() {
+  try {
+    localStorage.removeItem(CALL_ACTIVE_KEY);
+  } catch {}
+}
+
+/** Returns the active callId if this browser is in a call, or null otherwise */
+function _getActiveCallId(): string | null {
+  try {
+    return localStorage.getItem(CALL_ACTIVE_KEY);
+  } catch {
+    return null;
+  }
+}
+
 const useCallStore = create<CallState>()((set, get) => ({
   roomId: null,
   status: "idle",
@@ -81,6 +106,16 @@ const useCallStore = create<CallState>()((set, get) => ({
       socket,
       callMode = "p2p",
     } = payload;
+
+    if (_openCallWindow && !_openCallWindow.closed) {
+      _openCallWindow.focus();
+      return;
+    }
+    if (_getActiveCallId()) {
+      console.warn("[Call] Already in a call, ignoring openCall");
+      return;
+    }
+
     const memberMap = members.map((m: User) => ({
       id: m.id,
       fullname: m.fullname,
@@ -88,19 +123,37 @@ const useCallStore = create<CallState>()((set, get) => ({
       is_caller: m.id == currentUser.id,
     }));
     const encodedMemberInfo = Helpers.enCryptUserInfo(memberMap);
-    window.open(
+    _openCallWindow = window.open(
       `/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${mode}&callMode=${callMode}&status=calling&isCaller=true`,
-      "",
+      "appCallWindow_out",
       "width=800,height=600",
     );
+
+    if (_openCallWindow) {
+      // Mark as in-call immediately; cleared when popup closes
+      _setCallActive("pending");
+      // Poll until popup closes to clear the active-call marker
+      const poll = setInterval(() => {
+        if (!_openCallWindow || _openCallWindow.closed) {
+          _clearCallActive();
+          _openCallWindow = null;
+          clearInterval(poll);
+        }
+      }, 1000);
+    }
   },
   handleRequestCall: async (payload: any) => {
     // incoming: người bị gọi
-    const { roomId, members, callType, callId, callMode = "p2p" } = payload;
+    const { roomId, members, callType, callId, callMode = "p2p", actionUserId } = payload;
 
-    // Same-tab guard: nếu cửa sổ cuộc gọi đang mở thì chỉ focus, không mở thêm
-    if (_openCallWindow && !_openCallWindow.closed) {
-      _openCallWindow.focus();
+    // Busy check: if already in a call (same tab OR another tab), auto-decline
+    const alreadyInCall =
+      (_openCallWindow && !_openCallWindow.closed) || !!_getActiveCallId();
+    if (alreadyInCall) {
+      // Notify the caller that this user is busy
+      const socket = useCallStore.getState().socket;
+      socket?.emit("call:busy", { callId, callerUserId: actionUserId });
+      console.log("[Call] User is busy, auto-declining incoming call", callId);
       return;
     }
 
@@ -121,6 +174,18 @@ const useCallStore = create<CallState>()((set, get) => ({
         "appCallWindow_inc",
         "width=800,height=600",
       );
+
+      if (_openCallWindow) {
+        _setCallActive(callId || "pending");
+        // Poll until popup closes to clear the active-call marker
+        const poll = setInterval(() => {
+          if (!_openCallWindow || _openCallWindow.closed) {
+            _clearCallActive();
+            _openCallWindow = null;
+            clearInterval(poll);
+          }
+        }, 1000);
+      }
     };
 
     if (typeof navigator !== "undefined" && navigator.locks) {
@@ -156,7 +221,10 @@ const useCallStore = create<CallState>()((set, get) => ({
       return;
     }
 
-    // P2P path
+    // P2P path — guard against duplicate invocations (URL param changes can
+    // re-trigger the updateCallState useEffect before the status update settles).
+    if (get().status === "accepted") return;
+
     const membersNew = members.map((m: CallMember) => ({
       ...m,
       status: m.id === currentUser.id ? "started" : m.status,
@@ -193,11 +261,21 @@ const useCallStore = create<CallState>()((set, get) => ({
       console.error("User not authenticated, cannot handle call event");
       return;
     }
-    const userStarted = members.find(
-      (m: CallMember) => m.id === currentUser.id && m.status === "started",
+    // Verify the current user is part of this call (any status).
+    // The caller's status is "initiated" at this point — NOT "started" —
+    // so we must not filter by status here.
+    const userInCall = members.find(
+      (m: CallMember) => m.id === currentUser.id,
     );
-    if (!userStarted) {
-      console.error("User not found in members");
+    if (!userInCall) {
+      console.error("Current user not found in members, skipping handleAcceptCall");
+      return;
+    }
+    // Guard: peer connection for this remote user already exists → this is a duplicate
+    // call:accepted event (listener accumulation). Skip to avoid double-offer/answer.
+    const existingPc = get().stream.peerConnections.get(`${roomId}-${actionUserId}`);
+    if (existingPc) {
+      console.warn(`[handleAcceptCall] PC for ${actionUserId} already exists, skipping duplicate`);
       return;
     }
     // Nhận offer từ người gọi
@@ -260,6 +338,7 @@ const useCallStore = create<CallState>()((set, get) => ({
       }
       get().sfu?.sendTransport?.close();
       get().sfu?.recvTransport?.close();
+      _consumingProducerIds.clear();
       set({
         sfu: {
           device: null,
@@ -346,6 +425,7 @@ const useCallStore = create<CallState>()((set, get) => ({
     if (get().callMode === "sfu") {
       get().sfu?.sendTransport?.close();
       get().sfu?.recvTransport?.close();
+      _consumingProducerIds.clear();
       set({
         sfu: {
           device: null,
@@ -367,7 +447,7 @@ const useCallStore = create<CallState>()((set, get) => ({
       console.warn("User not authenticated, cannot handle call event");
       return;
     }
-    if (!window.opener && event !== "request") {
+    if (!window.opener && event !== "request" && event !== "busy") {
       return;
     }
     const { actionUserId, offer, answer, candidate, roomId, targetUserId } =
@@ -438,18 +518,20 @@ const useCallStore = create<CallState>()((set, get) => ({
         break;
       case "candidate":
         // console.log("candidate", candidate);
+        if (!candidate) break; // null candidate = end-of-candidates marker, skip
         const key = `${roomId}-${actionUserId}`;
         const iceCandidate = new RTCIceCandidate(candidate);
         const pc = get().stream.peerConnections.get(key);
-        if (pc && pc.remoteDescription) {
+        const pcReady = pc && pc.signalingState !== "closed" && pc.remoteDescription;
+        if (pcReady) {
           try {
             await pc.addIceCandidate(iceCandidate);
             // console.log("✅ Added Late ICE Candidate directly");
           } catch (err) {
-            console.error("❌ Error adding late candidate:", err);
+            // Ignore: PC may have closed between the check and the await
           }
-        } else {
-          // console.log("⏳ Queuing ICE candidate (waiting for remoteDescription)...");
+        } else if (pc && pc.signalingState !== "closed") {
+          // Queue: waiting for remoteDescription
           const pendingCandidates = get().pendingCandidates;
           if (!pendingCandidates.has(key)) {
             pendingCandidates.set(key, []);
@@ -457,37 +539,45 @@ const useCallStore = create<CallState>()((set, get) => ({
           pendingCandidates.get(key)!.push(iceCandidate);
         }
         break;
-      case "member-joined":
-        // Update member list and, for SFU callers waiting for someone to join,
-        // transition from "calling" to "accepted" and start the call timer.
-        set({ members: payload.members });
-        if (get().status === "calling" && get().callMode === "sfu") {
-          set({ status: "accepted", action: { ...get().action, duration: 0 } });
-          Helpers.updateURLParams("status", "accepted");
-          const interval = setInterval(() => {
-            set((prev) => ({
-              ...prev,
-              action: { ...prev.action, duration: prev.action.duration + 1 },
-            }));
-          }, 1000);
-          // Store cleanup reference
-          setTimeout(() => clearInterval(interval), 24 * 60 * 60 * 1000);
+      case "busy":
+        // Remote callee is busy — end the outgoing call gracefully
+        set({ error: `${payload.targetUserId || "Người dùng"} đang bận` });
+        get().endCall({
+          roomId: get().roomId,
+          actionUserId: useAuthStore.getState().user?.id,
+          status: "cancelled",
+          callId: get().callId || payload.callId,
+        });
+        break;
 
-          // Emit getProducers so the caller consumes all streams from the new member.
-          // produce:broadcast may have arrived before recvTransport was ready and been
-          // skipped, so we explicitly pull the producer list here as a safety net.
-          // If recvTransport is not ready yet (still in SFU handshake), retry after a
-          // short delay — createTransport(recv) is fired right after createTransport(send)
-          // and should complete within a few hundred ms.
+      case "member-joined":
+        // Update member list
+        set({ members: payload.members });
+        if (get().callMode === "sfu") {
+          // Transition the initial caller from "calling" → "accepted" and start the timer.
+          if (get().status === "calling") {
+            set({ status: "accepted", action: { ...get().action, duration: 0 } });
+            Helpers.updateURLParams("status", "accepted");
+            const interval = setInterval(() => {
+              set((prev) => ({
+                ...prev,
+                action: { ...prev.action, duration: prev.action.duration + 1 },
+              }));
+            }, 1000);
+            setTimeout(() => clearInterval(interval), 24 * 60 * 60 * 1000);
+          }
+
+         
           const emitGetProducers = (attempt = 0) => {
             const { sfu: sfuNow, roomId: r, socket: s } = get();
             if (sfuNow?.recvTransport && sfuNow?.device && r && s) {
               s.emit("signal", { type: "getProducers", roomId: r, target: "sfu" });
-            } else if (attempt < 10) {
+            } else if (attempt < 15) {
               setTimeout(() => emitGetProducers(attempt + 1), 300);
             }
           };
-          emitGetProducers();
+          
+          setTimeout(() => emitGetProducers(), 500);
         }
         break;
     }
@@ -509,13 +599,15 @@ const useCallStore = create<CallState>()((set, get) => ({
           : false,
     };
 
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      console.error("[Call] getUserMedia is not available in this context (requires HTTPS or localhost)");
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       set({ stream: { ...get().stream, localStream: stream } });
 
-      // If SFU sendTransport is already ready (race: transport was created before stream was captured),
-      // produce tracks now so they aren't missed.
-      // Guard: skip if tracks are already being produced (pendingProduceCallbacks) or already done (producers).
       const { sfu: sfuNow, callMode: nowCallMode } = get();
       if (
         nowCallMode === "sfu" &&
@@ -524,9 +616,7 @@ const useCallStore = create<CallState>()((set, get) => ({
         sfuNow.producers.size === 0 &&
         sfuNow.pendingProduceCallbacks.size === 0
       ) {
-        // Race condition: sendTransport was created before getUserMedia resolved.
-        // Produce tracks now and store the Producer objects so handleShareScreen
-        // can call producer.replaceTrack() later.
+       
         const newProducerEntries: [string, any][] = [];
         const audioTrack = stream.getAudioTracks()[0];
         const videoTrack = stream.getVideoTracks()[0];
@@ -616,6 +706,16 @@ const useCallStore = create<CallState>()((set, get) => ({
         }));
       }, 1000);
       return () => clearInterval(interval);
+    }
+
+    // Prevent status downgrade: if already accepted/ended, ignore incoming/calling resets
+    // (happens when socket reconnects and the useEffect re-runs with the old URL status)
+    const currentStatus = get().status;
+    if (
+      (currentStatus === "accepted" || currentStatus === "ended") &&
+      (state.status === "incoming" || state.status === "calling" || state.status === "idle")
+    ) {
+      return;
     }
 
     const effectiveCallMode = state.callMode || get().callMode;
@@ -783,8 +883,9 @@ const useCallStore = create<CallState>()((set, get) => ({
         `✅ Flushing ${candidates.length} pending ICE candidates for room ${roomId}`,
       );
       for (const candidate of candidates) {
+        if (pc.signalingState === "closed") break;
         try {
-          await pc?.addIceCandidate(candidate);
+          await pc.addIceCandidate(candidate);
           console.log("✅ ICE candidate added from queue:", candidate);
         } catch (err) {
           console.error("❌ Error adding queued ICE candidate:", err);
@@ -1304,15 +1405,10 @@ const useCallStore = create<CallState>()((set, get) => ({
             },
           );
 
-          // Use freshest sfu state to avoid overwriting producers/consumers added
-          // concurrently by handleCreateLocalStream (stale `sfu` from top-level
-          // destructure would lose any producers already stored there).
+         
           set({ sfu: { ...get().sfu!, sendTransport: transport } });
 
-          // Re-read stream fresh in case getUserMedia resolved while we were doing SFU handshake.
-          // Guard: only produce if handleCreateLocalStream hasn't already produced (producers.size > 0)
-          // or is currently producing (pendingProduceCallbacks.size > 0) to avoid duplicate producers
-          // that cause router.canConsume() to fail on the consumer side.
+         
           const freshStream = get().stream;
           const freshSfuForProduce = get().sfu!;
           if (
@@ -1400,38 +1496,66 @@ const useCallStore = create<CallState>()((set, get) => ({
       }
 
       case "consume": {
-        const { sfu: sfuNow } = get();
-        if (!sfuNow?.recvTransport) return;
+        const sfuSnapshot = get().sfu;
+        if (!sfuSnapshot?.recvTransport) return;
 
-        const consumer = await sfuNow.recvTransport.consume({
-          id: consumerId,
-          producerId,
-          kind,
-          rtpParameters,
-        });
-
-        // Re-read ALL state AFTER the await — two concurrent consume handlers (audio + video)
-        // must each see the latest remoteStreams Map to avoid overwriting each other's track.
-        // Also re-read sfu so the consumers Map spread uses the freshest state.
-        const { stream: freshStream, roomId: freshR, sfu: freshSfu } = get();
-        const trackUserId = payload.userId || producerId;
-        const key = `${freshR}-${trackUserId}`;
-        const newRemoteStreams = new Map(freshStream.remoteStreams);
-        const existing = newRemoteStreams.get(key);
-        if (existing) {
-          // Add this track to the existing stream for the same user
-          existing.addTrack(consumer.track);
-        } else {
-          newRemoteStreams.set(key, new MediaStream([consumer.track]));
+        // Guard: skip if we already have (or are currently creating) a consumer
+        // for this producer. The consumers Map check alone is insufficient because
+        // it uses a stale snapshot — concurrent handlers for produce:broadcast AND
+        // getProducers can both pass the check before either updates the Map.
+        // _consumingProducerIds is a module-level Set updated synchronously (before
+        // any await), so it's always current across concurrent async handlers.
+        const alreadyConsuming =
+          _consumingProducerIds.has(producerId) ||
+          (sfuSnapshot.consumers
+            ? [...sfuSnapshot.consumers.values()].some(
+                (c) => c.producerId === producerId,
+              )
+            : false);
+        if (alreadyConsuming) {
+          console.warn(`[SFU] Already consuming producer ${producerId}, skipping duplicate`);
+          break;
         }
 
-        set({
-          stream: { ...freshStream, remoteStreams: newRemoteStreams },
-          sfu: {
-            ...(freshSfu ?? sfuNow),
-            consumers: new Map(freshSfu?.consumers ?? sfuNow.consumers).set(consumer.id, consumer),
-          },
-        });
+        // Mark as in-progress SYNCHRONOUSLY before any await so concurrent
+        // handlers see it immediately and skip.
+        _consumingProducerIds.add(producerId);
+
+        try {
+          const consumer = await sfuSnapshot.recvTransport.consume({
+            id: consumerId,
+            producerId,
+            kind,
+            rtpParameters,
+          });
+
+          // Use functional set() so audio and video consume handlers that run
+          // concurrently (for the same user) always see the latest state.
+          // Without this, both handlers read the same pre-update state and the
+          // second one creates a new MediaStream that overwrites the first instead
+          // of calling addTrack() — causing a black screen (single-track stream).
+          const trackUserId = payload.userId || producerId;
+          set((state) => {
+            const key = `${state.roomId}-${trackUserId}`;
+            const newRemoteStreams = new Map(state.stream.remoteStreams);
+            const existing = newRemoteStreams.get(key);
+            if (existing) {
+              existing.addTrack(consumer.track);
+            } else {
+              newRemoteStreams.set(key, new MediaStream([consumer.track]));
+            }
+            const newConsumers = new Map(
+              state.sfu?.consumers ?? sfuSnapshot.consumers,
+            );
+            newConsumers.set(consumer.id, consumer);
+            return {
+              stream: { ...state.stream, remoteStreams: newRemoteStreams },
+              sfu: { ...(state.sfu ?? sfuSnapshot), consumers: newConsumers },
+            };
+          });
+        } finally {
+          _consumingProducerIds.delete(producerId);
+        }
         break;
       }
     }

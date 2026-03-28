@@ -32,6 +32,9 @@ export const SocketEventChatGlobal = () => {
   const onRoomRefresh = useRef((data: any) =>
     useRoomStore.getState().fetchAndUpdateRoom(data.roomId)
   );
+  const onCallBusy = useRef((payload: any) =>
+    useCallStore.getState().eventCall("busy", payload)
+  );
 
   useEffect(() => {
     if (!msgSocket || !call) return;
@@ -44,10 +47,12 @@ export const SocketEventChatGlobal = () => {
     msgSocket.on(socketEvent.STATUSTYPING, roomState.handleTypingEvent);
     call.on(socketEvent.CALL, onCallRequest.current);
     call.on(socketEvent.MSGUPSERT, onMsgUpsertCall.current);
+    call.on("call:busy", onCallBusy.current);
     msgSocket.on(socketEvent.ROOM_REFRESH, onRoomRefresh.current);
     return () => {
       call.off(socketEvent.CALL, onCallRequest.current);
       call.off(socketEvent.MSGUPSERT, onMsgUpsertCall.current);
+      call.off("call:busy", onCallBusy.current);
       // msgSocket.off(socketEvent.ROOMUPSERT, roomState.updateRoomSocket);
       msgSocket.off(socketEvent.MSGUPSERT, messageState.upsetMsg);
       msgSocket.off(socketEvent.MSGMARKREAD, roomState.setRoomReaded);

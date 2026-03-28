@@ -47,8 +47,10 @@ function CallPageContentInner() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const hasEndedRef = useRef(false);
+  const [busyUser, setBusyUser] = useState<string | null>(null);
   const {
     status: callStatus,
+    error: callError,
     stream: { localStream, remoteStreams },
     action: {
       isMicEnabled,
@@ -74,48 +76,52 @@ function CallPageContentInner() {
     handleSFUSignal,
   } = useCallStore();
 
+  // Stable handler refs — Socket.IO off() requires the exact same function reference
+  // that was passed to on(). Inline arrow functions in both on() and off() create
+  // different objects so listeners are never removed → they accumulate → events like
+  // call:accepted fire multiple times → "setLocalDescription: stable state" errors.
+  const onAccepted = useRef((p: any) => useCallStore.getState().eventCall("accepted", p));
+  const onAnswer = useRef((p: any) => useCallStore.getState().eventCall("answer", p));
+  const onCandidate = useRef((p: any) => useCallStore.getState().eventCall("candidate", p));
+  const onEnd = useRef((p: any) => useCallStore.getState().eventCall("end", p));
+  const onSignal = useRef((p: any) => useCallStore.getState().handleSFUSignal(p));
+  const onMemberJoined = useRef((p: any) => useCallStore.getState().eventCall("member-joined", p));
+  const onShareScreen = useRef((p: any) => {
+    if (p.isSharing) {
+      useCallStore.getState().setUserIdGhimmed(p.actionUserId);
+    } else {
+      const current = useCallStore.getState().action.userIdGhimmed;
+      if (current === p.actionUserId) useCallStore.getState().setUserIdGhimmed("");
+    }
+  });
+  const onBusy = useRef((p: any) => {
+    const store = useCallStore.getState();
+    const busyMember = store.members.find((m) => m.id === p.targetUserId);
+    setBusyUser(busyMember?.fullname || "Người dùng");
+    setTimeout(() => useCallStore.getState().eventCall("busy", p), 3000);
+  });
+
   // handle socket event
   useEffect(() => {
-    socket?.on("call:accepted", (payload: any) =>
-      eventCall("accepted", payload),
-    );
-    // socket?.on("call:start", (payload: any) => eventCall("start", payload));
-    socket?.on("call:answer", (payload: any) => eventCall("answer", payload));
-    socket?.on("call:candidate", (payload: any) =>
-      eventCall("candidate", payload),
-    );
-    socket?.on("call:end", (payload: any) => eventCall("end", payload));
-    socket?.on("signal", (payload: any) => handleSFUSignal(payload));
-    socket?.on("call:member-joined", (payload: any) =>
-      eventCall("member-joined", payload),
-    );
-
-    socket?.on("call:share-screen", (payload: any) => {
-      if (payload.isSharing) {
-        setUserIdGhimmed(payload.actionUserId);
-      } else {
-        const currentPinned = useCallStore.getState().action.userIdGhimmed;
-        if (currentPinned === payload.actionUserId) {
-          setUserIdGhimmed("");
-        }
-      }
-    });
+    if (!socket) return;
+    socket.on("call:accepted", onAccepted.current);
+    socket.on("call:answer", onAnswer.current);
+    socket.on("call:candidate", onCandidate.current);
+    socket.on("call:end", onEnd.current);
+    socket.on("signal", onSignal.current);
+    socket.on("call:member-joined", onMemberJoined.current);
+    socket.on("call:share-screen", onShareScreen.current);
+    socket.on("call:busy", onBusy.current);
 
     return () => {
-      socket?.off("call:accepted", (payload: any) =>
-        eventCall("accepted", payload),
-      );
-      // socket?.off("call:start", (payload: any) => eventCall("start", payload));
-      socket?.off("call:candidate", (payload: any) =>
-        eventCall("candidate", payload),
-      );
-      socket?.off("call:answer", (payload: any) =>
-        eventCall("answer", payload),
-      );
-      socket?.off("call:end", (payload: any) => eventCall("end", payload));
-      socket?.off("signal");
-      socket?.off("call:share-screen");
-      socket?.off("call:member-joined");
+      socket.off("call:accepted", onAccepted.current);
+      socket.off("call:answer", onAnswer.current);
+      socket.off("call:candidate", onCandidate.current);
+      socket.off("call:end", onEnd.current);
+      socket.off("signal", onSignal.current);
+      socket.off("call:member-joined", onMemberJoined.current);
+      socket.off("call:share-screen", onShareScreen.current);
+      socket.off("call:busy", onBusy.current);
     };
   }, [socket]);
 
@@ -162,7 +168,7 @@ function CallPageContentInner() {
         action: {
           isMicEnabled: true,
           isCameraEnabled: searchParams.get("callType") === "video",
-          isSpeakerphoneEnabled: true,
+          isSpeakerphoneEnabled: false,
           duration: 0,
           isSharingScreen: false,
           userIdGhimmed: "",
@@ -580,6 +586,13 @@ function CallPageContentInner() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Busy notification banner */}
+      {busyUser && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-30 bg-yellow-500 text-black px-6 py-3 rounded-full font-semibold shadow-lg text-sm whitespace-nowrap">
+          {busyUser} đang bận — cuộc gọi sẽ tự đóng...
         </div>
       )}
 
