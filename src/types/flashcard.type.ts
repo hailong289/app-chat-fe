@@ -57,7 +57,7 @@ export interface FlashcardDeck {
   deck_level?: DeckLevel;
   deck_language?: string;
   total_cards?: number;
-  process?: {
+  progress?: {
     new_cards: number,
     learning_cards: number,
     review_cards: number,

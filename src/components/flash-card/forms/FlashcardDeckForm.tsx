@@ -81,6 +81,9 @@ export default function FlashcardDeckForm({ initialData }: FlashcardDeckFormProp
   const [cardForms, setCardForms] = useState<CreateFlashcardCardForm[]>([]);
   const [cardTagInputs, setCardTagInputs] = useState<Record<number, string>>({});
   const [cardErrors, setCardErrors] = useState<Record<number, Partial<Record<keyof CreateFlashcardCardForm, string>>>>({});
+  const [cardLoadingStates, setCardLoadingStates] = useState<
+    Record<number, { saving?: boolean; updating?: boolean; deleting?: boolean }>
+  >({});
 
   // Pagination for cards
   const [cardPage, setCardPage] = useState(1);
@@ -368,6 +371,98 @@ export default function FlashcardDeckForm({ initialData }: FlashcardDeckFormProp
     }));
   };
 
+  const setCardLoading = (index: number, key: "saving" | "updating" | "deleting", value: boolean) => {
+    setCardLoadingStates((prev) => ({
+      ...prev,
+      [index]: { ...prev[index], [key]: value },
+    }));
+  };
+
+  const validateSingleCard = (cardIndex: number): boolean => {
+    const cardForm = cardForms[cardIndex];
+    const dataToValidate = {
+      card_front: cardForm.card_front.trim(),
+      card_back: cardForm.card_back.trim(),
+      card_hint: cardForm.card_hint?.trim() || undefined,
+      card_tags: cardForm.card_tags && cardForm.card_tags.length > 0 ? cardForm.card_tags : undefined,
+      card_difficulty: cardForm.card_difficulty || undefined,
+    };
+    const { error } = flashcardCardSchema.validate(dataToValidate, { abortEarly: false });
+    if (error) {
+      const errs: Partial<Record<keyof CreateFlashcardCardForm, string>> = {};
+      error.details.forEach((d) => {
+        const field = d.path[0] as keyof CreateFlashcardCardForm;
+        errs[field] = d.message;
+      });
+      setCardErrors((prev) => ({ ...prev, [cardIndex]: errs }));
+      return false;
+    }
+    setCardErrors((prev) => ({ ...prev, [cardIndex]: {} }));
+    return true;
+  };
+
+  const handleSaveCard = async (cardIndex: number) => {
+    if (!initialData?.deck_id) return;
+    if (!validateSingleCard(cardIndex)) return;
+    const cardForm = cardForms[cardIndex];
+    setCardLoading(cardIndex, "saving", true);
+    try {
+      const created = await flashcardService.createCard({
+        card_deckId: initialData.deck_id,
+        card_front: cardForm.card_front.trim(),
+        card_back: cardForm.card_back.trim(),
+        ...(cardForm.card_hint?.trim() && { card_hint: cardForm.card_hint.trim() }),
+        ...(cardForm.card_tags && cardForm.card_tags.length > 0 && { card_tags: cardForm.card_tags }),
+        ...(cardForm.card_difficulty && { card_difficulty: cardForm.card_difficulty }),
+      });
+      const savedId = (created as any)?.card_id || (created as any)?._id || (created as any)?.id;
+      if (savedId) {
+        setCardForms((prev) => {
+          const updated = [...prev];
+          updated[cardIndex] = { ...updated[cardIndex], card_id: savedId };
+          return updated;
+        });
+      }
+    } catch (error) {
+      console.error("Lỗi khi tạo thẻ:", error);
+    } finally {
+      setCardLoading(cardIndex, "saving", false);
+    }
+  };
+
+  const handleUpdateCard = async (cardIndex: number) => {
+    const cardForm = cardForms[cardIndex];
+    if (!cardForm.card_id) return;
+    if (!validateSingleCard(cardIndex)) return;
+    setCardLoading(cardIndex, "updating", true);
+    try {
+      await flashcardService.updateCard(cardForm.card_id, {
+        card_front: cardForm.card_front.trim(),
+        card_back: cardForm.card_back.trim(),
+        ...(cardForm.card_hint?.trim() && { card_hint: cardForm.card_hint.trim() }),
+        ...(cardForm.card_tags && cardForm.card_tags.length > 0 && { card_tags: cardForm.card_tags }),
+        ...(cardForm.card_difficulty && { card_difficulty: cardForm.card_difficulty }),
+      });
+    } catch (error) {
+      console.error("Lỗi khi cập nhật thẻ:", error);
+    } finally {
+      setCardLoading(cardIndex, "updating", false);
+    }
+  };
+
+  const handleDeleteCard = async (cardIndex: number) => {
+    const cardForm = cardForms[cardIndex];
+    if (!cardForm.card_id) return;
+    setCardLoading(cardIndex, "deleting", true);
+    try {
+      await flashcardService.deleteCard(cardForm.card_id);
+      handleRemoveCard(cardIndex);
+    } catch (error) {
+      console.error("Lỗi khi xóa thẻ:", error);
+      setCardLoading(cardIndex, "deleting", false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) {
       return;
@@ -401,7 +496,7 @@ export default function FlashcardDeckForm({ initialData }: FlashcardDeckFormProp
         })
       );
 
-      const submitData: CreateFlashcardDeckPayload = {
+      const deckPayload: CreateFlashcardDeckPayload = {
         deck_name: form.deck_name.trim(),
         ...(form.deck_description?.trim() && {
           deck_description: form.deck_description.trim(),
@@ -410,14 +505,19 @@ export default function FlashcardDeckForm({ initialData }: FlashcardDeckFormProp
         ...(form.deck_tags && form.deck_tags.length > 0 && { deck_tags: form.deck_tags }),
         ...(form.deck_level && { deck_level: form.deck_level }),
         ...(form.deck_language?.trim() && { deck_language: form.deck_language.trim() }),
-        ...(uploadedCards.length > 0 && { flashcards: uploadedCards }),
       };
 
       // Call API
       if (initialData?.deck_id) {
-        const updatedDeck = await flashcardService.updateDeck(initialData.deck_id, submitData);
+        // When editing: update deck info only; cards are managed individually via per-card buttons
+        const updatedDeck = await flashcardService.updateDeck(initialData.deck_id, deckPayload);
         console.log("Deck updated successfully:", updatedDeck);
       } else {
+        // When creating: bundle all cards in one request
+        const submitData: CreateFlashcardDeckPayload = {
+          ...deckPayload,
+          ...(uploadedCards.length > 0 && { flashcards: uploadedCards }),
+        };
         const newDeck = await flashcardService.createDeck(submitData);
         console.log("Deck created successfully:", newDeck);
       }
@@ -606,7 +706,14 @@ export default function FlashcardDeckForm({ initialData }: FlashcardDeckFormProp
                 error={cardErrors[cardIndex]}
                 tagInput={cardTagInputs[cardIndex] || ""}
                 totalCards={cardForms.length}
+                isExisting={!!cardForm.card_id}
+                isSaving={cardLoadingStates[cardIndex]?.saving}
+                isUpdating={cardLoadingStates[cardIndex]?.updating}
+                isDeleting={cardLoadingStates[cardIndex]?.deleting}
                 onRemove={() => handleRemoveCard(cardIndex)}
+                onSave={initialData ? () => handleSaveCard(cardIndex) : undefined}
+                onUpdate={initialData ? () => handleUpdateCard(cardIndex) : undefined}
+                onDelete={initialData ? () => handleDeleteCard(cardIndex) : undefined}
                 onChangeField={(field: keyof CreateFlashcardCardForm, value: any) => {
                   setCardForms((prev) => {
                     const updated = [...prev];

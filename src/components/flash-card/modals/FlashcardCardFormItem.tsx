@@ -5,10 +5,9 @@ import {
   Textarea,
   Select,
   SelectItem,
-  Checkbox,
   Chip,
 } from "@heroui/react";
-import { TrashIcon } from "@heroicons/react/24/outline";
+import { TrashIcon, CheckIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
 import { useTranslation } from "react-i18next";
 import { CreateFlashcardCardForm } from "../forms/FlashcardDeckForm";
 
@@ -18,7 +17,14 @@ interface Props {
   error?: Partial<Record<keyof CreateFlashcardCardForm, string>>;
   tagInput: string;
   totalCards: number;
+  isExisting?: boolean;
+  isSaving?: boolean;
+  isUpdating?: boolean;
+  isDeleting?: boolean;
   onRemove: () => void;
+  onSave?: () => void;
+  onUpdate?: () => void;
+  onDelete?: () => void;
   onChangeField: (field: keyof CreateFlashcardCardForm, value: any) => void;
   onBlurField: (field: keyof CreateFlashcardCardForm, value: any) => void;
   onTagInputChange: (val: string) => void;
@@ -32,7 +38,14 @@ export const FlashcardCardFormItem = ({
   error,
   tagInput,
   totalCards,
+  isExisting,
+  isSaving,
+  isUpdating,
+  isDeleting,
   onRemove,
+  onSave,
+  onUpdate,
+  onDelete,
   onChangeField,
   onBlurField,
   onTagInputChange,
@@ -47,17 +60,63 @@ export const FlashcardCardFormItem = ({
         <h5 className="font-medium text-sm text-gray-600 dark:text-gray-400">
           {t("flashcard.modal.createDeck.cardNumber", { number: cardIndex + 1 })}
         </h5>
-        {totalCards > 1 && (
-          <Button
-            size="sm"
-            color="danger"
-            variant="light"
-            isIconOnly
-            onPress={onRemove}
-          >
-            <TrashIcon className="w-4 h-4" />
-          </Button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {isExisting ? (
+            <>
+              <Button
+                size="sm"
+                color="primary"
+                variant="flat"
+                isLoading={isUpdating}
+                isDisabled={isUpdating || isDeleting}
+                startContent={!isUpdating && <PencilSquareIcon className="w-4 h-4" />}
+                onPress={onUpdate}
+              >
+                Cập nhật
+              </Button>
+              <Button
+                size="sm"
+                color="danger"
+                variant="flat"
+                isLoading={isDeleting}
+                isDisabled={isUpdating || isDeleting}
+                startContent={!isDeleting && <TrashIcon className="w-4 h-4" />}
+                onPress={onDelete}
+              >
+                Xóa
+              </Button>
+            </>
+          ) : (
+            <>
+              {onSave && (
+                <Button
+                  size="sm"
+                  color="success"
+                  variant="flat"
+                  isLoading={isSaving}
+                  isDisabled={isSaving}
+                  startContent={!isSaving && <CheckIcon className="w-4 h-4" />}
+                  onPress={onSave}
+                >
+                  Lưu
+                </Button>
+              )}
+              {totalCards > 1 && (
+                <Button
+                  size="sm"
+                  color="danger"
+                  variant="light"
+                  isIconOnly
+                  isDisabled={isSaving}
+                  onPress={onRemove}
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Front & Back */}
@@ -150,15 +209,17 @@ export const FlashcardCardFormItem = ({
           label={t("flashcard.modal.createDeck.cardDifficultyLabel")}
           placeholder={t("flashcard.modal.createDeck.cardDifficultyPlaceholder")}
           selectedKeys={
-            cardForm.card_difficulty ? [cardForm.card_difficulty.toString()] : []
+            cardForm.card_difficulty ? new Set([cardForm.card_difficulty.toString()]) : new Set()
           }
           onSelectionChange={(keys) => {
             const selected = Array.from(keys)[0] as string;
             onChangeField("card_difficulty", selected ? parseInt(selected) : undefined);
           }}
         >
-          {[1, 2, 3, 4, 5].map((level) => (
-            <SelectItem key={level.toString()}>{level}</SelectItem>
+          {["1", "2", "3", "4", "5"].map((level) => (
+            <SelectItem key={level} textValue={level}>
+              {level}
+            </SelectItem>
           ))}
         </Select>
       </div>
