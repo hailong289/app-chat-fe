@@ -1,83 +1,117 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Button,
   Card,
   CardBody,
   Progress,
   useDisclosure,
+  Spinner,
+  Pagination,
 } from "@heroui/react";
 import {
   TrashIcon,
   RectangleStackIcon,
   ClockIcon,
   PlusIcon,
+  PencilIcon,
+  EyeIcon,
 } from "@heroicons/react/24/outline";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import useAuthStore from "@/store/useAuthStore";
-import { CreateFlashcardDeckModal } from "@/components/flash-card/modals/create-flashcard-deck.modal";
-
-interface FlashCardDesk {
-  id: string;
-  title: string;
-  description: string;
-  totalCards: number;
-  memorizedCards: number;
-  lastUsed?: Date;
-}
+import { ConfirmModal } from "@/components/modals/ConfirmModal";
+import { flashcardService } from "@/service/flashcard.service";
+import { FlashcardDeck } from "@/types/flashcard.type";
 
 export default function FlashCardPage() {
+  const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
-  const userId = currentUser?.id || "";
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const userId = currentUser?._id || "";
 
-  // Mock data - sẽ thay thế bằng API call sau
-  const [flashCardDesk] = useState<FlashCardDesk[]>([
-    {
-      id: "1",
-      title: "Bộ chưa đặt tên",
-      description: "Không có mô tả",
-      totalCards: 0,
-      memorizedCards: 0,
-    },
-    {
-      id: "2",
-      title: "hihi",
-      description: "dsa",
-      totalCards: 2,
-      memorizedCards: 0,
-      lastUsed: new Date("2026-01-31"),
-    },
-    {
-      id: "3",
-      title: "Sustainable Development Goals",
-      description:
-        "Framework of 17 interconnected global objectives designed to address global challenges and promote sustainable development",
-      totalCards: 53,
-      memorizedCards: 20,
-      lastUsed: new Date("2026-01-31"),
-    },
-  ]);
+  const {
+    isOpen: isDeleteOpen,
+    onOpen: onDeleteOpen,
+    onClose: onDeleteClose
+  } = useDisclosure();
+  const [deckToDelete, setDeckToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDelete = (id: string) => {
-    // TODO: Implement delete functionality
-    console.log("Xóa bộ flashcard:", id);
+  const [decks, setDecks] = useState<FlashcardDeck[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  const totalPages = useMemo(() => Math.ceil(decks.length / pageSize) || 1, [decks.length]);
+
+  const currentDecks = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return decks.slice(start, start + pageSize);
+  }, [decks, currentPage]);
+
+  const fetchDecks = async () => {
+    try {
+      setIsLoading(true);
+      const data = await flashcardService.getListDeck();
+      setDecks(data || []);
+    } catch (error) {
+      console.error("Error fetching decks:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDecks();
+  }, []);
+
+  const handleDeleteClick = (id: string) => {
+    setDeckToDelete(id);
+    onDeleteOpen();
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deckToDelete) return;
+    try {
+      setIsDeleting(true);
+      await flashcardService.deleteDeck(deckToDelete);
+      await fetchDecks();
+      onDeleteClose();
+      setDeckToDelete(null);
+    } catch (error) {
+      console.error("Lỗi khi xóa bộ flashcard:", error);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleCreate = () => {
-    onOpen();
+    router.push("/flash-card/create");
+  };
+
+  const handleEdit = (id: string) => {
+    router.push(`/flash-card/${id}/edit`);
+  };
+
+  const handleView = (id: string) => {
+    router.push(`/flash-card/${id}`);
   };
 
   const handleSubmitDeck = async (data: any) => {
-    // TODO: Implement API call to create flashcard deck
-    console.log("Tạo bộ flashcard mới:", data);
-    // Sau khi tạo thành công, refresh danh sách flashcard
+    console.log("Tạo bộ flashcard mới thành công hoặc đóng modal:", data);
+    await fetchDecks();
   };
 
-  const formatLastUsed = (date?: Date) => {
-    if (!date) return "Chưa sử dụng";
-    return `Sử dụng lần cuối ${format(date, "d/M/yyyy")}`;
+  const formatLastUsed = (dateString?: string) => {
+    if (!dateString) return "Chưa sử dụng";
+    try {
+      return `Sử dụng lần cuối ${format(new Date(dateString), "d/M/yyyy")}`;
+    } catch (e) {
+      return "Chưa sử dụng";
+    }
   };
 
   return (
@@ -97,82 +131,119 @@ export default function FlashCardPage() {
           </Button>
         </div>
 
-        {/* Lưới bộ flashcard */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {flashCardDesk.map((set) => {
-            const memorizedPercentage =
-              set.totalCards > 0
-                ? (set.memorizedCards / set.totalCards) * 100
-                : 0;
+        {isLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <Spinner size="lg" aria-label="Đang tải danh sách bộ thẻ..." color="primary" />
+          </div>
+        ) : currentDecks.length > 0 ? (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {currentDecks.map((set) => {
+              const setId = set.deck_id;
+              const totalCards = set.process?.total_cards;
+              const memorizedCards = set.process?.mastered_cards;
+              const memorizedPercentage = set.process?.mastered_cards;
 
-            return (
-              <Card
-                key={set.id}
-                className="border border-gray-200 dark:border-gray-800 hover:shadow-lg transition-shadow"
-              >
-                <CardBody className="p-6 space-y-4 relative">
-                  {/* Delete button - top left */}
-                  <Button
-                    isIconOnly
-                    variant="light"
-                    size="sm"
-                    color="danger"
-                    className="absolute top-2 left-2 z-10"
-                    onPress={() => handleDelete(set.id)}
-                    aria-label="Xóa bộ flashcard"
-                  >
-                    <TrashIcon className="w-5 h-5" />
-                  </Button>
-
-                  {/* Header */}
-                  <div className="pt-6">
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1 line-clamp-2 pr-8">
-                      {set.title}
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                      {set.description}
-                    </p>
-                  </div>
-
-                  {/* Progress Section */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
-                        Thẻ đã ghi nhớ
-                      </span>
-                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                        {set.memorizedCards}/{set.totalCards}
-                      </span>
+              return (
+                <Card
+                  key={setId}
+                  className="border border-gray-200 dark:border-gray-800 hover:shadow-lg transition-shadow"
+                >
+                  <CardBody className="p-6 space-y-4">
+                    {/* Header */}
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1 line-clamp-2 pr-8">
+                        {set.deck_name}
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 min-h-[40px]">
+                        {set.deck_description || "Không có mô tả"}
+                      </p>
                     </div>
-                    <Progress
-                      value={memorizedPercentage}
-                      className="w-full"
-                      color="primary"
-                      aria-label="Tiến độ ghi nhớ"
-                    />
-                  </div>
 
-                  {/* Footer Info */}
-                  <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <RectangleStackIcon className="w-4 h-4" />
-                      <span>
-                        {set.totalCards} {set.totalCards === 1 ? "thẻ" : "thẻ"}
-                      </span>
+                    {/* Progress Section */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
+                          Thẻ đã ghi nhớ
+                        </span>
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                          {memorizedCards}/{totalCards}
+                        </span>
+                      </div>
+                      <Progress
+                        value={memorizedPercentage}
+                        className="w-full"
+                        color="primary"
+                        aria-label="Tiến độ ghi nhớ"
+                      />
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <ClockIcon className="w-4 h-4" />
-                      <span>{formatLastUsed(set.lastUsed)}</span>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            );
-          })}
-        </div>
 
-        {/* Empty State */}
-        {flashCardDesk.length === 0 && (
+                    {/* Footer Info */}
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <RectangleStackIcon className="w-4 h-4" />
+                        <span>
+                          {totalCards} {totalCards === 1 ? "thẻ" : "thẻ"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <ClockIcon className="w-4 h-4" />
+                        <span className="text-xs">{formatLastUsed(set.updatedAt || set.createdAt)}</span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex justify-end gap-2 pt-4">
+                      <Button
+                        isIconOnly
+                        variant="flat"
+                        size="sm"
+                        color="primary"
+                        onPress={() => handleView(setId)}
+                        aria-label="Xem bộ flashcard"
+                      >
+                        <EyeIcon className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        isIconOnly
+                        variant="flat"
+                        size="sm"
+                        color="warning"
+                        onPress={() => handleEdit(setId)}
+                        aria-label="Sửa bộ flashcard"
+                      >
+                        <PencilIcon className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        isIconOnly
+                        variant="flat"
+                        size="sm"
+                        color="danger"
+                        onPress={() => handleDeleteClick(setId)}
+                        aria-label="Xóa bộ flashcard"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </CardBody>
+                </Card>
+              );
+            })}
+            </div>
+            
+            {totalPages > 1 && (
+              <div className="flex justify-center mt-8">
+                <Pagination
+                  showControls
+                  total={totalPages}
+                  page={currentPage}
+                  onChange={setCurrentPage}
+                  color="primary"
+                />
+              </div>
+            )}
+          </div>
+        ) : (
           <div className="text-center py-12">
             <RectangleStackIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
             <p className="text-gray-600 dark:text-gray-400">
@@ -182,12 +253,18 @@ export default function FlashCardPage() {
         )}
       </div>
 
-      {/* Create Flashcard Deck Modal */}
-      <CreateFlashcardDeckModal
-        isOpen={isOpen}
-        onClose={onClose}
-        userId={userId}
-        onSubmit={handleSubmitDeck}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isDeleteOpen}
+        onClose={onDeleteClose}
+        onConfirm={handleConfirmDelete}
+        title="Xóa bộ flashcard"
+        content="Bạn có chắc chắn muốn xóa bộ flashcard này không? Thao tác này không thể hoàn tác."
+        confirmText="Xóa"
+        cancelText="Hủy"
+        color="danger"
+        isLoading={isDeleting}
       />
     </div>
   );
