@@ -35,6 +35,7 @@ import {
   LeaderboardEntry,
 } from "@/types/quizz.type";
 import QuizzService from "@/service/quizz.service";
+import useToast from "@/hooks/useToast";
 
 type Phase = "intro" | "taking" | "result";
 
@@ -157,6 +158,7 @@ export const TakeQuizzModal = ({
   userAvatar,
   hasCompleted,
 }: TakeQuizzModalProps) => {
+  const toast = useToast();
   const [phase, setPhase] = useState<Phase>("intro");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<QuizzUserAnswer[]>([]);
@@ -368,8 +370,7 @@ export const TakeQuizzModal = ({
     const timeTaken = elapsed;
     const quizId = resolvedQuizId;
 
-    const newCount = incrementAttemptCount(quizId, userId);
-    setAttemptCount(newCount);
+    setAttemptCount((prev) => prev + 1);
 
     // Build user_answers payload — backend sẽ tính is_correct & points_earned
     const answeredAt = new Date().toISOString();
@@ -401,81 +402,59 @@ export const TakeQuizzModal = ({
         completedAt: r.completed_at ?? completedAt,
         timeTaken: r.time_taken ?? timeTaken,
       };
-      saveToLeaderboard(quizId, entry);
       setMyEntry(entry);
     };
 
-    /** Fallback khi API lỗi — tính điểm ở frontend */
-    const applyLocalResult = () => {
-      const { score, correctCount } = calculateScore();
-      const percentage = totalScore > 0 ? Math.round((score / totalScore) * 100) : 0;
-      const entry: QuizzScoreEntry = {
-        userId,
-        fullname: userFullname,
-        avatar: userAvatar,
-        score,
-        totalScore,
-        percentage,
-        correctCount,
-        totalQuestions,
-        completedAt,
-        timeTaken,
-      };
-      const localBoard = saveToLeaderboard(quizId, entry);
-      setMyEntry(entry);
-      setFinalLeaderboard(localBoard);
-    };
+    if (!quizId) {
+      toast.error("Không tìm thấy thông tin bài quiz.");
+      setPhase("taking");
+      setIsSubmitting(false);
+      return;
+    }
 
-    if (quizId) {
-      try {
-        // 1. Nộp bài — backend tính điểm và trả về QuizResultResponse
-        const submitRes = await QuizzService.submitResult(quizId, {
-          user_answers: userAnswersPayload,
-          total_score: 0,
-          max_score: totalScore,
-          correct_count: 0,
-          total_questions: totalQuestions,
-          started_at: startedAtRef.current,
-          completed_at: completedAt,
-          time_taken: timeTaken,
-          is_completed: true,
-          is_submitted: true,
-        });
+    try {
+      // 1. Nộp bài — backend tính điểm, lấy kết quả ngay từ response
+      const submitRes = await QuizzService.submitResult(quizId, {
+        user_answers: userAnswersPayload,
+        total_score: 0,
+        max_score: totalScore,
+        correct_count: 0,
+        total_questions: totalQuestions,
+        started_at: startedAtRef.current,
+        completed_at: completedAt,
+        time_taken: timeTaken,
+        is_completed: true,
+        is_submitted: true,
+      });
 
-        // ApiResponse có thể wrap trong .data hoặc trả trực tiếp
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const raw = submitRes as any;
-        const serverResult: QuizResultResponse | null =
-          raw?.data?.total_score !== undefined
-            ? raw.data
-            : raw?.total_score !== undefined
-            ? raw
-            : null;
-
-        if (serverResult) {
-          applyServerResult(serverResult);
-        } else {
-          applyLocalResult();
-        }
-
-        // 2. Fetch leaderboard
-        const leaderRes = await QuizzService.getResults(quizId);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const lb: LeaderboardEntry[] = (leaderRes as any)?.data?.metadata?.leaderboard ?? [];
-        if (lb.length > 0) {
-          setFinalLeaderboard(mapLeaderboard(lb));
-        }
-      } catch {
-        applyLocalResult();
+      const submitResult = submitRes.data?.metadata;
+      if (submitResult) {
+        applyServerResult(submitResult);
       }
-    } else {
-      applyLocalResult();
+
+      // 2. Lấy toàn bộ kết quả & leaderboard ngay sau khi nộp thành công
+      const leaderRes = await QuizzService.getResults(quizId);
+      const resultsMeta = leaderRes.data?.metadata;
+
+      const lb: LeaderboardEntry[] = resultsMeta?.leaderboard ?? [];
+      if (lb.length > 0) {
+        setFinalLeaderboard(mapLeaderboard(lb));
+      }
+
+      // Ưu tiên kết quả chi tiết của user từ danh sách results nếu server đã xử lý xong
+      const myResult = resultsMeta?.results?.find((r) => r.user_id === userId);
+      if (myResult) {
+        applyServerResult(myResult);
+      }
+    } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      toast.error((error as any)?.message ?? "Nộp bài thất bại. Vui lòng thử lại.");
+      setPhase("taking");
     }
 
     setIsSubmitting(false);
   }, [
     isSubmitting,
-    calculateScore,
     totalScore,
     elapsed,
     userId,
@@ -486,6 +465,7 @@ export const TakeQuizzModal = ({
     questions,
     userAnswers,
     resolvedQuizId,
+    toast,
   ]);
 
   const isAnswered = (qi: number): boolean => {
