@@ -25,6 +25,21 @@ export interface APIFlashcardResponse {
   metadata: Flashcard;
 }
 
+export interface GenerateFlashcardResponse {
+  deck_name: string;
+  deck_description: string;
+  deck_level: string;
+  deck_language: string;
+  deck_tags: string[];
+  flashcards: Array<{
+    card_front: string;
+    card_back: string;
+    card_hint: string;
+    card_tags: string[];
+    card_difficulty: number;
+  }>;
+}
+
 export interface FlashcardProgressPayload {
   mastery_level?: number;
   review_count?: number;
@@ -80,6 +95,14 @@ export const flashcardService = {
   deleteCard: async (cardId: string): Promise<any> => {
     const response = await apiService.delete(`/ai/flashcard/delete/${cardId}`);
     return response.data;
+  },
+
+  generateFlashcard: async (payload: FormData | Record<string, unknown>): Promise<GenerateFlashcardResponse> => {
+    const response = await apiService.post<{ metadata: GenerateFlashcardResponse }>(
+      "/ai/generate-flashcard",
+      payload
+    );
+    return response.data?.metadata;
   },
 
   updateProgress: async (cardId: string, payload: FlashcardProgressPayload): Promise<any> => {
