@@ -19,6 +19,15 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// Activate immediately and claim clients so the SW controls the page right away
+self.addEventListener('install', (event) => {
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 // Background message (tab ẩn / tắt)
 messaging.onBackgroundMessage((payload) => {
   const title =

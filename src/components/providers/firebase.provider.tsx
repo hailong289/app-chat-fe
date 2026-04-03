@@ -197,10 +197,42 @@ export const FirebaseProvider = ({
         return;
       }
 
+      // Register SW explicitly and wait for it to be active + controlling the page
+      const reg = await navigator.serviceWorker.register(
+        "/firebase-messaging-sw.js",
+        { scope: "/" },
+      );
+
+      // Wait for the SW to reach 'activated' state if it isn't already
+      await new Promise<void>((resolve) => {
+        if (reg.active) {
+          resolve();
+          return;
+        }
+        const sw = reg.installing ?? reg.waiting;
+        if (!sw) {
+          navigator.serviceWorker.ready.then(() => resolve());
+          return;
+        }
+        const handleState = () => {
+          if (sw.state === "activated") {
+            sw.removeEventListener("statechange", handleState);
+            resolve();
+          }
+        };
+        sw.addEventListener("statechange", handleState);
+      });
+
+      const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+      if (!vapidKey) {
+        console.error("❌ NEXT_PUBLIC_FIREBASE_VAPID_KEY is not set in .env.local");
+        return;
+      }
+
       const registration = await navigator.serviceWorker.ready;
 
       const t = await getToken(messaging, {
-        vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+        vapidKey,
         serviceWorkerRegistration: registration,
       });
 
@@ -212,11 +244,6 @@ export const FirebaseProvider = ({
       }
     } catch (err) {
       console.error("❌ Error getting token:", err);
-      // useAlertStore.getState().showAlert({
-      //   title: "Lỗi",
-      //   message: "Có lỗi khi xin quyền thông báo. Vui lòng thử lại.",
-      //   type: "error",
-      // });
     }
   }, [isBrowser, messaging]);
 

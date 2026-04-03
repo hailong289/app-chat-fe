@@ -166,7 +166,18 @@ export function SocketProvider({
       });
 
       socket.on("error", (err: any) => {
-        console.error(`❌ [${ns}] Socket Error Raw:`, err);
+        // Empty {} errors are benign internal Socket.IO/NestJS noise — skip them
+        if (
+          err !== null &&
+          typeof err === "object" &&
+          !(err instanceof Error) &&
+          Object.keys(err).length === 0 &&
+          Object.getOwnPropertyNames(err).length === 0
+        ) {
+          console.warn(`⚠️ [${ns}] Socket Error (empty — ignored):`, err);
+          return;
+        }
+
         let msg = "Socket error";
 
         if (err instanceof Error) {
@@ -177,22 +188,20 @@ export function SocketProvider({
           try {
             msg = JSON.stringify(err);
             if (msg === "{}") {
-              // Try getting own property names if it's a custom error object
               const props = Object.getOwnPropertyNames(err);
-              if (props.length > 0) {
-                const obj: any = {};
-                props.forEach((p) => (obj[p] = (err as any)[p]));
-                msg = JSON.stringify(obj);
-              } else {
-                msg = "Unknown error object (empty)";
-              }
+              msg =
+                props.length > 0
+                  ? JSON.stringify(
+                      Object.fromEntries(props.map((p) => [p, (err as any)[p]])),
+                    )
+                  : "Unknown error";
             }
           } catch {
             msg = "Non-serializable error";
           }
         }
 
-        console.error(`❌ [${ns}] Socket Error Parsed:`, msg);
+        console.error(`❌ [${ns}] Socket Error:`, msg);
 
         const lowerMsg = msg.toLowerCase();
         if (
@@ -201,7 +210,7 @@ export function SocketProvider({
           lowerMsg.includes("forbidden")
         ) {
           console.warn(
-            `🔒 [${ns}] Auth failed (error event), stopping reconnect.`
+            `🔒 [${ns}] Auth failed (error event), stopping reconnect.`,
           );
           socket.disconnect();
         }

@@ -363,12 +363,15 @@ function CallMessageBubble({
 
   const handleJoinCall = () => {
     const encodedMemberInfo = Helpers.enCryptUserInfo(callHistory.members);
+    const callMode = callHistory.call_mode || "sfu";
     window.open(
-      `/call?roomId=${msg.roomId}&members=${encodedMemberInfo}&callType=${callHistory.call_type}&status=joined&isCaller=false`,
+      `/call?roomId=${msg.roomId}&members=${encodedMemberInfo}&callType=${callHistory.call_type}&callMode=${callMode}&status=joined&isCaller=false&callId=${callHistory.call_id}`,
       "",
       "width=800,height=600",
     );
   };
+
+  const isCallOngoing = !callHistory.ended_at;
 
   return (
     <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
@@ -422,7 +425,7 @@ function CallMessageBubble({
               </>
             )}
           </div>
-          {isPending && isGroupCall && (
+          {isGroupCall && isCallOngoing && !isStarted && (
             <div className="flex items-start gap-2 text-xs my-2">
               <Button
                 size="sm"

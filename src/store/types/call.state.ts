@@ -54,6 +54,8 @@ export interface CallState {
     recvTransport: mediasoupClient.types.Transport | null;
     producers: Map<string, mediasoupClient.types.Producer>;
     consumers: Map<string, mediasoupClient.types.Consumer>;
+    // Callbacks waiting for produce:me ack so transport.produce() can resolve
+    pendingProduceCallbacks: Map<string, (params: { id: string }) => void>;
   };
   pendingCandidates: Map<string, RTCIceCandidate[]>;
   action: {
@@ -74,6 +76,7 @@ export interface CallState {
     selectedVideoInput: string;
   };
   actionUserId: string | null;
+  callId: string | null;
   answer: string | null;
   openCall: (data: any) => void;
   endCall: (data: any) => void;
