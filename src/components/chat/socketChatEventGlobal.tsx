@@ -36,6 +36,10 @@ export const SocketEventChatGlobal = () => {
     useCallStore.getState().eventCall("busy", payload)
   );
 
+  const handleUpdateQuiz = useRef((data: { roomId: string; quizId: string; payload: Record<string, unknown> }) => {
+    useMessageStore.getState().updateQuizInMessages(data.roomId, String(data.quizId), data.payload);
+  });
+
   useEffect(() => {
     if (!msgSocket || !call) return;
     // msgSocket.on(socketEvent.ROOMUPSERT, roomState.updateRoomSocket);
@@ -49,6 +53,7 @@ export const SocketEventChatGlobal = () => {
     call.on(socketEvent.MSGUPSERT, onMsgUpsertCall.current);
     call.on("call:busy", onCallBusy.current);
     msgSocket.on(socketEvent.ROOM_REFRESH, onRoomRefresh.current);
+    msgSocket.on(socketEvent.UPDATE_QUIZ, handleUpdateQuiz.current);
     return () => {
       call.off(socketEvent.CALL, onCallRequest.current);
       call.off(socketEvent.MSGUPSERT, onMsgUpsertCall.current);
@@ -61,6 +66,7 @@ export const SocketEventChatGlobal = () => {
       msgSocket.off(socketEvent.ERRORMSG, messageState.upsetMsgError);
       msgSocket.off(socketEvent.STATUSTYPING, roomState.handleTypingEvent);
       msgSocket.off(socketEvent.ROOM_REFRESH, onRoomRefresh.current);
+      msgSocket.off(socketEvent.UPDATE_QUIZ, handleUpdateQuiz.current);
     };
   }, [msgSocket, call]);
   return <></>;

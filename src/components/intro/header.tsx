@@ -10,7 +10,11 @@ import {
   UserPlusIcon,
   XCircleIcon,
 } from "@heroicons/react/16/solid";
-import { BellIcon, ChatBubbleLeftRightIcon } from "@heroicons/react/24/solid";
+import { 
+  BellIcon, 
+  ChatBubbleLeftRightIcon,
+  RectangleStackIcon 
+} from "@heroicons/react/24/solid";
 import {
   Avatar,
   Badge,
@@ -182,6 +186,22 @@ export const Header = () => {
             <BookmarkIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
             <span className="truncate" suppressHydrationWarning>
               {t("sidebar.files")}
+            </span>
+          </Button>
+
+          <Button
+            className={`
+              ${activeTab("flash-card")}
+              w-full transition-all relative left-0 top-0 duration-300
+              justify-start gap-4
+              text-white dark:text-gray-100
+            `}
+            variant="light"
+            onPress={() => handleLink("flash-card", "/flash-card")}
+          >
+            <RectangleStackIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
+            <span className="truncate" suppressHydrationWarning>
+              Flash Card
             </span>
           </Button>
         </div>

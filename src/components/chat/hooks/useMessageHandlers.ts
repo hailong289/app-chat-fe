@@ -7,6 +7,7 @@ import { socketEvent } from "@/types/socketEvent.type";
 import { useTranslation } from "react-i18next";
 import { aiService } from "@/service/ai.service";
 import useAuthStore from "@/store/useAuthStore";
+import { flashcardService, GenerateFlashcardResponse } from "@/service/flashcard.service";
 
 interface UseMessageHandlersProps {
   chatId: string;
@@ -343,6 +344,41 @@ export function useMessageHandlers({
     [chatId, t, toast],
   );
 
+  const handleGenerateFlashcard = useCallback(
+    async (msg: MessageType, cardCount: number = 10, difficulty: number = 3): Promise<GenerateFlashcardResponse> => {
+      const formData = new FormData();
+      formData.append("card_count", String(cardCount));
+      formData.append("difficulty", String(difficulty));
+      formData.append("language", i18n.language || "vi");
+
+      if (msg.type === "text") {
+        formData.append("type", "text");
+        formData.append("topic", msg.content || "");
+      } else {
+        const attachment = (msg.attachments || []).find(
+          (a) => a.uploadedUrl || a.url,
+        );
+        if (!attachment) {
+          throw new Error(
+            t("chat.hooks.flashcard.noFile", "Không tìm thấy tệp đính kèm"),
+          );
+        }
+        const fileUrl = attachment.uploadedUrl || attachment.url;
+        const res = await fetch(fileUrl);
+        if (!res.ok) throw new Error("Failed to download attachment");
+        const blob = await res.blob();
+        const file = new File([blob], attachment.name || "document", {
+          type: attachment.mimeType || blob.type,
+        });
+        formData.append("type", "document");
+        formData.append("file", file);
+      }
+
+      return flashcardService.generateFlashcard(formData);
+    },
+    [i18n.language, t],
+  );
+
   return {
     handleReply,
     handleReact,
@@ -352,5 +388,6 @@ export function useMessageHandlers({
     handleTogglePin,
     handleTranslate,
     handleSummarize,
+    handleGenerateFlashcard,
   };
 }

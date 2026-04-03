@@ -18,6 +18,7 @@ export enum socketEvent {
   MSGMARKREAD = "mark:read",
   CALL = "call:request",
   ROOM_REFRESH = "room:refresh",
+  UPDATE_QUIZ = "update:quiz",
 }
 
 export enum notifyType {

@@ -509,5 +509,72 @@
       "voice": "Voice Call"
     },
     "members_count": "with {{count}} others"
+  },
+  "flashcard": {
+    "modal": {
+      "createDeck": {
+        "title": "Create new flashcard deck",
+        "nameLabel": "Deck name",
+        "namePlaceholder": "Enter deck name",
+        "descriptionLabel": "Description",
+        "descriptionPlaceholder": "Enter description for deck (optional)",
+        "imageLabel": "Image URL",
+        "imagePlaceholder": "https://example.com/image.jpg (optional)",
+        "tagsLabel": "Tags",
+        "tagsPlaceholder": "Enter tag and press Enter (optional)",
+        "addTag": "Add",
+        "levelLabel": "Level",
+        "levelPlaceholder": "Select level (optional)",
+        "languageLabel": "Language",
+        "languagePlaceholder": "Example: Vietnamese, English (optional)",
+        "isPublicLabel": "Make this deck public",
+        "createCardLabel": "Create card",
+        "addCard": "Add Card",
+        "cardNumber": "Card {{number}}",
+        "cardFormTitle": "Card Information",
+        "cardFrontLabel": "Front",
+        "cardFrontPlaceholder": "Enter front side content",
+        "cardBackLabel": "Back",
+        "cardBackPlaceholder": "Enter back side content",
+        "cardHintLabel": "Hint",
+        "cardHintPlaceholder": "Enter hint (optional)",
+        "cardTagsLabel": "Tags",
+        "cardTagsPlaceholder": "Enter tag and press Enter (optional)",
+        "cardImageLabel": "Image URL",
+        "cardImagePlaceholder": "https://example.com/image.jpg (optional)",
+        "cardAudioLabel": "Audio URL",
+        "cardAudioPlaceholder": "https://example.com/audio.mp3 (optional)",
+        "cardDifficultyLabel": "Difficulty",
+        "cardDifficultyPlaceholder": "Select difficulty level (optional)",
+        "cardIsPublicLabel": "Make this card public",
+        "cancel": "Cancel",
+        "create": "Create deck"
+      }
+    },
+    "validation": {
+      "nameRequired": "Deck name cannot be empty",
+      "nameMaxLength": "Deck name cannot exceed 255 characters",
+      "descriptionMaxLength": "Description cannot exceed 1000 characters",
+      "imageInvalid": "Image URL is invalid",
+      "tagsMustBeArray": "Tags must be an array",
+      "isPublicMustBeBoolean": "Public must be boolean",
+      "levelInvalid": "Level is invalid",
+      "languageMustBeString": "Language must be a string",
+      "cardFrontRequired": "Front side cannot be empty",
+      "cardFrontMaxLength": "Front side cannot exceed 1000 characters",
+      "cardBackRequired": "Back side cannot be empty",
+      "cardBackMaxLength": "Back side cannot exceed 2000 characters",
+      "cardHintMaxLength": "Hint cannot exceed 500 characters",
+      "audioInvalid": "Audio URL is invalid",
+      "difficultyMustBeNumber": "Difficulty must be a number",
+      "difficultyMin": "Difficulty minimum is 1",
+      "difficultyMax": "Difficulty maximum is 5"
+    },
+    "levels": {
+      "beginner": "Beginner",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced",
+      "expert": "Expert"
+    }
   }
 }

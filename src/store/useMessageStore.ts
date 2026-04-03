@@ -87,13 +87,16 @@ export interface SendMessageArgs {
     | "video"
     | "audio"
     | "gif"
-    | "document";
+    | "document"
+    | "quiz";
   replyTo?: string;
   socket?: any; // Socket instance
   userId?: string; // User ID
   userFullname?: string; // User fullname
   userAvatar?: string; // User avatar
   documentId?: string; // Document ID
+  quizId?: string; // Quiz ID
+  quiz?: import("@/types/quizz.type").QuizzResponse; // Full quiz object for optimistic UI
 }
 import { upsertOne, deleteOne } from "@/libs/crud";
 import { db } from "@/libs/db";
@@ -454,6 +457,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       hiddenAt: null,
       isDeleted: false,
       read_by: [],
+      quiz: args.quiz,
     };
 
     // Thêm dữ liệu tạm
@@ -586,6 +590,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         replyTo,
         id,
         documentId: args.documentId, // Send documentId
+        quizId: args.quiz?._id, // Send quizId
       });
       get().autoMarkMessageSent(roomId, id, 3000);
     }
@@ -1617,6 +1622,71 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       await upsertOne(db.messages, sanitizeMessageForDB(updatedMessage));
     }
   },
+
+  updateQuizInMessages: async (
+    roomId: string,
+    quizId: string,
+    updatedQuiz: import("@/types/quizz.type").QuizzResponse | Record<string, unknown>,
+  ) => {
+    const state = get();
+    const currentRoom = state.messagesRoom[roomId];
+    console.log("currentRoom", currentRoom, state.messagesRoom);
+    const msgs = currentRoom
+      ? getAllMessagesFromGroups(currentRoom)
+      : await db.messages.where("roomId").equals(roomId).toArray();
+
+    console.log("currentRoom", currentRoom);
+
+    const quizIdStr = String(quizId);
+    const hasQuizMatch = (msg: MessageType) =>
+      msg.type === "quiz" &&
+      msg.quiz &&
+      (String(msg.quiz.id) === quizIdStr || String(msg.quiz.quiz_id) === quizIdStr);
+
+    const toUpdate = msgs.filter(hasQuizMatch);
+    if (toUpdate.length === 0) return;
+
+    const patch = Object.fromEntries(
+      Object.entries(updatedQuiz).filter(([, v]) => v !== undefined),
+    ) as Record<string, unknown>;
+
+    const updatedMessages = msgs.map((msg) =>
+      hasQuizMatch(msg) && msg.quiz
+        ? { ...msg, quiz: { ...msg.quiz, ...patch } }
+        : msg,
+    );
+
+    const sorted = [...updatedMessages].sort((a, b) =>
+      a.id.localeCompare(b.id),
+    );
+
+    set({
+      messagesRoom: {
+        ...get().messagesRoom,
+        [roomId]: updateRoomDataWithGroups(
+          currentRoom || {
+            groups: [],
+            displayedMessagesCount: 20,
+            input: null,
+            attachments: null,
+            reply: null,
+          },
+          sorted,
+          currentRoom?.lastReadMessageId,
+        ),
+      },
+    });
+
+    await Promise.all(
+      toUpdate.map((msg) => {
+        const next = updatedMessages.find((m) => m.id === msg.id);
+        return next
+          ? upsertOne(db.messages, sanitizeMessageForDB(next))
+          : Promise.resolve();
+      }),
+    );
+  },
+
   upsetMsgError: (payload: {
     message: string;
     error: string;

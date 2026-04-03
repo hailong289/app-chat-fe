@@ -13,12 +13,12 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@heroui/react";
+import { FlashcardConfigModal } from "@/components/flash-card/modals/FlashcardConfigModal";
 import { useState } from "react";
 import { MessageType } from "@/store/types/message.state";
 import { EMOJIS } from "../constants/messageConstants";
 import { canRecallMessage } from "../../../utils/messageHelpers";
 import { useTranslation } from "react-i18next";
-
 interface MessageActionsProps {
   readonly msg: MessageType;
   readonly socket: any;
@@ -55,11 +55,14 @@ export function MessageActions({
   const { t } = useTranslation();
   const [isTranslating, setIsTranslating] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
 
   const canTranslate = msg.type === "text" && !!onTranslate;
   const canSummarize =
     !!onSummarize &&
     (msg.type === "document" || (msg.attachments?.length ?? 0) > 0);
+  const canGenerateFlashcard =
+    msg.type === "text" || msg.type === "document" || (msg.attachments?.length ?? 0) > 0;
 
   const handleTranslate = async () => {
     if (!onTranslate) return;
@@ -84,6 +87,7 @@ export function MessageActions({
   if (msg.isDeleted || hiddenByMe) return null;
 
   return (
+    <>
     <div
       className={`gap-3 flex justify-end items-center ${
         isMine ? "" : "flex-row-reverse"
@@ -148,6 +152,14 @@ export function MessageActions({
                 {isSummarizing
                   ? t("chat.messages.actions.summarizing", "Đang tóm tắt...")
                   : t("chat.messages.actions.summarize", "Tóm tắt tài liệu")}
+              </DropdownItem>
+            ) : null}
+            {canGenerateFlashcard ? (
+              <DropdownItem
+                key="generate-flashcard"
+                onPress={() => setIsConfigModalOpen(true)}
+              >
+                Tạo flashcard
               </DropdownItem>
             ) : null}
             {/* Actions limited to messages created by me */}
@@ -245,5 +257,12 @@ export function MessageActions({
         </Popover>
       </div>
     </div>
+
+    <FlashcardConfigModal
+      isOpen={isConfigModalOpen}
+      msg={msg}
+      onClose={() => setIsConfigModalOpen(false)}
+    />
+    </>
   );
 }
