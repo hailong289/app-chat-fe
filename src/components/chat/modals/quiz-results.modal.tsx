@@ -54,7 +54,15 @@ export function QuizResultsModal({ isOpen, onClose, quiz }: QuizResultsModalProp
     QuizzService.getResults(quizId)
       .then((res) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const raw = (res as any)?.data ?? res;
+        console.log('res', res);
+        const raw = (res as any)?.data.metadata ?? {
+          leaderboard: [],
+          not_submitted_count: 0,
+          quiz_id: quizId,
+          quiz_title: quiz.quiz_title,
+          submitted_count: 0,
+          total_participants: 0,
+        };
         const lb: LeaderboardEntry[] = raw?.leaderboard ?? [];
         setLeaderboard(lb);
         setTotalParticipants(raw?.total_participants ?? 0);
