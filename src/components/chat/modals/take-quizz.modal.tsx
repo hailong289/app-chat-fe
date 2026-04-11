@@ -36,6 +36,10 @@ import {
 } from "@/types/quizz.type";
 import QuizzService from "@/service/quizz.service";
 import useToast from "@/hooks/useToast";
+import { useSocket } from "@/components/providers/SocketProvider";
+import { socketEvent } from "@/types/socketEvent.type";
+import useMessageStore from "@/store/useMessageStore";
+import useRoomStore from "@/store/useRoomStore";
 
 type Phase = "intro" | "taking" | "result";
 
@@ -159,6 +163,7 @@ export const TakeQuizzModal = ({
   hasCompleted,
 }: TakeQuizzModalProps) => {
   const toast = useToast();
+  const { socket } = useSocket("/chat");
   const [phase, setPhase] = useState<Phase>("intro");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<QuizzUserAnswer[]>([]);
@@ -170,6 +175,7 @@ export const TakeQuizzModal = ({
   const [showExplanation, setShowExplanation] = useState(false);
   const [attemptCount, setAttemptCount] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverAnswers, setServerAnswers] = useState<import("@/types/quizz.type").UserAnswerPayload[]>([]);
   const startedAtRef = useRef<string>(new Date().toISOString());
 
   const questions = quiz.quiz_questions;
@@ -188,6 +194,7 @@ export const TakeQuizzModal = ({
 
     setCurrentIndex(0);
     setUserAnswers([]);
+    setServerAnswers([]);
     setElapsed(0);
     setCountdown(null);
     setSubmitReady(false);
@@ -203,29 +210,32 @@ export const TakeQuizzModal = ({
       QuizzService.getResults(resolvedQuizId)
         .then((res) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const lb: LeaderboardEntry[] = (res as any)?.data?.metadata?.leaderboard ?? [];
+          const meta = (res as any)?.data?.metadata;
+          const lb: LeaderboardEntry[] = meta?.leaderboard ?? [];
           if (lb.length > 0) setFinalLeaderboard(mapLeaderboard(lb));
-          console.log("res", res);
 
-          // Tìm entry của user trong leaderboard
-          const myLbEntry = lb.find((e) => e.user_id === userId);
+          // my_result: server trả về kết quả riêng của user hiện tại (kể cả user_answers)
+          const myResult = meta?.my_result;
+          if (myResult?.user_answers?.length) {
+            setServerAnswers(myResult.user_answers);
+          }
+
           const percentage =
-            myLbEntry && myLbEntry.max_score > 0
-              ? Math.round((myLbEntry.total_score / myLbEntry.max_score) * 100)
+            myResult && myResult.max_score > 0
+              ? Math.round((myResult.total_score / myResult.max_score) * 100)
               : 0;
 
-          // Luôn set myEntry để thoát skeleton, dù có tìm thấy hay không
           setMyEntry({
             userId,
             fullname: userFullname,
             avatar: userAvatar,
-            score: myLbEntry?.total_score ?? 0,
-            totalScore: myLbEntry?.max_score ?? totalScore,
+            score: myResult?.total_score ?? 0,
+            totalScore: myResult?.max_score ?? totalScore,
             percentage,
-            correctCount: myLbEntry?.correct_count ?? 0,
-            totalQuestions,
-            completedAt: new Date().toISOString(),
-            timeTaken: myLbEntry?.time_taken,
+            correctCount: myResult?.correct_count ?? 0,
+            totalQuestions: myResult?.total_questions ?? totalQuestions,
+            completedAt: myResult?.completed_at ?? new Date().toISOString(),
+            timeTaken: myResult?.time_taken,
           });
         })
         .catch((error) => {
@@ -323,43 +333,6 @@ export const TakeQuizzModal = ({
   };
 
   // Tính điểm
-  const calculateScore = useCallback((): { score: number; correctCount: number } => {
-    let score = 0;
-    let correctCount = 0;
-
-    questions.forEach((q, qi) => {
-      const answer = userAnswers.find((a) => a.questionIndex === qi);
-      if (!answer) return;
-
-      if (q.question_type === "text") {
-        // Text type: không chấm tự động
-        return;
-      }
-
-      const correctIndices = q.answers
-        .map((a, i) => (a.is_correct ? i : -1))
-        .filter((i) => i !== -1);
-
-      const selected = answer.selectedAnswers;
-
-      if (q.question_type === "single_choice" || q.question_type === "true_false") {
-        if (selected.length === 1 && correctIndices.includes(selected[0])) {
-          score += q.points;
-          correctCount++;
-        }
-      } else if (q.question_type === "multiple_choice") {
-        const sortedCorrect = [...correctIndices].sort().join(",");
-        const sortedSelected = [...selected].sort().join(",");
-        if (sortedCorrect === sortedSelected) {
-          score += q.points;
-          correctCount++;
-        }
-      }
-    });
-
-    return { score, correctCount };
-  }, [questions, userAnswers]);
-
   const handleSubmit = useCallback(async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -403,6 +376,9 @@ export const TakeQuizzModal = ({
         timeTaken: r.time_taken ?? timeTaken,
       };
       setMyEntry(entry);
+      if (r.user_answers?.length) {
+        setServerAnswers(r.user_answers);
+      }
     };
 
     if (!quizId) {
@@ -430,6 +406,18 @@ export const TakeQuizzModal = ({
       const submitResult = submitRes.data?.metadata;
       if (submitResult) {
         applyServerResult(submitResult);
+        const payload = submitResult.quiz;
+        const roomId = quiz.quiz_roomId;
+        if (socket && roomId) {
+          const roomStore = useRoomStore.getState();
+          const room = roomStore.rooms.find((r) => r._id === roomId || r.roomId === roomId);
+          await useMessageStore.getState().updateQuizInMessages(room?.roomId ?? roomId, String(quizId), payload ?? {});
+          socket?.emit(socketEvent.UPDATE_QUIZ, {
+            roomId: room?.roomId ?? roomId,
+            quizId: String(quizId),
+            payload: payload,
+          });
+        }
       }
 
       // 2. Lấy toàn bộ kết quả & leaderboard ngay sau khi nộp thành công
@@ -441,10 +429,9 @@ export const TakeQuizzModal = ({
         setFinalLeaderboard(mapLeaderboard(lb));
       }
 
-      // Ưu tiên kết quả chi tiết của user từ danh sách results nếu server đã xử lý xong
-      const myResult = resultsMeta?.results?.find((r) => r.user_id === userId);
-      if (myResult) {
-        applyServerResult(myResult);
+      // Ưu tiên my_result từ server (có user_answers đầy đủ)
+      if (resultsMeta?.my_result) {
+        applyServerResult(resultsMeta.my_result);
       }
     } catch (error) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -466,6 +453,7 @@ export const TakeQuizzModal = ({
     userAnswers,
     resolvedQuizId,
     toast,
+    socket,
   ]);
 
   const isAnswered = (qi: number): boolean => {
@@ -481,20 +469,11 @@ export const TakeQuizzModal = ({
     (qi: number): boolean | null => {
       const q = questions[qi];
       if (!q || q.question_type === "text") return null;
-      const answer = userAnswers.find((a) => a.questionIndex === qi);
-      if (!answer) return false;
-      const correctIndices = q.answers
-        .map((a, i) => (a.is_correct ? i : -1))
-        .filter((i) => i !== -1);
-      const selected = answer.selectedAnswers;
-      if (q.question_type === "single_choice" || q.question_type === "true_false") {
-        return selected.length === 1 && correctIndices.includes(selected[0]);
-      }
-      const sortedCorrect = [...correctIndices].sort().join(",");
-      const sortedSelected = [...selected].sort().join(",");
-      return sortedCorrect === sortedSelected;
+      const serverAnswer = serverAnswers.find((a) => a.question_index === qi);
+      if (!serverAnswer) return false;
+      return serverAnswer.is_correct;
     },
-    [questions, userAnswers]
+    [questions, serverAnswers]
   );
 
   const progressValue = totalQuestions > 0 ? ((currentIndex + 1) / totalQuestions) * 100 : 0;

@@ -34,6 +34,7 @@ export interface QuizzResponse {
   updatedAt?: string;
   quiz_results?: QuizResultResponse[]; // kết quả đã nộp
   is_send?: boolean; // đã gửi vào chat chưa
+  quiz_roomId?: string;
 }
 
 export interface QuizzForm {
@@ -102,6 +103,7 @@ export interface QuizResultsListResponse {
   metadata: {
     results: QuizResultResponse[];
     leaderboard: LeaderboardEntry[];
+    my_result?: QuizResultResponse;
     quiz_id: string;
     quiz_title: string;
     total_participants: number;
@@ -123,6 +125,7 @@ export interface QuizResultResponse {
   time_taken: number;
   is_completed: boolean;
   is_submitted: boolean;
+  quiz?: QuizzResponse;
 }
 
 /** Entry dùng để hiển thị leaderboard (local hoặc map từ API) */
