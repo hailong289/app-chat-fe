@@ -88,14 +88,21 @@ export function QuizMessageCard({ quiz, currentUser, isSender = false, roomId }:
   const scoreColor =
     myPct >= 80 ? "text-success" : myPct >= 50 ? "text-warning" : "text-danger";
 
-  // Người gửi: luôn cho xem kết quả; người khác: làm bài khi đã bắt đầu/chưa kết thúc, hoặc xem kết quả nếu đã làm
-  const canOpen = (isSender || (isStarted && !isEnded) || hasCompleted) && !!quizId;
-  const showAsViewResults = isSender || hasCompleted;
-  const senderCanEdit = isSender && isNotStarted && !!roomId && !!quiz.quiz_id;
+  const isDraft = quiz.quiz_status === "draft";
+
+  // Người gửi + bản nháp: chỉ cho sửa, không xem kết quả
+  // Người gửi + không nháp: xem kết quả
+  // Người nhận + nháp: không làm bài, không xem kết quả
+  const canOpen = (isSender && isDraft)
+    ? !!quizId && !!roomId && !!quiz.quiz_id
+    : !isDraft && (isSender || (isStarted && !isEnded) || hasCompleted) && !!quizId;
+  const showAsViewResults = (isSender && !isDraft) || hasCompleted;
+  const senderCanEdit = isSender && (isNotStarted || isDraft) && !!roomId && !!quiz.quiz_id;
 
   const handleOpen = () => {
     if (!canOpen) return;
-    if (isSender) setOpenResultsModal(true);
+    if (isSender && isDraft) setOpenEditModal(true);
+    else if (isSender) setOpenResultsModal(true);
     else setIsOpen(true);
   };
 
@@ -141,6 +148,10 @@ export function QuizMessageCard({ quiz, currentUser, isSender = false, roomId }:
           {hasCompleted ? (
             <Chip size="sm" color="success" variant="flat" className="shrink-0 text-[10px] font-semibold">
               Đã hoàn thành
+            </Chip>
+          ) : isSender && isDraft ? (
+            <Chip size="sm" color="default" variant="flat" className="shrink-0 text-[10px] font-semibold">
+              Bản nháp
             </Chip>
           ) : isSender ? (
             <Chip size="sm" color="success" variant="flat" className="shrink-0 text-[10px] font-semibold">
@@ -223,7 +234,17 @@ export function QuizMessageCard({ quiz, currentUser, isSender = false, roomId }:
               ? "border-success/15 bg-success/5 group-hover:bg-success/10"
               : "border-primary/15 bg-primary/5 group-hover:bg-primary/10"}`}
           >
-            {senderCanEdit ? (
+            {isSender && isDraft ? (
+              <button
+                type="button"
+                onClick={handleEditClick}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold text-primary hover:bg-primary/10 transition-colors outline-none"
+                aria-label="Sửa quiz"
+              >
+                <PencilIcon className="w-3.5 h-3.5" />
+                Sửa bản nháp
+              </button>
+            ) : senderCanEdit ? (
               <>
                 <button
                   type="button"
