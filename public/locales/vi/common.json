@@ -1,0 +1,580 @@
+{
+  "common": {
+    "loading": "Đang tải...",
+    "error": "Đã có lỗi xảy ra",
+    "success": "Thành công",
+    "cancel": "Hủy",
+    "confirm": "Xác nhận",
+    "confirmDelete": "Xác nhận xóa",
+    "save": "Lưu",
+    "delete": "Xóa",
+    "edit": "Sửa",
+    "search": "Tìm kiếm",
+    "send": "Gửi",
+    "or": "Hoặc",
+    "ok": "Đồng ý",
+    "view": "Xem tin nhắn",
+    "back": "Quay lại"
+  },
+  "docs": {
+    "untitled": "Tài liệu không tên",
+    "click_to_open": "Nhấn để mở",
+    "accessDenied": "Truy cập bị từ chối",
+    "accessDeniedDesc": "Bạn không có quyền xem tài liệu này.",
+    "editTitle": "Chỉnh sửa tiêu đề",
+    "pasteError": "Vui lòng sử dụng Ctrl+V để dán",
+    "renameSuccess": "Đổi tên tài liệu thành công",
+    "renameError": "Đổi tên tài liệu thất bại",
+    "deleteSuccess": "Đã xóa tài liệu",
+    "deleteError": "Xóa tài liệu thất bại",
+    "copySuccess": "Đã tạo bản sao",
+    "copyError": "Tạo bản sao thất bại",
+    "status": {
+      "saved": "Đã lưu",
+      "offline": "Ngoại tuyến"
+    },
+    "menu": {
+      "file": {
+        "title": "Tệp",
+        "copy": "Tạo bản sao",
+        "download": "Tải xuống PDF",
+        "print": "In",
+        "delete": "Xóa"
+      },
+      "edit": {
+        "title": "Chỉnh sửa",
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "cut": "Cắt",
+        "copy": "Sao chép",
+        "paste": "Dán"
+      },
+      "view": {
+        "title": "Xem",
+        "mode": "Chế độ: Đang chỉnh sửa",
+        "showOutline": "Hiện mục lục",
+        "hideOutline": "Ẩn mục lục"
+      },
+      "help": {
+        "title": "Trợ giúp",
+        "shortcuts": "Phím tắt",
+        "support": "Trợ giúp & Hỗ trợ"
+      }
+    },
+    "you": "Bạn",
+    "typing": "Đang nhập...",
+    "share": "Chia sẻ",
+    "members": "Thành viên",
+    "viewer": "Người xem",
+    "actions": {
+      "export": "Xuất ra PDF",
+      "delete": "Xóa tài liệu"
+    },
+    "deleteModal": {
+      "title": "Xóa tài liệu",
+      "content": "Bạn có chắc chắn muốn xóa {{title}}? Hành động này không thể hoàn tác."
+    },
+    "visibilityUpdated": "Đã cập nhật quyền truy cập",
+    "visibilityError": "Cập nhật quyền truy cập thất bại",
+    "toc": "Mục lục",
+    "noHeadings": "Chưa có mục lục",
+    "visibility": {
+      "private": "Riêng tư",
+      "shared": "Đã chia sẻ",
+      "public": "Công khai"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Đăng nhập",
+      "subtitle": "Chào mừng trở lại! Vui lòng đăng nhập để tiếp tục.",
+      "usernamePlaceholder": "Email hoặc số điện thoại",
+      "passwordPlaceholder": "Mật khẩu",
+      "rememberMe": "Ghi nhớ đăng nhập",
+      "forgotPassword": "Quên mật khẩu?",
+      "submit": "Đăng nhập",
+      "noAccount": "Chưa có tài khoản?",
+      "registerNow": "Đăng ký ngay",
+      "success": "Đăng nhập thành công!",
+      "failed": "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin."
+    },
+    "register": {
+      "title": "Đăng ký tài khoản",
+      "subtitle": "Tạo tài khoản để kết nối với mọi người.",
+      "emailTab": "Email",
+      "phoneTab": "Số điện thoại",
+      "fullnamePlaceholder": "Họ và tên",
+      "emailPlaceholder": "Email",
+      "phonePlaceholder": "Số điện thoại",
+      "passwordPlaceholder": "Mật khẩu",
+      "confirmPasswordPlaceholder": "Xác nhận mật khẩu",
+      "dobLabel": "Ngày sinh",
+      "genderLabel": "Giới tính",
+      "genderMale": "Nam",
+      "genderFemale": "Nữ",
+      "genderOther": "Khác",
+      "submit": "Đăng ký",
+      "hasAccount": "Đã có tài khoản?",
+      "loginNow": "Đăng nhập ngay",
+      "success": "Đăng ký thành công!",
+      "failed": "Đăng ký thất bại."
+    },
+    "validation": {
+      "required": "Trường này không được để trống",
+      "emailInvalid": "Vui lòng nhập email hợp lệ",
+      "phoneInvalid": "Vui lòng nhập số điện thoại hợp lệ",
+      "usernameInvalid": "Vui lòng nhập email hoặc số điện thoại hợp lệ",
+      "passwordMin": "Mật khẩu phải có ít nhất 6 ký tự",
+      "passwordMatch": "Mật khẩu xác nhận không khớp"
+    }
+  },
+  "callPage": {
+    "loading": {
+      "connecting": "Đang kết nối...",
+      "callInfo": "Đang tải thông tin cuộc gọi...",
+      "stream": "Đang tải stream..."
+    },
+    "status": {
+      "connected": "Đã kết nối",
+      "groupCaller": "Bạn đã bắt đầu cuộc gọi nhóm với {{count}} người khác",
+      "groupReceiver": "Bạn đang nhận cuộc gọi nhóm với {{count}} người khác",
+      "oneOnOneCaller": "Bạn đang gọi đến {{name}}",
+      "oneOnOneReceiver": "Bạn đang nhận cuộc gọi từ {{name}}"
+    },
+    "labels": {
+      "unknown": "Không xác định",
+      "unknownUser": "Người dùng không xác định",
+      "youAndOthers": "Bạn và người khác",
+      "deviceSettings": "Cài đặt thiết bị",
+      "microphone": "Micro",
+      "speaker": "Loa",
+      "camera": "Camera",
+      "close": "Đóng"
+    }
+  },
+  "chat": {
+    "input": {
+      "placeholder": "Nhập tin nhắn...",
+      "replyingTo": "Đang trả lời {{name}}",
+      "you": "chính tôi",
+      "image": "Ảnh",
+      "video": "Video",
+      "file": "File",
+      "gif": "GIF",
+      "audio": "Audio",
+      "searchEmoji": "Tìm emoji...",
+      "searchGif": "Tìm GIF...",
+      "noGifFound": "Không tìm thấy GIF",
+      "enterToSearchGif": "Nhập để tìm GIF...",
+      "tooltipMedia": "Chèn ảnh hoặc video tối đa {{maxFiles}} files và có kích thước tối đa {{maxSize}}MB mỗi file",
+      "tooltipFile": "Chèn tài liệu tối đa {{maxFiles}} files và có kích thước tối đa {{maxSize}}MB mỗi file"
+    },
+    "emoji": {
+      "recent": "Gần đây",
+      "smileys": "Mặt cười",
+      "animals": "Động vật",
+      "food": "Đồ ăn",
+      "activities": "Hoạt động",
+      "travel": "Du lịch",
+      "objects": "Đồ vật",
+      "symbols": "Ký hiệu",
+      "flags": "Cờ"
+    },
+    "typing": {
+      "many": "Nhiều người đang nhập...",
+      "two": "{{name1}} & {{name2}} đang gõ",
+      "one": "{{name}} đang gõ"
+    },
+    "voice": {
+      "record": "Ghi âm",
+      "pause": "Tạm dừng",
+      "stop": "Dừng",
+      "resume": "Tiếp tục",
+      "useFile": "Dùng file này",
+      "cancel": "Hủy"
+    },
+    "messages": {
+      "you": "Bạn",
+      "empty": {
+        "title": "Chưa có tin nhắn nào",
+        "subtitle": "Bắt đầu trò chuyện thôi!"
+      },
+      "loading": {
+        "server": "Đang tải từ server...",
+        "older": "Đang tải tin nhắn cũ...",
+        "new": "Đang tải tin nhắn mới...",
+        "general": "Đang tải..."
+      },
+      "scroll": {
+        "more": "Còn {{count}} tin nhắn cũ hơn • Cuộn lên để tải",
+        "loadMore": "thêm..."
+      },
+      "actions": {
+        "pin": "Gim",
+        "unpin": "Bỏ gim",
+        "copy": "Sao chép",
+        "recall": "Thu hồi",
+        "deleteForMe": "Xoá chỉ ở phía tôi",
+        "react": "Thả cảm xúc"
+      },
+      "bubble": {
+        "deleted": {
+          "me": "Bạn đã xoá tin nhắn này",
+          "other": "Tin nhắn đã bị xoá"
+        },
+        "recalled": {
+          "me": "Bạn đã thu hồi tin nhắn này",
+          "other": "Tin nhắn đã bị thu hồi"
+        },
+        "collapse": "Thu gọn",
+        "seeMore": "Xem thêm"
+      },
+      "item": {
+        "pinned": "Đã gim tin nhắn",
+        "unread": "Tin chưa đọc",
+        "resend": "Gửi lại",
+        "seen": "Đã xem",
+        "sent": "Đã gửi",
+        "sending": "Đang gửi...",
+        "uploading": "Đang tải lên..."
+      },
+      "reply": {
+        "image": "📷 Ảnh",
+        "video": "🎥 Video",
+        "file": "📎 File",
+        "gif": "🎬 GIF",
+        "audio": "🎵 Audio",
+        "deleted": "Tin nhắn đã bị xoá",
+        "recalled": {
+          "me": "Bạn đã thu hồi tin nhắn này",
+          "other": "Tin nhắn đã bị thu hồi"
+        },
+        "attachment": "File đính kèm"
+      },
+      "date": {
+        "today": "Hôm nay",
+        "yesterday": "Hôm qua"
+      }
+    },
+    "modal": {
+      "addMember": {
+        "title": "Thêm thành viên",
+        "selected": "Bạn bè đã chọn: {{count}}/{{total}}",
+        "placeholder": "Nhập tên bạn bè",
+        "cancel": "Huỷ",
+        "add": "Thêm"
+      },
+      "call": {
+        "incoming": "Cuộc gọi đến",
+        "inProgress": "Cuộc gọi đang diễn ra",
+        "calling": "Đang gọi...",
+        "join": "Tham gia"
+      },
+      "changeName": {
+        "title": "Đổi tên đoạn chat",
+        "description": "Mọi người đều biết khi thay đổi tên đoạn chat",
+        "label": "Tên đoạn chat",
+        "cancel": "Huỷ",
+        "confirm": "Xác nhận"
+      },
+      "changeNickName": {
+        "title": "Biệt danh",
+        "description": "Mọi người đều biết khi thay đổi biệt danh",
+        "cancel": "Huỷ"
+      },
+      "deleteMember": {
+        "title": "Xác nhận xoá thành viên",
+        "description": "Bạn có chắc chắn muốn xoá {{name}} không?",
+        "cancel": "Huỷ",
+        "confirm": "Xoá"
+      },
+      "leaveGroup": {
+        "title": "Xác nhận rời nhóm",
+        "description": "Bạn có chắc chắn muốn rời khỏi nhóm này không?",
+        "cancel": "Huỷ",
+        "confirm": "Xác nhận"
+      },
+      "createRoom": {
+        "title": "Tạo",
+        "types": {
+          "group": "Nhóm",
+          "channel": "Kênh"
+        },
+        "nameLabel": "Tên đoạn chat",
+        "namePlaceholder": "Nhập tên đoạn chat",
+        "nameError": "Tên đoạn chat phải có ít nhất 3 ký tự.",
+        "membersLabel": "Thành viên {{count}}/{{total}}",
+        "membersPlaceholder": "Nhập tên thành viên",
+        "cancel": "Huỷ",
+        "create": "Tạo"
+      },
+      "clearHistory": {
+        "title": "Xóa lịch sử trò chuyện",
+        "description": "Hành động này sẽ xóa vĩnh viễn mọi tin nhắn trong đoạn chat cho tất cả mọi người. Không thể hoàn tác.",
+        "cancel": "Hủy",
+        "confirm": "Xóa lịch sử"
+      }
+    },
+    "file": {
+      "gallery": {
+        "seeMore": "Xem thêm {{count}} file",
+        "collapse": "Thu gọn",
+        "uploading": "Đang tải lên...",
+        "failed": "❌ Tải lên thất bại",
+        "failedRetry": "❌ Tải lên thất bại. Vui lòng thử lại.",
+        "noPreview": "Không thể xem trước file này",
+        "noPreviewType": "Không thể xem trước loại tệp này.",
+        "download": "Tải xuống"
+      },
+      "preview": {
+        "selected": "{{count}} file được chọn",
+        "removeAll": "Xoá tất cả",
+        "uploading": "Đang tải lên...",
+        "failed": "Upload thất bại",
+        "close": "Đóng",
+        "notSupported": "Định dạng này chưa hỗ trợ xem trước.",
+        "openNewTab": "Mở tab mới / tải về",
+        "prev": "Trước",
+        "next": "Sau"
+      },
+      "audio": {
+        "play": "Phát",
+        "pause": "Tạm dừng"
+      }
+    },
+    "fileExplorer": {
+      "title": "Trình quản lý tệp",
+      "media": "Phương tiện",
+      "noMedia": "Không tìm thấy phương tiện nào",
+      "documents": "Tài liệu",
+      "noDocuments": "Không tìm thấy tài liệu nào"
+    },
+    "drawer": {
+      "roles": {
+        "admin": "Quản trị viên",
+        "member": "Thành viên",
+        "owner": "Chủ sở hữu",
+        "guest": "Khách"
+      },
+      "customize": {
+        "title": "Tuỳ chỉnh về đoạn chat",
+        "changeName": "Thay đổi tên đoạn chat",
+        "changePhoto": "Thay đổi ảnh",
+        "editNickname": "Chỉnh sửa biệt danh"
+      },
+      "members": {
+        "title": "Thành viên trong đoạn chat",
+        "sendPrivateMessage": "Gửi tin nhắn riêng tư",
+        "viewProfile": "Xem trang cá nhân",
+        "removeFromGroup": "Xoá khỏi nhóm",
+        "addMember": "Thêm thành viên"
+      },
+      "media": {
+        "title": "File phương tiện, file liên kết",
+        "noFiles": "Không tìm thấy tệp nào",
+        "fallback": {
+          "media": "Phương tiện",
+          "file": "Tệp",
+          "document": "Tài liệu"
+        },
+        "tabs": {
+          "media": "Media",
+          "file": "Tệp",
+          "link": "Link",
+          "docs": "Docs"
+        }
+      },
+      "privacy": {
+        "title": "Quyền riêng tư và hỗ trợ",
+        "report": "Báo cáo",
+        "reportDesc": "Đóng góp về cuộc trò chuyện",
+        "leaveGroup": "Rời nhóm",
+        "block": "Chặn",
+        "unblock": "Bỏ chặn",
+        "clearHistory": "Xóa lịch sử trò chuyện"
+      },
+      "history": {
+        "title": "Lịch sử hoạt động"
+      },
+      "chatWith": "Chat với"
+    },
+    "header": {
+      "online": "Online",
+      "offline": "Offline",
+      "searchPlaceholder": "Tìm kiếm tin nhắn...",
+      "pinned": {
+        "title": "Tin nhắn đã ghim",
+        "empty": "Chưa có tin nhắn nào được ghim.",
+        "image": "📷 Ảnh",
+        "video": "🎥 Video",
+        "file": "📎 File",
+        "gif": "🎬 GIF",
+        "audio": "🎵 Audio"
+      }
+    },
+    "hooks": {
+      "delete": {
+        "success": "Đã xoá tin nhắn",
+        "error": "Không thể xoá tin nhắn",
+        "connectionError": "Không thể kết nối tới máy chủ. Xoá không thành công."
+      },
+      "recall": {
+        "placeholder": "tin nhắn đã được thu hồi",
+        "success": "Đã thu hồi tin nhắn",
+        "error": "Không thể thu hồi tin nhắn",
+        "connectionError": "Không thể kết nối tới máy chủ. Thu hồi không thành công."
+      },
+      "pin": {
+        "pinned": "Đã ghim tin nhắn",
+        "unpinned": "Đã bỏ ghim tin nhắn",
+        "error": "Không thể thay đổi trạng thái ghim",
+        "connectionError": "Không thể kết nối tới máy chủ. Thao tác không thành công."
+      }
+    },
+    "user": "Người dùng"
+  },
+  "documents": {
+    "title": "Tài liệu",
+    "subtitle": "Quản lý và cộng tác trên tài liệu của bạn",
+    "search": "Tìm kiếm tài liệu",
+    "create": "Tạo mới",
+    "createNew": "Tạo tài liệu mới",
+    "loading": "Đang tải tài liệu...",
+    "empty": {
+      "title": "Chưa có tài liệu nào",
+      "desc": "Tạo tài liệu đầu tiên để bắt đầu",
+      "button": "Tạo tài liệu"
+    },
+    "visibility": {
+      "private": "Riêng tư",
+      "shared": "Đã chia sẻ",
+      "public": "Công khai"
+    },
+    "owner": "Chủ sở hữu",
+    "shared": "Được chia sẻ",
+    "delete": "Xoá",
+    "deleteConfirm": "Bạn có chắc chắn muốn xoá tài liệu này?",
+    "modal": {
+      "title": "Tạo tài liệu mới",
+      "placeholder": "Tên tài liệu",
+      "cancel": "Huỷ",
+      "create": "Tạo",
+      "creating": "Đang tạo..."
+    }
+  },
+  "share": {
+    "title": "Chia sẻ \"{{title}}\"",
+    "generalAccess": "Quyền truy cập chung",
+    "generalAccessDesc": "Kiểm soát ai có thể xem tài liệu này",
+    "restricted": "Chỉ những người được thêm",
+    "public": "Bất kỳ ai có liên kết",
+    "addPeople": "Thêm người",
+    "searchPlaceholder": "Tìm theo tên hoặc email",
+    "noUsersFound": "Không tìm thấy người dùng nào",
+    "peopleWithAccess": "Những người có quyền truy cập",
+    "owner": "Chủ sở hữu",
+    "you": "(Bạn)",
+    "roleOwner": "Chủ sở hữu",
+    "roleViewer": "Người xem",
+    "roleEditor": "Người chỉnh sửa",
+    "add": "Thêm",
+    "done": "Xong"
+  },
+  "sidebar": {
+    "chats": "Đoạn chat",
+    "contacts": "Bạn bè",
+    "notifications": "Thông Báo",
+    "files": "Tệp",
+    "profile": "Hồ Sơ",
+    "settings": "Cài Đặt",
+    "logout": "Đăng Xuất"
+  },
+  "home": {
+    "welcome": "Chào mừng đến với Chat App",
+    "description": "Ứng dụng chat hiện đại giúp bạn kết nối và trò chuyện với bạn bè, đồng nghiệp một cách dễ dàng và tiện lợi."
+  },
+  "call": {
+    "status": {
+      "ended": "Cuộc gọi đã kết thúc",
+      "waiting": "Đang chờ...",
+      "ongoing": "Đang diễn ra",
+      "missed": "Cuộc gọi nhỡ",
+      "cancelled": "Đã hủy",
+      "busy": "Người dùng bận",
+      "join": "Tham gia"
+    },
+    "type": {
+      "group": "Cuộc gọi nhóm",
+      "video": "Video Call",
+      "voice": "Voice Call"
+    },
+    "members_count": "với {{count}} người khác"
+  },
+  "flashcard": {
+    "modal": {
+      "createDeck": {
+        "title": "Tạo bộ flashcard mới",
+        "nameLabel": "Tên bộ thẻ",
+        "namePlaceholder": "Nhập tên bộ thẻ",
+        "descriptionLabel": "Mô tả",
+        "descriptionPlaceholder": "Nhập mô tả cho bộ thẻ (tùy chọn)",
+        "imageLabel": "URL ảnh",
+        "imagePlaceholder": "https://example.com/image.jpg (tùy chọn)",
+        "tagsLabel": "Thẻ (Tags)",
+        "tagsPlaceholder": "Nhập thẻ và nhấn Enter (tùy chọn)",
+        "addTag": "Thêm",
+        "levelLabel": "Mức độ",
+        "levelPlaceholder": "Chọn mức độ (tùy chọn)",
+        "languageLabel": "Ngôn ngữ",
+        "languagePlaceholder": "Ví dụ: Tiếng Việt, English (tùy chọn)",
+        "isPublicLabel": "Công khai bộ thẻ này",
+        "createCardLabel": "Tạo thẻ",
+        "addCard": "Thêm thẻ",
+        "cardNumber": "Thẻ {{number}}",
+        "cardFormTitle": "Thông tin thẻ",
+        "cardFrontLabel": "Mặt trước",
+        "cardFrontPlaceholder": "Nhập nội dung mặt trước",
+        "cardBackLabel": "Mặt sau",
+        "cardBackPlaceholder": "Nhập nội dung mặt sau",
+        "cardHintLabel": "Gợi ý",
+        "cardHintPlaceholder": "Nhập gợi ý (tùy chọn)",
+        "cardTagsLabel": "Thẻ (Tags)",
+        "cardTagsPlaceholder": "Nhập thẻ và nhấn Enter (tùy chọn)",
+        "cardImageLabel": "URL ảnh",
+        "cardImagePlaceholder": "https://example.com/image.jpg (tùy chọn)",
+        "cardAudioLabel": "URL âm thanh",
+        "cardAudioPlaceholder": "https://example.com/audio.mp3 (tùy chọn)",
+        "cardDifficultyLabel": "Độ khó",
+        "cardDifficultyPlaceholder": "Chọn mức độ khó (tùy chọn)",
+        "cardIsPublicLabel": "Công khai thẻ này",
+        "cancel": "Hủy",
+        "create": "Tạo bộ"
+      }
+    },
+    "validation": {
+      "nameRequired": "Tên bộ thẻ không để trống",
+      "nameMaxLength": "Tên bộ thẻ không được vượt quá 255 ký tự",
+      "descriptionMaxLength": "Mô tả không được vượt quá 1000 ký tự",
+      "imageInvalid": "URL ảnh không hợp lệ",
+      "tagsMustBeArray": "Tags phải là mảng",
+      "isPublicMustBeBoolean": "Công khai phải là boolean",
+      "levelInvalid": "Mức độ không hợp lệ",
+      "languageMustBeString": "Ngôn ngữ phải là chuỗi",
+      "cardFrontRequired": "Mặt trước không để trống",
+      "cardFrontMaxLength": "Mặt trước không được vượt quá 1000 ký tự",
+      "cardBackRequired": "Mặt sau không để trống",
+      "cardBackMaxLength": "Mặt sau không được vượt quá 2000 ký tự",
+      "cardHintMaxLength": "Gợi ý không được vượt quá 500 ký tự",
+      "audioInvalid": "URL âm thanh không hợp lệ",
+      "difficultyMustBeNumber": "Độ khó phải là số",
+      "difficultyMin": "Độ khó tối thiểu là 1",
+      "difficultyMax": "Độ khó tối đa là 5"
+    },
+    "levels": {
+      "beginner": "Người mới bắt đầu",
+      "intermediate": "Trung bình",
+      "advanced": "Nâng cao",
+      "expert": "Chuyên gia"
+    }
+  }
+}

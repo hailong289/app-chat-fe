@@ -1,8 +1,28 @@
 // app/providers.tsx
 "use client";
 
-import { HeroUIProvider } from "@heroui/react";
+import "@/i18n";
+import { ThemeProvider as NextThemesProvider } from "next-themes";
+import { HeroUIProvider, ToastProvider } from "@heroui/react";
+import AlertModal from "@/components/modals/AlertModal";
 
-export function Providers({ children }: { readonly children: React.ReactNode }) {
-  return <HeroUIProvider>{children}</HeroUIProvider>;
+export function Providers({
+  children,
+}: {
+  readonly children: React.ReactNode;
+}) {
+  return (
+    <NextThemesProvider
+      attribute="class" // 🔥 BẮT BUỘC: dùng class (light / dark)
+      defaultTheme="system" // hoặc "light" tùy ông
+      enableSystem // cho phép theo system
+      themes={["light", "dark"]}
+    >
+      <HeroUIProvider>
+        <ToastProvider />
+        <AlertModal />
+        {children}
+      </HeroUIProvider>
+    </NextThemesProvider>
+  );
 }

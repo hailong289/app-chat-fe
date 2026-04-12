@@ -1,0 +1,184 @@
+:root {
+  /* Green to Teal Gradient Colors */
+  --color-bg-light: #e3f7f3;
+  --color-mint-light: #A3F7B5;
+  --color-emerald-medium: #72E0AC;
+  --color-teal-medium: #51BEA1;
+  --color-teal-dark: #42A59F;
+  
+  /* Alternative naming based on usage */
+  --gradient-start: #A3F7B5;
+  --gradient-25: #72E0AC;
+  --gradient-75: #51BEA1;
+  --gradient-end: #42A59F;
+}
+
+/* Utility classes for the gradient colors */
+.bg-light { background-color: var(--color-bg-light); }
+.bg-mint-light { background-color: var(--color-mint-light); }
+.bg-emerald-medium { background-color: var(--color-emerald-medium); }
+.bg-teal-medium { background-color: var(--color-teal-medium); }
+.bg-teal-dark { background-color: var(--color-teal-dark); }
+.border-bg-teal-dark { border-color: var(--color-teal-dark); }
+.text-teal-dark { color: var(--color-teal-dark); }
+.text-teal-dark-foreground { color: white; }
+
+.bg-primary {
+  background-color: var(--color-teal-dark);
+}
+
+
+.bg-secondary {
+  background-color: var(--color-emerald-medium);
+}
+
+.bg-header {
+  background-color: var(--color-teal-medium);
+}
+
+/* Gradient utility class */
+.bg-gradient-mint-teal {
+  background: linear-gradient(90deg, 
+    var(--gradient-start) 0%, 
+    var(--gradient-25) 33%, 
+    var(--gradient-75) 66%, 
+    var(--gradient-end) 100%
+  );
+}
+
+/* Button Classes */
+.btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  outline: none;
+  display: inline-block;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background-color: var(--color-teal-dark);
+  color: white;
+  box-shadow: 0 4px 6px rgba(66, 165, 159, 0.3);
+
+  &:hover {
+    background-color: var(--color-teal-medium);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(66, 165, 159, 0.4);
+  }
+
+  &:active {
+    background-color: var(--color-teal-dark);
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(66, 165, 159, 0.3);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+.btn-secondary {
+  background-color: var(--color-emerald-medium);
+  color: white;
+
+  &:hover {
+    background-color: var(--color-mint-light);
+    color: var(--color-teal-dark);
+  }
+
+  &:active {
+    background-color: var(--color-emerald-medium);
+  }
+}
+
+.btn-outline {
+  background-color: transparent;
+  border: 2px solid var(--color-teal-dark);
+  color: var(--color-teal-dark);
+
+  &:hover {
+    background-color: var(--color-teal-dark);
+    color: white;
+  }
+
+  &:active {
+    background-color: var(--color-teal-medium);
+  }
+}
+
+.btn-ghost {
+  background-color: rgba(163, 247, 181, 0.1);
+  color: var(--color-teal-dark);
+  border: 1px solid rgba(163, 247, 181, 0.3);
+
+  &:hover {
+    background-color: rgba(163, 247, 181, 0.2);
+  }
+
+  &:active {
+    background-color: rgba(163, 247, 181, 0.3);
+  }
+}
+
+/* Button Sizes */
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+.btn-lg {
+  padding: 1rem 2rem;
+  font-size: 1.125rem;
+}
+
+.btn-xl {
+  padding: 1.25rem 2.5rem;
+  font-size: 1.25rem;
+}
+
+/* Button Shapes */
+.btn-rounded {
+  border-radius: 9999px;
+}
+
+.btn-square {
+  border-radius: 0;
+}
+
+/* Full width button */
+.btn-block {
+  width: 100%;
+  display: block;
+}
+
+.active-menu-item::after {
+  content: '';
+  position: absolute;
+  left: -25px;
+  top:-10px;
+  height: 60px;
+  width: 100px;
+  background-color: white;
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+  opacity: 0.2;
+}
+
+.active-menu-item::before {
+  content: '';
+  position: absolute;
+  left: -24px;
+  top: -10px;
+  height: 60px;
+  width: 5px;
+  background-color: var(--color-emerald-medium);
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
