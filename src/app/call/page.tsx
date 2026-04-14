@@ -38,6 +38,10 @@ function CallPageContentInner() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { t } = useTranslation();
 
+  // callMode is stable for the lifetime of this call window (set from URL params
+  // once and never changes). Use it to register only the relevant socket listeners.
+  const callMode = (searchParams.get("callMode") as "p2p" | "sfu") || "p2p";
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -101,27 +105,45 @@ function CallPageContentInner() {
     setTimeout(() => useCallStore.getState().eventCall("busy", p), 3000);
   });
 
-  // handle socket event
+  // Register socket listeners based on callMode to prevent cross-protocol
+  // event handling. P2P and SFU use completely different signaling paths:
+  //   P2P:  call:accepted → offer/answer negotiation, call:answer, call:candidate
+  //   SFU:  signal → mediasoup transport/produce/consume pipeline
+  // Registering both sets simultaneously was the root cause of media mapping bugs.
   useEffect(() => {
     if (!socket) return;
-    socket.on("call:accepted", onAccepted.current);
-    socket.on("call:answer", onAnswer.current);
-    socket.on("call:candidate", onCandidate.current);
+
+    // Always-on: shared events for both modes
     socket.on("call:end", onEnd.current);
-    socket.on("signal", onSignal.current);
     socket.on("call:member-joined", onMemberJoined.current);
     socket.on("call:share-screen", onShareScreen.current);
     socket.on("call:busy", onBusy.current);
 
+    if (callMode === "p2p") {
+      socket.on("call:accepted", onAccepted.current);
+      socket.on("call:answer", onAnswer.current);
+      socket.on("call:candidate", onCandidate.current);
+    }
+
+    if (callMode === "sfu") {
+      socket.on("signal", onSignal.current);
+    }
+
     return () => {
-      socket.off("call:accepted", onAccepted.current);
-      socket.off("call:answer", onAnswer.current);
-      socket.off("call:candidate", onCandidate.current);
       socket.off("call:end", onEnd.current);
-      socket.off("signal", onSignal.current);
       socket.off("call:member-joined", onMemberJoined.current);
       socket.off("call:share-screen", onShareScreen.current);
       socket.off("call:busy", onBusy.current);
+
+      if (callMode === "p2p") {
+        socket.off("call:accepted", onAccepted.current);
+        socket.off("call:answer", onAnswer.current);
+        socket.off("call:candidate", onCandidate.current);
+      }
+
+      if (callMode === "sfu") {
+        socket.off("signal", onSignal.current);
+      }
     };
   }, [socket]);
 

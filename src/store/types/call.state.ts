@@ -1,7 +1,8 @@
-import { User } from "@/types/auth.type";
-import { is } from "date-fns/locale";
 import { Socket } from "socket.io-client";
-import * as mediasoupClient from "mediasoup-client";
+
+// Re-export sub-store types for convenience
+export type { P2pState } from "./call-p2p.state";
+export type { SfuSessionState, SfuStoreState } from "./call-sfu.state";
 
 export interface CallMember {
   id: string;
@@ -30,12 +31,13 @@ export interface CallState {
     | "ended"
     | "accepted"
     | "declined"
-    | "joined"; // idle: không có cuộc gọi, calling: người gọi, incoming: người bị gọi, ended: kết thúc cuộc gọi, accepted: đã chấp nhận cuộc gọi, declined: đã từ chối cuộc gọi, joined: đã tham gia cuộc gọi
-  mode: "audio" | "video"; // audio: audio, video: video only
-  callMode: "p2p" | "sfu"; // p2p: direct connection (1-1), sfu: server-routed (groups)
+    | "joined";
+  mode: "audio" | "video";
+  callMode: "p2p" | "sfu";
   members: CallMember[];
   error: string | null;
   isWindowOpen: boolean;
+  // RTCPeerConnection config — read by useP2pCallStore via useCallStore.getState()
   configPeerConnection: {
     iceServers: RTCIceServer[];
     iceCandidatePoolSize: number;
@@ -43,28 +45,19 @@ export interface CallState {
     bundlePolicy: "max-bundle" | "max-compat" | "balanced";
     rtcpMuxPolicy: "negotiate" | "require";
   };
+  // Coordinator stream: only localStream + remoteStreams (render source of truth)
+  // peerConnections → useP2pCallStore; sfu.* → useSfuCallStore
   stream: {
     localStream: MediaStream | null;
     remoteStreams: Map<string, MediaStream>;
-    peerConnections: Map<string, RTCPeerConnection>;
   };
-  sfu?: {
-    device: mediasoupClient.types.Device | null;
-    sendTransport: mediasoupClient.types.Transport | null;
-    recvTransport: mediasoupClient.types.Transport | null;
-    producers: Map<string, mediasoupClient.types.Producer>;
-    consumers: Map<string, mediasoupClient.types.Consumer>;
-    // Callbacks waiting for produce:me ack so transport.produce() can resolve
-    pendingProduceCallbacks: Map<string, (params: { id: string }) => void>;
-  };
-  pendingCandidates: Map<string, RTCIceCandidate[]>;
   action: {
-    isMicEnabled: boolean; // true: mic on, false: mic off
-    isCameraEnabled: boolean; // true: camera on, false: camera off
-    isSpeakerphoneEnabled: boolean; // true: speakerphone on, false: speakerphone off
-    duration: number; // thời gian gọi
-    isSharingScreen: boolean; // true: share screen on, false: share screen off
-    userIdGhimmed: string; // true: ghim cuộc gọi, false: không ghim
+    isMicEnabled: boolean;
+    isCameraEnabled: boolean;
+    isSpeakerphoneEnabled: boolean;
+    duration: number;
+    isSharingScreen: boolean;
+    userIdGhimmed: string;
   };
   socket: Socket | null;
   devices: {
@@ -78,16 +71,20 @@ export interface CallState {
   actionUserId: string | null;
   callId: string | null;
   answer: string | null;
+
+  // Actions
   openCall: (data: any) => void;
   endCall: (data: any) => void;
   eventCall: (event: string, payload: any) => Promise<void>;
   acceptCall: (data: any) => void;
   handleCreateLocalStream: () => void;
+  // Delegates to useP2pCallStore
   handleCreatePeerConnection: (
     roomId: string,
     actionUserId: string,
   ) => Promise<RTCPeerConnection>;
   updateCallState: (state: Partial<CallState>) => void;
+  // Delegates to useP2pCallStore
   flushPendingCandidates: (
     roomId: string,
     actionUserId: string,
@@ -98,6 +95,7 @@ export interface CallState {
   ) => Promise<void>;
   handleEndCall: (data: any) => void;
   handleRequestCall: (data: any) => void;
+  // Delegates to useP2pCallStore
   handleAcceptCall: (data: any) => void;
   handleShareScreen: (value: boolean) => Promise<void>;
   setUserIdGhimmed: (userId: string) => void;
@@ -106,6 +104,8 @@ export interface CallState {
     type: "audioInput" | "audioOutput" | "videoInput",
     deviceId: string,
   ) => Promise<void>;
+  // Delegates to useSfuCallStore
   initSFU: () => Promise<void>;
+  // Delegates to useSfuCallStore
   handleSFUSignal: (payload: any) => Promise<void>;
 }
