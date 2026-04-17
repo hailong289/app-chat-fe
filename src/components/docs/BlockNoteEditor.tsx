@@ -5,39 +5,32 @@ import { useEffect, useMemo } from "react";
 import {
   useCreateBlockNote,
   createReactInlineContentSpec,
+  SuggestionMenuController,
   FormattingToolbar,
   FormattingToolbarController,
-  SuggestionMenuController,
+  FilePanelController,
+  SideMenuController,
+  TableHandlesController,
   getDefaultReactSlashMenuItems,
-  BlockTypeSelect,
-  FileCaptionButton,
-  FileReplaceButton,
-  BasicTextStyleButton,
-  TextAlignButton,
-  ColorStyleButton,
-  NestBlockButton,
-  CreateLinkButton,
-  AddCommentButton,
+  getFormattingToolbarItems,
   useBlockNoteEditor,
 } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
-import { useTheme } from "next-themes";
-import "@blocknote/core/fonts/inter.css";
-import "@blocknote/mantine/style.css";
-import { Doc } from "yjs";
-import { SocketIOProvider } from "@/libs/SocketIOProvider";
-import UploadService from "@/service/uploadfile.service";
-import { useTranslation } from "react-i18next";
-import * as locales from "@blocknote/core/locales";
 import {
+  BlockNoteSchema,
+  defaultInlineContentSpecs,
+  filterSuggestionItems,
+} from "@blocknote/core";
+import { SuggestionMenu } from "@blocknote/core/extensions";
+import {
+  CommentsExtension,
   DefaultThreadStoreAuth,
   YjsThreadStore,
 } from "@blocknote/core/comments";
-import {
-  BlockNoteSchema,
-  defaultBlockSpecs,
-  defaultInlineContentSpecs,
-} from "@blocknote/core";
+import * as locales from "@blocknote/core/locales";
+import { useTheme } from "next-themes";
+import { useTranslation } from "react-i18next";
+import { Doc } from "yjs";
 import { Button, Tooltip } from "@heroui/react";
 import {
   ScissorsIcon,
@@ -45,19 +38,21 @@ import {
   ClipboardDocumentIcon,
 } from "@heroicons/react/24/outline";
 
+import "@blocknote/core/fonts/inter.css";
+import "@blocknote/mantine/style.css";
+
+import { SocketIOProvider } from "@/libs/SocketIOProvider";
+import UploadService from "@/service/uploadfile.service";
+import { SharedWithItem } from "@/service/document.service";
+
+// ─── Custom inline content: @mention ───────────────────────────────────────────
 const Mention = createReactInlineContentSpec(
   {
     type: "mention",
     propSchema: {
-      user: {
-        default: "Unknown User",
-      },
-      email: {
-        default: "",
-      },
-      avatar: {
-        default: "",
-      },
+      user: { default: "Unknown User" },
+      email: { default: "" },
+      avatar: { default: "" },
     },
     content: "none",
   },
@@ -91,13 +86,85 @@ const Mention = createReactInlineContentSpec(
         </Tooltip>
       );
     },
-  }
+  },
 );
 
-import { SharedWithItem } from "@/service/document.service";
+// ─── Custom toolbar buttons (Cut/Copy/Paste) ──────────────────────────────────
+const CutButton = () => {
+  const editor = useBlockNoteEditor();
+  return (
+    <Tooltip content="Cut">
+      <Button
+        isIconOnly
+        variant="light"
+        size="sm"
+        onPress={() => {
+          editor?.focus();
+          document.execCommand("cut");
+        }}
+      >
+        <ScissorsIcon className="w-4 h-4" />
+      </Button>
+    </Tooltip>
+  );
+};
 
-// ... existing imports ...
+const CopyButton = () => {
+  const editor = useBlockNoteEditor();
+  return (
+    <Tooltip content="Copy">
+      <Button
+        isIconOnly
+        variant="light"
+        size="sm"
+        onPress={() => {
+          editor?.focus();
+          document.execCommand("copy");
+        }}
+      >
+        <DocumentDuplicateIcon className="w-4 h-4" />
+      </Button>
+    </Tooltip>
+  );
+};
 
+const PasteButton = () => {
+  const editor = useBlockNoteEditor();
+  return (
+    <Tooltip content="Paste">
+      <Button
+        isIconOnly
+        variant="light"
+        size="sm"
+        onPress={async () => {
+          editor?.focus();
+          try {
+            const items = await navigator.clipboard.read();
+            for (const item of items) {
+              if (item.types.includes("text/html")) {
+                const blob = await item.getType("text/html");
+                const html = await blob.text();
+                editor?.pasteHTML(html);
+                return;
+              }
+              if (item.types.includes("text/plain")) {
+                const blob = await item.getType("text/plain");
+                const text = await blob.text();
+                editor?.insertInlineContent(text);
+              }
+            }
+          } catch (e) {
+            console.error("Failed to paste:", e);
+          }
+        }}
+      >
+        <ClipboardDocumentIcon className="w-4 h-4" />
+      </Button>
+    </Tooltip>
+  );
+};
+
+// ─── Props ─────────────────────────────────────────────────────────────────────
 export interface BlockNoteEditorProps {
   readonly onEditorReady?: (editor: any) => void;
   readonly onChange?: (editor: any) => void;
@@ -111,74 +178,7 @@ export interface BlockNoteEditorProps {
   readonly editable?: boolean;
 }
 
-const CutButton = () => {
-  const editor = useBlockNoteEditor();
-  const handleClick = () => {
-    editor?.focus();
-    document.execCommand("cut");
-  };
-  return (
-    <Tooltip content="Cut">
-      <Button isIconOnly variant="light" size="sm" onPress={handleClick}>
-        <ScissorsIcon className="w-4 h-4" />
-      </Button>
-    </Tooltip>
-  );
-};
-
-const CopyButton = () => {
-  const editor = useBlockNoteEditor();
-  const handleClick = () => {
-    editor?.focus();
-    document.execCommand("copy");
-  };
-  return (
-    <Tooltip content="Copy">
-      <Button isIconOnly variant="light" size="sm" onPress={handleClick}>
-        <DocumentDuplicateIcon className="w-4 h-4" />
-      </Button>
-    </Tooltip>
-  );
-};
-
-const PasteButton = () => {
-  const editor = useBlockNoteEditor();
-  const handleClick = async () => {
-    editor?.focus();
-    try {
-      const items = await navigator.clipboard.read();
-      for (const item of items) {
-        if (item.types.includes("text/html")) {
-          const blob = await item.getType("text/html");
-          const html = await blob.text();
-          editor?.pasteHTML(html);
-          return;
-        }
-        if (item.types.includes("text/plain")) {
-          const blob = await item.getType("text/plain");
-          const text = await blob.text();
-          editor?.insertInlineContent(text);
-          return;
-        }
-      }
-    } catch (err) {
-      try {
-        const text = await navigator.clipboard.readText();
-        editor?.insertInlineContent(text);
-      } catch (e) {
-        console.error("Failed to paste:", e);
-      }
-    }
-  };
-  return (
-    <Tooltip content="Paste">
-      <Button isIconOnly variant="light" size="sm" onPress={handleClick}>
-        <ClipboardDocumentIcon className="w-4 h-4" />
-      </Button>
-    </Tooltip>
-  );
-};
-
+// ─── Component ─────────────────────────────────────────────────────────────────
 export default function BlockNoteEditorBase({
   onEditorReady,
   onChange,
@@ -194,6 +194,7 @@ export default function BlockNoteEditorBase({
   const { resolvedTheme } = useTheme();
   const { i18n } = useTranslation();
 
+  // i18n dictionary (vi/en)
   const dictionary = useMemo(() => {
     const base = i18n.language === "vi" ? locales.vi : locales.en;
     return {
@@ -202,174 +203,140 @@ export default function BlockNoteEditorBase({
         ...base.placeholders,
         default:
           i18n.language === "vi"
-            ? "Nhập văn bản, gõ '/' hoặc bấm chuột phải để mở menu"
-            : "Enter text, type '/' or right click to open menu",
+            ? "Nhập văn bản hoặc gõ '/' để mở menu"
+            : "Enter text or type '/' to open menu",
       },
     };
   }, [i18n.language]);
 
-  // Create STABLE reference to fragment - CRITICAL for BlockNote to read existing data
-  const fragment = useMemo(() => {
-    const frag = ydoc.getXmlFragment("document-store");
-    return frag;
-  }, [ydoc]);
+  // Stable Yjs fragment reference — required for BlockNote to read existing data
+  const fragment = useMemo(
+    () => ydoc.getXmlFragment("document-store"),
+    [ydoc],
+  );
 
+  // Comments thread store (Yjs-backed)
   const threadStore = useMemo(() => {
     if (!provider) return null;
     const threadsMap = ydoc.getMap("comments");
     return new YjsThreadStore(
       userId,
       threadsMap,
-      new DefaultThreadStoreAuth(userId, "editor")
+      new DefaultThreadStoreAuth(userId, "editor"),
     );
   }, [provider, ydoc, userId]);
 
-  const schema = useMemo(() => {
-    return BlockNoteSchema.create({
-      blockSpecs: defaultBlockSpecs,
-      inlineContentSpecs: {
-        ...defaultInlineContentSpecs,
-        mention: Mention,
-      },
-    });
-  }, []);
+  // Schema with custom @mention inline content + all default block specs
+  const schema = useMemo(
+    () =>
+      BlockNoteSchema.create({
+        inlineContentSpecs: {
+          ...defaultInlineContentSpecs,
+          mention: Mention,
+        },
+      }),
+    [],
+  );
 
+  // resolveUsers — used by CommentsExtension to render avatars/names
+  const resolveUsers = useMemo(
+    () => async (userIds: string[]) =>
+      userIds.map((id) => ({
+        id,
+        username: id === userId ? userName : "User " + id.slice(0, 4),
+        avatarUrl: id === userId ? userAvatar || "" : "",
+      })),
+    [userId, userName, userAvatar],
+  );
+
+  // Editor instance — follows official Next.js guide pattern.
+  // v0.48: comments are configured via CommentsExtension (no longer a top-level option).
   const editor = useCreateBlockNote({
     schema,
     dictionary,
     uploadFile: async (file: File) => {
-      try {
-        const response = await UploadService.uploadSingle(file, "docs");
-        // The API returns { metadata: { url: ... } } but typed as UploadSingleResp in service
-        // We cast to any to safely access metadata based on actual API response structure
-        const data = response.data;
-
-        // Try to find the URL in various places
-        const url = data.url || data.metadata?.url || data.data?.url;
-
-        if (!url) {
-          console.error("❌ No URL found in response:", data);
-          throw new Error("No URL returned from upload API");
-        }
-
-        return url;
-      } catch (error) {
-        console.error("❌ Upload failed:", error);
-        // Return empty string or throw to indicate failure
-        throw error;
+      const response = await UploadService.uploadSingle(file, "docs");
+      const data = response.data;
+      const url = data.url || data.metadata?.url || data.data?.url;
+      if (!url) {
+        throw new Error("Upload API returned no URL");
       }
+      return url;
     },
     collaboration: {
       provider: provider || undefined,
-      fragment, // Use stable fragment reference
+      fragment,
       user: {
         name: userName,
         color: userColor,
-        // @ts-ignore - BlockNote types might not explicitly include avatar yet, but it's often supported in custom implementations or newer versions
+        // @ts-ignore - avatar may not be in BlockNote types but is supported
         avatar: userAvatar,
       },
     },
-    comments: threadStore
-      ? {
-          threadStore,
-        }
-      : undefined,
-    resolveUsers: async (userIds: string[]) => {
-      return userIds.map((id: string) => ({
-        id,
-        username: id === userId ? userName : "User " + id.slice(0, 4),
-        avatarUrl: id === userId ? userAvatar || "" : "",
-      }));
-    },
+    extensions: threadStore
+      ? [CommentsExtension({ threadStore, resolveUsers })]
+      : [],
   });
 
+  // Notify parent when editor is ready
   useEffect(() => {
-    if (editor && onEditorReady) {
-      onEditorReady(editor);
-    }
+    if (editor && onEditorReady) onEditorReady(editor);
   }, [editor, onEditorReady]);
 
+  // When BlockNoteView has children, it disables ALL default UIs.
+  // We explicitly disable each default and re-add via controllers so we can
+  // also include custom suggestion menus (@) and custom toolbar buttons.
   return (
     <div
       className="flex flex-col gap-2"
       role="application"
       onContextMenu={(e) => {
         e.preventDefault();
-        (editor as any)?.openSuggestionMenu("/");
+        // BlockNote v0.45+: openSuggestionMenu lives on the SuggestionMenu extension
+        editor?.getExtension(SuggestionMenu)?.openSuggestionMenu("/");
       }}
     >
       <BlockNoteView
-        editable={editable}
         editor={editor}
+        editable={editable}
         onChange={() => onChange?.(editor)}
         theme={resolvedTheme === "dark" ? "dark" : "light"}
         className="min-h-[500px]"
+        slashMenu={false}
         formattingToolbar={false}
+        filePanel={false}
+        sideMenu={false}
+        tableHandles={false}
       >
-        <FormattingToolbarController
-          formattingToolbar={(props) => (
-            <FormattingToolbar {...props}>
-              <CutButton />
-              <CopyButton />
-              <PasteButton />
-              <BlockTypeSelect key={"blockTypeSelect"} />
-              <FileCaptionButton key={"fileCaptionButton"} />
-              <FileReplaceButton key={"replaceFileButton"} />
-              <BasicTextStyleButton
-                basicTextStyle={"bold"}
-                key={"boldStyleButton"}
-              />
-              <BasicTextStyleButton
-                basicTextStyle={"italic"}
-                key={"italicStyleButton"}
-              />
-              <BasicTextStyleButton
-                basicTextStyle={"underline"}
-                key={"underlineStyleButton"}
-              />
-              <BasicTextStyleButton
-                basicTextStyle={"strike"}
-                key={"strikeStyleButton"}
-              />
-              <TextAlignButton
-                textAlignment={"left"}
-                key={"textAlignLeftButton"}
-              />
-              <TextAlignButton
-                textAlignment={"center"}
-                key={"textAlignCenterButton"}
-              />
-              <TextAlignButton
-                textAlignment={"right"}
-                key={"textAlignRightButton"}
-              />
-              <ColorStyleButton key={"colorStyleButton"} />
-              <NestBlockButton key={"nestBlockButton"} />
-              <CreateLinkButton key={"createLinkButton"} />
-              <AddCommentButton key={"addCommentButton"} />
-            </FormattingToolbar>
-          )}
-        />
+        {/* Default '/' slash menu — re-add via controller */}
         <SuggestionMenuController
-          triggerCharacter={"/"}
+          triggerCharacter="/"
           getItems={async (query) =>
-            getDefaultReactSlashMenuItems(editor).filter((item) =>
-              item.title.toLowerCase().includes(query.toLowerCase())
-            )
+            filterSuggestionItems(getDefaultReactSlashMenuItems(editor), query)
           }
         />
+
+        {/* Custom '@' mention menu */}
         <SuggestionMenuController
-          triggerCharacter={"@"}
+          triggerCharacter="@"
           getItems={async (query) =>
-            (sharedWith || [])
-              .filter((item: any) =>
-                (item.user?.usr_fullname || "")
-                  .toLowerCase()
-                  .includes(query.toLowerCase())
-              )
-              .map((item: any) => ({
+            filterSuggestionItems(
+              (sharedWith || []).map((item: any) => ({
                 title: item.user?.usr_fullname || "Unknown User",
                 subtext: item.user?.usr_email,
+                onItemClick: () => {
+                  editor.insertInlineContent([
+                    {
+                      type: "mention",
+                      props: {
+                        user: item.user?.usr_fullname || "Unknown User",
+                        email: item.user?.usr_email,
+                        avatar: item.user?.usr_avatar,
+                      },
+                    },
+                    { type: "text", text: " ", styles: {} },
+                  ]);
+                },
                 icon: (
                   <div className="w-6 h-6 rounded-full overflow-hidden border border-gray-200">
                     <img
@@ -384,26 +351,28 @@ export default function BlockNoteEditorBase({
                     />
                   </div>
                 ),
-                onItemClick: () => {
-                  editor.insertInlineContent([
-                    {
-                      type: "mention",
-                      props: {
-                        user: item.user?.usr_fullname || "Unknown User",
-                        email: item.user?.usr_email,
-                        avatar: item.user?.usr_avatar,
-                      },
-                    },
-                    {
-                      type: "text",
-                      text: " ",
-                      styles: {},
-                    },
-                  ]);
-                },
-              }))
+              })),
+              query,
+            )
           }
         />
+
+        {/* Custom formatting toolbar with Cut/Copy/Paste prepended */}
+        <FormattingToolbarController
+          formattingToolbar={() => (
+            <FormattingToolbar>
+              <CutButton key="cut" />
+              <CopyButton key="copy" />
+              <PasteButton key="paste" />
+              {getFormattingToolbarItems()}
+            </FormattingToolbar>
+          )}
+        />
+
+        {/* Other default UIs */}
+        <FilePanelController />
+        <SideMenuController />
+        <TableHandlesController />
       </BlockNoteView>
     </div>
   );

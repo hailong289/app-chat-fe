@@ -139,29 +139,37 @@ export function useDocumentSync({
     socket.emit("doc:open", { docId });
 
     const handleDocOpened = (data: DocumentMetadata) => {
-      // Apply initial snapshot to Y.Doc BEFORE setting document state
-      if (data.yjsSnapshot) {
+      // Support ?reset=1 query param to skip applying the stored snapshot —
+      // lets users recover docs whose saved Yjs state was created with an
+      // older BlockNote version and is incompatible with the current schema.
+      const shouldReset =
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("reset") === "1";
+
+      if (shouldReset) {
+        console.warn("⚠️ reset=1 query param detected — skipping saved snapshot and starting fresh");
+        initializeDefaultContent(ydoc);
+        setIsSnapshotApplied(true);
+      } else if (data.yjsSnapshot) {
         try {
           const snapshotData = parseYjsSnapshot(data.yjsSnapshot);
           if (snapshotData) {
             applyUpdate(ydoc, snapshotData);
-
-            // Verify Y.Doc content after applying
             setIsSnapshotApplied(true);
           } else {
             console.error("❌ Failed to parse snapshot - returned null");
             initializeDefaultContent(ydoc);
-            setIsSnapshotApplied(true); // Allow rendering even if no snapshot
+            setIsSnapshotApplied(true);
           }
         } catch (error) {
           console.error("❌ Failed to apply initial snapshot:", error);
           initializeDefaultContent(ydoc);
-          setIsSnapshotApplied(true); // Allow rendering even on error
+          setIsSnapshotApplied(true);
         }
       } else {
         console.warn("⚠️ No snapshot data in document response");
         initializeDefaultContent(ydoc);
-        setIsSnapshotApplied(true); // No snapshot to apply, proceed
+        setIsSnapshotApplied(true);
       }
 
       setDocument(data);
