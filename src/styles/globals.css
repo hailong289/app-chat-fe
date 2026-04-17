@@ -163,3 +163,26 @@
 .bn-cursor-caret {
   width: 2px !important;
 }
+
+/* BlockNote v0.48 — ensure popovers (FilePanel, SuggestionMenu, FormattingToolbar)
+   are clickable. Popovers are portaled to <body>, but if a parent stacking
+   context (HeroUI Card/Modal) sets transform/filter, click events may be
+   trapped underneath. Force high z-index + auto pointer-events. */
+.bn-mt-floating,
+.bn-mt-suggestion-menu,
+.bn-suggestion-menu,
+.bn-formatting-toolbar,
+.bn-file-panel,
+[class*="bn-mt-"][class*="popover"],
+[data-floating-ui-portal] {
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+}
+
+/* Mantine Popover/Tabs inside BlockNote panels must accept pointer events */
+.bn-mt-floating button,
+.bn-mt-floating input,
+.bn-mt-floating [role="tab"],
+.bn-mt-floating [role="tabpanel"] {
+  pointer-events: auto !important;
+}

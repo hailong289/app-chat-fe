@@ -25,6 +25,10 @@ import useAlertStore from "@/store/useAlertStore";
 
 const FirebaseContext = createContext<FirebaseContextType | null>(null);
 
+// Module-level lock prevents concurrent getToken calls across re-renders / HMR.
+// FCM Registration API has a 5 req/min/user quota — racing calls burn it fast.
+let _tokenRequestInFlight: Promise<void> | null = null;
+
 export const useFirebase = () => {
   const ctx = useContext(FirebaseContext);
   if (!ctx) throw new Error("Dùng useFirebase phải nằm trong FirebaseProvider");
@@ -173,6 +177,11 @@ export const FirebaseProvider = ({
 
   // Hàm xin quyền và lấy token
   const requestPermission = useCallback(async () => {
+    // De-dupe concurrent calls — React StrictMode, HMR, and multiple useEffects
+    // can trigger this in quick succession, burning the 5 req/min FCM quota.
+    if (_tokenRequestInFlight) return _tokenRequestInFlight;
+
+    _tokenRequestInFlight = (async () => {
     try {
       if (!isBrowser) return;
       if (!messaging) {
@@ -190,10 +199,35 @@ export const FirebaseProvider = ({
         return;
       }
 
+      // If permission already granted and we have a cached token → reuse it.
+      // This is the main guard against hitting FCM Registration API quota
+      // (5 requests/minute/user by default).
+      if (Notification.permission === "granted") {
+        const cached = localStorage.getItem("fcm-token");
+        if (cached) {
+          setToken(cached);
+          return;
+        }
+      }
+
+      // If permission already denied, don't show the prompt again (it won't appear
+      // anyway — browsers block re-prompts — and it wastes a getToken call).
+      if (Notification.permission === "denied") {
+        console.warn("🚫 Notification permission was denied previously");
+        return;
+      }
+
       const permission = await Notification.requestPermission();
 
       if (permission !== "granted") {
         console.warn("🚫 Notification permission denied");
+        return;
+      }
+
+      // Double-check cache after permission prompt (user may have granted in another tab)
+      const cachedAfterPermission = localStorage.getItem("fcm-token");
+      if (cachedAfterPermission) {
+        setToken(cachedAfterPermission);
         return;
       }
 
@@ -242,8 +276,35 @@ export const FirebaseProvider = ({
       } else {
         console.error("❌ No registration token available");
       }
-    } catch (err) {
-      console.error("❌ Error getting token:", err);
+    } catch (err: any) {
+      const code = err?.code;
+      if (code === "messaging/token-subscribe-failed") {
+        const msg = err?.message || "";
+        if (msg.includes("Quota exceeded")) {
+          console.warn(
+            "⚠️ FCM quota exceeded (5 req/min/user). Wait 1 minute and retry. " +
+              "Cached token will be reused once present.",
+          );
+        } else {
+          console.error(
+            "❌ FCM subscribe failed — verify:\n" +
+              "  1. API key restrictions allow current origin + FCM APIs\n" +
+              "  2. VAPID key matches Firebase Console Web Push certificate",
+            err,
+          );
+        }
+      } else if (code === "messaging/permission-blocked") {
+        console.warn("🚫 Notification permission blocked");
+      } else {
+        console.error("❌ Error getting FCM token:", err);
+      }
+    }
+    })();
+
+    try {
+      await _tokenRequestInFlight;
+    } finally {
+      _tokenRequestInFlight = null;
     }
   }, [isBrowser, messaging]);
 
