@@ -12,9 +12,9 @@
     "build:tauri:release": "npx tauri build"
   },
   "dependencies": {
-    "@blocknote/core": "^0.45.0",
-    "@blocknote/mantine": "^0.45.0",
-    "@blocknote/react": "^0.45.0",
+    "@blocknote/core": "^0.48.1",
+    "@blocknote/mantine": "^0.48.1",
+    "@blocknote/react": "^0.48.1",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@floating-ui/dom": "^1.0.0",
@@ -24,8 +24,8 @@
     "@heroui/system": "^2.4.22",
     "@heroui/theme": "^2.4.22",
     "@internationalized/date": "^3.9.0",
-    "@mantine/core": "^8.3.9",
-    "@mantine/hooks": "^8.3.9",
+    "@mantine/core": "^8.3.11",
+    "@mantine/hooks": "^8.3.11",
     "@mantine/utils": "^6.0.22",
     "@tiptap/core": "3.14.0",
     "@tiptap/extension-collaboration": "^3.11.1",
