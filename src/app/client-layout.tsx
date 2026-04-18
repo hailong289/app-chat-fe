@@ -59,7 +59,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     (route) => path === route || path.startsWith(`${route}/`),
   );
 
-  const isDisableLeftSide = path.includes("/flash-card");
+  const isDisableLeftSide = path.includes("/flash-card") || path.includes("/todo");
 
   // Dùng layout đơn giản cho: auth + các route không thuộc appRoutes (kiểu 404 / intro riêng)
   const useSimpleLayout = isAuthPage || !isInAppRoute;
@@ -76,7 +76,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     requestPermission();
   }, [firebase]);
   // Define valid routes
-  const validRoutes = ["/", "/chat", "/settings", "/contacts", '/flash-card'];
+  const validRoutes = ["/", "/chat", "/settings", "/contacts", '/flash-card', '/todo'];
   const isValidRoute =
     !validRoutes.some(
       (route) => path === route || path.startsWith(route + "/"),
