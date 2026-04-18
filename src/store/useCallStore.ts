@@ -13,6 +13,7 @@ import useSfuCallStore from "./useSfuCallStore";
 
 // Module-level ref to the incoming call popup — persists across re-renders
 let _openCallWindow: Window | null = null;
+let _openTauriCallLabel: string | null = null;
 
 const CALL_ACTIVE_KEY = "appchat_call_active";
 
@@ -33,6 +34,68 @@ function _getActiveCallId(): string | null {
     return localStorage.getItem(CALL_ACTIVE_KEY);
   } catch {
     return null;
+  }
+}
+
+function _isTauriRuntime() {
+  if (typeof window === "undefined") return false;
+  const tauriWindow = (window as any).__TAURI__?.window;
+  return !!tauriWindow?.WebviewWindow;
+}
+
+async function _focusTauriCallWindow() {
+  if (!_openTauriCallLabel) return false;
+  try {
+    const tauriWindow = (window as any).__TAURI__?.window;
+    const existing = await tauriWindow?.WebviewWindow?.getByLabel?.(_openTauriCallLabel);
+    if (existing) {
+      await existing.setFocus?.();
+      return true;
+    }
+    _openTauriCallLabel = null;
+    return false;
+  } catch {
+    _openTauriCallLabel = null;
+    return false;
+  }
+}
+
+async function _openTauriCallWindow(url: string, label: string) {
+  try {
+    const tauriWindow = (window as any).__TAURI__?.window;
+    if (!tauriWindow?.WebviewWindow) return false;
+
+    const existing = await tauriWindow.WebviewWindow.getByLabel?.(label);
+    if (existing) {
+      _openTauriCallLabel = label;
+      await existing.setFocus?.();
+      return true;
+    }
+
+    const created = new tauriWindow.WebviewWindow(label, {
+      url,
+      title: "Call",
+      width: 800,
+      height: 600,
+      center: true,
+      focus: true,
+      resizable: true,
+    });
+
+    _openTauriCallLabel = label;
+    _setCallActive("pending");
+    created.once?.("tauri://close-requested", () => {
+      _openTauriCallLabel = null;
+      _clearCallActive();
+    });
+    created.once?.("tauri://destroyed", () => {
+      _openTauriCallLabel = null;
+      _clearCallActive();
+    });
+    return true;
+  } catch {
+    _openTauriCallLabel = null;
+    return false;
   }
 }
 
@@ -109,6 +172,10 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       _openCallWindow.focus();
       return;
     }
+    if (_openTauriCallLabel) {
+      void _focusTauriCallWindow();
+      return;
+    }
     if (_getActiveCallId()) {
       console.warn("[Call] Already in a call, ignoring openCall");
       return;
@@ -121,8 +188,15 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       is_caller: m.id == currentUser.id,
     }));
     const encodedMemberInfo = Helpers.enCryptUserInfo(memberMap);
+    const callUrl = `/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${mode}&callMode=${callMode}&status=calling&isCaller=true`;
+
+    if (_isTauriRuntime()) {
+      void _openTauriCallWindow(callUrl, "appCallWindow_out");
+      return;
+    }
+
     _openCallWindow = window.open(
-      `/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${mode}&callMode=${callMode}&status=calling&isCaller=true`,
+      callUrl,
       "appCallWindow_out",
       "width=800,height=600",
     );
@@ -143,7 +217,9 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     const { roomId, members, callType, callId, callMode = "p2p", actionUserId } = payload;
 
     const alreadyInCall =
-      (_openCallWindow && !_openCallWindow.closed) || !!_getActiveCallId();
+      (_openCallWindow && !_openCallWindow.closed) ||
+      !!_openTauriCallLabel ||
+      !!_getActiveCallId();
     if (alreadyInCall) {
       const socket = useCallStore.getState().socket;
       socket?.emit("call:busy", { callId, callerUserId: actionUserId });
@@ -155,15 +231,25 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     const tryOpenWindow = () => {
       const claimTime = Number(localStorage.getItem(claimKey) || 0);
       if (Date.now() - claimTime < 60000) {
-        if (_openCallWindow && !_openCallWindow.closed) _openCallWindow.focus();
+        if (_openCallWindow && !_openCallWindow.closed) {
+          _openCallWindow.focus();
+        } else if (_openTauriCallLabel) {
+          void _focusTauriCallWindow();
+        }
         return;
       }
       localStorage.setItem(claimKey, Date.now().toString());
       setTimeout(() => localStorage.removeItem(claimKey), 60000);
 
       const encodedMemberInfo = Helpers.enCryptUserInfo(members);
+      const callUrl = `/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${callType}&callMode=${callMode}&status=incoming&callId=${callId}`;
+      if (_isTauriRuntime()) {
+        void _openTauriCallWindow(callUrl, "appCallWindow_inc");
+        return;
+      }
+
       _openCallWindow = window.open(
-        `/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${callType}&callMode=${callMode}&status=incoming&callId=${callId}`,
+        callUrl,
         "appCallWindow_inc",
         "width=800,height=600",
       );
