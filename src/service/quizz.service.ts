@@ -46,39 +46,39 @@ export default class QuizzService {
    * Tạo quizz mới với AI
    */
   static generateQuizz(body: GenerateQuizzPayload) {
-    return apiService.post<ApiResponse<QuizzResponse>>("/ai/quizz", body);
+    return apiService.post<ApiResponse<QuizzResponse>>("/learning/quizz", body);
   }
 
   static createQuizz(body: CreateQuizzPayload) {
-    return apiService.post<ApiResponse<QuizzResponse>>("/ai/quizz/create", body);
+    return apiService.post<ApiResponse<QuizzResponse>>("/learning/quizz/create", body);
   }
 
   /**
    * Cập nhật quizz đã tạo
    */
   static updateQuizz(quizzId: string, body: UpdateQuizzPayload) {
-    return apiService.patch<QuizzResponse>(`/ai/quizz/update/${quizzId}`, body);
+    return apiService.patch<QuizzResponse>(`/learning/quizz/update/${quizzId}`, body);
   }
 
   /**
    * Lấy thông tin quizz theo ID
    */
   static getQuizz(quizzId: string) {
-    return apiService.get<QuizzResponse>(`/ai/quizz/${quizzId}`);
+    return apiService.get<QuizzResponse>(`/learning/quizz/${quizzId}`);
   }
 
   /**
    * Lấy danh sách quizz trong room
    */
   static getQuizzes(queryParams: { roomId: string; page: number; limit: number }) {
-    return apiService.get<ApiResponse<QuizzResponse[]>>(`/ai/quizz/list`, queryParams);
+    return apiService.get<ApiResponse<QuizzResponse[]>>(`/learning/quizz/list`, queryParams);
   }
 
   /**
    * Xóa quizz
    */
   static deleteQuizz(quizzId: string) {
-    return apiService.delete(`/ai/quizz/delete/${quizzId}`);
+    return apiService.delete(`/learning/quizz/delete/${quizzId}`);
   }
 
   /**
@@ -93,7 +93,7 @@ export default class QuizzService {
    */
   static submitResult(quizId: string, body: SubmitQuizResultPayload) {
     return apiService.post<ApiResponse<QuizResultResponse>>(
-      `/ai/quizz/${quizId}/submit`,
+      `/learning/quizz/${quizId}/submit`,
       body
     );
   }
@@ -104,7 +104,7 @@ export default class QuizzService {
    */
   static getResults(quizId: string) {
     return apiService.get<QuizResultsListResponse>(
-      `/ai/quizz/${quizId}/results`
+      `/learning/quizz/${quizId}/results`
     );
   }
 }
