@@ -58,55 +58,55 @@ export const flashcardService = {
    * @returns FlashcardDeck (Bộ thẻ vừa được tạo)
    */
   createDeck: async (payload: CreateFlashcardDeckPayload): Promise<FlashcardDeck> => {
-    const response = await apiService.post<APIDeckResponse>("/ai/flashcard/deck/create", payload);
+    const response = await apiService.post<APIDeckResponse>("/learning/flashcard/deck/create", payload);
     return response.data?.metadata;
   },
 
   getListDeck: async (): Promise<FlashcardDeck[]> => {
-    const response = await apiService.get<APIListDeckResponse>("/ai/flashcard/deck/list");
+    const response = await apiService.get<APIListDeckResponse>("/learning/flashcard/deck/list");
     return response.data?.metadata || [];
   },
 
   getListFlashcard: async (params: { page?: number; limit?: number; userId?: string; deckId?: string }): Promise<any> => {
-    const response = await apiService.get<APIListFlashcardResponse>("/ai/flashcard/list", params);
+    const response = await apiService.get<APIListFlashcardResponse>("/learning/flashcard/list", params);
     return response.data?.metadata;
   },
 
   deleteDeck: async (id: string): Promise<any> => {
-    const response = await apiService.delete(`/ai/flashcard/deck/delete/${id}`);
+    const response = await apiService.delete(`/learning/flashcard/deck/delete/${id}`);
     return response.data;
   },
 
   updateDeck: async (id: string, payload: Partial<CreateFlashcardDeckPayload>): Promise<FlashcardDeck> => {
-    const response = await apiService.patch<APIDeckResponse>(`/ai/flashcard/deck/update/${id}`, payload);
+    const response = await apiService.patch<APIDeckResponse>(`/learning/flashcard/deck/update/${id}`, payload);
     return response.data?.metadata;
   },
 
   createCard: async (payload: CreateFlashcardPayload): Promise<Flashcard> => {
-    const response = await apiService.post<APIFlashcardResponse>("/ai/flashcard/create", payload);
+    const response = await apiService.post<APIFlashcardResponse>("/learning/flashcard/create", payload);
     return response.data?.metadata;
   },
 
   updateCard: async (cardId: string, payload: UpdateFlashcardPayload): Promise<Flashcard> => {
-    const response = await apiService.patch<APIFlashcardResponse>(`/ai/flashcard/update/${cardId}`, payload);
+    const response = await apiService.patch<APIFlashcardResponse>(`/learning/flashcard/update/${cardId}`, payload);
     return response.data?.metadata;
   },
 
   deleteCard: async (cardId: string): Promise<any> => {
-    const response = await apiService.delete(`/ai/flashcard/delete/${cardId}`);
+    const response = await apiService.delete(`/learning/flashcard/delete/${cardId}`);
     return response.data;
   },
 
   generateFlashcard: async (payload: FormData | Record<string, unknown>): Promise<GenerateFlashcardResponse> => {
     const response = await apiService.post<{ metadata: GenerateFlashcardResponse }>(
-      "/ai/generate-flashcard",
+      "/learning/generate-flashcard",
       payload
     );
     return response.data?.metadata;
   },
 
   updateProgress: async (cardId: string, payload: FlashcardProgressPayload): Promise<any> => {
-    const response = await apiService.patch(`/ai/flashcard/progress/${cardId}`, payload);
+    const response = await apiService.patch(`/learning/flashcard/progress/${cardId}`, payload);
     return response.data;
   },
 };

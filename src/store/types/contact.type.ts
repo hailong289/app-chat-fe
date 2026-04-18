@@ -1,4 +1,5 @@
 export interface ContactType {
+  _id: string;
   id: string;
   fullname: string;
   avatar: string | null;
