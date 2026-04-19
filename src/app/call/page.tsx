@@ -192,6 +192,7 @@ function CallPageContentInner() {
           isCameraEnabled: searchParams.get("callType") === "video",
           isSpeakerphoneEnabled: false,
           duration: 0,
+          startedAt: null,
           isSharingScreen: false,
           userIdGhimmed: "",
         },
