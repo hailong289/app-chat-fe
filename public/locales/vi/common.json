@@ -139,7 +139,8 @@
       "groupCaller": "Bạn đã bắt đầu cuộc gọi nhóm với {{count}} người khác",
       "groupReceiver": "Bạn đang nhận cuộc gọi nhóm với {{count}} người khác",
       "oneOnOneCaller": "Bạn đang gọi đến {{name}}",
-      "oneOnOneReceiver": "Bạn đang nhận cuộc gọi từ {{name}}"
+      "oneOnOneReceiver": "Bạn đang nhận cuộc gọi từ {{name}}",
+      "waitingForOthers": "Đang chờ người khác tham gia..."
     },
     "labels": {
       "unknown": "Không xác định",

@@ -139,7 +139,8 @@
       "groupCaller": "You started a group call with {{count}} others",
       "groupReceiver": "You are receiving a group call with {{count}} others",
       "oneOnOneCaller": "You are calling {{name}}",
-      "oneOnOneReceiver": "You are receiving a call from {{name}}"
+      "oneOnOneReceiver": "You are receiving a call from {{name}}",
+      "waitingForOthers": "Waiting for others to join..."
     },
     "labels": {
       "unknown": "Unknown",
