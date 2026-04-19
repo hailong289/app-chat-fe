@@ -56,6 +56,7 @@ export interface CallState {
     isCameraEnabled: boolean;
     isSpeakerphoneEnabled: boolean;
     duration: number;
+    startedAt: string | null;
     isSharingScreen: boolean;
     userIdGhimmed: string;
   };

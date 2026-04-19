@@ -15,6 +15,31 @@ import useSfuCallStore from "./useSfuCallStore";
 let _openCallWindow: Window | null = null;
 let _openTauriCallLabel: string | null = null;
 
+// Single duration ticker so caller and all callees show identical elapsed time
+// derived from the server-canonical startedAt (avoids per-client drift and
+// duplicated setInterval accumulation).
+let _durationTicker: ReturnType<typeof setInterval> | null = null;
+function _startDurationTicker(set: (s: any) => void, getStartedAt: () => string | null) {
+  if (_durationTicker) clearInterval(_durationTicker);
+  const tick = () => {
+    const startedAt = getStartedAt();
+    if (!startedAt) return;
+    const seconds = Math.max(
+      0,
+      Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000),
+    );
+    set((prev: any) => ({ action: { ...prev.action, duration: seconds } }));
+  };
+  tick();
+  _durationTicker = setInterval(tick, 1000);
+}
+function _stopDurationTicker() {
+  if (_durationTicker) {
+    clearInterval(_durationTicker);
+    _durationTicker = null;
+  }
+}
+
 const CALL_ACTIVE_KEY = "appchat_call_active";
 
 function _setCallActive(callId: string) {
@@ -140,6 +165,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     isCameraEnabled: false,
     isSpeakerphoneEnabled: true,
     duration: 0,
+    startedAt: null,
     isSharingScreen: false,
     userIdGhimmed: "",
   },
@@ -355,6 +381,8 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       useP2pCallStore.getState().teardownP2p();
     }
 
+    _stopDurationTicker();
+
     set({
       status: "ended",
       roomId: null,
@@ -413,6 +441,8 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     } else {
       useP2pCallStore.getState().teardownP2p();
     }
+
+    _stopDurationTicker();
 
     set({
       status: "ended",
@@ -531,17 +561,12 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       case "member-joined":
         set({ members: payload.members });
         if (get().callMode === "sfu") {
-          // Transition the initial caller from "calling" → "accepted" and start timer
+          // Transition the initial caller from "calling" → "accepted".
+          // Duration ticker is started in updateCallState at "calling" using the
+          // canonical startedAt from BE so all clients stay in sync.
           if (get().status === "calling") {
-            set({ status: "accepted", action: { ...get().action, duration: 0 } });
+            set({ status: "accepted" });
             Helpers.updateURLParams("status", "accepted");
-            const interval = setInterval(() => {
-              set((prev) => ({
-                ...prev,
-                action: { ...prev.action, duration: prev.action.duration + 1 },
-              }));
-            }, 1000);
-            setTimeout(() => clearInterval(interval), 24 * 60 * 60 * 1000);
           }
 
           const emitGetProducers = (attempt = 0) => {
@@ -883,14 +908,8 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     const socket = state.socket;
 
     if (state.status === "accepted") {
-      set({ action: { ...get().action, duration: 0 } });
-      const interval = setInterval(() => {
-        set((prev) => ({
-          ...prev,
-          action: { ...prev.action, duration: prev.action.duration + 1 },
-        }));
-      }, 1000);
-      return () => clearInterval(interval);
+      _startDurationTicker(set, () => get().action.startedAt);
+      return () => _stopDurationTicker();
     }
 
     // Prevent status downgrade on socket reconnect
@@ -906,6 +925,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     let canonicalRoomId = state.roomId;
     let canonicalMembers: CallMember[] = state.members ?? [];
     let elapsedSeconds = 0;
+    let canonicalStartedAt: string | null = get().action.startedAt;
 
     if (state.status === "joined" && socket) {
       set((prev) => ({ ...prev, socket: state.socket }));
@@ -937,6 +957,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       }
 
       if (joinHistory?.started_at) {
+        canonicalStartedAt = joinHistory.started_at;
         elapsedSeconds = Math.max(
           0,
           Math.floor(
@@ -979,6 +1000,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
             },
             (response: any) => {
               clearTimeout(fallback);
+              if (response?.startedAt) canonicalStartedAt = response.startedAt;
               resolve(
                 response?.ok && response?.room?.room_id
                   ? response.room.room_id
@@ -1012,18 +1034,16 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
         ...prev.action,
         ...(state.action ?? {}),
         duration: elapsedSeconds,
+        startedAt: canonicalStartedAt,
       },
       ...(state.status === "joined" ? { status: "accepted" } : {}),
     }));
 
-    if (state.status === "joined") {
-      const interval = setInterval(() => {
-        set((prev) => ({
-          ...prev,
-          action: { ...prev.action, duration: prev.action.duration + 1 },
-        }));
-      }, 1000);
-      setTimeout(() => clearInterval(interval), 24 * 60 * 60 * 1000);
+    // Start the canonical duration ticker once we have a startedAt anchor.
+    // Caller hits this on "calling" (after call:request resolves with startedAt);
+    // callee hits this on "joined" (transitioned to accepted via line 1049).
+    if (canonicalStartedAt && (state.status === "joined" || state.status === "calling")) {
+      _startDurationTicker(set, () => get().action.startedAt);
     }
   },
 }));
