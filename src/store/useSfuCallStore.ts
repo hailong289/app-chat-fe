@@ -202,18 +202,13 @@ const useSfuCallStore: UseBoundStore<StoreApi<SfuStoreState>> = create<SfuStoreS
 
             set((prev) => ({ sfu: { ...prev.sfu, sendTransport: transport } }));
 
-            // Produce local stream tracks if already available
+            // Single source of truth: always route through produceLocalStream so
+            // the producers Map stays in sync. If localStream isn't ready yet,
+            // this returns early — handleCreateLocalStream will call it again
+            // after getUserMedia resolves.
             const { stream: coordinatorStream } = useCallStore.getState();
-            const freshSfu = get().sfu;
-            if (
-              coordinatorStream.localStream &&
-              freshSfu.producers.size === 0 &&
-              freshSfu.pendingProduceCallbacks.size === 0
-            ) {
-              const audioTrack = coordinatorStream.localStream.getAudioTracks()[0];
-              const videoTrack = coordinatorStream.localStream.getVideoTracks()[0];
-              if (audioTrack) await transport.produce({ track: audioTrack });
-              if (videoTrack) await transport.produce({ track: videoTrack });
+            if (coordinatorStream.localStream) {
+              await get().produceLocalStream(coordinatorStream.localStream);
             }
 
             // Create receive transport
