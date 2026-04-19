@@ -283,36 +283,6 @@ export default function BlockNoteEditorBase({
     if (editor && onEditorReady) onEditorReady(editor);
   }, [editor, onEditorReady]);
 
-  // FIX Yjs undo: y-prosemirror's yUndoPlugin stores the MODULE-LEVEL
-  // ySyncPluginKey instance in trackedOrigins. When webpack dedupes y-prosemirror
-  // imperfectly (BlockNote nested copy vs top-level copy), the runtime ySync key
-  // is a different PluginKey object than what yUndoPlugin captured — same `key`
-  // string but !==, so Set.has() fails → typing never recorded → Ctrl+Z dead.
-  // Workaround: UndoManager also checks `trackedOrigins.has(origin.constructor)`,
-  // so add the PluginKey CLASS itself — now any PluginKey instance (there's
-  // only one kind on Y.Doc updates, ySync) will match regardless of module copy.
-  useEffect(() => {
-    if (!editor) return;
-    const view = (editor as any).prosemirrorView;
-    if (!view) return;
-    const yUndoPlug = view.state.plugins.find((p: any) =>
-      String(p.key).includes("y-undo"),
-    );
-    const ySyncPlug = view.state.plugins.find((p: any) =>
-      String(p.key).includes("y-sync"),
-    );
-    if (!yUndoPlug || !ySyncPlug) return;
-    const undoState = yUndoPlug.getState(view.state);
-    const trackedOrigins: Set<unknown> | undefined =
-      undoState?.undoManager?.trackedOrigins;
-    if (!trackedOrigins) return;
-    // Add the runtime instance (cheap if same; harmless if different).
-    trackedOrigins.add(ySyncPlug.spec.key);
-    // Add the PluginKey CLASS — matches ALL PluginKey origins cross-module.
-    const PluginKeyClass = ySyncPlug.spec.key.constructor;
-    trackedOrigins.add(PluginKeyClass);
-  }, [editor]);
-
   // When BlockNoteView has children, it disables ALL default UIs.
   // We explicitly disable each default and re-add via controllers so we can
   // also include custom suggestion menus (@) and custom toolbar buttons.

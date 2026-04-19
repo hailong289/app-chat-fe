@@ -218,20 +218,10 @@ export default function DocumentEditorPage() {
     }
   };
 
-  // DEBUG: expose editor on window so we can test API in DevTools console
-  useEffect(() => {
-    if (editor) {
-      (window as any).__editor = editor;
-      console.log("[DEBUG] window.__editor set", { undo: typeof editor.undo, redo: typeof editor.redo });
-    }
-  }, [editor]);
-
   // Edit Handlers
   const handleUndo = () => {
     if (editor) {
-      console.log("[DEBUG] handleUndo called, calling editor.undo()");
-      const result = editor.undo();
-      console.log("[DEBUG] editor.undo() returned:", result);
+      editor.undo();
       editor.focus();
     }
   };
@@ -330,6 +320,11 @@ export default function DocumentEditorPage() {
       </div>
     );
   }
+
+  // TS narrowing: after hasLoadedOnceRef is true, skeleton is skipped but
+  // document could still be transiently null on re-renders. Guard to satisfy
+  // type-check and avoid crash if it ever happens post-load.
+  if (!document) return null;
 
   if (!hasAccess) {
     return (
