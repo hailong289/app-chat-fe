@@ -494,6 +494,13 @@
     "welcome": "Chào mừng đến với Chat App",
     "description": "Ứng dụng chat hiện đại giúp bạn kết nối và trò chuyện với bạn bè, đồng nghiệp một cách dễ dàng và tiện lợi."
   },
+  "notifications": {
+    "title": "Thông báo",
+    "empty": "Không có thông báo nào",
+    "markAllRead": "Đánh dấu tất cả đã đọc",
+    "remove": "Xoá thông báo",
+    "justNow": "Vừa xong"
+  },
   "call": {
     "status": {
       "ended": "Cuộc gọi đã kết thúc",

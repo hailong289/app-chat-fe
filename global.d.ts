@@ -1,2 +1,4 @@
-// Side-effect imports for CSS (global stylesheets, library styles, etc.)
+// Side-effect imports for stylesheets (global CSS, SCSS, library styles, etc.)
 declare module "*.css";
+declare module "*.scss";
+declare module "*.sass";

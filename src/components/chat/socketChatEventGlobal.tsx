@@ -8,6 +8,7 @@ import useContactStore from "@/store/useContactStore";
 import { socketEvent } from "@/types/socketEvent.type";
 import useCallStore from "@/store/useCallStore";
 import { useOnlinePresence } from "./hooks/useOnlinePresence";
+import { IncomingCallModal } from "../call/IncomingCallModal";
 
 export const SocketEventChatGlobal = () => {
   const { socket: msgSocket } = useSocket("/chat");
@@ -69,5 +70,5 @@ export const SocketEventChatGlobal = () => {
       msgSocket.off(socketEvent.UPDATE_QUIZ, handleUpdateQuiz.current);
     };
   }, [msgSocket, call]);
-  return <></>;
+  return <IncomingCallModal />;
 };
