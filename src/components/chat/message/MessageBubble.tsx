@@ -6,6 +6,7 @@ import {
   ArrowTopRightOnSquareIcon,
 } from "@heroicons/react/16/solid";
 import { LinkPreview } from "./LinkPreview";
+import { SystemMessageBubble } from "./SystemMessageBubble";
 import { extractFirstUrl } from "@/libs/url-helpers";
 import { MAX_MESSAGE_LENGTH } from "../constants/messageConstants";
 import { CallHistoryType, MessageType } from "@/store/types/message.state";
@@ -460,6 +461,12 @@ export function MessageBubble({
 
   if (msg.isDeleted) {
     return <RecalledMessageBubble isMine={isMine} />;
+  }
+
+  // System messages (member added/left, call started/ended, room renamed,
+  // ...) — rendered centered Messenger-style, no avatar / no bubble tail.
+  if (msg.type === "system") {
+    return <SystemMessageBubble msg={msg} />;
   }
 
   if (msg.type === "document") {

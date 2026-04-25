@@ -1,0 +1,187 @@
+"use client";
+
+import { useEffect } from "react";
+import {
+  Avatar,
+  Badge,
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  ScrollShadow,
+  Spinner,
+  Tooltip,
+} from "@heroui/react";
+import { BellIcon } from "@heroicons/react/24/solid";
+import {
+  CheckIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/solid";
+import { formatDistanceToNow } from "date-fns";
+import { enUS, vi } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
+import useNotificationStore from "@/store/useNotificationStore";
+
+/**
+ * Bell icon trigger + popover panel of notifications. Replaces the old
+ * full-page Notification tab — opens inline like Messenger / Facebook.
+ */
+export function NotificationDropdown() {
+  const { t, i18n } = useTranslation();
+  const {
+    notifications,
+    unreadCount,
+    isLoading,
+    fetchNotifications,
+    markAllAsRead,
+    markAsRead,
+    removeNotification,
+  } = useNotificationStore();
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const formatRelativeTime = (value: string | null) => {
+    if (!value) return t("notifications.justNow");
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return t("notifications.justNow");
+    return formatDistanceToNow(date, {
+      addSuffix: true,
+      locale: i18n.language === "en" ? enUS : vi,
+    });
+  };
+
+  return (
+    <Popover placement="right-start" offset={8}>
+      <PopoverTrigger>
+        {/* Match the sibling sidebar Button styling exactly so the icon stays
+            aligned with the others (left-anchored, same gap, same size). */}
+        <Button
+          variant="light"
+          aria-label={t("notifications.title")}
+          className="w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white dark:text-gray-100"
+        >
+          <Badge
+            color="danger"
+            content={unreadCount > 99 ? "99+" : `${Math.max(unreadCount, 0)}`}
+            isInvisible={!unreadCount}
+          >
+            <BellIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
+          </Badge>
+          <span
+            className="text-white dark:text-gray-100 truncate"
+            suppressHydrationWarning
+          >
+            {t("sidebar.notifications")}
+          </span>
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent className="p-0 w-[380px] max-w-[92vw]">
+        <div className="flex w-full flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-default-200 px-4 py-3 dark:border-default-100">
+            <h3 className="text-base font-semibold leading-tight">
+              {t("notifications.title")}
+            </h3>
+            <Tooltip content={t("notifications.markAllRead")}>
+              <Button
+                isIconOnly
+                variant="light"
+                size="sm"
+                aria-label={t("notifications.markAllRead")}
+                onPress={() => markAllAsRead()}
+                isDisabled={!unreadCount}
+              >
+                <CheckIcon className="h-5 w-5" />
+              </Button>
+            </Tooltip>
+          </div>
+
+          {/* List */}
+          <ScrollShadow className="max-h-[480px]">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <Spinner size="sm" />
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="flex items-center justify-center py-10">
+                <p className="text-sm text-foreground-500">
+                  {t("notifications.empty")}
+                </p>
+              </div>
+            ) : (
+              <ul className="flex flex-col">
+                {notifications.map((item) => (
+                  <li
+                    key={item._id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => !item.isRead && markAsRead(item._id)}
+                    onKeyDown={(e) => {
+                      if ((e.key === "Enter" || e.key === " ") && !item.isRead) {
+                        markAsRead(item._id);
+                      }
+                    }}
+                    className={`group flex items-start gap-3 border-b border-default-100 px-3 py-3 transition-colors hover:bg-default-100 dark:border-default-50 dark:hover:bg-default-50 ${
+                      !item.isRead ? "bg-primary-50/60 dark:bg-primary-900/15" : ""
+                    }`}
+                  >
+                    {item.sender?.avatar ? (
+                      <Avatar
+                        src={item.sender.avatar}
+                        size="md"
+                        className="shrink-0"
+                      />
+                    ) : (
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white">
+                        {(item.sender?.fullname || item.title || "S")
+                          .slice(0, 2)
+                          .toUpperCase()}
+                      </div>
+                    )}
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p
+                          className={`truncate text-sm font-medium ${
+                            !item.isRead ? "text-primary" : ""
+                          }`}
+                        >
+                          {item.title}
+                        </p>
+                        <span className="shrink-0 text-[11px] text-foreground-400">
+                          {formatRelativeTime(item.createdAt)}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 line-clamp-2 text-xs text-foreground-500">
+                        {item.message}
+                      </p>
+                    </div>
+
+                    <Button
+                      isIconOnly
+                      variant="light"
+                      size="sm"
+                      aria-label={t("notifications.remove")}
+                      className="opacity-0 transition-opacity group-hover:opacity-100"
+                      onPress={(e) => {
+                        // Prevent the row's onClick (markAsRead)
+                        (e as unknown as { stopPropagation?: () => void })
+                          .stopPropagation?.();
+                        removeNotification(item._id);
+                      }}
+                    >
+                      <XMarkIcon className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </ScrollShadow>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}

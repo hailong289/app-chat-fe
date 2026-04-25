@@ -10,83 +10,58 @@ import {
   UserPlusIcon,
   XCircleIcon,
 } from "@heroicons/react/16/solid";
-import { 
-  BellIcon, 
+import {
   ChatBubbleLeftRightIcon,
   RectangleStackIcon,
   ClipboardDocumentListIcon,
 } from "@heroicons/react/24/solid";
 import {
   Avatar,
-  Badge,
   Button,
   Dropdown,
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
 } from "@heroui/react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { ThemeSwitcher } from "../ThemeSwitcher";
-import { LanguageSwitcher } from "../LanguageSwitcher";
-import useNotificationStore from "@/store/useNotificationStore";
+import { ThemeSwitcher } from "../ui/ThemeSwitcher";
+import { LanguageSwitcher } from "../ui/LanguageSwitcher";
+import { NotificationDropdown } from "../notifications/NotificationDropdown";
 
 export const Header = () => {
   const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   const { logout: handleLogout, user } = useAuthStore();
-  const { isToggled, tab, setToggleState, setTab } = useCounterStore();
+  const { isToggled, setToggleState } = useCounterStore();
   const { disconnect: disconnectSocket } = useSocket("/chat");
-  const unreadCount = useNotificationStore((state) => state.unreadCount);
-  const fetchNotifications = useNotificationStore(
-    (state) => state.fetchNotifications
-  );
-
-  useEffect(() => {
-    if (!user?.id) return;
-    fetchNotifications();
-  }, [fetchNotifications, user?.id]);
 
   const changeToggle = useCallback(() => {
     setToggleState(!isToggled);
   }, [isToggled, setToggleState]);
 
+  // Each nav button navigates to its own route. No more `?tab=...` query —
+  // active state is derived from the URL path so deep links, refresh, and
+  // back navigation all stay consistent.
   const handleLink = useCallback(
-    (tabName: string, path: string = "") => {
-      if (path === "/" && tabName === "") {
-        setTab("home");
-      } else {
-        setTab(tabName);
-      }
-
-      if (path) {
-        router.push(path);
-      } else {
-        router.push(`${pathname}?tab=${tabName}`);
-      }
+    (path: string) => {
+      router.push(path);
     },
-    [pathname, router, setTab]
+    [router],
   );
 
-  const activeTab = useCallback(
-    (tabName: string) => {
-      if (
-        pathname.includes("/settings") &&
-        !searchParams.get("tab") &&
-        tabName === "settings"
-      ) {
-        return "active-menu-item";
-      }
-
-      const isActive = searchParams.get("tab") === tabName || tab === tabName;
-
+  // Active highlight from URL: exact match for `/`, startsWith for everything
+  // else (so `/settings/chat` highlights `/settings`).
+  const activeNav = useCallback(
+    (path: string) => {
+      const isActive =
+        path === "/" ? pathname === "/" : pathname.startsWith(path);
       return isActive ? "bg-default/40 dark:bg-slate-800" : "";
     },
-    [pathname, searchParams, tab]
+    [pathname],
   );
 
   const logout = useCallback(() => {
@@ -120,13 +95,13 @@ export const Header = () => {
         <div className="relative min-w-15 top-0 left-0 w-full mt-10 space-y-6 flex flex-col items-start overflow-hidden">
           <Button
             className={`
-              ${activeTab("home")}
+              ${activeNav("/")}
               w-full transition-all relative left-0 top-0 duration-300
               justify-start gap-4
               text-white dark:text-gray-100
             `}
             variant="light"
-            onPress={() => handleLink("", "/")}
+            onPress={() => handleLink("/")}
           >
             <ChatBubbleLeftRightIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
             <span className="truncate" suppressHydrationWarning>
@@ -136,13 +111,13 @@ export const Header = () => {
 
           <Button
             className={`
-              ${activeTab("contacts")}
+              ${activeNav("/contacts")}
               w-full transition-all relative left-0 top-0 duration-300
               justify-start gap-4
               text-white dark:text-gray-100
             `}
             variant="light"
-            onPress={() => handleLink("contacts", "/contacts")}
+            onPress={() => handleLink("/contacts")}
           >
             <UserPlusIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
             <span className="truncate" suppressHydrationWarning>
@@ -150,39 +125,18 @@ export const Header = () => {
             </span>
           </Button>
 
-          <Button
-            className={`
-              ${activeTab("notifications")}
-              w-full transition-all relative left-0 top-0 duration-300
-              justify-start gap-4
-            `}
-            variant="light"
-            onPress={() => handleLink("notifications")}
-          >
-            <Badge
-              color="danger"
-              content={unreadCount > 99 ? "99+" : `${Math.max(unreadCount, 0)}`}
-              isInvisible={!unreadCount}
-            >
-              <BellIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
-            </Badge>
-            <span
-              className="text-white dark:text-gray-100 truncate"
-              suppressHydrationWarning
-            >
-              {t("sidebar.notifications")}
-            </span>
-          </Button>
+          {/* Notifications — dropdown popover, không phải route riêng */}
+          <NotificationDropdown />
 
           <Button
             className={`
-              ${activeTab("documents")}
+              ${activeNav("/docs")}
               w-full transition-all relative left-0 top-0 duration-300
               justify-start gap-4
               text-white dark:text-gray-100
             `}
             variant="light"
-            onPress={() => handleLink("documents")}
+            onPress={() => handleLink("/docs")}
           >
             <BookmarkIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
             <span className="truncate" suppressHydrationWarning>
@@ -192,13 +146,13 @@ export const Header = () => {
 
           <Button
             className={`
-              ${activeTab("flash-card")}
+              ${activeNav("/flash-card")}
               w-full transition-all relative left-0 top-0 duration-300
               justify-start gap-4
               text-white dark:text-gray-100
             `}
             variant="light"
-            onPress={() => handleLink("flash-card", "/flash-card")}
+            onPress={() => handleLink("/flash-card")}
           >
             <RectangleStackIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
             <span className="truncate" suppressHydrationWarning>
@@ -208,13 +162,13 @@ export const Header = () => {
 
           <Button
             className={`
-              ${activeTab("todo")}
+              ${activeNav("/todo")}
               w-full transition-all relative left-0 top-0 duration-300
               justify-start gap-4
               text-white dark:text-gray-100
             `}
             variant="light"
-            onPress={() => handleLink("todo", "/todo")}
+            onPress={() => handleLink("/todo")}
           >
             <ClipboardDocumentListIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
             <span className="truncate" suppressHydrationWarning>
@@ -242,7 +196,7 @@ export const Header = () => {
               <DropdownItem key="profile">{t("sidebar.profile")}</DropdownItem>
               <DropdownItem
                 key="setting"
-                onPress={() => handleLink("settings")}
+                onPress={() => handleLink("/settings")}
               >
                 {t("sidebar.settings")}
               </DropdownItem>
