@@ -179,7 +179,7 @@ const Document: React.FC = () => {
 
   const expandedView = (
     <div className="h-full w-full bg-background border-r border-default-200 flex flex-col overflow-hidden relative">
-      <div className="flex items-center justify-between px-3 py-3 border-b border-default-200 bg-background h-[60px]">
+      <div className="flex items-center justify-between pl-3 pr-12 py-3 border-b border-default-200 bg-background h-[60px]">
         <div className="flex flex-col overflow-hidden">
           <h2 className="text-lg font-bold truncate">{titleText}</h2>
           <p className="text-xs text-foreground-500 truncate">

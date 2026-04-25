@@ -288,7 +288,7 @@ export default function BlockNoteEditorBase({
   // also include custom suggestion menus (@) and custom toolbar buttons.
   return (
     <div
-      className="flex flex-col gap-2"
+      className="flex flex-col gap-2 h-full flex-1"
       role="application"
       onContextMenu={(e) => {
         e.preventDefault();
@@ -301,7 +301,7 @@ export default function BlockNoteEditorBase({
         editable={editable}
         onChange={() => onChange?.(editor)}
         theme={resolvedTheme === "dark" ? "dark" : "light"}
-        className="min-h-[500px]"
+        className="flex-1 min-h-full"
         slashMenu={false}
         formattingToolbar={false}
         filePanel={false}

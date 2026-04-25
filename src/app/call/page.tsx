@@ -145,7 +145,7 @@ function CallPageContentInner() {
         socket.off("signal", onSignal.current);
       }
     };
-  }, [socket]);
+  }, [socket, callMode]);
 
   // update local and remote stream
   useEffect(() => {
@@ -192,6 +192,7 @@ function CallPageContentInner() {
           isCameraEnabled: searchParams.get("callType") === "video",
           isSpeakerphoneEnabled: false,
           duration: 0,
+          startedAt: null,
           isSharingScreen: false,
           userIdGhimmed: "",
         },
@@ -549,6 +550,17 @@ function CallPageContentInner() {
               })}
             </div>
           )
+        ) : callStatus === "accepted" && remoteStreams.size === 0 ? (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-4">
+            <Avatar
+              src={getUserInfo().avatar}
+              name={getUserInfo().fullname}
+              className="w-32 h-32 text-4xl"
+            />
+            <p className="text-gray-300 text-base">
+              {t("callPage.status.waitingForOthers")}
+            </p>
+          </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Avatar

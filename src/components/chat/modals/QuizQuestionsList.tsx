@@ -225,7 +225,7 @@ export const QuizQuestionsList = ({
             <div
               key={qIndex}
               data-index={qIndex}
-              ref={(el) => setItemRef(qIndex, el)}
+              ref={(el: HTMLDivElement | null) => setItemRef(qIndex, el)}
               style={{ minHeight: `${estimatedHeight}px` }}
               aria-hidden="true"
               className="border border-transparent"
@@ -236,7 +236,7 @@ export const QuizQuestionsList = ({
         return (
           <Card
             key={qIndex}
-            ref={(el) => setItemRef(qIndex, el)}
+            ref={(el: HTMLDivElement | null) => setItemRef(qIndex, el)}
             data-index={qIndex}
             className="border border-gray-200"
           >
