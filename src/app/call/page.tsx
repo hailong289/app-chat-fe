@@ -69,7 +69,6 @@ function CallPageContentInner() {
     members,
     roomId,
     handleCreateLocalStream,
-    acceptCall,
     updateCallState,
     eventCall,
     actionToggleTrack,
@@ -293,15 +292,11 @@ function CallPageContentInner() {
     };
   }, [handleEndCall]);
 
-  const handleAccept = () => {
-    acceptCall({
-      callId: searchParams.get("callId") || "",
-      currentUser: currentUser,
-      members: members,
-      roomId: roomId,
-      socket,
-    });
-  };
+  // Note: in-page accept button has been removed. Receivers now go through
+  // <IncomingCallModal /> in the main tab and the popup opens with
+  // `status=joined` straight away — updateCallState's joined branch handles
+  // the join flow (emit call:join → initSFU → emit signal join). No autoAccept
+  // / handleAccept is needed here.
 
   const getUserInfo = useCallback((): {
     id: string;
@@ -643,30 +638,15 @@ function CallPageContentInner() {
       </div>
 
       {/* Control buttons */}
+      {/*
+        Note: the in-page "incoming" Y/N screen has been removed — accept/reject
+        is now handled by <IncomingCallModal /> in the main tab BEFORE this
+        window opens. The popup always lands on status='joined' (or 'calling'
+        for caller / 'accepted' once member-joined arrives).
+      */}
       <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4 z-10">
-        {callStatus === "incoming" ? (
-          <>
-            <Button
-              color="danger"
-              className="rounded-full h-14 w-14 p-0"
-              onPress={handleEndCall}
-              isIconOnly
-            >
-              <PhoneXMarkIcon className="h-7 w-7" />
-            </Button>
-            <Button
-              color="success"
-              className="rounded-full h-14 w-14 p-0"
-              onPress={handleAccept}
-              isIconOnly
-            >
-              <PhoneXMarkIcon className="h-7 w-7 rotate-135" />
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              color={isMicEnabled ? "danger" : "default"}
+        <Button
+          color={isMicEnabled ? "danger" : "default"}
               className={`rounded-full h-14 w-14 p-0 backdrop-blur-sm ${
                 isMicEnabled ? "bg-primary" : "bg-white/20"
               }`}
@@ -743,8 +723,6 @@ function CallPageContentInner() {
             >
               <Cog6ToothIcon className="h-6 w-6 text-white" />
             </Button>
-          </>
-        )}
       </div>
 
       <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)}>

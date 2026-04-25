@@ -1,31 +1,30 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Home } from "../left-page/home";
-import Messages from "../left-page/messages";
 import Contacts from "../left-page/contact";
-import Notification from "../left-page/notification";
 import Document from "../left-page/document";
 import Settings from "../left-page/settings";
 import useCounterStore from "@/store/useCounterStore";
 
+/**
+ * Render the left-side panel based purely on the URL path. No more
+ * `?tab=...` query — every nav button in <Header /> navigates to its own
+ * route, which keeps deep-links / refresh / back-navigation consistent.
+ */
 export const LeftSide = () => {
-  const countState = useCounterStore((state) => state);
-  const searchParams = useSearchParams();
-  const path = usePathname();
-  const navigation = useRouter();
-  const tab =
-    searchParams.get("tab") || (path === "/" ? "home" : countState.tab);
+  const isCollapsed = useCounterStore((state) => state.collapsedSidebar);
+  const pathname = usePathname();
 
-  // Handle navigation to /docs when documents tab is selected
-  // useEffect(() => {
-  //   if (tab === "documents") {
-  //     navigation.push("/docs");
-  //   }
-  // }, [tab, navigation]);
-
-  const isCollapsed = countState.collapsedSidebar;
+  const renderPanel = () => {
+    if (pathname === "/" || pathname.startsWith("/chat")) return <Home />;
+    if (pathname.startsWith("/contacts")) return <Contacts />;
+    if (pathname.startsWith("/docs")) return <Document />;
+    if (pathname.startsWith("/settings")) return <Settings />;
+    // /flash-card, /todo, /call render their full page on the right side
+    // and don't have a dedicated left-side panel — leave the area empty.
+    return null;
+  };
 
   return (
     <div
@@ -33,19 +32,7 @@ export const LeftSide = () => {
         isCollapsed ? "items-center gap-4 py-4" : ""
       }`}
     >
-      {/* Render different components based on the tab */}
-      {path.includes("/settings") && !searchParams.get("tab") ? (
-        <Settings />
-      ) : (
-        <>
-          {tab === "home" && <Home />}
-          {tab === "messages" && <Messages />}
-          {tab === "contacts" && <Contacts />}
-          {tab === "notifications" && <Notification />}
-          {tab === "documents" && <Document />}
-          {tab === "settings" && <Settings />}
-        </>
-      )}
+      {renderPanel()}
     </div>
   );
 };

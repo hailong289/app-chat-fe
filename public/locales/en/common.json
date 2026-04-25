@@ -494,6 +494,13 @@
     "welcome": "Welcome to Chat App",
     "description": "A modern chat application that helps you connect and chat with friends and colleagues easily and conveniently."
   },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No notifications yet",
+    "markAllRead": "Mark all as read",
+    "remove": "Dismiss",
+    "justNow": "Just now"
+  },
   "call": {
     "status": {
       "ended": "Call ended",

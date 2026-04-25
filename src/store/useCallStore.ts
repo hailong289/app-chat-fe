@@ -181,6 +181,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   actionUserId: null,
   callId: null,
   answer: null,
+  incomingCall: null,
 
   // ─── Window management ────────────────────────────────────────────────────
 
@@ -242,10 +243,23 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   handleRequestCall: async (payload: any) => {
     const { roomId, members, callType, callId, callMode = "p2p", actionUserId } = payload;
 
-    const alreadyInCall =
-      (_openCallWindow && !_openCallWindow.closed) ||
-      !!_openTauriCallLabel ||
-      !!_getActiveCallId();
+    // Detect a truly active call. We can't trust localStorage in isolation —
+    // a previous popup may have crashed without clearing CALL_ACTIVE_KEY,
+    // leaving a stale callId that would block all future incoming calls.
+    // localStorage is only meaningful when there's also a live window/tauri
+    // ref OR an in-progress modal in this tab.
+    const hasOpenPopup =
+      (_openCallWindow && !_openCallWindow.closed) || !!_openTauriCallLabel;
+    const hasActiveModal = !!useCallStore.getState().incomingCall;
+    const staleClaim = !hasOpenPopup && !!_getActiveCallId();
+    if (staleClaim) {
+      console.warn(
+        "[Call] Clearing stale CALL_ACTIVE_KEY (no live popup detected)",
+      );
+      _clearCallActive();
+    }
+
+    const alreadyInCall = hasOpenPopup || hasActiveModal;
     if (alreadyInCall) {
       const socket = useCallStore.getState().socket;
       socket?.emit("call:busy", { callId, callerUserId: actionUserId });
@@ -253,27 +267,52 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       return;
     }
 
-    const claimKey = `call_handled_${callId || "unknown"}`;
-    const tryOpenWindow = () => {
-      const claimTime = Number(localStorage.getItem(claimKey) || 0);
-      if (Date.now() - claimTime < 60000) {
-        if (_openCallWindow && !_openCallWindow.closed) {
-          _openCallWindow.focus();
-        } else if (_openTauriCallLabel) {
-          void _focusTauriCallWindow();
-        }
-        return;
-      }
-      localStorage.setItem(claimKey, Date.now().toString());
-      setTimeout(() => localStorage.removeItem(claimKey), 60000);
+    console.log("[Call] Showing IncomingCallModal for", callId, payload);
 
-      const encodedMemberInfo = Helpers.enCryptUserInfo(members);
-      const callUrl = `/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${callType}&callMode=${callMode}&status=incoming&callId=${callId}`;
-      if (_isTauriRuntime()) {
-        void _openTauriCallWindow(callUrl, "appCallWindow_inc");
-        return;
-      }
+    // Show the IncomingCallModal — DON'T open the call window yet. The modal
+    // mounted at the app root listens to `incomingCall` state and renders the
+    // accept / reject UI. window.open() now fires only on accept.
+    useCallStore.getState().updateCallState({
+      incomingCall: {
+        callId,
+        roomId,
+        callType,
+        callMode,
+        members,
+        actionUserId,
+        receivedAt: Date.now(),
+      },
+    });
+  },
 
+  // ─── Incoming call modal actions ─────────────────────────────────────────
+
+  acceptIncomingCall: () => {
+    const incoming = useCallStore.getState().incomingCall;
+    if (!incoming) return;
+
+    // Re-claim window-open lock to prevent duplicate windows on rapid clicks.
+    const claimKey = `call_handled_${incoming.callId || "unknown"}`;
+    const claimTime = Number(localStorage.getItem(claimKey) || 0);
+    if (Date.now() - claimTime < 60000) {
+      if (_openCallWindow && !_openCallWindow.closed) _openCallWindow.focus();
+      else if (_openTauriCallLabel) void _focusTauriCallWindow();
+      useCallStore.getState().updateCallState({ incomingCall: null });
+      return;
+    }
+    localStorage.setItem(claimKey, Date.now().toString());
+    setTimeout(() => localStorage.removeItem(claimKey), 60000);
+
+    const encodedMemberInfo = Helpers.enCryptUserInfo(incoming.members);
+    // status=joined: user accepted via the IncomingCallModal in the parent tab,
+    // so the page can skip the in-page "You are receiving..." Y/N screen and
+    // run the join pipeline immediately. updateCallState's 'joined' branch
+    // takes over (emit call:join → initSFU → emit signal join).
+    const callUrl = `/call?roomId=${incoming.roomId}&members=${encodedMemberInfo}&callType=${incoming.callType}&callMode=${incoming.callMode}&status=joined&callId=${incoming.callId}`;
+
+    if (_isTauriRuntime()) {
+      void _openTauriCallWindow(callUrl, "appCallWindow_inc");
+    } else {
       _openCallWindow = window.open(
         callUrl,
         "appCallWindow_inc",
@@ -281,7 +320,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       );
 
       if (_openCallWindow) {
-        _setCallActive(callId || "pending");
+        _setCallActive(incoming.callId || "pending");
         const poll = setInterval(() => {
           if (!_openCallWindow || _openCallWindow.closed) {
             _clearCallActive();
@@ -290,19 +329,41 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
           }
         }, 1000);
       }
-    };
-
-    if (typeof navigator !== "undefined" && navigator.locks) {
-      navigator.locks
-        .request(claimKey, { mode: "exclusive", ifAvailable: true }, async (lock) => {
-          if (!lock) return;
-          tryOpenWindow();
-        })
-        .catch(() => tryOpenWindow());
-    } else {
-      await new Promise((resolve) => setTimeout(resolve, Math.random() * 100));
-      tryOpenWindow();
     }
+
+    useCallStore.getState().updateCallState({ incomingCall: null });
+  },
+
+  rejectIncomingCall: () => {
+    const state = useCallStore.getState();
+    const incoming = state.incomingCall;
+    if (!incoming) return;
+    const actionUserId = useAuthStore.getState().user?.id;
+    state.socket?.emit("call:end", {
+      roomId: incoming.roomId,
+      actionUserId,
+      status: "rejected",
+      callId: incoming.callId,
+    });
+    state.updateCallState({ incomingCall: null });
+  },
+
+  missIncomingCall: () => {
+    const state = useCallStore.getState();
+    const incoming = state.incomingCall;
+    if (!incoming) return;
+    const actionUserId = useAuthStore.getState().user?.id;
+    state.socket?.emit("call:end", {
+      roomId: incoming.roomId,
+      actionUserId,
+      status: "missed",
+      callId: incoming.callId,
+    });
+    state.updateCallState({ incomingCall: null });
+  },
+
+  clearIncomingCall: () => {
+    useCallStore.getState().updateCallState({ incomingCall: null });
   },
 
   // ─── Call lifecycle ───────────────────────────────────────────────────────
@@ -395,7 +456,15 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   },
 
   handleEndCall: (payload: any) => {
-    const { roomId, actionUserId, members } = payload;
+    const { roomId, actionUserId, members, callId } = payload;
+
+    // If we're showing the IncomingCallModal for this very call and the caller
+    // cancelled (or the call was ended elsewhere) → close the modal silently.
+    const incoming = get().incomingCall;
+    if (incoming && (!callId || incoming.callId === callId)) {
+      get().updateCallState({ incomingCall: null });
+    }
+
     const isCallerEnded = members.some(
       (m: CallMember) => m.is_caller && m.status === "ended",
     );

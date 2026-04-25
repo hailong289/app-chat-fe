@@ -22,6 +22,22 @@ export interface CallMember {
     | "joined"; // người nhận đã tham gia cuộc gọi
 }
 
+/**
+ * Payload kept in memory while the IncomingCallModal is showing — driven by
+ * `call:request` socket event, cleared on accept / reject / timeout.
+ */
+export interface IncomingCallPayload {
+  callId: string;
+  roomId: string;
+  callType: "audio" | "video";
+  callMode: "p2p" | "sfu";
+  members: CallMember[];
+  /** ULID of the caller — used to display the right avatar/name in the modal. */
+  actionUserId: string;
+  /** ms epoch when the request arrived — for timeout calculation. */
+  receivedAt: number;
+}
+
 export interface CallState {
   roomId: string | null;
   status:
@@ -73,6 +89,9 @@ export interface CallState {
   callId: string | null;
   answer: string | null;
 
+  /** Showing IncomingCallModal — null means modal is closed. */
+  incomingCall: IncomingCallPayload | null;
+
   // Actions
   openCall: (data: any) => void;
   endCall: (data: any) => void;
@@ -96,6 +115,14 @@ export interface CallState {
   ) => Promise<void>;
   handleEndCall: (data: any) => void;
   handleRequestCall: (data: any) => void;
+  /** User clicked "Chấp nhận" on the IncomingCallModal — opens /call window. */
+  acceptIncomingCall: () => void;
+  /** User clicked "Từ chối" on the IncomingCallModal — emits call:end status='rejected'. */
+  rejectIncomingCall: () => void;
+  /** Auto-decline after timeout — emits call:end status='missed'. */
+  missIncomingCall: () => void;
+  /** Caller cancelled before user picked up — just close the modal silently. */
+  clearIncomingCall: () => void;
   // Delegates to useP2pCallStore
   handleAcceptCall: (data: any) => void;
   handleShareScreen: (value: boolean) => Promise<void>;
