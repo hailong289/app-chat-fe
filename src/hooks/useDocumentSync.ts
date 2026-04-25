@@ -199,7 +199,10 @@ export function useDocumentSync({
 
     return () => {
       newProvider.destroy();
-      setProvider(null);
+      // Do NOT setProvider(null) here. In React Strict Mode dev double-invoke,
+      // this would flap provider null→instance→null→instance, causing BlockNote
+      // to recreate its editor and reset the Yjs UndoManager (undo stack lost).
+      // The next effect run replaces provider atomically via setProvider(new).
     };
   }, [docId, socket, ydoc, isRoomJoined]);
 

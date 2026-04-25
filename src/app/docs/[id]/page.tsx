@@ -66,6 +66,11 @@ export default function DocumentEditorPage() {
   // Create Y.Doc instance (stable reference)
   const [ydoc] = useState(() => new Doc());
 
+  // Sticky "first load complete" flag — once true, we keep the editor mounted
+  // even if isSnapshotApplied toggles during reconnects. Otherwise unmounting
+  // the editor destroys Yjs UndoManager → Ctrl+Z history is lost.
+  const hasLoadedOnceRef = useRef(false);
+
   // Use centralized document sync hook
   const { document, setDocument, usersPresence, provider, isSnapshotApplied } =
     useDocumentSync({
@@ -228,37 +233,6 @@ export default function DocumentEditorPage() {
     }
   };
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (!editor) return;
-
-      // Undo: Ctrl+Z / Cmd+Z
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        !e.shiftKey &&
-        e.key.toLowerCase() === "z"
-      ) {
-        e.preventDefault();
-        editor.undo();
-        editor.focus();
-      }
-
-      // Redo: Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y / Cmd+Y
-      if (
-        ((e.ctrlKey || e.metaKey) &&
-          e.shiftKey &&
-          e.key.toLowerCase() === "z") ||
-        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y")
-      ) {
-        e.preventDefault();
-        editor.redo();
-        editor.focus();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editor]);
 
   const handleCut = () => {
     if (editor) {
@@ -314,7 +288,11 @@ export default function DocumentEditorPage() {
     return `${base} pl-8 text-gray-500 dark:text-gray-500`;
   };
 
-  if (!document || !isSnapshotApplied) {
+  if (document && isSnapshotApplied) {
+    hasLoadedOnceRef.current = true;
+  }
+
+  if (!hasLoadedOnceRef.current && (!document || !isSnapshotApplied)) {
     return (
       <div className="h-screen w-full flex flex-col bg-gray-50 dark:bg-gray-950">
         <Navbar
@@ -343,6 +321,11 @@ export default function DocumentEditorPage() {
     );
   }
 
+  // TS narrowing: after hasLoadedOnceRef is true, skeleton is skipped but
+  // document could still be transiently null on re-renders. Guard to satisfy
+  // type-check and avoid crash if it ever happens post-load.
+  if (!document) return null;
+
   if (!hasAccess) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-950 gap-4">
@@ -362,7 +345,7 @@ export default function DocumentEditorPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-950 overflow-hidden">
       {/* Header / Navbar */}
       <Navbar
         isBordered
@@ -689,12 +672,12 @@ export default function DocumentEditorPage() {
       </Navbar>
 
       {/* Main Editor Area */}
-      <main className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 flex gap-6">
-        <Card className="flex-1 min-h-[calc(100vh-8rem)] shadow-sm border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-          <CardBody className="p-0">
-            <div className="editor-wrapper h-full min-h-[500px] p-4 sm:p-8 lg:p-12">
+      <main className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 flex gap-6 min-h-0 overflow-auto">
+        <Card className="flex-1 flex flex-col shadow-sm border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-visible">
+          <CardBody className="p-0 flex-1 overflow-visible">
+            <div className="editor-wrapper h-full flex flex-col p-4 sm:p-8 lg:p-12 pb-[60vh]">
               <DynamicEditor
-                key={`${document._id}-${provider ? "online" : "offline"}`}
+                key={document._id}
                 onEditorReady={setEditor}
                 onChange={handleEditorChange}
                 ydoc={ydoc}
