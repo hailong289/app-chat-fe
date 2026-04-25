@@ -46,7 +46,7 @@ export default class QuizzService {
    * Tạo quizz mới với AI
    */
   static generateQuizz(body: GenerateQuizzPayload) {
-    return apiService.post<ApiResponse<QuizzResponse>>("/learning/quizz", body);
+    return apiService.post<ApiResponse<QuizzResponse>>("/ai/quizz", body);
   }
 
   static createQuizz(body: CreateQuizzPayload) {

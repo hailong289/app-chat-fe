@@ -99,7 +99,7 @@ export const flashcardService = {
 
   generateFlashcard: async (payload: FormData | Record<string, unknown>): Promise<GenerateFlashcardResponse> => {
     const response = await apiService.post<{ metadata: GenerateFlashcardResponse }>(
-      "/learning/generate-flashcard",
+      "/ai/generate-flashcard",
       payload
     );
     return response.data?.metadata;
