@@ -7,6 +7,7 @@ import { MessageActions } from "./MessageActions";
 import { MessageReactions } from "./MessageReactions";
 import { ReplyPreview } from "./ReplyPreview";
 import { QuizMessageCard } from "./QuizMessageCard";
+import { SystemMessageBubble } from "./SystemMessageBubble";
 import { MessageType } from "@/store/types/message.state";
 import { ArrowPathIcon, EyeDropperIcon } from "@heroicons/react/16/solid";
 import { useTranslation } from "react-i18next";
@@ -292,6 +293,28 @@ export const MessageItem = memo(
         </div>
       );
     };
+
+    // System message — căn giữa, không avatar / không reactions / không actions.
+    // Render trực tiếp thay vì đi qua wrapper (avatar slot, alignment) bên dưới.
+    if (msg.type === "system" && !msg.isDeleted) {
+      return (
+        <div className={messageSpacing}>
+          <motion.div
+            layout
+            key={`msg-box-${msg.id}`}
+            initial={shouldAnimateThis ? { opacity: 0, y: 6 } : false}
+            animate={{ opacity: 1, y: 0 }}
+            exit={shouldAnimateThis ? { opacity: 0 } : undefined}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            <UnreadDivider />
+            <div ref={setMessageRef(msg.id)} data-mid={msg.id}>
+              <SystemMessageBubble msg={msg} />
+            </div>
+          </motion.div>
+        </div>
+      );
+    }
 
     // Quiz message — layout riêng, căn giữa
     if (msg.type === "quiz" && msg.quiz && !msg.isDeleted) {

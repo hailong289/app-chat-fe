@@ -112,6 +112,46 @@ export type MessageType = {
   summary?: MessageSummary | null;
   translation?: MessageTranslation | null;
   quiz?: QuizzResponse;
+  /** Populated by backend when msg.type === 'system' (member added/left, call started, etc.) */
+  room_event?: RoomEventType | null;
+  /** Backend fallback text for system messages — used when room_event is missing */
+  placeholder?: string;
+};
+
+export type RoomEventActor = {
+  _id: string;
+  id: string; // usr_id (ULID)
+  fullname: string;
+  avatar: string;
+};
+
+/** Structured payload of a room event linked to a system message. */
+export type RoomEventType = {
+  event_id: string;
+  event_type:
+    // member lifecycle
+    | "member.joined"
+    | "member.added"
+    | "member.left"
+    | "member.deleted"
+    | "member.create"
+    | "member.edit"
+    | "member.pinded"
+    | "member.unPinded"
+    | "member.change.role"
+    | "member.change.name"
+    | "member.change.avatar"
+    | "member.change.nickName"
+    // group call lifecycle
+    | "call.started"
+    | "call.joined"
+    | "call.left"
+    | "call.ended";
+  placeholder: string;
+  payload?: Record<string, unknown>;
+  createdAt: string;
+  actor: RoomEventActor | null;
+  targets: RoomEventActor[];
 };
 
 export interface CallHistoryType {
