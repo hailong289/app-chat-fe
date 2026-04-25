@@ -112,19 +112,13 @@ export function FlashcardConfigModal({
           );
         }
         const fileUrl = attachment.uploadedUrl || attachment.url;
-        const res = await fetch(fileUrl);
-        if (!res.ok) throw new Error("Failed to download attachment");
-        const blob = await res.blob();
-        const file = new File([blob], attachment.name || "document", {
-          type: attachment.mimeType || blob.type,
-        });
-        const formData = new FormData();
-        formData.append("card_count", String(cardCount));
-        formData.append("difficulty", String(difficulty));
-        formData.append("language", i18n.language || "vi");
-        formData.append("type", "document");
-        formData.append("file", file);
-        payload = formData;
+        payload = {
+          card_count: cardCount,
+          difficulty: difficulty,
+          language: i18n.language || "vi",
+          type: "file_url",
+          file_url: fileUrl,
+        };
       }
 
       const data = await flashcardService.generateFlashcard(payload);
