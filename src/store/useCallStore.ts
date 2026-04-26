@@ -664,6 +664,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
 
       // ── P2P: ICE candidate trickle ──
       case "candidate": {
+        console.log("Candidate", candidate);
         if (!candidate) break; // null = end-of-candidates marker
         const key = `${roomId}-${actionUserId}`;
         const iceCandidate = new RTCIceCandidate(candidate);
