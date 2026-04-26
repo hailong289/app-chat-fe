@@ -31,6 +31,7 @@ import useP2pCallStore from "@/store/useP2pCallStore";
 import useSfuCallStore from "@/store/useSfuCallStore";
 import { CallMember } from "@/store/types/call.state";
 import { useTranslation } from "react-i18next";
+import { WaitingCallBanner } from "@/components/call/WaitingCallBanner";
 
 function CallPageContentInner() {
   const router = useRouter();
@@ -121,6 +122,7 @@ function CallPageContentInner() {
       duration,
       isSharingScreen,
       userIdGhimmed,
+      screenSharerIdGhimmed,
     },
     devices,
     mode,
@@ -132,6 +134,7 @@ function CallPageContentInner() {
     actionToggleTrack,
     endCall,
     setUserIdGhimmed,
+    setScreenSharerIdGhimmed,
     getDevices,
     setDevice,
 
@@ -454,8 +457,14 @@ function CallPageContentInner() {
       // we don't break already-mounted video elements bound to it; only
       // mutate tracks in place + bump the Map ref.
       if (key) {
+        // Harvest from the RECEIVER-side transceiver Map
+        // (`remoteScreenTransceivers`), populated by `pc.ontrack` when the
+        // peer first created their screen transceiver. NOT from
+        // `screenTransceivers` — that one stores OUR sender transceivers
+        // for screens WE share, which is unrelated and (in 1-on-1 where
+        // both peers share) would collide on the same key.
         const transceiver =
-          useP2pCallStore.getState().screenTransceivers.get(key);
+          useP2pCallStore.getState().remoteScreenTransceivers.get(key);
         const track = transceiver?.receiver.track;
         if (track) {
           useCallStore.setState((prev) => {
@@ -705,6 +714,7 @@ function CallPageContentInner() {
           startedAt: null,
           isSharingScreen: false,
           userIdGhimmed: "",
+          screenSharerIdGhimmed: "",
         },
         socket: socket,
       });
@@ -926,7 +936,24 @@ function CallPageContentInner() {
     !!localScreenStream || peersSharingScreen.size > 0;
   let primaryScreenStream: MediaStream | null = null;
   let primaryScreenSharerKey: string | null = null;
-  if (localScreenStream) {
+  // Explicit screen pin wins over the default precedence. Lets the user
+  // click a peer's screen tile in the strip to swap THAT screen to main —
+  // without this, the main view would always be the first sharer (own
+  // localScreenStream when you're also sharing) regardless of click.
+  if (
+    screenSharerIdGhimmed &&
+    (screenSharerIdGhimmed === currentUserId
+      ? !!localScreenStream
+      : peersSharingScreen.has(screenSharerIdGhimmed))
+  ) {
+    if (screenSharerIdGhimmed === currentUserId) {
+      primaryScreenStream = localScreenStream;
+    } else {
+      const key = `${roomId}-${screenSharerIdGhimmed}`;
+      primaryScreenStream = remoteScreenStreams.get(key) || null;
+      primaryScreenSharerKey = key;
+    }
+  } else if (localScreenStream) {
     primaryScreenStream = localScreenStream;
   } else if (peersSharingScreen.size > 0) {
     const sharerId = Array.from(peersSharingScreen)[0];
@@ -939,21 +966,33 @@ function CallPageContentInner() {
       ? getMemberFromStreamKey(primaryScreenSharerKey)
       : null;
 
+  // PIP overlay activation: prefer pin, fall back to active screen-share.
+  // Hoisted here so the floating-local-PiP and the legacy bottom-pin strip
+  // below can suppress themselves when the overlay takes the layout over.
+  const pipPinnedKey = userIdGhimmed ? `${roomId}-${userIdGhimmed}` : null;
+  const pipPinnedStream = pipPinnedKey
+    ? remoteStreams.get(pipPinnedKey)
+    : null;
+  const isPipOverlayActive =
+    (isAnyScreenSharing && !!primaryScreenStream) || !!pipPinnedStream;
+
   return (
     <div className="bg-dark h-screen w-full relative overflow-hidden">
-      {/* Screen-share overlay. Mounts above the camera grid when active.
-          Layout (Messenger-style):
-            - Main view = screen by default. Click a strip tile to PIN that
-              camera as main; the screen drops to a strip tile labeled "Màn
-              hình". Click main again (or the screen strip tile) to revert.
-            - Strip = OTHER users' cameras only. The local user's camera is
-              shown via the existing floating PiP at the bottom-right corner
-              (no duplicate "Bạn" tile in the strip). */}
-      {isAnyScreenSharing && primaryScreenStream && (() => {
-        const pinnedKey = userIdGhimmed
-          ? `${roomId}-${userIdGhimmed}`
-          : null;
-        const pinnedStream = pinnedKey ? remoteStreams.get(pinnedKey) : null;
+      {/* Secondary incoming-call banner — fires when another caller dials
+          this user while they're already in this call. Mounted INSIDE the
+          popup window because that's where the user is most likely
+          focused; also mounted in the main window via SocketEventChatGlobal
+          so it shows up regardless. */}
+      <WaitingCallBanner />
+      {/* PIP overlay. Mounts above the grid in either of two cases:
+            (a) someone is sharing screen → main = screen, strip = cameras + screens
+            (b) user pinned a camera → main = pinned camera, strip = others
+          Pinning takes priority (per UX request: "ưu tiên giao diện pip
+          khi có ghim"). Layout is the same in both cases — only the main
+          view content differs. */}
+      {isPipOverlayActive && (() => {
+        const pinnedKey = pipPinnedKey;
+        const pinnedStream = pipPinnedStream;
         const pinnedMember = pinnedKey
           ? getMemberFromStreamKey(pinnedKey)
           : null;
@@ -1115,21 +1154,37 @@ function CallPageContentInner() {
                     );
                   })()}
 
-                  {/* Screen tile only appears when a camera is pinned as
-                      main — click to put the screen back as main. */}
-                  {showCameraAsMain && (
+                  {/* Screen tiles — show every active share so the user can
+                      switch which screen is in the main view. Skip ONLY the
+                      share currently shown as main (avoid rendering the same
+                      stream twice + identical srcObject binding).
+
+                      Own-screen-in-PIP rule: show "Bạn (màn hình)" whenever
+                      the user is sharing AND the main view is NOT showing
+                      that same screen. Two cases collapse here:
+                      (a) showCameraAsMain (camera pinned): screen is nowhere
+                          in main → render in strip.
+                      (b) screen-as-main but pinned to a peer's screen
+                          (primaryScreenStream !== localScreenStream): own
+                          screen is also not in main → render in strip.
+                      Skip only when own screen is the actual main content. */}
+                  {localScreenStream && (
+                    showCameraAsMain || primaryScreenStream !== localScreenStream
+                  ) && (
                     <div
                       className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-900 border border-white/30 cursor-pointer"
-                      onClick={() => setUserIdGhimmed("")}
+                      onClick={() =>
+                        setScreenSharerIdGhimmed(currentUserId || "")
+                      }
                     >
                       <video
                         ref={(el) => {
                           if (
                             el &&
-                            primaryScreenStream &&
-                            el.srcObject !== primaryScreenStream
+                            localScreenStream &&
+                            el.srcObject !== localScreenStream
                           ) {
-                            el.srcObject = primaryScreenStream;
+                            el.srcObject = localScreenStream;
                             el.play().catch(() => {});
                           }
                         }}
@@ -1139,10 +1194,46 @@ function CallPageContentInner() {
                         muted
                       />
                       <div className="absolute bottom-1 left-1 right-1 text-white text-[10px] font-medium px-1 py-0.5 bg-black/50 rounded truncate">
-                        Màn hình
+                        Bạn (màn hình)
                       </div>
                     </div>
                   )}
+                  {Array.from(peersSharingScreen).map((sharerId) => {
+                    const key = `${roomId}-${sharerId}`;
+                    const stream = remoteScreenStreams.get(key);
+                    if (!stream) return null;
+                    // Skip the share currently in main (when screen is main
+                    // — i.e. no camera pinned). When a camera is pinned, all
+                    // screens fall to the strip including the primary one.
+                    if (!showCameraAsMain && key === primaryScreenSharerKey) {
+                      return null;
+                    }
+                    const member = getMemberFromStreamKey(key);
+                    return (
+                      <div
+                        key={`screen-strip-${key}`}
+                        className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-900 border border-white/30 cursor-pointer"
+                        onClick={() => setScreenSharerIdGhimmed(sharerId)}
+                      >
+                        <video
+                          ref={(el) => {
+                            if (el && stream && el.srcObject !== stream) {
+                              el.srcObject = stream;
+                              el.play().catch(() => {});
+                            }
+                          }}
+                          className="w-full h-full object-cover"
+                          autoPlay
+                          playsInline
+                          muted={!isSpeakerphoneEnabled}
+                        />
+                        <div className="absolute bottom-1 left-1 right-1 text-white text-[10px] font-medium px-1 py-0.5 bg-black/50 rounded truncate">
+                          {(member?.fullname || t("callPage.labels.unknownUser")) +
+                            " (màn hình)"}
+                        </div>
+                      </div>
+                    );
+                  })}
 
                   {/* Other participants' cameras. Skip the pinned user
                       (already in main). Show avatar when their video track
@@ -1441,11 +1532,11 @@ function CallPageContentInner() {
       </div>
 
       {/* Local video (picture-in-picture) — only renders when the user's
-          camera is currently on AND we're NOT in screen-share mode. During
-          screen-share the local self-view is consolidated into the right
-          strip as the "Bạn" tile, so rendering this floating PiP would
-          duplicate the user's own video and overlap the strip. */}
-      {isCameraEnabled && localStream && remoteStreams.size > 0 && !isAnyScreenSharing && (
+          camera is currently on AND we're NOT in PIP overlay mode (active
+          on screen-share OR pin). During overlay mode the local self-view
+          is consolidated into the right strip as the "Bạn" tile, so
+          rendering this floating PiP would duplicate + overlap the strip. */}
+      {isCameraEnabled && localStream && remoteStreams.size > 0 && !isPipOverlayActive && (
         <div
           className="absolute bottom-24 right-4 w-48 h-36 rounded-lg overflow-hidden border-2 border-white shadow-lg z-20"
         >
@@ -1465,8 +1556,11 @@ function CallPageContentInner() {
         </div>
       )}
 
-      {/* Other remote streams when one is pinned */}
-      {userIdGhimmed && remoteStreams.size > 1 && (
+      {/* Other remote streams when one is pinned (legacy bottom strip).
+          Suppressed when the new PIP overlay is active — the overlay's
+          right-side strip already shows every other camera + screen tile,
+          so rendering this would just duplicate them at the bottom-left. */}
+      {userIdGhimmed && remoteStreams.size > 1 && !isPipOverlayActive && (
         <div className="absolute bottom-24 left-4 flex gap-2 z-20 overflow-x-auto max-w-[calc(100%-14rem)]">
           {Array.from(remoteStreams.entries()).map(([key, stream]) => {
             const member = getMemberFromStreamKey(key);
