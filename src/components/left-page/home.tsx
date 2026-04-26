@@ -84,40 +84,47 @@ export const Home = () => {
     [search, limit, roomState.type],
   );
 
-  // Load initial data once
+  // Load initial data once. Sequence matters for the online list:
+  //   rooms → chat partners → friends → bulk presence poll.
+  // The poll is only useful AFTER `db.contacts` knows about everyone we
+  // care about — otherwise `checkOnlineStatus` polls an empty id set and
+  // users who were already online when this tab loaded never light up
+  // (no STATUS broadcast fires for state that didn't transition).
   useEffect(() => {
-    roomState.getRoomsByType("all");
-    roomState.getRooms();
+    let cancelled = false;
+    (async () => {
+      await roomState.getRoomsByType("all");
+      await roomState.getRooms();
+      await contactState.syncChatPartners();
+      // Friends usually populate via /contacts, but the online list lives
+      // on /, so we need to seed db.contacts with friends here too.
+      await contactState.getFriends();
+      if (cancelled) return;
+      const s = socket;
+      if (s?.connected) {
+        contactState.checkOnlineStatus(s);
+      } else if (s) {
+        s.once("connect", () => contactState.checkOnlineStatus(s));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-fetch rooms on socket reconnect
+  // Re-poll on every reconnect (covers laptop wake / network blip).
   useEffect(() => {
     if (!socket) return;
-
     const handleReconnect = () => {
-      setTimeout(async () => {
-        try {
-          await roomState.getRooms(queryRoom);
-          // Request online status for all contacts
-          contactState.checkOnlineStatus(socket);
-        } catch (error) {
-          console.error("❌ [SOCKET RECONNECT] Error fetching rooms:", error);
-        }
-      }, 500);
-    };
-
-    socket.on("connect", handleReconnect);
-
-    // Initial check if socket is already connected
-    if (socket.connected) {
       contactState.checkOnlineStatus(socket);
-    }
-
+    };
+    socket.on("connect", handleReconnect);
     return () => {
       socket.off("connect", handleReconnect);
     };
-  }, [socket, queryRoom, roomState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket]);
 
   // Debounce search + query changes
   const getRooms = useRoomStore((state) => state.getRooms);
@@ -427,7 +434,25 @@ export const Home = () => {
         className="flex-1 overflow-y-auto scroll-smooth w-full shadow-[4px_0_10px_-2px_rgba(0,0,0,0.15)] bg-background"
       >
         <div className="divide-y divide-default-100 w-full">
-          {roomState.rooms.map((chat) => (
+          {roomState.rooms.map((chat) => {
+            // Online dot logic:
+            //   - Private (1-1): show the dot when the other member is online.
+            //   - Group: show the dot when ANY non-self member is online.
+            //   - Channel: skip — channels don't have a "presence" notion.
+            // Source of truth: useContactStore.onlineUserIds (Set), which is
+            // the unified presence stream maintained by socketChatEventGlobal.
+            const myUsrId = authState.user?.id;
+            const isUserOnline = contactState.isUserOnline;
+            let isRoomOnline = false;
+            if (chat.type === "private") {
+              const other = chat.members?.find((m) => m.id !== myUsrId);
+              isRoomOnline = !!other && isUserOnline(other.id);
+            } else if (chat.type === "group") {
+              isRoomOnline = !!chat.members?.some(
+                (m) => m.id !== myUsrId && isUserOnline(m.id),
+              );
+            }
+            return (
             <div
               key={chat.id}
               className={`group relative w-full cursor-pointer transition-all duration-200 hover:bg-default-100 dark:hover:bg-white/5 ${
@@ -476,6 +501,13 @@ export const Home = () => {
                     <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-0.5 shadow-sm">
                       <StarIconSolid className="w-3 h-3 text-warning" />
                     </div>
+                  )}
+                  {/* Online dot — driven by useContactStore.onlineUserIds.
+                      For private rooms reflects the other member; for groups,
+                      lights up when any non-self member is online. Skipped
+                      for channels (no presence concept). */}
+                  {isRoomOnline && (
+                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full ring-2 ring-background" />
                   )}
                 </div>
 
@@ -606,7 +638,8 @@ export const Home = () => {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
 
           <div
             ref={bottomRef}
