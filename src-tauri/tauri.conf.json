@@ -20,7 +20,15 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "dangerousRemoteDomainIpcAccess": [
+        {
+          "domain": "app-chat-fe-service-6nsanbplrq-as.a.run.app",
+          "windows": ["main"],
+          "enableTauriAPI": false,
+          "plugins": []
+        }
+      ]
     }
   },
   "bundle": {

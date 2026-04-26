@@ -40,7 +40,8 @@ ENV NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=$NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 ENV NEXT_PUBLIC_FIREBASE_VAPID_KEY=$NEXT_PUBLIC_FIREBASE_VAPID_KEY
 
 # 👇 Optional: debug env in build logs
-RUN echo "🔧 Building with NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL"
+RUN echo "🔧 Building with NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" && \
+    echo "🔧 Building with NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL"
 
 # 👇 Build Next.js (envs are available now)
 RUN npm run build
