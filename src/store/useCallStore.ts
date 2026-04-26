@@ -144,6 +144,9 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       { urls: ["stun:stun1.l.google.com:19302"] },
       { urls: ["stun:stun2.l.google.com:19302"] },
       {
+        urls: "stun:stun.relay.metered.ca:80",
+      },
+      {
         urls: "turn:openrelay.metered.ca:443",
         username: "openrelayproject",
         credential: "openrelayproject",
@@ -152,6 +155,26 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
         urls: "turn:relay1.expressturn.com:3480",
         username: "000000002072254500",
         credential: "wLpXGwPdwl1qZ1YbdZDs8gJVfJA=",
+      },
+      {
+        urls: "turn:jp.relay.metered.ca:80",
+        username: "dd552a2f5dca99f4e390e0cc",
+        credential: "/K8NuOaoQsL91LMT",
+      },
+      {
+        urls: "turn:jp.relay.metered.ca:80?transport=tcp",
+        username: "dd552a2f5dca99f4e390e0cc",
+        credential: "/K8NuOaoQsL91LMT",
+      },
+      {
+        urls: "turn:jp.relay.metered.ca:443",
+        username: "dd552a2f5dca99f4e390e0cc",
+        credential: "/K8NuOaoQsL91LMT",
+      },
+      {
+        urls: "turns:jp.relay.metered.ca:443?transport=tcp",
+        username: "dd552a2f5dca99f4e390e0cc",
+        credential: "/K8NuOaoQsL91LMT",
       },
     ],
     iceCandidatePoolSize: 10,
