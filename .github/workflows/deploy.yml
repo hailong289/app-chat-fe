@@ -136,9 +136,9 @@ jobs:
           DESKTOP_STATUS="${{ needs.build-desktop.result }}"
 
           if [ "$WEB_STATUS" == "success" ] && [ "$DESKTOP_STATUS" == "success" ]; then
-            MESSAGE="✅ Deploy thành công!\n🌐 Web: https://app-chat-fe-service-534152738497.asia-southeast1.run.app/\n🖥️ Desktop: Build Windows artifacts đã sẵn sàng tại Actions."
+            MESSAGE="✅ Deploy thành công!\n🌐 Web: https://app-chat-fe-service-dyt45erana-as.a.run.app/\n🖥️ Desktop: Build Windows artifacts đã sẵn sàng tại Actions."
           elif [ "$WEB_STATUS" == "success" ]; then
-            MESSAGE="⚠️ Web deploy thành công nhưng Desktop build thất bại!\n🌐 Web: https://app-chat-fe-service-534152738497.asia-southeast1.run.app/\n❌ Desktop: Kiểm tra tại ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            MESSAGE="⚠️ Web deploy thành công nhưng Desktop build thất bại!\n🌐 Web: https://app-chat-fe-service-dyt45erana-as.a.run.app/\n❌ Desktop: Kiểm tra tại ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           elif [ "$DESKTOP_STATUS" == "success" ]; then
             MESSAGE="⚠️ Desktop build thành công nhưng Web deploy thất bại!\n🖥️ Desktop: Artifacts đã sẵn sàng.\n❌ Web: Kiểm tra tại ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           else
