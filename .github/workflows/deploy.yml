@@ -16,10 +16,10 @@ jobs:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
       - uses: google-github-actions/setup-gcloud@v2
         with:
-          project_id: app-chat-2b616
+          project_id: project-3a90e7bd-fcfe-474a-a03
       - run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
       - run: |
-          IMAGE="asia-southeast1-docker.pkg.dev/app-chat-2b616/microservices/appchat:latest"
+          IMAGE="asia-southeast1-docker.pkg.dev/project-3a90e7bd-fcfe-474a-a03/microservices/appchat:latest"
           docker build -t $IMAGE \
             --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             --build-arg NEXT_PUBLIC_SOCKET_URL=${{ secrets.NEXT_PUBLIC_SOCKET_URL }} \
