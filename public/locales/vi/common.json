@@ -151,6 +151,13 @@
       "speaker": "Loa",
       "camera": "Camera",
       "close": "Đóng"
+    },
+    "toast": {
+      "willClose": "cuộc gọi sẽ tự đóng...",
+      "rejected": "{{name}} đã từ chối cuộc gọi",
+      "missed": "{{name}} không trả lời",
+      "left": "{{name}} đã rời cuộc gọi",
+      "joined": "{{name}} đã tham gia cuộc gọi"
     }
   },
   "chat": {

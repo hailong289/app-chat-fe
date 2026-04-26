@@ -15,6 +15,12 @@ import useSfuCallStore from "./useSfuCallStore";
 let _openCallWindow: Window | null = null;
 let _openTauriCallLabel: string | null = null;
 
+// Mutex for camera upgrade. Two rapid clicks (or a StrictMode double-invoke)
+// would otherwise fire two concurrent getUserMedia({video}) calls — one
+// captures the device, the other times out with `AbortError: Timeout
+// starting video source`. Coalesce by reusing the in-flight promise.
+let _upgradeVideoInFlight: Promise<void> | null = null;
+
 // Single duration ticker so caller and all callees show identical elapsed time
 // derived from the server-canonical startedAt (avoids per-client drift and
 // duplicated setInterval accumulation).
@@ -156,8 +162,11 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   stream: {
     localStream: null,
     remoteStreams: new Map<string, MediaStream>(),
+    localScreenStream: null,
+    remoteScreenStreams: new Map<string, MediaStream>(),
     // peerConnections removed — lives in useP2pCallStore
   },
+  peersSharingScreen: new Set<string>(),
   // sfu removed — lives in useSfuCallStore
   // pendingCandidates removed — lives in useP2pCallStore
   action: {
@@ -291,7 +300,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     const incoming = useCallStore.getState().incomingCall;
     if (!incoming) return;
 
-    // Re-claim window-open lock to prevent duplicate windows on rapid clicks.
+ 
     const claimKey = `call_handled_${incoming.callId || "unknown"}`;
     const claimTime = Number(localStorage.getItem(claimKey) || 0);
     if (Date.now() - claimTime < 60000) {
@@ -304,10 +313,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     setTimeout(() => localStorage.removeItem(claimKey), 60000);
 
     const encodedMemberInfo = Helpers.enCryptUserInfo(incoming.members);
-    // status=joined: user accepted via the IncomingCallModal in the parent tab,
-    // so the page can skip the in-page "You are receiving..." Y/N screen and
-    // run the join pipeline immediately. updateCallState's 'joined' branch
-    // takes over (emit call:join → initSFU → emit signal join).
+
     const callUrl = `/call?roomId=${incoming.roomId}&members=${encodedMemberInfo}&callType=${incoming.callType}&callMode=${incoming.callMode}&status=joined&callId=${incoming.callId}`;
 
     if (_isTauriRuntime()) {
@@ -387,8 +393,22 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       return;
     }
 
-    // P2P path — guard against duplicate invocations
-    if (get().status === "accepted") return;
+    // P2P duplicate-invocation guard. We can't rely on status === "accepted"
+    // here because updateCallState({status: "joined"}) flips the store status
+    // to "accepted" BEFORE this function runs (the localStream-await block is
+    // async). Use peerConnections — the canonical "have we already negotiated
+    // with each peer?" signal — instead.
+    const otherMembers = members
+      .map((m: CallMember) => ({
+        ...m,
+        status: m.id === currentUser.id ? "started" : m.status,
+      }))
+      .filter((m: CallMember) => m.id !== currentUser.id);
+    const existingPeers = useP2pCallStore.getState().peerConnections;
+    const allPeersAlreadyCreated =
+      otherMembers.length > 0 &&
+      otherMembers.every((m: CallMember) => existingPeers.has(`${roomId}-${m.id}`));
+    if (allPeersAlreadyCreated) return;
 
     const membersNew = members.map((m: CallMember) => ({
       ...m,
@@ -398,9 +418,6 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     Helpers.updateURLParams("status", "accepted");
     Helpers.updateURLParams("members", Helpers.enCryptUserInfo(membersNew));
 
-    const otherMembers = membersNew.filter(
-      (m: CallMember) => m.id !== currentUser.id,
-    );
     for (const member of otherMembers) {
       const pc = await get().handleCreatePeerConnection(roomId, member.id);
       const offer = await pc.createOffer();
@@ -420,11 +437,15 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     const { roomId, actionUserId, status, callId } = payload;
     const socket = get().socket;
 
-    // Stop all local tracks
+    // Stop all local tracks (camera/mic + screen-share if any)
     get().stream.localStream?.getTracks().forEach((track) => track.stop());
+    get().stream.localScreenStream?.getTracks().forEach((track) => track.stop());
     // Stop all remote tracks
     get().stream.remoteStreams.forEach((stream) => {
-      stream.getTracks().forEach((track) => track.stop());
+      stream?.getTracks().forEach((track) => track.stop());
+    });
+    get().stream.remoteScreenStreams.forEach((stream) => {
+      stream?.getTracks().forEach((track) => track.stop());
     });
 
     // Emit socket end event
@@ -450,7 +471,10 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       stream: {
         localStream: null,
         remoteStreams: new Map<string, MediaStream>(),
+        localScreenStream: null,
+        remoteScreenStreams: new Map<string, MediaStream>(),
       },
+      peersSharingScreen: new Set<string>(),
     });
     // window.close is handled by page.tsx useEffect watching callStatus
   },
@@ -465,17 +489,25 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       get().updateCallState({ incomingCall: null });
     }
 
-    const isCallerEnded = members.some(
-      (m: CallMember) => m.is_caller && m.status === "ended",
-    );
-
-    if (members.length > 2 && !isCallerEnded) {
+    // Group calls (more than 2 members) NEVER full-teardown when one
+    // person leaves — even if that person was the caller. The remaining
+    // participants stay in the call; the leaver is just removed from the
+    // grid and, if they were the last remote peer, we fall back to the
+    // "waiting for others" screen until someone joins or the local user
+    // hangs up. Full teardown is reserved for 1-on-1 calls where one
+    // peer leaving means the conversation is genuinely over.
+    if (members.length > 2) {
       // Multiple participants: only remove the user who left
       const key = `${roomId}-${actionUserId}`;
 
       const streamToRemove = get().stream.remoteStreams.get(key);
       if (streamToRemove) {
         streamToRemove.getTracks().forEach((track) => track.stop());
+      }
+      // Also drop their screen-share stream if they were sharing
+      const screenStreamToRemove = get().stream.remoteScreenStreams.get(key);
+      if (screenStreamToRemove) {
+        screenStreamToRemove.getTracks().forEach((track) => track.stop());
       }
 
       // Close P2P connection for this user (no-op for SFU)
@@ -484,24 +516,53 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
 
       const newRemoteStreams = new Map(get().stream.remoteStreams);
       newRemoteStreams.delete(key);
+      const newRemoteScreenStreams = new Map(get().stream.remoteScreenStreams);
+      newRemoteScreenStreams.delete(key);
 
       const newPeerConnections = new Map(useP2pCallStore.getState().peerConnections);
       newPeerConnections.delete(key);
-      useP2pCallStore.setState({ peerConnections: newPeerConnections });
+      const newScreenTransceivers = new Map(useP2pCallStore.getState().screenTransceivers);
+      newScreenTransceivers.delete(key);
+      useP2pCallStore.setState({
+        peerConnections: newPeerConnections,
+        screenTransceivers: newScreenTransceivers,
+      });
+
+      const newPeersSharingScreen = new Set(get().peersSharingScreen);
+      newPeersSharingScreen.delete(actionUserId);
+
+      // If the leaver was the pinned-as-main user, clear the pin —
+      // otherwise the main view would resolve to a missing remoteStreams
+      // entry and render "Loading stream..." forever.
+      const currentGhimmed = get().action.userIdGhimmed;
+      const wasPinnedLeaving = currentGhimmed === actionUserId;
 
       set({
         stream: {
           ...get().stream,
           remoteStreams: newRemoteStreams,
+          remoteScreenStreams: newRemoteScreenStreams,
         },
+        peersSharingScreen: newPeersSharingScreen,
+        ...(wasPinnedLeaving
+          ? { action: { ...get().action, userIdGhimmed: "" } }
+          : {}),
       });
+      // Intentionally NOT teardown when newRemoteStreams.size === 0 here:
+      // for group calls we want to fall back to the "waiting for others"
+      // screen so someone can rejoin. The local user can hang up
+      // explicitly via the End button.
       return;
     }
 
     // Full teardown
     get().stream.localStream?.getTracks().forEach((track) => track.stop());
+    get().stream.localScreenStream?.getTracks().forEach((track) => track.stop());
     get().stream.remoteStreams.forEach((stream) => {
-      stream.getTracks().forEach((track) => track.stop());
+      stream?.getTracks().forEach((track) => track.stop());
+    });
+    get().stream.remoteScreenStreams.forEach((stream) => {
+      stream?.getTracks().forEach((track) => track.stop());
     });
 
     // Protocol-specific teardown
@@ -519,7 +580,10 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       stream: {
         localStream: null,
         remoteStreams: new Map<string, MediaStream>(),
+        localScreenStream: null,
+        remoteScreenStreams: new Map<string, MediaStream>(),
       },
+      peersSharingScreen: new Set<string>(),
     });
     // window.close is handled by page.tsx useEffect watching callStatus
   },
@@ -568,12 +632,17 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
           return;
         }
 
-        if (pc.signalingState === "stable" && !pc.localDescription) {
-          console.error("[P2P] Cannot set remote answer: stable but no local description");
-          return;
-        }
-        if (pc.remoteDescription) {
-          console.warn("[P2P] Remote description already set, skipping");
+        // Use signalingState as the source of truth for "are we waiting for an
+        // answer?". `pc.remoteDescription` is too coarse — during renegotiation
+        // (audio→video upgrade) it was set by the previous round's answer, but
+        // signalingState correctly flipped back to "have-local-offer" when we
+        // set our new local offer. Old logic short-circuited on
+        // `pc.remoteDescription` and never applied the renegotiation answer →
+        // peers diverged on SDP and the new track never established.
+        if (pc.signalingState !== "have-local-offer") {
+          console.warn(
+            `[P2P] Skipping answer: PC not in have-local-offer (state=${pc.signalingState})`,
+          );
           await useP2pCallStore.getState().flushPendingCandidates(roomId, actionUserId);
           break;
         }
@@ -683,37 +752,78 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     if (get().stream.localStream) return;
 
     const currentState = get();
-    const constraints: MediaStreamConstraints = {
-      audio: currentState.devices.selectedAudioInput
+    // Explicit audio processing flags. When the constraint is the literal
+    // `true`, browsers default to enabling these — but as soon as we add
+    // ANY field (like deviceId) the defaults are dropped on some browsers,
+    // and the mic ends up sending raw audio that loops back through the
+    // remote speaker → mic chain → echo. Always set them ourselves so the
+    // behavior is deterministic across deviceId/no-deviceId.
+    const audioConstraint: MediaTrackConstraints = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      ...(currentState.devices.selectedAudioInput
         ? { deviceId: { exact: currentState.devices.selectedAudioInput } }
-        : true,
-      video:
-        currentState.mode === "video"
-          ? currentState.devices.selectedVideoInput
-            ? { deviceId: { exact: currentState.devices.selectedVideoInput } }
-            : true
-          : false,
+        : {}),
     };
+    const videoConstraint: MediaTrackConstraints | true =
+      currentState.devices.selectedVideoInput
+        ? { deviceId: { exact: currentState.devices.selectedVideoInput } }
+        : true;
 
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       console.error("[Call] getUserMedia not available (requires HTTPS or localhost)");
       return;
     }
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      set({ stream: { ...get().stream, localStream: stream } });
-
-      // SFU: produce tracks if sendTransport is already ready
-      if (get().callMode === "sfu") {
-        await useSfuCallStore.getState().produceLocalStream(stream);
+    // Privacy: audio calls must NOT touch the camera. `track.enabled = false`
+    // stops frames going out but the OS-level capture stays open and the
+    // hardware indicator light stays on, which users (rightly) treat as a
+    // privacy violation. So for audio mode we only request the mic; if the
+    // user later flips the camera toggle, `upgradeToVideo()` (called from
+    // `actionToggleTrack("video", true)`) captures the camera at that moment
+    // and renegotiates. Video calls still grab both tracks up-front.
+    let stream: MediaStream | null = null;
+    if (currentState.mode === "audio") {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: audioConstraint,
+        });
+      } catch (audioErr) {
+        console.error("[Call] Could not get microphone:", audioErr);
+        return;
       }
-
-      if (currentState.devices.audioInputs.length === 0) {
-        await get().getDevices();
+    } else {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: audioConstraint,
+          video: videoConstraint,
+        });
+      } catch (err) {
+        console.warn(
+          "[Call] Could not get audio+video, falling back to audio-only:",
+          err,
+        );
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: audioConstraint,
+          });
+        } catch (audioErr) {
+          console.error("[Call] Could not get microphone:", audioErr);
+          return;
+        }
       }
-    } catch (error) {
-      console.error("[Call] Error creating local stream:", error);
+    }
+
+    set({ stream: { ...get().stream, localStream: stream } });
+
+    // SFU: produce tracks if sendTransport is already ready
+    if (get().callMode === "sfu") {
+      await useSfuCallStore.getState().produceLocalStream(stream);
+    }
+
+    if (currentState.devices.audioInputs.length === 0) {
+      await get().getDevices();
     }
   },
 
@@ -722,134 +832,133 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   handleShareScreen: async (value: boolean) => {
     const currentState = get();
     const roomId = currentState.roomId;
-    const localStream = currentState.stream.localStream;
-    const mode = currentState.mode;
+    const userId = useAuthStore.getState().user?.id;
 
     if (!roomId) {
       console.error("[Call] RoomId not found");
       return;
     }
-    if (mode !== "video") {
-      console.error("[Call] Screen sharing only available in video calls");
-      return;
-    }
 
     if (value) {
+      // ── Turn ON screen share ──
+      let screenStream: MediaStream;
       try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
-          audio: true,
+          audio: false,
         });
-        const screenTrack = screenStream.getVideoTracks()[0];
-        const screenAudioTrack = screenStream.getAudioTracks()[0];
-
-        // Mix mic + system audio
-        let mixedAudioTrack: MediaStreamTrack | null = null;
-        const micTrack = localStream?.getAudioTracks()[0];
-        if (micTrack && screenAudioTrack) {
-          const audioContext = new AudioContext();
-          const destination = audioContext.createMediaStreamDestination();
-          const micSource = audioContext.createMediaStreamSource(new MediaStream([micTrack]));
-          const sysSource = audioContext.createMediaStreamSource(
-            new MediaStream([screenAudioTrack]),
-          );
-          micSource.connect(destination);
-          sysSource.connect(destination);
-          mixedAudioTrack = destination.stream.getAudioTracks()[0];
-        } else {
-          mixedAudioTrack = screenAudioTrack || micTrack || null;
-        }
-
-        // Replace tracks — delegate to protocol-specific store
-        if (get().callMode === "sfu") {
-          const sfuStore = useSfuCallStore.getState();
-          for (const producer of sfuStore.sfu.producers.values()) {
-            if (producer.closed) continue;
-            if (producer.kind === "video") {
-              await producer.replaceTrack({ track: screenTrack });
-            }
-            if (producer.kind === "audio" && mixedAudioTrack) {
-              await producer.replaceTrack({ track: mixedAudioTrack });
-            }
-          }
-        } else {
-          const replaceStream = new MediaStream([
-            ...(mixedAudioTrack ? [mixedAudioTrack] : []),
-            screenTrack,
-          ]);
-          await useP2pCallStore.getState().replaceTracksInPeers(replaceStream, "both");
-        }
-
-        screenTrack.onended = () => {
-          get().actionToggleTrack("shareScreen", false);
-        };
-
-        const newLocalStream = new MediaStream();
-        if (localStream) {
-          localStream.getAudioTracks().forEach((t) => newLocalStream.addTrack(t));
-        }
-        newLocalStream.addTrack(screenTrack);
-
+      } catch (err) {
+        // User cancelled the OS picker, or no permission. Reset flag silently.
+        console.warn("[Call] Screen capture aborted:", err);
         set((prev) => ({
-          ...prev,
-          stream: { ...prev.stream, localStream: newLocalStream },
-          action: { ...prev.action, isSharingScreen: true, isCameraEnabled: false },
+          action: { ...prev.action, isSharingScreen: false },
         }));
+        return;
+      }
 
+      const screenTrack = screenStream.getVideoTracks()[0];
+      if (!screenTrack) {
+        console.error("[Call] No video track from getDisplayMedia");
+        return;
+      }
+
+      // Auto-stop when the user clicks the browser's "Stop sharing" button.
+      screenTrack.onended = () => {
+        void get().actionToggleTrack("shareScreen", false);
+      };
+
+      // Update local state first so the sender's own UI flips into
+      // screen-share layout immediately.
+      set((prev) => ({
+        stream: { ...prev.stream, localScreenStream: screenStream },
+        peersSharingScreen: userId
+          ? new Set([...prev.peersSharingScreen, userId])
+          : prev.peersSharingScreen,
+        action: { ...prev.action, isSharingScreen: true },
+      }));
+
+      // Publish + notify, in protocol-specific order:
+      //
+      // P2P: emit `call:share-screen` BEFORE the renegotiation. The
+      // renegotiation path (`replaceScreenTrackInPeers`) emits a
+      // `call:accepted` with renegotiate=true. Both events go through the
+      // same Socket.IO connection (FIFO at the TCP level), and the BE
+      // handler for share-screen is a thin relay while handleAccept makes
+      // a gRPC call. So as long as we emit share-screen first, the receiver
+      // is guaranteed to see it before the renegotiated offer arrives,
+      // populating `peersSharingScreen` so `pc.ontrack` correctly routes
+      // the new video track to remoteScreenStreams (not remoteStreams).
+      //
+      // SFU: emit AFTER produce because we need the producer id in the
+      // payload for receiver-side routing. Race here is handled by the
+      // migration logic in onShareScreen (moves an already-consumed track
+      // from camera Map → screen Map if consume arrived first).
+      if (currentState.callMode === "sfu") {
+        const sendTransport = useSfuCallStore.getState().sfu.sendTransport;
+        let screenProducerId: string | undefined;
+        if (sendTransport && !sendTransport.closed) {
+          try {
+            const producer = await sendTransport.produce({
+              track: screenTrack,
+              appData: { source: "screen" },
+            });
+            screenProducerId = producer.id;
+            useSfuCallStore.setState((prev) => ({
+              sfu: { ...prev.sfu, screenProducer: producer },
+            }));
+          } catch (err) {
+            console.error("[Call] SFU produce screen failed:", err);
+            screenTrack.stop();
+            return;
+          }
+        }
         currentState.socket?.emit("call:share-screen", {
           roomId,
-          actionUserId: useAuthStore.getState().user?.id,
+          actionUserId: userId,
+          isSharing: true,
+          screenProducerId,
+        });
+      } else {
+        currentState.socket?.emit("call:share-screen", {
+          roomId,
+          actionUserId: userId,
           isSharing: true,
         });
-      } catch (err) {
-        console.error("[Call] User cancelled screen share or error:", err);
-        set((prev) => ({
-          ...prev,
-          action: { ...prev.action, isSharingScreen: false },
-        }));
+        await useP2pCallStore.getState().replaceScreenTrackInPeers(screenTrack);
       }
     } else {
-      // Restore camera
-      try {
-        const cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-        const cameraTrack = cameraStream.getVideoTracks()[0];
-        const micTrack = cameraStream.getAudioTracks()[0];
-
-        // Replace tracks — delegate to protocol-specific store
-        if (get().callMode === "sfu") {
-          await useSfuCallStore.getState().replaceTracksInProducers(cameraStream);
-        } else {
-          await useP2pCallStore.getState().replaceTracksInPeers(cameraStream, "both");
+      // ── Turn OFF screen share ──
+      if (currentState.callMode === "sfu") {
+        const screenProducer = useSfuCallStore.getState().sfu.screenProducer;
+        if (screenProducer && !screenProducer.closed) {
+          screenProducer.close();
         }
-
-        const currentLocalStream = get().stream.localStream;
-        currentLocalStream?.getVideoTracks().forEach((track) => {
-          if (track.label.includes("screen") || track.label.includes("Screen")) {
-            track.stop();
-          }
-        });
-
-        set((prev) => ({
-          ...prev,
-          stream: { ...prev.stream, localStream: cameraStream },
-          action: { ...prev.action, isSharingScreen: false, isCameraEnabled: true },
+        useSfuCallStore.setState((prev) => ({
+          sfu: { ...prev.sfu, screenProducer: null },
         }));
-
-        currentState.socket?.emit("call:share-screen", {
-          roomId,
-          actionUserId: useAuthStore.getState().user?.id,
-          isSharing: false,
-        });
-      } catch (err) {
-        console.error("[Call] Error reverting to camera:", err);
-        set((prev) => ({
-          ...prev,
-          action: { ...prev.action, isSharingScreen: false },
-        }));
+      } else {
+        // Drop the track from the screen transceiver (frames stop on the
+        // wire, no renegotiation, transceiver stays for next time).
+        await useP2pCallStore.getState().replaceScreenTrackInPeers(null);
       }
+
+      currentState.stream.localScreenStream?.getTracks().forEach((t) => t.stop());
+
+      set((prev) => {
+        const nextPeers = new Set(prev.peersSharingScreen);
+        if (userId) nextPeers.delete(userId);
+        return {
+          stream: { ...prev.stream, localScreenStream: null },
+          peersSharingScreen: nextPeers,
+          action: { ...prev.action, isSharingScreen: false },
+        };
+      });
+
+      currentState.socket?.emit("call:share-screen", {
+        roomId,
+        actionUserId: userId,
+        isSharing: false,
+      });
     }
   },
 
@@ -862,16 +971,150 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       return;
     }
     switch (action) {
-      case "mic":
+      case "mic": {
         localStream?.getAudioTracks().forEach((t) => { t.enabled = value; });
         set((prev) => ({ ...prev, action: { ...prev.action, isMicEnabled: value } }));
+        // Broadcast mic-state so peers can render a "mic muted" badge on
+        // this user's tile. Same pattern as `call:camera-state` —
+        // track.enabled=false at the source doesn't reliably propagate as
+        // a track event on the receiver, so the explicit signal is the
+        // only fast/correct path.
+        const { socket: micSk, roomId: micRId } = get();
+        const micUid = useAuthStore.getState().user?.id;
+        if (micSk && micRId && micUid) {
+          micSk.emit("call:mic-state", {
+            roomId: micRId,
+            actionUserId: micUid,
+            isMicOn: value,
+          });
+        }
         break;
-      case "video":
-        localStream?.getVideoTracks().forEach((t) => { t.enabled = value; });
+      }
+      case "video": {
+        // Privacy-respecting toggle:
+        //   ON  + no track → upgradeToVideo() captures camera + renegotiates.
+        //   ON  + track    → re-enable existing track (rare; only if a previous
+        //                    OFF didn't fully tear down — see below).
+        //   OFF            → STOP the track and remove it from localStream.
+        //                    `track.enabled = false` was the old behavior, but
+        //                    that only stops sending frames; the OS hardware
+        //                    capture stays open and the camera indicator light
+        //                    stays on, which users (rightly) read as a privacy
+        //                    violation. Stopping the track releases the device.
+        //                    Next ON goes through `upgradeToVideo()` again.
+        const hasVideoTrack =
+          (localStream?.getVideoTracks().length ?? 0) > 0;
+
+        if (value && !hasVideoTrack) {
+          await get().upgradeToVideo();
+          // upgradeToVideo broadcasts camera-state implicitly via mode flip;
+          // emit the explicit signal too so peers are in sync regardless.
+          const { socket: skU, roomId: rIdU } = get();
+          const uidU = useAuthStore.getState().user?.id;
+          if (skU && rIdU && uidU) {
+            skU.emit("call:camera-state", {
+              roomId: rIdU,
+              actionUserId: uidU,
+              isCameraOn: true,
+            });
+          }
+          break;
+        }
+
+        if (!value && localStream) {
+          // Stop + detach video track so the camera indicator goes off.
+          // Detach from senders (replaceTrack(null)) BEFORE stop() so the
+          // peer doesn't see a flash of black/failed frames.
+          const videoTracks = localStream.getVideoTracks();
+          if (videoTracks.length > 0) {
+            // 1. Detach from every PC sender (P2P mode — SFU pause is a TODO).
+            //    Prefer the tracked camera sender; fall back to a kind-based
+            //    search only for peers that haven't been registered yet.
+            //    Defensive screen-track exclusion: also match against the
+            //    local screen track directly so a stale `screenTransceivers`
+            //    map can't trick us into stopping the wrong sender.
+            const p2p = useP2pCallStore.getState();
+            const localScreenTrack =
+              get().stream.localScreenStream?.getVideoTracks()[0] ?? null;
+            for (const [key, pc] of p2p.peerConnections) {
+              if (pc.signalingState === "closed") continue;
+              const screenSender = p2p.screenTransceivers.get(key)?.sender;
+              const isScreenSender = (s: RTCRtpSender) =>
+                s === screenSender ||
+                (localScreenTrack !== null && s.track === localScreenTrack);
+              const tracked = p2p.cameraSenders.get(key);
+              const cameraSender =
+                tracked && pc.getSenders().includes(tracked) && !isScreenSender(tracked)
+                  ? tracked
+                  : pc
+                      .getSenders()
+                      .find((s) => s.track?.kind === "video" && !isScreenSender(s));
+              if (cameraSender) {
+                try {
+                  await cameraSender.replaceTrack(null);
+                  if (tracked !== cameraSender) {
+                    useP2pCallStore.setState((prev) => {
+                      const next = new Map(prev.cameraSenders);
+                      next.set(key, cameraSender);
+                      return { cameraSenders: next };
+                    });
+                  }
+                } catch (err) {
+                  console.warn(`[P2P] camera off: replaceTrack(null) failed for ${key}:`, err);
+                }
+              }
+            }
+            // SFU: pause ONLY the camera video producer. Both camera and
+            // screen are kind="video", so a naive `kind === "video"` filter
+            // would also pause the screen producer → the user's own screen
+            // share stops while they're still sharing it. Identify the
+            // screen producer by its dedicated `sfu.screenProducer` ref
+            // (set in handleShareScreen) and skip it.
+            if (get().callMode === "sfu") {
+              const sfuStore = useSfuCallStore.getState();
+              const ownScreen = sfuStore.sfu.screenProducer;
+              for (const producer of sfuStore.sfu.producers.values()) {
+                if (producer.kind !== "video" || producer.closed) continue;
+                if (ownScreen && producer.id === ownScreen.id) continue;
+                try {
+                  producer.pause();
+                } catch (err) {
+                  console.warn("[SFU] camera off: pause failed:", err);
+                }
+              }
+            }
+            // 2. Stop tracks → releases the OS device → indicator light off.
+            for (const t of videoTracks) {
+              try { t.stop(); } catch { /* already stopped */ }
+              localStream.removeTrack(t);
+            }
+          }
+        } else if (value && hasVideoTrack) {
+          localStream?.getVideoTracks().forEach((t) => { t.enabled = true; });
+        }
+
         set((prev) => ({ ...prev, action: { ...prev.action, isCameraEnabled: value } }));
+        // Broadcast camera-state to peers so they can swap to the avatar
+        // immediately. Relying on the receiver's `track.muted` event isn't
+        // reliable: Chrome keeps RTP flowing even after `track.enabled=false`
+        // (sends black frames), so the mute event takes 5-10s to fire if
+        // ever — the avatar UX would lag noticeably without this signal.
+        const { socket: sk, roomId: rId } = get();
+        const uid = useAuthStore.getState().user?.id;
+        if (sk && rId && uid) {
+          sk.emit("call:camera-state", {
+            roomId: rId,
+            actionUserId: uid,
+            isCameraOn: value,
+          });
+        }
         break;
+      }
       case "speaker":
-        localStream?.getAudioTracks().forEach((t) => { t.enabled = value; });
+        // Speaker toggle controls REMOTE audio playback (`muted` attr on the
+        // remote <video>/<audio> element is bound to `!isSpeakerphoneEnabled`).
+        // It must NOT touch localStream — that would mute the user's mic, not
+        // the speaker. Mic mute belongs to the "mic" case.
         set((prev) => ({
           ...prev,
           action: { ...prev.action, isSpeakerphoneEnabled: value },
@@ -885,6 +1128,225 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
 
   setUserIdGhimmed: (userId) => {
     set((prev) => ({ ...prev, action: { ...prev.action, userIdGhimmed: userId } }));
+  },
+
+  // ─── Audio → Video upgrade ────────────────────────────────────────────────
+
+  /**
+   * Add a video track to an in-progress audio-only call. Called from the
+   * "video" toggle when the localStream has no video track yet. Steps:
+   *   1. getUserMedia({ video: true }) — separate stream so we don't disturb
+   *      the existing audio track.
+   *   2. Add video track to coordinator's localStream.
+   *   3. SFU: produce the video track on the existing sendTransport (other
+   *      members auto-consume via the broadcast 'produce' event).
+   *   4. P2P: addTrack to each peer connection → renegotiation fires
+   *      `negotiationneeded` → caller creates new offer → emit 'call:answer'
+   *      via existing signaling.
+   *   5. Flip mode → 'video', flag isCameraEnabled = true.
+   */
+  upgradeToVideo: async () => {
+    // Coalesce concurrent calls. Without this, a rapid OFF→ON→OFF→ON click
+    // sequence (or a StrictMode double-invoke) fires two getUserMedia calls
+    // at once: the first claims the camera, the second times out with
+    // `AbortError: Timeout starting video source` after ~5s.
+    if (_upgradeVideoInFlight) return _upgradeVideoInFlight;
+
+    const run = async (): Promise<void> => {
+      const state = get();
+      const existingStream = state.stream.localStream;
+      if (!existingStream) {
+        console.error("[Call] upgradeToVideo: no localStream");
+        return;
+      }
+      if (existingStream.getVideoTracks().length > 0) {
+        // Already has video — toggle it on instead.
+        existingStream.getVideoTracks().forEach((t) => (t.enabled = true));
+        set((prev) => ({
+          ...prev,
+          mode: "video",
+          action: { ...prev.action, isCameraEnabled: true },
+        }));
+        return;
+      }
+
+      let videoTrack: MediaStreamTrack | null = null;
+      // Retry strategy: the OS can take 200-700ms to release the camera
+      // device after a previous track.stop() — `AbortError: Timeout starting
+      // video source` is the typical symptom. Try up to 3 times with
+      // increasing backoff. On the 2nd attempt drop the deviceId constraint
+      // (some drivers refuse the exact deviceId after a release/reacquire
+      // cycle but accept the default device fine).
+      const baseConstraints: MediaStreamConstraints = {
+        video: state.devices.selectedVideoInput
+          ? { deviceId: { exact: state.devices.selectedVideoInput } }
+          : true,
+        audio: false,
+      };
+      const attempts: Array<{ delayMs: number; constraints: MediaStreamConstraints }> = [
+        { delayMs: 0, constraints: baseConstraints },
+        { delayMs: 400, constraints: { video: true, audio: false } },
+        { delayMs: 1000, constraints: { video: true, audio: false } },
+      ];
+      let lastErr: unknown = null;
+      for (const attempt of attempts) {
+        if (attempt.delayMs > 0) {
+          await new Promise((r) => setTimeout(r, attempt.delayMs));
+        }
+        try {
+          const cameraStream = await navigator.mediaDevices.getUserMedia(
+            attempt.constraints,
+          );
+          videoTrack = cameraStream.getVideoTracks()[0];
+          if (videoTrack) break;
+        } catch (err) {
+          lastErr = err;
+          const name = (err as { name?: string })?.name;
+          // Only retry on transient device-busy errors. Permission denial
+          // (NotAllowedError / SecurityError) won't change with retry.
+          if (name !== "AbortError" && name !== "NotReadableError") break;
+          console.warn(
+            `[Call] upgradeToVideo: getUserMedia attempt failed (${name}), retrying...`,
+          );
+        }
+      }
+      if (!videoTrack) {
+        console.error("[Call] upgradeToVideo: getUserMedia failed", lastErr);
+        const name = (lastErr as { name?: string })?.name;
+        // User-facing message keyed off the error name so they know how to
+        // recover. The browser's own error doesn't surface anywhere visible.
+        const message =
+          name === "NotAllowedError" || name === "SecurityError"
+            ? "Trình duyệt đã chặn truy cập camera. Hãy cấp quyền trong cài đặt site."
+            : name === "NotFoundError" || name === "OverconstrainedError"
+            ? "Không tìm thấy camera nào trên thiết bị này."
+            : name === "NotReadableError" || name === "AbortError"
+            ? "Camera đang được ứng dụng khác sử dụng (Zoom/Teams/tab khác). Hãy đóng app đó rồi thử lại."
+            : "Không thể bật camera. Hãy thử lại sau.";
+        set((prev) => ({
+          ...prev,
+          error: message,
+          action: { ...prev.action, isCameraEnabled: false },
+        }));
+        return;
+      }
+
+      if (!videoTrack) {
+        console.error("[Call] upgradeToVideo: no video track returned");
+        return;
+      }
+
+      // 1. Add to coordinator's localStream so the local <video> picks it up.
+      existingStream.addTrack(videoTrack);
+
+      // 2. Protocol-specific publish.
+      try {
+        if (state.callMode === "sfu") {
+          // produceLocalStream guards against duplicate produce — we want to
+          // fire a fresh produce specifically for the new video track.
+          const sfuStore = useSfuCallStore.getState();
+          const sendTransport = sfuStore.sfu.sendTransport;
+          if (sendTransport && !sendTransport.closed) {
+            const producer = await sendTransport.produce({ track: videoTrack });
+            useSfuCallStore.setState((prev) => ({
+              sfu: {
+                ...prev.sfu,
+                producers: new Map([...prev.sfu.producers, [producer.id, producer]]),
+              },
+            }));
+          } else {
+            console.warn(
+              "[Call] upgradeToVideo: sendTransport not ready, video track not produced",
+            );
+          }
+        } else {
+          // P2P: prefer replaceTrack on the tracked camera sender — no
+          // renegotiation needed. The camera sender is registered in
+          // `cameraSenders` at PC creation (or in the fallback below the
+          // first time it's added), so we can find it even when its track
+          // was nulled out by a previous "camera off" toggle. Falling back
+          // to a kind-based search would fail in that case (sender.track is
+          // null) and create a duplicate video sender → SDP confusion +
+          // remote camera not displaying. The screen sender (when sharing)
+          // is excluded explicitly.
+          const p2p = useP2pCallStore.getState();
+          const peers = p2p.peerConnections;
+          const localScreenTrack =
+            state.stream.localScreenStream?.getVideoTracks()[0] ?? null;
+          for (const [key, pc] of peers) {
+            if (pc.signalingState === "closed") continue;
+            const screenSender = p2p.screenTransceivers.get(key)?.sender;
+            const isScreenSender = (s: RTCRtpSender) =>
+              s === screenSender ||
+              (localScreenTrack !== null && s.track === localScreenTrack);
+            const tracked = p2p.cameraSenders.get(key);
+            // Validate the tracked sender is still on this PC (defensive
+            // against stale references after a re-create).
+            const cameraSender =
+              tracked && pc.getSenders().includes(tracked) && !isScreenSender(tracked)
+                ? tracked
+                : pc
+                    .getSenders()
+                    .find((s) => s.track?.kind === "video" && !isScreenSender(s));
+            try {
+              if (cameraSender) {
+                await cameraSender.replaceTrack(videoTrack);
+                // Refresh the tracked entry in case we discovered the sender
+                // via the kind-based fallback (no entry yet for this peer).
+                if (tracked !== cameraSender) {
+                  useP2pCallStore.setState((prev) => {
+                    const next = new Map(prev.cameraSenders);
+                    next.set(key, cameraSender);
+                    return { cameraSenders: next };
+                  });
+                }
+              } else {
+                // No video sender exists yet — first add for this peer
+                // (e.g. audio-only call). Renegotiation required.
+                const socket = state.socket;
+                const newSender = pc.addTrack(videoTrack, existingStream);
+                useP2pCallStore.setState((prev) => {
+                  const next = new Map(prev.cameraSenders);
+                  next.set(key, newSender);
+                  return { cameraSenders: next };
+                });
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                const targetUserId = key.split("-")[1] || key;
+                socket?.emit("call:accepted", {
+                  roomId: state.roomId,
+                  targetUserId,
+                  offer: Helpers.enCryptUserInfo(offer),
+                  callId: state.callId,
+                  members: state.members,
+                  renegotiate: true,
+                });
+              }
+            } catch (err) {
+              console.warn(
+                `[P2P] upgradeToVideo: track publish failed for ${key}:`,
+                err,
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[Call] upgradeToVideo: publish failed", err);
+      }
+
+      // 3. Flip mode + flag.
+      set((prev) => ({
+        ...prev,
+        mode: "video",
+        action: { ...prev.action, isCameraEnabled: true },
+      }));
+      Helpers.updateURLParams("callType", "video");
+    };
+
+    _upgradeVideoInFlight = run().finally(() => {
+      _upgradeVideoInFlight = null;
+    });
+    return _upgradeVideoInFlight;
   },
 
   // ─── Device management ────────────────────────────────────────────────────
@@ -938,6 +1400,11 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
 
       const constraints = {
         audio: {
+          // Re-enable echo cancellation + noise suppression + AGC after
+          // device switch, otherwise the new mic stream loses these flags.
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
           deviceId: {
             exact:
               type === "audioInput" ? deviceId : currentState.devices.selectedAudioInput,
@@ -977,6 +1444,19 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     const socket = state.socket;
 
     if (state.status === "accepted") {
+      // Apply incoming state (especially `action.startedAt` so the ticker
+      // closure has something to anchor against). Without merging here, a
+      // caller passing { status: "accepted", action: { startedAt: ... } }
+      // would have the startedAt silently dropped, leaving the ticker stuck
+      // at 00:00.
+      set((prev) => ({
+        ...prev,
+        ...state,
+        action: {
+          ...prev.action,
+          ...(state.action ?? {}),
+        },
+      }));
       _startDurationTicker(set, () => get().action.startedAt);
       return () => _stopDurationTicker();
     }
@@ -1045,7 +1525,23 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       }
 
       if (effectiveCallMode === "p2p") {
-        setTimeout(async () => {
+        // Wait for localStream to be ready before firing acceptCall — otherwise
+        // handleCreatePeerConnection runs against a null localStream and the
+        // PeerConnection is created with NO tracks → remote sees nothing.
+        // The previous setTimeout(1000) was a race: getUserMedia can take
+        // longer (mic/cam permission prompt, slow device init).
+        void (async () => {
+          const start = Date.now();
+          while (Date.now() - start < 15000) {
+            if (get().stream.localStream) break;
+            await new Promise((r) => setTimeout(r, 100));
+          }
+          if (!get().stream.localStream) {
+            console.error(
+              "[P2P] localStream not ready after 15s, aborting accept",
+            );
+            return;
+          }
           await get().acceptCall({
             roomId: canonicalRoomId,
             members: state.members,
@@ -1053,7 +1549,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
             socket: state.socket,
             callId: joinCallId,
           });
-        }, 1000);
+        })();
       }
     } else if (state.status === "calling" && socket) {
       if (effectiveCallMode === "sfu") {

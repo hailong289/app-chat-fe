@@ -151,6 +151,13 @@
       "speaker": "Speaker",
       "camera": "Camera",
       "close": "Close"
+    },
+    "toast": {
+      "willClose": "the call will close automatically...",
+      "rejected": "{{name}} declined the call",
+      "missed": "{{name}} didn't answer",
+      "left": "{{name}} left the call",
+      "joined": "{{name}} joined the call"
     }
   },
   "chat": {

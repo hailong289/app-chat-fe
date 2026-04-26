@@ -18,6 +18,8 @@ const EMPTY_SFU: SfuSessionState = {
   producers: new Map(),
   consumers: new Map(),
   pendingProduceCallbacks: new Map(),
+  screenProducer: null,
+  screenProducerIds: new Set<string>(),
 };
 
 const useSfuCallStore: UseBoundStore<StoreApi<SfuStoreState>> = create<SfuStoreState>()((set, get) => ({
@@ -314,21 +316,87 @@ const useSfuCallStore: UseBoundStore<StoreApi<SfuStoreState>> = create<SfuStoreS
             });
 
             const trackUserId = payload.userId || producerId;
+            // Tag the consumer with its source userId so selective-render
+            // (the strip-collapsed pause loop) can skip the consumer that
+            // matches the currently-pinned-as-main user — otherwise pinning
+            // a remote camera + collapsing the strip pauses the very stream
+            // the user is watching → main view goes black.
+            try {
+              (consumer as { appData: Record<string, unknown> }).appData = {
+                ...((consumer as { appData?: Record<string, unknown> }).appData ??
+                  {}),
+                userId: trackUserId,
+              };
+            } catch {
+              /* appData immutable in some mediasoup-client builds — fall back
+                 to producer-only matching in the selective-render loop. */
+            }
+            // Routing: if this producerId was flagged as a screen-share by an
+            // earlier `call:share-screen` socket event (`screenProducerIds`),
+            // put the track in `remoteScreenStreams` so the screen-share UI
+            // picks it up. Otherwise it's camera/mic — same path as before.
+            const isScreen = get().sfu.screenProducerIds.has(producerId);
 
-            // Update coordinator's remoteStreams using functional set() so that
-            // concurrent audio and video consume handlers for the same user
-            // always see the latest state. Without this, the second handler
-            // overwrites the first instead of calling addTrack() → black screen.
+            // Update coordinator's remoteStreams using functional set() so
+            // that concurrent audio and video consume handlers for the same
+            // user always see the latest state. Without functional set, the
+            // second handler overwrites the first instead of calling
+            // addTrack() → black screen on the second track.
+            //
+            // We always re-emit the Map (even when adding a track to an
+            // existing stream) so React's stream-content checks (e.g. "does
+            // this stream have a video track yet?") re-run. The stream
+            // reference itself stays the same, so DOM bindings on `srcObject`
+            // are not interrupted.
             useCallStore.setState((prevCoordinator) => {
               const key = `${prevCoordinator.roomId}-${trackUserId}`;
-              const newRemoteStreams = new Map(prevCoordinator.stream.remoteStreams);
-              const existing = newRemoteStreams.get(key);
-              if (existing) {
-                existing.addTrack(consumer.track);
-              } else {
-                newRemoteStreams.set(key, new MediaStream([consumer.track]));
+              // Stream-identity rule (mirror of the P2P pc.ontrack path):
+              // reuse the existing MediaStream object so any <video> already
+              // bound to it keeps showing fresh frames; mutate tracks in
+              // place and only bump the outer Map reference. Drop prior
+              // tracks of the same kind (a fresh consumer.track of the same
+              // kind supersedes them — happens after a remote camera off/on
+              // cycle that re-issues a consume).
+              if (isScreen) {
+                const existing = prevCoordinator.stream.remoteScreenStreams.get(key);
+                const target = existing ?? new MediaStream();
+                target.getTracks().forEach((t) => {
+                  if (t.kind === consumer.track.kind && t !== consumer.track) {
+                    target.removeTrack(t);
+                  }
+                });
+                if (!target.getTracks().includes(consumer.track)) {
+                  target.addTrack(consumer.track);
+                }
+                const newRemoteScreenStreams = new Map(
+                  prevCoordinator.stream.remoteScreenStreams,
+                );
+                newRemoteScreenStreams.set(key, target);
+                return {
+                  stream: {
+                    ...prevCoordinator.stream,
+                    remoteScreenStreams: newRemoteScreenStreams,
+                  },
+                };
               }
-              return { stream: { ...prevCoordinator.stream, remoteStreams: newRemoteStreams } };
+              const existing = prevCoordinator.stream.remoteStreams.get(key);
+              const target = existing ?? new MediaStream();
+              target.getTracks().forEach((t) => {
+                if (t.kind === consumer.track.kind && t !== consumer.track) {
+                  target.removeTrack(t);
+                }
+              });
+              if (!target.getTracks().includes(consumer.track)) {
+                target.addTrack(consumer.track);
+              }
+              const newRemoteStreams = new Map(prevCoordinator.stream.remoteStreams);
+              newRemoteStreams.set(key, target);
+              return {
+                stream: {
+                  ...prevCoordinator.stream,
+                  remoteStreams: newRemoteStreams,
+                },
+              };
             });
 
             // Update SFU store's consumer list (functional set for concurrency)

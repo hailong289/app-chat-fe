@@ -66,7 +66,18 @@ export interface CallState {
   stream: {
     localStream: MediaStream | null;
     remoteStreams: Map<string, MediaStream>;
+    /** Local screen-share capture (null when not sharing). */
+    localScreenStream: MediaStream | null;
+    /** Remote screen-share streams keyed by `${roomId}-${userId}`. */
+    remoteScreenStreams: Map<string, MediaStream>;
   };
+  /**
+   * userIds currently broadcasting their screen. Driven by `call:share-screen`
+   * socket event. UI gates "show big screen view" rendering on this — relying
+   * on stream presence alone is unreliable (P2P pre-allocates the transceiver
+   * so the receiver's screen track exists from the start, just muted).
+   */
+  peersSharingScreen: Set<string>;
   action: {
     isMicEnabled: boolean;
     isCameraEnabled: boolean;
@@ -126,6 +137,8 @@ export interface CallState {
   // Delegates to useP2pCallStore
   handleAcceptCall: (data: any) => void;
   handleShareScreen: (value: boolean) => Promise<void>;
+  /** Audio → video upgrade: add a video track mid-call and produce/renegotiate. */
+  upgradeToVideo: () => Promise<void>;
   setUserIdGhimmed: (userId: string) => void;
   getDevices: () => Promise<void>;
   setDevice: (

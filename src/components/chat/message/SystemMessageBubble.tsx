@@ -25,8 +25,14 @@ interface SystemMessageBubbleProps {
 
 type IconCmp = ComponentType<{ className?: string }>;
 
-/** Map event_type → icon. Falls back to ✨ for unknown. */
-function pickIcon(eventType: RoomEventType["event_type"] | undefined): IconCmp {
+/** Map event_type → icon. Falls back to text-based detection on the
+ *  placeholder if event_type isn't set (e.g. history loaded via gRPC where
+ *  the field can be stripped during proto serialization), then to ✨.
+ */
+function pickIcon(
+  eventType: RoomEventType["event_type"] | undefined,
+  placeholder?: string,
+): IconCmp {
   switch (eventType) {
     case "member.added":
     case "member.joined":
@@ -49,26 +55,91 @@ function pickIcon(eventType: RoomEventType["event_type"] | undefined): IconCmp {
     case "call.left":
     case "call.ended":
       return PhoneXMarkIcon;
-    default:
-      return SparklesIcon;
   }
+
+  // Text-based fallback for messages where room_event was lost in transit.
+  // Icons here mirror the explicit event_type cases above so the UI looks
+  // consistent regardless of which path the data came through.
+  if (placeholder) {
+    const t = placeholder.toLowerCase();
+    if (t.includes("cuộc gọi")) {
+      if (t.includes("kết thúc") || t.includes("rời")) return PhoneXMarkIcon;
+      if (t.includes("video")) return VideoCameraIcon;
+      return PhoneIcon;
+    }
+    if (t.includes("tham gia nhóm") || t.includes("đã thêm"))
+      return UserPlusIcon;
+    if (t.includes("rời khỏi nhóm") || t.includes("đã xoá"))
+      return UserMinusIcon;
+    if (t.includes("đổi tên")) return PencilSquareIcon;
+    if (t.includes("ảnh đại diện")) return PhotoIcon;
+    if (t.includes("biệt danh")) return UserCircleIcon;
+    if (t.includes("quyền")) return StarIcon;
+  }
+
+  return SparklesIcon;
 }
 
-/** Tailwind tone per event family (subtle accent — Messenger style stays neutral). */
-function pickAccent(eventType: RoomEventType["event_type"] | undefined) {
-  if (!eventType) return "text-gray-500";
-  if (eventType.startsWith("call.")) return "text-emerald-600";
-  if (eventType.startsWith("member.change.")) return "text-amber-600";
-  if (eventType === "member.added" || eventType === "member.joined")
-    return "text-blue-600";
-  if (eventType === "member.left" || eventType === "member.deleted")
-    return "text-rose-600";
+/** Tailwind tone per event family (subtle accent — Messenger style stays
+ *  neutral). Same fallback strategy as pickIcon: text-match the placeholder
+ *  when `eventType` is missing so colors stay consistent. */
+function pickAccent(
+  eventType: RoomEventType["event_type"] | undefined,
+  placeholder?: string,
+) {
+  if (eventType) {
+    if (eventType.startsWith("call.")) return "text-emerald-600";
+    if (eventType.startsWith("member.change.")) return "text-amber-600";
+    if (eventType === "member.added" || eventType === "member.joined")
+      return "text-blue-600";
+    if (eventType === "member.left" || eventType === "member.deleted")
+      return "text-rose-600";
+    return "text-gray-500";
+  }
+  if (placeholder) {
+    const t = placeholder.toLowerCase();
+    if (t.includes("cuộc gọi")) return "text-emerald-600";
+    if (t.includes("tham gia nhóm") || t.includes("đã thêm"))
+      return "text-blue-600";
+    if (t.includes("rời khỏi nhóm") || t.includes("đã xoá"))
+      return "text-rose-600";
+    if (
+      t.includes("đổi tên") ||
+      t.includes("ảnh đại diện") ||
+      t.includes("biệt danh") ||
+      t.includes("quyền")
+    )
+      return "text-amber-600";
+  }
   return "text-gray-500";
 }
 
 function pickIconForCall(payload: Record<string, unknown> | undefined) {
   const callType = (payload?.callType as string | undefined) ?? "audio";
   return callType === "video" ? VideoCameraIcon : PhoneIcon;
+}
+
+/**
+ * Read `payload` from a RoomEvent in a way that tolerates both wire shapes:
+ *   - Socket.IO path (writeLogRoom → emitter): `payload` is a parsed object.
+ *   - gRPC path (history fetch via MessageCore.proto): `payload` is null
+ *     (proto can't serialize untyped objects), and `payloadJson` is a JSON
+ *     string instead. Parse it lazily.
+ */
+function getEventPayload(
+  ev: RoomEventType | null | undefined,
+): Record<string, unknown> | undefined {
+  if (!ev) return undefined;
+  if (ev.payload && typeof ev.payload === "object") return ev.payload;
+  if (typeof ev.payloadJson === "string" && ev.payloadJson.length > 0) {
+    try {
+      const parsed = JSON.parse(ev.payloadJson);
+      return parsed && typeof parsed === "object" ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -142,9 +213,10 @@ function buildFragments(
         ],
       };
     case "member.change.name": {
+      const payload = getEventPayload(ev);
       const newName =
-        (ev.payload?.name as string | undefined) ??
-        (ev.payload?.new_name as string | undefined);
+        (payload?.name as string | undefined) ??
+        (payload?.new_name as string | undefined);
       return {
         actor,
         segments: newName
@@ -163,7 +235,7 @@ function buildFragments(
       };
     case "member.change.nickName": {
       const target = targets[0]?.fullname ?? "thành viên";
-      const newNick = ev.payload?.new_name as string | undefined;
+      const newNick = getEventPayload(ev)?.new_name as string | undefined;
       return {
         actor,
         segments: newNick
@@ -183,7 +255,7 @@ function buildFragments(
     }
     case "call.started": {
       const callType =
-        (ev.payload?.callType as string | undefined) === "video"
+        (getEventPayload(ev)?.callType as string | undefined) === "video"
           ? "video"
           : "thoại";
       return {
@@ -214,11 +286,12 @@ function buildFragments(
 
 export function SystemMessageBubble({ msg }: Readonly<SystemMessageBubbleProps>) {
   const ev = msg.room_event;
+  const placeholder = ev?.placeholder ?? msg.placeholder ?? msg.content;
   const Icon =
     ev?.event_type === "call.started"
-      ? pickIconForCall(ev.payload as Record<string, unknown> | undefined)
-      : pickIcon(ev?.event_type);
-  const accent = pickAccent(ev?.event_type);
+      ? pickIconForCall(getEventPayload(ev))
+      : pickIcon(ev?.event_type, placeholder);
+  const accent = pickAccent(ev?.event_type, placeholder);
   const { segments } = buildFragments(msg);
 
   return (
