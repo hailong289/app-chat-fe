@@ -14,6 +14,7 @@ const useP2pCallStore: UseBoundStore<StoreApi<P2pState>> = create<P2pState>()((s
   peerConnections: new Map(),
   pendingCandidates: new Map(),
   screenTransceivers: new Map(),
+  remoteScreenTransceivers: new Map(),
   cameraSenders: new Map(),
 
   handleCreatePeerConnection: async (roomId, actionUserId) => {
@@ -108,6 +109,26 @@ const useP2pCallStore: UseBoundStore<StoreApi<P2pState>> = create<P2pState>()((s
           (prev.stream.remoteStreams.get(key)?.getVideoTracks().length ?? 0) > 0;
 
         if (isScreenTrack) {
+          // Remember the receiver-side transceiver so subsequent share
+          // toggles (sharer reuses the same transceiver via replaceTrack)
+          // can harvest the still-live receiver.track. ontrack fires only
+          // when a new RTCRtpReceiver is created — replaceTrack on the
+          // sender does NOT trigger a new ontrack on the receiver. Without
+          // this stash, the 2nd share's track never gets re-added to
+          // `remoteScreenStreams` (which was cleared on the previous stop)
+          // → receiver sees nothing on share #2.
+          //
+          // Stored in a SEPARATE Map (`remoteScreenTransceivers`) — not in
+          // `screenTransceivers` — because in 1-on-1 P2P where both peers
+          // share, each PC has TWO screen transceivers under the same peer
+          // key (one our-side sender, one peer-side receiver). Same-Map
+          // storage would let one overwrite the other, breaking either
+          // stop-own-share or harvest-remote-share.
+          if (event.transceiver) {
+            const next = new Map(get().remoteScreenTransceivers);
+            next.set(key, event.transceiver);
+            set({ remoteScreenTransceivers: next });
+          }
           const existing = prev.stream.remoteScreenStreams.get(key);
           const target = existing ?? new MediaStream();
           if (!target.getTracks().includes(event.track)) {
@@ -372,6 +393,7 @@ const useP2pCallStore: UseBoundStore<StoreApi<P2pState>> = create<P2pState>()((s
       peerConnections: new Map(),
       pendingCandidates: new Map(),
       screenTransceivers: new Map(),
+      remoteScreenTransceivers: new Map(),
       cameraSenders: new Map(),
     });
   },
