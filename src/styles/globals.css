@@ -129,6 +129,23 @@
   }
 }
 
+/* Active speaker indicator — radiating glow ring around tile.
+   Uses box-shadow instead of transform/scale so it doesn't trigger overflow
+   on parent containers (which would surface as an unwanted scrollbar in
+   the screen-share strip). Same visual feel as IncomingCallModal's
+   animate-ping but layout-safe. */
+@keyframes speaker-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(74, 222, 128, 0);
+  }
+}
+.speaker-glow {
+  animation: speaker-glow 1.5s ease-out infinite;
+}
+
 /* BlockNote Cursor Customization - Show Avatar Only */
 .bn-cursor-label {
   display: flex !important;

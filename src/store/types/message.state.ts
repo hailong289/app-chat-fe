@@ -148,7 +148,16 @@ export type RoomEventType = {
     | "call.left"
     | "call.ended";
   placeholder: string;
+  /**
+   * Payload as a parsed object. Set by the FE after normalization. The wire
+   * shape may carry it either as `payload` (object — when the message is
+   * pushed via Socket.IO, no proto serialization) or as `payloadJson` (a
+   * JSON-encoded string — when the message is fetched via gRPC, where proto
+   * can't serialize untyped objects). Normalize at receive time so consumers
+   * (SystemMessageBubble, etc.) can always read `.payload`.
+   */
   payload?: Record<string, unknown>;
+  payloadJson?: string;
   createdAt: string;
   actor: RoomEventActor | null;
   targets: RoomEventActor[];

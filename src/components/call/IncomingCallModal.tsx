@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useRef } from "react";
 import {
   Avatar,
+  AvatarGroup,
   Button,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
 } from "@heroui/react";
+import useAuthStore from "@/store/useAuthStore";
 import {
   PhoneIcon,
   PhoneXMarkIcon,
@@ -59,6 +61,17 @@ export function IncomingCallModal() {
   // Group = more than 2 distinct members (caller + N other receivers).
   const isGroup = (incoming?.members.length ?? 0) > 2;
 
+  // For group calls, also show who else is in the room besides me + the
+  // caller. Helps the user decide whether to join (e.g. "if my whole team
+  // is on the call I'll join, otherwise I'll skip").
+  const myId = useAuthStore((s) => s.user?.id);
+  const otherParticipants = useMemo(() => {
+    if (!incoming || !isGroup) return [];
+    return incoming.members.filter(
+      (m) => m.id !== myId && m.id !== incoming.actionUserId,
+    );
+  }, [incoming, isGroup, myId]);
+
   // Ringtone: play on open, stop on close. Mute autoplay errors silently —
   // browsers may block until first user interaction (acceptable trade-off).
   useEffect(() => {
@@ -98,8 +111,6 @@ export function IncomingCallModal() {
 
   const isVideo = incoming.callType === "video";
 
-  // Display layer: groups show the room (name + avatar, fall back to caller's
-  // avatar if the room isn't loaded yet); 1-1 shows the caller directly.
   const displayName = isGroup
     ? room?.name?.trim() || "Cuộc gọi nhóm"
     : caller.fullname;
@@ -146,6 +157,21 @@ export function IncomingCallModal() {
               )}
               {subtitle}
             </p>
+
+            {/* Group call: preview the other invited participants so the
+                user knows who else will be on the call before joining. */}
+            {isGroup && otherParticipants.length > 0 && (
+              <div className="mt-3 flex flex-col items-center gap-1.5">
+                <AvatarGroup max={5} size="sm">
+                  {otherParticipants.map((m) => (
+                    <Avatar key={m.id} src={m.avatar} name={m.fullname} />
+                  ))}
+                </AvatarGroup>
+                <p className="text-xs text-default-400">
+                  {`Còn ${otherParticipants.length} người khác trong cuộc gọi`}
+                </p>
+              </div>
+            )}
           </div>
         </ModalBody>
 
