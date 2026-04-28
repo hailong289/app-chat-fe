@@ -56,6 +56,72 @@ export const FirebaseProvider = ({
     }
   }, [isBrowser]);
 
+  // Xử lý payload nhận được (dùng chung cho foreground và background)
+  const handleFcmPayload = useCallback(
+    async (payload: any) => {
+      console.log("FCM payload received", payload);
+      setMessage(payload);
+
+      if (Notification.permission !== "granted") return;
+
+      const notificationTitle =
+        payload.notification?.title || payload.data?.title || "Tin nhắn mới";
+      let chatId: string | undefined;
+      const room = payload.data?.room;
+      if (typeof room === "object" && room !== null && "id" in room) {
+        chatId = (room as { id?: string }).id;
+      } else {
+        chatId = room;
+      }
+      const url =
+        payload.data?.type === notifyType.noify_new_message
+          ? `/chat?chatId=${chatId}`
+          : "/";
+
+      if (payload.data?.type === notifyType.noify_new_message) {
+        const roomData = payload.data?.room;
+        if (typeof roomData === "object" && roomData !== null) {
+          roomState.updateRoomSocket(roomData);
+        } else {
+          console.warn("Invalid room data for updateRoomSocket:", roomData);
+        }
+        const msgData = payload.data?.message;
+        if (msgData) {
+          if (typeof msgData === "string") {
+            try {
+              messageState.upsetMsg(JSON.parse(msgData));
+            } catch (e) {
+              console.warn("Failed to parse message:", msgData, e);
+            }
+          } else {
+            messageState.upsetMsg(msgData);
+          }
+        }
+      }
+
+      const notificationOptions: NotificationOptions = {
+        body: payload.notification?.body || payload.data?.body || "",
+        icon: payload.notification?.icon || "/icons/icon-192x192.png",
+        badge: "/icons/badge-72x72.png",
+        tag: payload.data?.roomId || "default",
+        // onclick URL được xử lý bởi notificationclick trong SW
+        data: { ...payload.data, url },
+        requireInteraction: false,
+      };
+
+      // Chrome yêu cầu dùng registration.showNotification() khi có SW đang active.
+      // new Notification() từ main thread bị silent-drop trong context đó.
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        await reg.showNotification(notificationTitle, notificationOptions);
+      } catch (err) {
+        new Notification(notificationTitle, notificationOptions);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [roomState, messageState],
+  );
+
   // Đăng ký SW + lắng nghe foreground message
   useEffect(() => {
     if (!isBrowser) return;
@@ -64,116 +130,34 @@ export const FirebaseProvider = ({
       return;
     }
 
-    let unsubscribe = () => {};
+    let unsubscribeFcm = () => {};
 
     (async () => {
       try {
-        // Đăng ký service worker
-        const reg = await navigator.serviceWorker.register(
-          "/firebase-messaging-sw.js",
-          { scope: "/" },
-        );
-
-        const readyReg = await navigator.serviceWorker.ready;
-
-        // ĐĂNG KÝ FOREGROUND MESSAGE
-        unsubscribe = onMessage(messaging, (payload) => {
-          setMessage(payload);
-
-          // Hiển thị native notification khi app đang mở (tuỳ thích)
-          if (Notification.permission === "granted") {
-            const notificationTitle =
-              payload.notification?.title ||
-              payload.data?.title ||
-              "Tin nhắn mới";
-            let chatId: string | undefined;
-            const room = payload.data?.room;
-            if (typeof room === "object" && room !== null && "id" in room) {
-              chatId = (room as { id?: string }).id;
-            } else {
-              chatId = room;
-            }
-            const url =
-              payload.data?.type === notifyType.noify_new_message
-                ? `/chat?chatId=${chatId}`
-                : "/";
-            if (payload.data?.type === notifyType.noify_new_message) {
-              const roomData = payload.data?.room;
-              if (typeof roomData === "object" && roomData !== null) {
-                roomState.updateRoomSocket(roomData);
-                // Ensure message is of type MessageType before calling upsetMsg
-                const msgData = payload.data?.message;
-                if (msgData && typeof msgData === "string") {
-                  try {
-                    const parsedMsg = JSON.parse(msgData);
-                    messageState.upsetMsg(parsedMsg);
-                  } catch (e) {
-                    console.warn(
-                      "Failed to parse message string to MessageType:",
-                      msgData,
-                      e,
-                    );
-                  }
-                } else if (msgData) {
-                  // If msgData is not a string, but not MessageType, try to parse if possible
-                  if (typeof msgData === "string") {
-                    try {
-                      const parsedMsg = JSON.parse(msgData);
-                      messageState.upsetMsg(parsedMsg);
-                    } catch (e) {
-                      console.warn(
-                        "Failed to parse message string to MessageType:",
-                        msgData,
-                        e,
-                      );
-                    }
-                  } else {
-                    messageState.upsetMsg(msgData);
-                  }
-                }
-              } else {
-                // If roomData is a string, you need to fetch or construct a roomType object here.
-                if (typeof roomData === "object" && roomData !== null) {
-                  roomState.updateRoomSocket(roomData);
-                } else {
-                  console.warn(
-                    "Invalid room data for updateRoomSocket:",
-                    roomData,
-                  );
-                }
-              }
-            }
-            const notificationOptions: NotificationOptions = {
-              body: payload.notification?.body || payload.data?.body || "",
-              icon: payload.notification?.icon || "/icons/icon-192x192.png",
-              badge: "/icons/badge-72x72.png",
-              tag: payload.data?.roomId || "default",
-              data: { ...payload.data, url },
-              requireInteraction: false,
-            };
-
-            const notification = new Notification(
-              notificationTitle,
-              notificationOptions,
-            );
-            notification.onclick = () => {
-              const d = notification.data as any;
-              const url = d?.url || "/";
-              window.focus();
-              window.location.href = url;
-            };
-          }
+        await navigator.serviceWorker.register("/firebase-messaging-sw.js", {
+          scope: "/",
         });
+        await navigator.serviceWorker.ready;
+
+        // Foreground message (tab đang active)
+        unsubscribeFcm = onMessage(messaging, handleFcmPayload);
       } catch (err) {
-        console.error("❌ SW register or onMessage error:", err);
       }
     })();
 
-    // cleanup
-    return () => {
-      unsubscribe && unsubscribe();
+    // Background/unfocused: SW forwards payload qua postMessage
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === "FCM_MESSAGE") {
+        handleFcmPayload(event.data.payload);
+      }
     };
-  }, [isBrowser, messaging]);
+    navigator.serviceWorker.addEventListener("message", handleSwMessage);
+
+    return () => {
+      unsubscribeFcm();
+      navigator.serviceWorker.removeEventListener("message", handleSwMessage);
+    };
+  }, [isBrowser, messaging, handleFcmPayload]);
 
   // Hàm xin quyền và lấy token
   const requestPermission = useCallback(async () => {
