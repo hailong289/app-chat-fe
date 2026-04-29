@@ -562,6 +562,10 @@
       "unnamedRoom": "Unnamed room",
       "sendBtn": "Send",
       "sent": "Sent",
+      "joinBtn": "Join project",
+      "joinedBtn": "Joined",
+      "joinedText": "You joined",
+      "viewBtn": "View project",
       "error": "Failed to share project"
     },
     "empty": {

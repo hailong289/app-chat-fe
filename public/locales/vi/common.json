@@ -562,6 +562,10 @@
       "unnamedRoom": "Phòng chưa đặt tên",
       "sendBtn": "Gửi",
       "sent": "Đã gửi",
+      "joinBtn": "Tham gia dự án",
+      "joinedBtn": "Đã tham gia",
+      "joinedText": "Bạn đã tham gia",
+      "viewBtn": "Xem dự án",
       "error": "Không thể chia sẻ dự án"
     },
     "empty": {
