@@ -158,6 +158,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       { urls: ["stun:stun.l.google.com:19302"] },
       { urls: ["stun:stun1.l.google.com:19302"] },
       { urls: ["stun:stun2.l.google.com:19302"] },
+      { urls: ["stun:34.21.203.49:3478"] },
       {
         urls: "stun:stun.relay.metered.ca:80",
       },
