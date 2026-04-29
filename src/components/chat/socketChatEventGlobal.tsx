@@ -9,7 +9,6 @@ import { socketEvent } from "@/types/socketEvent.type";
 import useCallStore from "@/store/useCallStore";
 import { useOnlinePresence } from "./hooks/useOnlinePresence";
 import { IncomingCallModal } from "../call/IncomingCallModal";
-import { WaitingCallBanner } from "../call/WaitingCallBanner";
 
 export const SocketEventChatGlobal = () => {
   const { socket: msgSocket } = useSocket("/chat");
@@ -47,6 +46,45 @@ export const SocketEventChatGlobal = () => {
   const onCallHandoff = useRef((_payload: any) => {
     useCallStore.getState().clearIncomingCall();
   });
+
+  /**
+   * call:end → force-refresh the corresponding call message bubble in
+   * the chat list with the latest `history.members` snapshot. The BE
+   * also emits a separate MSGUPSERT for the same message after
+   * endCall, but we don't want to depend on that arriving — Mongoose
+   * write/read interleave + aggregation lookup occasionally returns
+   * stale members and the bubble gets stuck on "Ongoing" / no rejoin
+   * button. Patching directly from the call:end payload guarantees
+   * the bubble reflects reality the moment the BE confirms the leave.
+   */
+  const onCallEnd = useRef(
+    (payload: {
+      callId?: string;
+      roomId?: string;
+      history?: {
+        members?: any[];
+        ended_at?: string | null;
+      };
+      members?: any[];
+    }) => {
+      try {
+        // Find the call bubble by callId (the only stable reference
+        // back to the message — `members` array doesn't carry it).
+        // FE store keeps `call_history.call_id` on each `type: 'call'`
+        // message → patch members + ended_at on that bubble.
+        const callId = payload?.callId;
+        const roomId = payload?.roomId;
+        const members = payload?.history?.members ?? payload?.members;
+        if (!callId || !roomId || !Array.isArray(members)) return;
+        useMessageStore.getState().patchCallMessage(roomId, callId, {
+          members,
+          ended_at: payload?.history?.ended_at ?? null,
+        });
+      } catch (err) {
+        console.warn("[onCallEnd] patchCallMessage failed", err);
+      }
+    },
+  );
 
   const handleUpdateQuiz = useRef((data: { roomId: string; quizId: string; payload: Record<string, unknown> }) => {
     useMessageStore.getState().updateQuizInMessages(data.roomId, String(data.quizId), data.payload);
@@ -105,6 +143,7 @@ export const SocketEventChatGlobal = () => {
     msgSocket.on(socketEvent.STATUSTYPING, roomState.handleTypingEvent);
     call.on(socketEvent.CALL, onCallRequest.current);
     call.on(socketEvent.MSGUPSERT, onMsgUpsertCall.current);
+    call.on("call:end", onCallEnd.current);
     call.on("call:busy", onCallBusy.current);
     call.on("call:handoff", onCallHandoff.current);
     msgSocket.on(socketEvent.ROOM_REFRESH, onRoomRefresh.current);
@@ -126,6 +165,7 @@ export const SocketEventChatGlobal = () => {
       clearInterval(refreshInterval);
       call.off(socketEvent.CALL, onCallRequest.current);
       call.off(socketEvent.MSGUPSERT, onMsgUpsertCall.current);
+      call.off("call:end", onCallEnd.current);
       call.off("call:busy", onCallBusy.current);
       call.off("call:handoff", onCallHandoff.current);
       msgSocket.off(socketEvent.MSGUPSERT, messageState.upsetMsg);
@@ -139,10 +179,5 @@ export const SocketEventChatGlobal = () => {
       msgSocket.off(socketEvent.UPDATE_QUIZ, handleUpdateQuiz.current);
     };
   }, [msgSocket, call]);
-  return (
-    <>
-      <IncomingCallModal />
-      <WaitingCallBanner />
-    </>
-  );
+  return <IncomingCallModal />;
 };

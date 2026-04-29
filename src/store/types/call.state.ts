@@ -87,18 +87,17 @@ export interface CallState {
     isSharingScreen: boolean;
     userIdGhimmed: string;
     /**
-     * userId of the SCREEN-share owner currently pinned as main view.
-     * Mutually exclusive with `userIdGhimmed` (camera pin) — setting one
-     * clears the other in the action setters.
+     * userId của người đang được GHIM màn hình share lên main view.
+     * Mutually exclusive với `userIdGhimmed` (camera pin) — set một cái
+     * sẽ clear cái kia.
      *
-     * Empty string ("") = no explicit screen pin → main view falls back
-     * to the existing precedence: own localScreenStream → first remote
-     * sharer → camera grid.
+     * Empty "" = không ghim → main view fallback theo precedence cũ:
+     * own localScreenStream → first peer trong peersSharingScreen.
      *
-     * Use case: in a call where multiple people share simultaneously
-     * (e.g. you AND a peer), without this the main view would always be
-     * your own share (or the first arbitrary sharer); clicking a peer's
-     * screen tile in the strip had no way to swap it to main.
+     * Use case: user A đang share + lương tuệ anh cũng đang share.
+     * Default A thấy chính screen của A trên main. Click vào tile
+     * "lương tuệ anh (màn hình)" → screen của lương lên main, screen
+     * của A vào strip.
      */
     screenSharerIdGhimmed: string;
   };
@@ -117,17 +116,6 @@ export interface CallState {
 
   /** Showing IncomingCallModal — null means modal is closed. */
   incomingCall: IncomingCallPayload | null;
-
-  /**
-   * Showing the WaitingCallBanner — a SECONDARY incoming call that arrived
-   * while the user is already in another call. Distinct from `incomingCall`
-   * (the full IncomingCallModal for free users) because the UX is different:
-   * the banner is a small toast that lets the user accept (auto-end current
-   * + join new) or reject without disrupting the active call's popup.
-   *
-   * Null = no waiting call.
-   */
-  waitingCall: IncomingCallPayload | null;
 
   // Actions
   openCall: (data: any) => void;
@@ -158,20 +146,6 @@ export interface CallState {
   rejectIncomingCall: () => void;
   /** Auto-decline after timeout — emits call:end status='missed'. */
   missIncomingCall: () => void;
-
-  /**
-   * Accept the waiting (secondary) call: end the current active call, then
-   * promote `waitingCall` into `incomingCall` and trigger acceptIncomingCall.
-   * In the popup window, this navigates the popup to the new call URL
-   * (since the popup IS the active call's window).
-   */
-  acceptWaitingCall: () => void;
-  /** Reject the waiting call — emits call:end status='rejected'. */
-  rejectWaitingCall: () => void;
-  /** Auto-decline after 30s — emits call:end status='missed'. */
-  missWaitingCall: () => void;
-  /** Caller cancelled the secondary call — silently dismiss the banner. */
-  clearWaitingCall: () => void;
   /** Caller cancelled before user picked up — just close the modal silently. */
   clearIncomingCall: () => void;
   // Delegates to useP2pCallStore
@@ -180,11 +154,7 @@ export interface CallState {
   /** Audio → video upgrade: add a video track mid-call and produce/renegotiate. */
   upgradeToVideo: () => Promise<void>;
   setUserIdGhimmed: (userId: string) => void;
-  /**
-   * Pin a screen-share owner's screen as the main view. Pass "" to clear.
-   * Setting a non-empty value also clears `userIdGhimmed` so the two pin
-   * modes don't conflict.
-   */
+  /** Pin a screen-share owner. "" clears. Setting non-empty also clears userIdGhimmed. */
   setScreenSharerIdGhimmed: (userId: string) => void;
   getDevices: () => Promise<void>;
   setDevice: (

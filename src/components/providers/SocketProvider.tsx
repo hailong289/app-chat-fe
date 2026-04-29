@@ -10,8 +10,10 @@ import React, {
   useCallback,
 } from "react";
 import { io, Socket } from "socket.io-client";
-import { getCookie } from "cookies-next";
 import useAuthStore from "@/store/useAuthStore";
+import { subscribeTokenRefresh } from "@/libs/tokenRefresh";
+import { tokenStorage } from "@/utils/tokenStorage";
+import { isTauriRuntime } from "@/libs/helpers";
 
 /* ================= TYPES ================= */
 
@@ -43,13 +45,18 @@ function normalizeNs(ns: string) {
 }
 
 function getAccessToken(): string | null {
+  // Read from the in-memory Zustand store (mirrored to
+  // localStorage["accessToken"] by tokenStorage). The cookie used to
+  // hold the access token but post-refactor it's HttpOnly + only
+  // contains the refresh token scoped to /auth — JS can't read it,
+  // and even if it could, it doesn't carry the access token anymore.
   try {
-    const raw = getCookie("tokens");
-    if (!raw) return null;
-    const data = typeof raw === "string" ? JSON.parse(raw) : raw;
-    return data?.accessToken ?? null;
-  } catch {
+    const memoryToken = useAuthStore.getState().tokens?.accessToken ?? null;
+    if (memoryToken) return memoryToken;
+    if (isTauriRuntime()) return tokenStorage.get();
     return null;
+  } catch {
+    return isTauriRuntime() ? tokenStorage.get() : null;
   }
 }
 
@@ -77,7 +84,12 @@ export function SocketProvider({
   url?: string;
 }>) {
   const baseUrl = url || process.env.NEXT_PUBLIC_SOCKET_URL!;
-  const isLoggedOut = useAuthStore((s) => !s.tokens);
+  // Fix: `tokens` is an object literal (with null fields when logged out),
+  // so `!s.tokens` is ALWAYS false (object is truthy). Subscribe to the
+  // actual access token instead so the connect-on-login effect fires
+  // when login flips it from null → real value.
+  const accessToken = useAuthStore((s) => s.tokens?.accessToken ?? null);
+  const isLoggedOut = !accessToken;
 
   const socketsRef = useRef<Record<string, Socket>>({});
   const [socketStates, setSocketStates] = useState<
@@ -97,8 +109,19 @@ export function SocketProvider({
     []
   );
 
-  /* ========= 1️⃣ INIT SOCKET NGAY KHI MOUNT ========= */
+  /* ========= 1️⃣ INIT SOCKET (mount + post-login) =========
+   *
+   * Re-runs when `accessToken` changes so sockets are (re-)created
+   * after login. Without `accessToken` in deps, the logout flow's
+   * `disconnectAll()` empties `socketsRef.current` and the next
+   * login can never reach the "Token Ready → connect" effect because
+   * the socket map stays empty until a full page reload. The
+   * `if (socketsRef.current[ns]) return` guard inside the loop keeps
+   * this idempotent — refresh-token rotations don't recreate live
+   * sockets, only the post-logout-empty case kicks in.
+   */
   useEffect(() => {
+    if (!accessToken) return; // logged out → don't create sockets
     namespaces.forEach((rawNs) => {
       const ns = normalizeNs(rawNs);
       if (socketsRef.current[ns]) return;
@@ -235,11 +258,14 @@ export function SocketProvider({
       socketsRef.current[ns] = socket;
       updateState(ns, { status: "idle" });
     });
-  }, [namespaces, baseUrl, updateState]);
+  }, [namespaces, baseUrl, updateState, accessToken]);
 
-  /* ========= 2️⃣ TOKEN READY → CONNECT ALL ========= */
+  /* ========= 2️⃣ TOKEN READY → CONNECT / RECONNECT ALL ========= */
+  // Re-runs when `accessToken` changes (login, refresh, logout). Replaces
+  // the old `isLoggedOut`-only dep which never flipped because `tokens`
+  // was always a truthy object literal.
   useEffect(() => {
-    const token = getAccessToken();
+    const token = accessToken || getAccessToken();
     if (!token) return;
 
     Object.entries(socketsRef.current).forEach(([ns, socket]) => {
@@ -249,7 +275,39 @@ export function SocketProvider({
         socket.connect();
       }
     });
-  }, [isLoggedOut, updateState]);
+  }, [accessToken, updateState]);
+
+  /* ========= 2b️⃣ TOKEN REFRESHED → RE-HANDSHAKE SOCKETS ========= */
+  // When the access token rotates (refresh succeeded), the Socket.IO
+  // session is still using the OLD token. The BE eventually rejects the
+  // next auth-protected event with "Unauthorized" → infinite reconnect
+  // loop. Force a clean disconnect+reconnect with the new token.
+  //
+  // Triggered via the singleton in libs/tokenRefresh, NOT a Zustand
+  // selector — because the Zustand `accessToken` selector above also
+  // fires on the change, but THIS handler must run AFTER the cookie has
+  // been written (subscribers are notified post-write).
+  useEffect(() => {
+    const unsubscribe = subscribeTokenRefresh((newToken) => {
+      if (!newToken) {
+        // Refresh failed — disconnect everything; the logout flow will
+        // tear sockets down via isLoggedOut on next render too.
+        Object.values(socketsRef.current).forEach((s) => s.disconnect());
+        return;
+      }
+      Object.entries(socketsRef.current).forEach(([ns, socket]) => {
+        socket.auth = { token: newToken };
+        if (socket.connected) {
+          // Force a fresh handshake. socket.connect() alone wouldn't
+          // re-send auth on an already-open connection.
+          socket.disconnect();
+        }
+        updateState(ns, { status: "connecting" });
+        socket.connect();
+      });
+    });
+    return unsubscribe;
+  }, [updateState]);
 
   /* ========= 3️⃣ LOGOUT → DISCONNECT ========= */
   const disconnectAll = useCallback(() => {

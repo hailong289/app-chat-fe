@@ -178,7 +178,7 @@ export default function RegisterPage() {
           showError(err.message || t("auth.register.failed"));
         } else {
           success(t("auth.register.success"));
-          router.push("/"); // Redirect to home page after successful registration
+          router.push("/chat"); // Open the chat UI directly (same target as login)
         }
       },
     });

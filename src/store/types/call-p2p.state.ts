@@ -10,21 +10,21 @@ export interface P2pState {
    */
   screenTransceivers: Map<string, RTCRtpTransceiver>;
   /**
-   * REMOTE-side counterpart of `screenTransceivers`. Stores the transceiver
-   * that `pc.ontrack` fired with for the peer's screen track, so subsequent
-   * share toggles (sender uses replaceTrack on the SAME transceiver, which
-   * does NOT refire ontrack on the receiver) can harvest the still-live
-   * `receiver.track` and re-add it to remoteScreenStreams.
+   * RECEIVER-side counterpart of `screenTransceivers`. Stores the
+   * transceiver that `pc.ontrack` fired with for the peer's screen
+   * track, so subsequent share toggles (sharer reuses the same
+   * transceiver via replaceTrack — which does NOT refire ontrack on
+   * the receiver) can harvest the still-live `receiver.track` and
+   * re-add it to remoteScreenStreams.
    *
-   * Why a SEPARATE Map (instead of reusing screenTransceivers): in 1-on-1
+   * Why a SEPARATE Map (instead of reusing screenTransceivers): in
    * P2P where both peers share, each PC ends up with TWO screen
-   * transceivers — one created by our own addTransceiver (sender role)
-   * and one created by SDP from the peer's addTransceiver (receiver role).
-   * Both are under the same peer key. Storing them in the same Map
-   * collides — the second store overwrites the first, breaking either
-   * stop-own-share (Tx.sender becomes the wrong instance) or harvest-
-   * remote-share (Tx.receiver becomes the wrong instance) depending on
-   * order of operations.
+   * transceivers under the same peer key — one our-side sender (from
+   * our `addTransceiver`) and one peer-side receiver (from SDP). Same-
+   * Map storage would let one overwrite the other, breaking either
+   * stop-own-share (Tx.sender becomes the wrong instance) or
+   * harvest-remote-share (Tx.receiver becomes the wrong instance)
+   * depending on order of operations.
    */
   remoteScreenTransceivers: Map<string, RTCRtpTransceiver>;
   /**

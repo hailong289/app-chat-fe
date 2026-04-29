@@ -6,6 +6,7 @@ import {
   XMarkIcon,
   ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
+import { openWindowWithTauri } from "@/utils/openWindow";
 
 interface MediaViewerModalProps {
   isOpen: boolean;
@@ -89,7 +90,7 @@ export default function MediaViewerModal({
               isIconOnly
               variant="light"
               className="absolute top-4 right-16 z-50 text-white hover:bg-white/20"
-              onPress={() => window.open(currentFile.url, "_blank")}
+              onPress={() => void openWindowWithTauri(currentFile.url, "_blank")}
             >
               <ArrowDownTrayIcon className="w-6 h-6" />
             </Button>
@@ -137,7 +138,7 @@ export default function MediaViewerModal({
                   <p className="text-xl mb-4">Cannot preview this file type</p>
                   <Button
                     color="primary"
-                    onPress={() => window.open(currentFile.url, "_blank")}
+                    onPress={() => void openWindowWithTauri(currentFile.url, "_blank")}
                   >
                     Download to view
                   </Button>

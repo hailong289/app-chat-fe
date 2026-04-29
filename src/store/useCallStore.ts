@@ -1,7 +1,9 @@
 import { create, UseBoundStore, StoreApi } from "zustand";
 import { CallMember, CallState } from "./types/call.state";
 import Helpers from "@/libs/helpers";
+import { isTauriRuntime } from "@/libs/helpers";
 import useAuthStore from "./useAuthStore";
+import { tokenStorage } from "@/utils/tokenStorage";
 import { User } from "@/types/auth.type";
 
 // Sub-stores — imported here for delegation.
@@ -68,29 +70,49 @@ function _getActiveCallId(): string | null {
   }
 }
 
-function _isTauriRuntime(): boolean {
-  if (typeof window === "undefined") return false;
-  return !!(window as any).__TAURI_INTERNALS__;
+function _isTauriRuntime() {
+  return isTauriRuntime();
 }
 
-async function _getTauriWebviewWindow() {
+async function _getTauriWebviewWindowApi(): Promise<{
+  getByLabel: (label: string) => Promise<any>;
+  create: (label: string, options: Record<string, any>) => any;
+} | null> {
   try {
-    const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
-    return WebviewWindow;
-  } catch (err) {
-    console.error("[Tauri] Failed to import WebviewWindow:", err);
-    return null;
-  }
+    // Tauri v2 official API path.
+    const webview = await import("@tauri-apps/api/webviewWindow");
+    if (webview?.WebviewWindow) {
+      return {
+        getByLabel: (label: string) => webview.WebviewWindow.getByLabel(label),
+        create: (label: string, options: Record<string, any>) =>
+          new webview.WebviewWindow(label, options),
+      };
+    }
+  } catch {}
+
+  try {
+    // Fallback for builds relying on global injection.
+    const tauriWindow = (window as any).__TAURI__?.window;
+    if (tauriWindow?.WebviewWindow) {
+      return {
+        getByLabel: (label: string) => tauriWindow.WebviewWindow.getByLabel(label),
+        create: (label: string, options: Record<string, any>) =>
+          new tauriWindow.WebviewWindow(label, options),
+      };
+    }
+  } catch {}
+
+  return null;
 }
 
 async function _focusTauriCallWindow() {
   if (!_openTauriCallLabel) return false;
   try {
-    const WebviewWindow = await _getTauriWebviewWindow();
-    if (!WebviewWindow) return false;
-    const existing = await WebviewWindow.getByLabel(_openTauriCallLabel);
+    const webviewApi = await _getTauriWebviewWindowApi();
+    if (!webviewApi) return false;
+    const existing = await webviewApi.getByLabel(_openTauriCallLabel);
     if (existing) {
-      await existing.setFocus();
+      await existing.setFocus?.();
       return true;
     }
     _openTauriCallLabel = null;
@@ -103,22 +125,18 @@ async function _focusTauriCallWindow() {
 
 async function _openTauriCallWindow(url: string, label: string) {
   try {
-    const WebviewWindow = await _getTauriWebviewWindow();
-    if (!WebviewWindow) return false;
+    const webviewApi = await _getTauriWebviewWindowApi();
+    if (!webviewApi) return false;
 
-    // Tauri v2 WebviewWindow requires an absolute URL
-    const absoluteUrl = url.startsWith("http") ? url : `${window.location.origin}${url}`;
-    console.log("[Tauri] Opening window", label, absoluteUrl);
-
-    const existing = await WebviewWindow.getByLabel(label);
+    const existing = await webviewApi.getByLabel(label);
     if (existing) {
       _openTauriCallLabel = label;
-      await existing.setFocus();
+      await existing.setFocus?.();
       return true;
     }
 
-    const created = new WebviewWindow(label, {
-      url: absoluteUrl,
+    const created = webviewApi.create(label, {
+      url,
       title: "Call",
       width: 800,
       height: 600,
@@ -129,17 +147,16 @@ async function _openTauriCallWindow(url: string, label: string) {
 
     _openTauriCallLabel = label;
     _setCallActive("pending");
-    created.once("tauri://close-requested", () => {
+    created.once?.("tauri://close-requested", () => {
       _openTauriCallLabel = null;
       _clearCallActive();
     });
-    created.once("tauri://destroyed", () => {
+    created.once?.("tauri://destroyed", () => {
       _openTauriCallLabel = null;
       _clearCallActive();
     });
     return true;
-  } catch (err) {
-    console.error("[Tauri] _openTauriCallWindow error:", err);
+  } catch {
     _openTauriCallLabel = null;
     return false;
   }
@@ -155,43 +172,42 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   isWindowOpen: false,
   configPeerConnection: {
     iceServers: [
-      // { urls: ["stun:stun.l.google.com:19302"] },
-      // { urls: ["stun:stun1.l.google.com:19302"] },
-      // { urls: ["stun:stun2.l.google.com:19302"] },
-      { urls: ["stun:34.21.203.49:3478"] },
-      // {
-      //   urls: "stun:stun.relay.metered.ca:80",
-      // },
-      // {
-      //   urls: "turn:openrelay.metered.ca:443",
-      //   username: "openrelayproject",
-      //   credential: "openrelayproject",
-      // },
-      // {
-      //   urls: "turn:relay1.expressturn.com:3480",
-      //   username: "000000002072254500",
-      //   credential: "wLpXGwPdwl1qZ1YbdZDs8gJVfJA=",
-      // },
-      // {
-      //   urls: "turn:jp.relay.metered.ca:80",
-      //   username: "dd552a2f5dca99f4e390e0cc",
-      //   credential: "/K8NuOaoQsL91LMT",
-      // },
-      // {
-      //   urls: "turn:jp.relay.metered.ca:80?transport=tcp",
-      //   username: "dd552a2f5dca99f4e390e0cc",
-      //   credential: "/K8NuOaoQsL91LMT",
-      // },
-      // {
-      //   urls: "turn:jp.relay.metered.ca:443",
-      //   username: "dd552a2f5dca99f4e390e0cc",
-      //   credential: "/K8NuOaoQsL91LMT",
-      // },
-      // {
-      //   urls: "turns:jp.relay.metered.ca:443?transport=tcp",
-      //   username: "dd552a2f5dca99f4e390e0cc",
-      //   credential: "/K8NuOaoQsL91LMT",
-      // },
+      { urls: ["stun:stun.l.google.com:19302"] },
+      { urls: ["stun:stun1.l.google.com:19302"] },
+      { urls: ["stun:stun2.l.google.com:19302"] },
+      {
+        urls: "stun:stun.relay.metered.ca:80",
+      },
+      {
+        urls: "turn:openrelay.metered.ca:443",
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
+      {
+        urls: "turn:relay1.expressturn.com:3480",
+        username: "000000002072254500",
+        credential: "wLpXGwPdwl1qZ1YbdZDs8gJVfJA=",
+      },
+      {
+        urls: "turn:jp.relay.metered.ca:80",
+        username: "dd552a2f5dca99f4e390e0cc",
+        credential: "/K8NuOaoQsL91LMT",
+      },
+      {
+        urls: "turn:jp.relay.metered.ca:80?transport=tcp",
+        username: "dd552a2f5dca99f4e390e0cc",
+        credential: "/K8NuOaoQsL91LMT",
+      },
+      {
+        urls: "turn:jp.relay.metered.ca:443",
+        username: "dd552a2f5dca99f4e390e0cc",
+        credential: "/K8NuOaoQsL91LMT",
+      },
+      {
+        urls: "turns:jp.relay.metered.ca:443?transport=tcp",
+        username: "dd552a2f5dca99f4e390e0cc",
+        credential: "/K8NuOaoQsL91LMT",
+      },
     ],
     iceCandidatePoolSize: 10,
     iceTransportPolicy: "all",
@@ -231,7 +247,6 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   callId: null,
   answer: null,
   incomingCall: null,
-  waitingCall: null,
 
   // ─── Window management ────────────────────────────────────────────────────
 
@@ -253,16 +268,23 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       void _focusTauriCallWindow();
       return;
     }
+    // No FE-level localStorage check here. Source of truth for "user is
+    // already in a call" lives on the BE: handleCallRequest runs
+    // validateInCallOrClearStale against Redis USER_IN_CALL + DB and
+    // returns `caller_already_in_call` if so. Doing a localStorage check
+    // here would just create stale-claim bugs — popup crashes (browser
+    // killed, OS restart, etc.) leave CALL_ACTIVE_KEY set without any
+    // live window/tauri ref, blocking new calls until manual cleanup.
+    // The only thing FE still owns is the live popup/tauri ref check
+    // above (prevents duplicate popup per browser tab).
 
-    // Clear stale localStorage flag — in-memory refs are reset on page reload
-    // so a leftover key would permanently block outgoing calls.
-    const hasLiveWindow =
-      (_openCallWindow && !_openCallWindow.closed) || !!_openTauriCallLabel;
-    if (!hasLiveWindow && _getActiveCallId()) {
-      console.warn("[Call] Clearing stale CALL_ACTIVE_KEY before openCall");
-      _clearCallActive();
+    // Defensive: if the caller didn't pass `currentUser` (or store
+    // hadn't hydrated yet), is_caller would crash on null. Bail
+    // instead of opening a half-broken call window.
+    if (!currentUser?.id) {
+      console.warn("[openCall] missing currentUser, aborting");
+      return;
     }
-
     const memberMap = members.map((m: User) => ({
       id: m.id,
       fullname: m.fullname,
@@ -321,22 +343,110 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       typeof window !== "undefined" && !!window.opener;
     const alreadyInCall = hasOpenPopup || hasActiveModal || isPopupContext;
     if (alreadyInCall) {
-      // Secondary incoming call while user is busy — show the
-      // WaitingCallBanner instead of the full IncomingCallModal. The
-      // banner lets the user accept-and-switch (end current + join new)
-      // or reject without disrupting their active call.
-      console.log("[Call] Showing WaitingCallBanner for", callId, payload);
-      useCallStore.getState().updateCallState({
-        waitingCall: {
-          callId,
-          roomId,
-          callType,
-          callMode,
-          members,
-          actionUserId,
-          receivedAt: Date.now(),
-        },
-      });
+      // Secondary incoming call while user is busy — fire a Web
+      // Notification. Click → end current call + switch to new call.
+      // Auto-miss after 30s is handled server-side (Bull queue) so we
+      // don't need a FE timer.
+      console.log("[Call] Busy — sending Notification for", callId, payload);
+      try {
+        if (
+          typeof window !== "undefined" &&
+          "Notification" in window &&
+          Notification.permission === "granted"
+        ) {
+          const caller =
+            (members as any[])?.find((m) => m.is_caller) ||
+            (members as any[])?.find((m) => m.id === actionUserId) ||
+            (members as any[])?.[0];
+          const callerName = caller?.fullname || "Người dùng";
+          const isVideo = callType === "video";
+          const isGroup = (members as any[])?.length > 2;
+          const title = isGroup
+            ? "Cuộc gọi nhóm đang chờ"
+            : "Cuộc gọi đang chờ";
+          const body = `${callerName} đang gọi ${
+            isVideo ? "video" : "thoại"
+          } — bấm để chuyển sang`;
+          const notif = new Notification(title, {
+            body,
+            icon: "/icons/icon-192x192.png",
+            badge: "/icons/badge-72x72.png",
+            tag: `waiting-call-${callId}`,
+            requireInteraction: false,
+          });
+
+          notif.onclick = () => {
+            try {
+              window.focus();
+              notif.close();
+
+              const state = useCallStore.getState();
+              const sock = state.socket;
+              const myId = useAuthStore.getState().user?.id;
+
+              if (isPopupContext) {
+                // Đang ở popup window — popup này CHÍNH LÀ active call.
+                // End current + navigate same window sang call mới.
+                if (state.callId && state.roomId) {
+                  sock?.emit("call:end", {
+                    roomId: state.roomId,
+                    actionUserId: myId,
+                    status: "ended",
+                    callId: state.callId,
+                  });
+                }
+                const encoded = Helpers.enCryptUserInfo(members);
+                window.location.href =
+                  `/call?roomId=${roomId}` +
+                  `&members=${encoded}` +
+                  `&callType=${callType}` +
+                  `&callMode=${callMode}` +
+                  `&status=joined` +
+                  `&callId=${callId}`;
+                return;
+              }
+
+              // Main window — focus popup nếu có, để user end+accept ở đó.
+              // Hoặc nếu đang chỉ có IncomingCallModal (chưa có popup),
+              // promote thẳng waiting → incoming + accept.
+              if (_openCallWindow && !_openCallWindow.closed) {
+                _openCallWindow.focus();
+                return;
+              }
+              if (_openTauriCallLabel) {
+                void _focusTauriCallWindow();
+                return;
+              }
+              // Reject incoming hiện tại (nếu có), promote new sang incoming, accept.
+              const currentIncoming = state.incomingCall;
+              if (currentIncoming) {
+                sock?.emit("call:end", {
+                  roomId: currentIncoming.roomId,
+                  actionUserId: myId,
+                  status: "rejected",
+                  callId: currentIncoming.callId,
+                });
+              }
+              useCallStore.setState({
+                incomingCall: {
+                  callId,
+                  roomId,
+                  callType,
+                  callMode,
+                  members,
+                  actionUserId,
+                  receivedAt: Date.now(),
+                },
+              });
+              useCallStore.getState().acceptIncomingCall();
+            } catch (err) {
+              console.error("[Call] Notification onclick handler failed:", err);
+            }
+          };
+        }
+      } catch (err) {
+        console.warn("[Call] Failed to fire Web Notification:", err);
+      }
       return;
     }
 
@@ -449,101 +559,6 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
    *     accept there), otherwise promote waitingCall → incomingCall and
    *     run acceptIncomingCall to open a new popup.
    */
-  acceptWaitingCall: () => {
-    const state = useCallStore.getState();
-    const waiting = state.waitingCall;
-    if (!waiting) return;
-    const userId = useAuthStore.getState().user?.id;
-    const socket = state.socket;
-    const isPopupContext =
-      typeof window !== "undefined" && !!window.opener;
-
-    if (isPopupContext) {
-      // End the popup's current call before navigating away. The BE
-      // broadcasts call:end → other participants see this user leave.
-      const currentCallId = state.callId;
-      const currentRoomId = state.roomId;
-      if (currentCallId && currentRoomId) {
-        socket?.emit("call:end", {
-          roomId: currentRoomId,
-          actionUserId: userId,
-          status: "ended",
-          callId: currentCallId,
-        });
-      }
-
-      // Navigate the popup to the new call URL. Same window, no need to
-      // open a new popup or coordinate with the opener — the popup's
-      // /call page lifecycle handles join via the URL params.
-      const encodedMembers = Helpers.enCryptUserInfo(waiting.members);
-      const newUrl = `/call?roomId=${waiting.roomId}&members=${encodedMembers}&callType=${waiting.callType}&callMode=${waiting.callMode}&status=joined&callId=${waiting.callId}`;
-      useCallStore.setState({ waitingCall: null });
-      window.location.href = newUrl;
-      return;
-    }
-
-    // Main-window path. If a popup is open, focus it so the user can
-    // accept there (popup has full call state — emitting call:end from
-    // here would need callId/roomId we don't easily have). Otherwise
-    // (no popup, just an IncomingCallModal showing) promote the waiting
-    // call to incoming and accept normally.
-    if (_openCallWindow && !_openCallWindow.closed) {
-      _openCallWindow.focus();
-      return;
-    }
-    if (_openTauriCallLabel) {
-      void _focusTauriCallWindow();
-      return;
-    }
-    // No popup → maybe IncomingCallModal was showing for the FIRST call.
-    // Reject the original incoming + accept the waiting one.
-    if (state.incomingCall) {
-      socket?.emit("call:end", {
-        roomId: state.incomingCall.roomId,
-        actionUserId: userId,
-        status: "rejected",
-        callId: state.incomingCall.callId,
-      });
-    }
-    useCallStore.setState({
-      incomingCall: waiting,
-      waitingCall: null,
-    });
-    useCallStore.getState().acceptIncomingCall();
-  },
-
-  rejectWaitingCall: () => {
-    const state = useCallStore.getState();
-    const waiting = state.waitingCall;
-    if (!waiting) return;
-    const userId = useAuthStore.getState().user?.id;
-    state.socket?.emit("call:end", {
-      roomId: waiting.roomId,
-      actionUserId: userId,
-      status: "rejected",
-      callId: waiting.callId,
-    });
-    useCallStore.setState({ waitingCall: null });
-  },
-
-  missWaitingCall: () => {
-    const state = useCallStore.getState();
-    const waiting = state.waitingCall;
-    if (!waiting) return;
-    const userId = useAuthStore.getState().user?.id;
-    state.socket?.emit("call:end", {
-      roomId: waiting.roomId,
-      actionUserId: userId,
-      status: "missed",
-      callId: waiting.callId,
-    });
-    useCallStore.setState({ waitingCall: null });
-  },
-
-  clearWaitingCall: () => {
-    useCallStore.setState({ waitingCall: null });
-  },
-
   // ─── Call lifecycle ───────────────────────────────────────────────────────
 
   acceptCall: async (payload) => {
@@ -660,24 +675,37 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     if (incoming && (!callId || incoming.callId === callId)) {
       get().updateCallState({ incomingCall: null });
     }
-    // Same for the WaitingCallBanner — if the secondary call ends (caller
-    // hung up before this user could decide), dismiss the banner so it
-    // doesn't sit there pointing at a dead call.
-    const waiting = get().waitingCall;
-    if (waiting && (!callId || waiting.callId === callId)) {
-      get().updateCallState({ waitingCall: null });
-    }
 
-    // Group calls (more than 2 members) NEVER full-teardown when one
-    // person leaves — even if that person was the caller. The remaining
-    // participants stay in the call; the leaver is just removed from the
-    // grid and, if they were the last remote peer, we fall back to the
-    // "waiting for others" screen until someone joins or the local user
-    // hangs up. Full teardown is reserved for 1-on-1 calls where one
-    // peer leaving means the conversation is genuinely over.
-    if (members.length > 2) {
+    // Group calls (sfu mode) NEVER full-teardown when one person
+    // leaves — even if that person was the caller. The remaining
+    // participants stay in the call; the leaver is just removed from
+    // the grid and, if they were the last remote peer, we fall back
+    // to the "waiting for others" screen until someone joins or the
+    // local user hangs up. Full teardown is reserved for 1-on-1
+    // (p2p) calls where one peer leaving means the conversation is
+    // genuinely over.
+    //
+    // Use `callMode` (set at openCall from room type) — counting
+    // members is wrong: a 2-member group chat is still a group call,
+    // and BE auto-miss broadcasts may omit/trim members.
+    if (get().callMode === "sfu") {
       // Multiple participants: only remove the user who left
       const key = `${roomId}-${actionUserId}`;
+
+      // Auto-miss broadcasts a `call:end status='missed'` for every
+      // member who didn't pick up — they never had a peer connection
+      // / media stream / screen share to begin with, so the
+      // Map.clone + setState dance below is pure churn that races
+      // with concurrent updates for the people who ARE actively in
+      // the call. Bail out early when there's nothing to dismantle.
+      const hasStream = get().stream.remoteStreams.has(key);
+      const hasScreenStream = get().stream.remoteScreenStreams.has(key);
+      const hasPeer = useP2pCallStore.getState().peerConnections.has(key);
+      const wasSharing = get().peersSharingScreen.has(actionUserId);
+      const wasPinned = get().action.userIdGhimmed === actionUserId;
+      if (!hasStream && !hasScreenStream && !hasPeer && !wasSharing && !wasPinned) {
+        return;
+      }
 
       const streamToRemove = get().stream.remoteStreams.get(key);
       if (streamToRemove) {
@@ -1316,9 +1344,8 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   },
 
   setUserIdGhimmed: (userId) => {
-    // Pinning a camera clears any active screen-share pin — the two pin
-    // modes are mutually exclusive (main view can show one thing at a
-    // time). Empty string ("") just clears the camera pin.
+    // Pin camera → clear any active screen-pin (mutually exclusive: main
+    // view shows ONE thing). Empty "" just clears the camera pin.
     set((prev) => ({
       ...prev,
       action: {
@@ -1330,9 +1357,9 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   },
 
   setScreenSharerIdGhimmed: (userId) => {
-    // Pinning a screen-share clears any active camera pin. Empty string
-    // ("") just clears the screen pin and falls back to the default
-    // sharer-precedence (own → first peer).
+    // Pin a screen-share owner → clear any active camera-pin. Empty ""
+    // clears the screen-pin and falls back to the default precedence
+    // (own localScreenStream → first peer in peersSharingScreen).
     set((prev) => ({
       ...prev,
       action: {
@@ -1653,7 +1680,35 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   // ─── Call state initialization ────────────────────────────────────────────
 
   updateCallState: async (state) => {
-    const currentUser = useAuthStore.getState().user;
+    // The /call popup is a fresh window with its own React tree.
+    // useAuthStore is hydrated from localStorage, but the `user`
+    // object is fetched asynchronously by AuthBootstrap → /auth/me.
+    // updateCallState fires immediately on mount, so we have to
+    // BLOCK here until the user resolves — otherwise acceptCall hits
+    // `currentUser.id` on null + crashes (the call:accepted socket
+    // emit then never fires → caller never gets the offer → media
+    // doesn't map).
+    let currentUser = useAuthStore.getState().user;
+    if (!currentUser && tokenStorage.get()) {
+      // Trigger fetchMe if not already in flight, then poll.
+      void useAuthStore.getState().fetchMe();
+      const start = Date.now();
+      while (Date.now() - start < 5000) {
+        currentUser = useAuthStore.getState().user;
+        if (currentUser) break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      if (!currentUser) {
+        console.error(
+          "[updateCallState] user still null after 5s, aborting",
+        );
+        return;
+      }
+    }
+    if (!currentUser) {
+      console.error("[updateCallState] no user + no token, aborting");
+      return;
+    }
     const socket = state.socket;
 
     if (state.status === "accepted") {

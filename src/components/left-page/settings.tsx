@@ -4,12 +4,14 @@ import React from "react";
 import { XMarkIcon, ArrowRightCircleIcon } from "@heroicons/react/24/outline";
 import { Card, CardBody, Button, Tooltip } from "@heroui/react";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import useCounterStore from "@/store/useCounterStore";
 
 const Settings: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
   const isCollapsed = useCounterStore((state) => state.collapsedSidebar);
+  const { t } = useTranslation();
 
   const handleClose = () => {
     router.push(pathname || "/");
@@ -33,6 +35,15 @@ const Settings: React.FC = () => {
               isIconOnly
               variant="light"
               onPress={() => router.push("/settings/chat")}
+            >
+              <ArrowRightCircleIcon className="w-5 h-5" />
+            </Button>
+          </Tooltip>
+          <Tooltip content={t("settingsList.devices")} placement="right">
+            <Button
+              isIconOnly
+              variant="light"
+              onPress={() => router.push("/settings/devices")}
             >
               <ArrowRightCircleIcon className="w-5 h-5" />
             </Button>
@@ -141,6 +152,44 @@ const Settings: React.FC = () => {
                     variant="light"
                     className="text-foreground-500 hover:text-foreground hover:bg-default-100"
                     onPress={() => router.push("/settings/chat")}
+                  >
+                    <ArrowRightCircleIcon className="w-5 h-5" />
+                  </Button>
+                </div>
+              </div>
+            </CardBody>
+          </Card>
+
+          {/* Quản lý thiết bị */}
+          <Card className="mb-0 shadow-none border-b border-default-200 rounded-none bg-background">
+            <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
+              <div className="flex items-start gap-4 w-full">
+                <div className="w-10/12 flex flex-col">
+                  {/* suppressHydrationWarning on i18n-driven text:
+                      i18next's LanguageDetector resolves on the client
+                      side, so SSR may render in fallback (vi) while the
+                      client switches to user-detected locale (en) →
+                      hydration text mismatch. The other entries on this
+                      page hard-code Vietnamese so they don't hit this. */}
+                  <span
+                    className="font-medium leading-tight"
+                    suppressHydrationWarning
+                  >
+                    {t("settingsList.devices")}
+                  </span>
+                  <span
+                    className="text-sm text-foreground-500 leading-tight mt-1"
+                    suppressHydrationWarning
+                  >
+                    {t("settingsList.devicesDesc")}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    isIconOnly
+                    variant="light"
+                    className="text-foreground-500 hover:text-foreground hover:bg-default-100"
+                    onPress={() => router.push("/settings/devices")}
                   >
                     <ArrowRightCircleIcon className="w-5 h-5" />
                   </Button>

@@ -50,15 +50,6 @@ const updateRoomDataWithGroups = (
 
   const groups = groupMessagesByDate(uniqueMessages, lastReadId);
 
-  if (newMessages.length > uniqueMessages.length) {
-    console.log(
-      `🚀 ~ updateRoomDataWithGroups ~ Deduplicated: ${newMessages.length} -> ${uniqueMessages.length}`,
-    );
-  }
-  console.log(
-    `🚀 ~ updateRoomDataWithGroups ~ Groups: ${groups.length} - Total Msgs: ${uniqueMessages.length} - DisplayCount: ${count}`,
-  );
-
   return {
     ...(prevRoom || {
       input: null,
@@ -219,7 +210,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
   readedRooms: {},
 
   upsetMsg: async (msgData: MessageType) => {
-    console.log("🚀 ~ msgData:", msgData);
     // Ensure createdAt exists
     if (!msgData.createdAt) {
       msgData.createdAt = new Date().toISOString();
@@ -239,9 +229,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     );
     // Use room.id if found, otherwise fallback to msgData.roomId
     const normalizedRoomId = roomFromStore?.id || msgData.roomId;
-    console.log(
-      `🚀 ~ upsetMsg ~ normalizedRoomId: ${normalizedRoomId} (from msgData.roomId: ${msgData.roomId})`,
-    );
 
     // Pre-check if this is a new message (for use outside the set callback)
     const prevRoomForCheck = get().messagesRoom[normalizedRoomId];
@@ -264,9 +251,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
       // Tìm vị trí message theo id
       const existingIndex = prevMessages.findIndex((m) => m.id === msgData.id);
-      console.log(
-        `🚀 ~ upsetMsg ~ normalizedRoomId: ${normalizedRoomId} - prevMsgs: ${prevMessages.length} - existingIndex: ${existingIndex} - new? ${existingIndex === -1}`,
-      );
 
       let updatedMessages: MessageType[];
       if (existingIndex === -1) {
@@ -283,10 +267,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       const prevCount = prevRoom.displayedMessagesCount || 20;
       const increment = existingIndex === -1 ? 1 : 0;
       const newDisplayedCount = prevCount + increment;
-
-      console.log(
-        `🚀 ~ upsetMsg ~ updating displayedCount: ${prevCount} -> ${newDisplayedCount}`,
-      );
 
       return {
         messagesRoom: {
@@ -914,10 +894,186 @@ const useMessageStore = create<MessageState>()((set, get) => ({
    * @param queryParams - Tham số query (msgId, limit, type)
    * @returns Promise<MessageType[]> - Danh sách tin nhắn đã lấy
    */
+  /**
+   * Cache-first room load:
+   *   1. Read messages for this room straight from IndexedDB → push
+   *      into the store IMMEDIATELY so the bubble grid renders without
+   *      waiting on the network. No "Loading new messages…" spinner if
+   *      we already have a cache.
+   *   2. Fire a background delta fetch (`type='new' & msgId=<latestCachedId>`).
+   *      Endpoint returns ONLY messages the FE doesn't have yet —
+   *      typically a tiny payload, no matter how big the room history.
+   *      When/if the response lands, merge those in silently.
+   *   3. First-time visit (no cache) falls back to the original full
+   *      `getMessages?limit=N` fetch.
+   *
+   * Returns the rendered messages (cache snapshot for the synchronous
+   * caller); newer ones arrive asynchronously via state update.
+   */
+  loadRoomFromCache: async (
+    roomId: string,
+    limit: number = 20,
+  ): Promise<{ cached: MessageType[]; fetched: Promise<void> }> => {
+    if (!roomId) return { cached: [], fetched: Promise.resolve() };
+
+    // 1. Read latest `limit` messages for this room from IndexedDB.
+    //    `[roomId+createdAt]` compound index → range scan, O(log N) +
+    //    .reverse().limit() → constant time for "last N".
+    //    Default 20 — covers the visible viewport on initial render;
+    //    older messages load on demand via loadOlderMessages.
+    let cached: MessageType[] = [];
+    try {
+      const desc =
+        (await db.messages
+          .where("[roomId+createdAt]")
+          .between([roomId, ""], [roomId, "￿"])
+          .reverse()
+          .limit(limit)
+          .toArray()) ?? [];
+      cached = desc.reverse(); // ascending (oldest → newest)
+    } catch {
+      // Dexie read errors (e.g. anon-DB fallback running before login)
+      // are non-fatal — fall through to the network path with empty
+      // cache.
+      cached = [];
+    }
+
+    if (cached.length > 0) {
+      // Push cache into the store immediately so the chat tab paints.
+      const currentRoom = get().messagesRoom[roomId] || {
+        groups: [],
+        displayedMessagesCount: 20,
+        input: null,
+        attachments: null,
+        reply: null,
+      };
+      set({
+        messagesRoom: {
+          ...get().messagesRoom,
+          [roomId]: updateRoomDataWithGroups(
+            currentRoom,
+            cached,
+            currentRoom?.lastReadMessageId,
+          ),
+        },
+      });
+    }
+
+    // 2. Decide whether we need a network round-trip at all.
+    //    Compare the last cached id against the room's authoritative
+    //    `last_message.id` (kept in sync by socket events on every
+    //    new message). If they match → cache is bit-identical to the
+    //    server → skip the API call entirely. Saves the ~10s HTTP
+    //    round-trip on every room switch when nothing has changed.
+    //
+    //    Mismatch (or empty cache) → fall back to the type=new delta
+    //    fetch in the background.
+    const latestCachedId = cached[cached.length - 1]?.id;
+    const room = useRoomStore
+      .getState()
+      .rooms.find((r) => r.id === roomId || r.roomId === roomId);
+    const serverLatestId = room?.last_message?.id ?? null;
+    const cacheIsFresh =
+      !!latestCachedId &&
+      !!serverLatestId &&
+      latestCachedId === serverLatestId;
+
+    if (cacheIsFresh) {
+      // Cache identical to server's view — nothing to fetch.
+      return { cached, fetched: Promise.resolve() };
+    }
+
+    // Empty IDB AND server says the room has no last_message → genuine
+    // empty room (never had a message, or all messages were deleted at
+    // the system level). Skip the network round-trip entirely so the
+    // chat tab paints the empty state immediately instead of showing a
+    // spinner while the BE returns []. Even one cached row is enough
+    // to fall through to the normal sync path.
+    if (cached.length === 0 && !serverLatestId) {
+      return { cached, fetched: Promise.resolve() };
+    }
+
+    // Track the background fetch as a returned promise so callers can
+    // await "I'm done, even if I returned nothing". The promise REJECTS
+    // on actual network/server errors so the chat-switch effect can
+    // retry; resolves on success or empty result.
+    const fetched = (async () => {
+      if (latestCachedId) {
+        const response = (await MessageService.getMessages({
+          roomId,
+          queryParams: { type: "new", msgId: latestCachedId, limit: 100 },
+        })) as { data: { metadata: MessageType[] } };
+        const newer = Array.isArray(response?.data?.metadata)
+          ? response.data.metadata
+          : [];
+        if (newer.length === 0) return; // cache fresh — nothing to do
+        await get().fetchMessagesFromAPI(roomId, {
+          limit: 100,
+          __preloaded: newer,
+        } as never);
+      } else {
+        // First visit / cache empty — full latest-N fetch. We hit
+        // MessageService directly here (instead of fetchMessagesFromAPI
+        // which swallows errors and returns []) so the caller can
+        // distinguish "API returned empty" from "API errored" and retry.
+        const response = (await MessageService.getMessages({
+          roomId,
+          queryParams: { limit },
+        })) as { data: { metadata: MessageType[] } };
+        const fresh = Array.isArray(response?.data?.metadata)
+          ? response.data.metadata
+          : [];
+        await get().fetchMessagesFromAPI(roomId, {
+          limit,
+          __preloaded: fresh,
+        } as never);
+      }
+    })();
+
+    return { cached, fetched };
+  },
+
+  warmRoomCaches: async (
+    roomIds: string[],
+    options?: { limit?: number; concurrency?: number },
+  ): Promise<void> => {
+    if (!roomIds || roomIds.length === 0) return;
+    const limit = options?.limit ?? 20;
+    const concurrency = Math.max(1, options?.concurrency ?? 3);
+
+    // Process in chunks of `concurrency` so we don't blast the BE
+    // with 50+ parallel `/messages` requests on a fresh login. 3-way
+    // parallelism keeps the warm-up fast (most rooms finish in <2s)
+    // without saturating the gateway. `loadRoomFromCache` itself
+    // short-circuits when cache is already fresh, so re-running this
+    // on an idle session is a near-no-op.
+    for (let i = 0; i < roomIds.length; i += concurrency) {
+      const chunk = roomIds.slice(i, i + concurrency);
+      await Promise.all(
+        chunk.map(async (roomId) => {
+          try {
+            const { fetched } = await get().loadRoomFromCache(roomId, limit);
+            // Await the network leg too — guarantees IDB has the
+            // freshest copy before we move on. Errors are swallowed
+            // so one bad room doesn't abort the whole warm-up.
+            await fetched;
+          } catch {
+            /* best-effort prefetch — silent on failure */
+          }
+        }),
+      );
+    }
+  },
+
   fetchMessagesFromAPI: async (
     roomId: string,
     queryParams?: {
       limit?: number;
+      // Internal escape hatch: `loadRoomFromCache` already fetched the
+      // delta — passes the result through here so the merge/sort/IDB
+      // upsert path runs once instead of twice. Not exposed in the
+      // public type because callers shouldn't construct this directly.
+      __preloaded?: MessageType[];
     },
   ): Promise<MessageType[]> => {
     try {
@@ -927,13 +1083,20 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         return [];
       }
 
-      // Gọi API lấy tin nhắn
-      const response = (await MessageService.getMessages({
-        roomId,
-        queryParams: {
-          limit: queryParams?.limit || 100,
-        },
-      })) as { data: { metadata: MessageType[] } };
+      // Skip the network round-trip when the caller already pulled
+      // the messages (delta path from loadRoomFromCache). Empty
+      // preloaded (cache was fresh) → bail out entirely; no state
+      // update / re-render needed.
+      const preloaded = queryParams?.__preloaded;
+      if (preloaded && preloaded.length === 0) return [];
+      const response: { data: { metadata: MessageType[] } } = preloaded
+        ? { data: { metadata: preloaded } }
+        : ((await MessageService.getMessages({
+            roomId,
+            queryParams: {
+              limit: queryParams?.limit || 100,
+            },
+          })) as { data: { metadata: MessageType[] } });
 
       // Validate response structure
       if (!response?.data?.metadata || !Array.isArray(response.data.metadata)) {
@@ -1285,7 +1448,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
     const oldestMessageId = oldestMessage?.id || (oldestMessage as any)?._id; // Fallback to _id if id is missing
 
-    console.log("[DEBUG] loadOlderMessages", { roomId, limit, oldestMessage });
 
     if (!oldestMessageId) {
       console.warn("[DEBUG] No oldestMessageId found, cannot load older");
@@ -1634,12 +1796,9 @@ const useMessageStore = create<MessageState>()((set, get) => ({
   ) => {
     const state = get();
     const currentRoom = state.messagesRoom[roomId];
-    console.log("currentRoom", currentRoom, state.messagesRoom);
     const msgs = currentRoom
       ? getAllMessagesFromGroups(currentRoom)
-      : await db.messages.where("roomId").equals(roomId).toArray();
-
-    console.log("currentRoom", currentRoom);
+      : ((await db.messages.where("roomId").equals(roomId).toArray()) ?? []);
 
     const quizIdStr = String(quizId);
     const hasQuizMatch = (msg: MessageType) =>
@@ -1689,6 +1848,61 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           : Promise.resolve();
       }),
     );
+  },
+
+  /**
+   * Patch the `call_history` of a call-type message bubble in a given
+   * room — used by the `call:end` socket handler to refresh
+   * members[].status + ended_at without waiting for a follow-up
+   * MSGUPSERT (which sometimes lags behind or returns stale aggregate
+   * data because of write/read interleave).
+   *
+   * Looks up the bubble by callId (only stable reference — the
+   * `members` array on its own doesn't carry it). Silently no-ops if
+   * the room/message isn't loaded — the next MSGUPSERT will catch
+   * up when the chat tab opens that room.
+   */
+  patchCallMessage: (
+    roomId: string,
+    callId: string,
+    patch: { members?: any[]; ended_at?: string | null },
+  ) => {
+    const state = get();
+    const currentRoom = state.messagesRoom[roomId];
+    if (!currentRoom) return;
+    const msgs = getAllMessagesFromGroups(currentRoom);
+    const idx = msgs.findIndex(
+      (m) =>
+        m.type === "call" &&
+        (m as any).call_history?.call_id === callId,
+    );
+    if (idx === -1) return;
+
+    const updatedMessages = msgs.map((msg, i) =>
+      i === idx
+        ? {
+            ...msg,
+            call_history: {
+              ...((msg as any).call_history ?? {}),
+              ...(patch.members ? { members: patch.members } : {}),
+              ...(patch.ended_at !== undefined
+                ? { ended_at: patch.ended_at }
+                : {}),
+            },
+          }
+        : msg,
+    );
+
+    set({
+      messagesRoom: {
+        ...get().messagesRoom,
+        [roomId]: updateRoomDataWithGroups(
+          currentRoom,
+          updatedMessages,
+          currentRoom?.lastReadMessageId,
+        ),
+      },
+    });
   },
 
   upsetMsgError: (payload: {

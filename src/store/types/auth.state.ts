@@ -26,6 +26,12 @@ export interface AuthState {
   forgotPassword: (payload: ForgotPasswordPayload) => void;
   resetPassword: (payload: ResetPasswordPayload) => void;
   refreshToken: () => Promise<void>;
+  /**
+   * Fetch the authenticated user's profile from /auth/me. Called on app
+   * bootstrap whenever accessToken is rehydrated from localStorage but
+   * `user` is null (we deliberately don't persist user data).
+   */
+  fetchMe: () => Promise<void>;
   updateProfile: (payload: UpdateProfilePayload) => void;
   updateAvatar: (payload: UpdateAvatarPayload) => void;
   updatePassword: (payload: UpdatePasswordPayload) => void;

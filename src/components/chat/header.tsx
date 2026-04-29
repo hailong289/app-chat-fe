@@ -137,6 +137,14 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const handleStartCall = (room: RoomsState, mode: "audio" | "video") => {
     const roomData = room.room;
     if (!roomData) return;
+    // Guard: user can be null while fetchMe() is in flight (or failed
+    // silently). openCall reads `currentUser.id` for the is_caller flag
+    // and would crash on null. Bail out — caller can retry once the
+    // store hydrates.
+    if (!user) {
+      console.warn("[handleStartCall] no user yet, skipping");
+      return;
+    }
     openCall({
       roomId: roomData.roomId || "",
       mode,

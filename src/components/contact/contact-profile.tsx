@@ -79,6 +79,13 @@ export default function ContactProfile({
     const room = roomState.getRoomByRoomId(id);
     console.log("🚀 ~ handleStartCall ~ room:", room);
     if (!room) return;
+    // Same guard as chat/header — openCall crashes if currentUser is
+    // null, which can happen briefly while fetchMe() is in flight on
+    // app boot.
+    if (!authState.user) {
+      console.warn("[handleStartCall] no user yet, skipping");
+      return;
+    }
     openCall({
       roomId: room.roomId || "",
       mode,

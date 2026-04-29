@@ -31,7 +31,7 @@ import useP2pCallStore from "@/store/useP2pCallStore";
 import useSfuCallStore from "@/store/useSfuCallStore";
 import { CallMember } from "@/store/types/call.state";
 import { useTranslation } from "react-i18next";
-import { WaitingCallBanner } from "@/components/call/WaitingCallBanner";
+import { isTauriRuntime } from "@/libs/helpers";
 
 function CallPageContentInner() {
   const router = useRouter();
@@ -40,6 +40,49 @@ function CallPageContentInner() {
   const [isMounted, setIsMounted] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { t } = useTranslation();
+  const closeTauriOrBrowserWindow = useCallback(async (): Promise<boolean> => {
+    if (isTauriRuntime()) {
+      try {
+        const { Window, getCurrentWindow } = await import("@tauri-apps/api/window");
+        const current = getCurrentWindow();
+        const labels = [current.label, "appCallWindow_out", "appCallWindow_inc"];
+
+        for (const label of labels) {
+          const win = new Window(label);
+          if (!win) continue;
+          try {
+            await win.close();
+          } catch {
+            await win.destroy();
+          }
+          return true;
+        }
+      } catch {}
+    } else if (window.opener) {
+      window.close();
+      return true;
+    }
+    return false;
+  }, []);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const current = getCurrentWindow();
+        unlisten = await current.onCloseRequested(async () => {
+          try {
+            await current.destroy();
+          } catch {}
+        });
+      } catch {}
+    })();
+    return () => {
+      unlisten?.();
+    };
+  }, []);
 
   // callMode is stable for the lifetime of this call window (set from URL params
   // once and never changes). Use it to register only the relevant socket listeners.
@@ -382,9 +425,21 @@ function CallPageContentInner() {
   tRef.current = t;
 
   const onEnd = useRef((p: any) => {
-    const isOneOnOne = (p.members?.length ?? 0) <= 2;
-    const actor = (p.members || []).find(
-      (m: CallMember) => m.id === p.actionUserId,
+    // Use `callMode` (p2p vs sfu) as the source of truth for "is this
+    // a 1-on-1 call?". Counting members is unreliable: a sfu group
+    // call can legitimately have only 2 people (e.g. 2-person group
+    // chat that's still typed `group` server-side), and an auto-miss
+    // broadcast might trim the members array. callMode is set at
+    // call-start from the room type and never changes, so it gives us
+    // a stable signal even when the broadcast payload is partial.
+    const localMembers = useCallStore.getState().members ?? [];
+    const callMode =
+      (p.callMode as string | undefined) ??
+      useCallStore.getState().callMode;
+    const isOneOnOne = callMode === "p2p";
+
+    const actor = ((p.members || localMembers) as CallMember[]).find(
+      (m) => m.id === p.actionUserId,
     );
     const name = actor?.fullname || tRef.current("callPage.labels.unknownUser");
     if (
@@ -414,7 +469,15 @@ function CallPageContentInner() {
             : "callPage.toast.left";
         pushCallToastRef.current(tRef.current(key, { name }));
       }
-      useCallStore.getState().eventCall("end", p);
+      // Forward the event with members backfilled from local state if
+      // the broadcast omitted them — handleEndCall still uses members
+      // for cleanup keys.
+      useCallStore.getState().eventCall("end", {
+        ...p,
+        members: (p.members && p.members.length > 0)
+          ? p.members
+          : localMembers,
+      });
     }
   });
   const onSignal = useRef((p: any) => useCallStore.getState().handleSFUSignal(p));
@@ -457,14 +520,13 @@ function CallPageContentInner() {
       // we don't break already-mounted video elements bound to it; only
       // mutate tracks in place + bump the Map ref.
       if (key) {
-        // Harvest from the RECEIVER-side transceiver Map
-        // (`remoteScreenTransceivers`), populated by `pc.ontrack` when the
-        // peer first created their screen transceiver. NOT from
-        // `screenTransceivers` — that one stores OUR sender transceivers
-        // for screens WE share, which is unrelated and (in 1-on-1 where
-        // both peers share) would collide on the same key.
+        // Harvest from `remoteScreenTransceivers` (NOT `screenTransceivers`).
+        // The latter stores OUR sender transceivers for screens WE share —
+        // unrelated to receiving peers' screens. In multi-share scenarios
+        // (both peers share simultaneously) the two roles collide on the
+        // same peer key, so we keep them in separate Maps.
         const transceiver =
-          useP2pCallStore.getState().remoteScreenTransceivers.get(key);
+          useP2pCallStore.getState().remoteScreenTransceivers?.get(key);
         const track = transceiver?.receiver.track;
         if (track) {
           useCallStore.setState((prev) => {
@@ -601,11 +663,9 @@ function CallPageContentInner() {
     store.stream.remoteStreams.forEach((s) =>
       s.getTracks().forEach((t) => t.stop()),
     );
-    if (window.opener) {
-      window.close();
-    } else {
-      router.push("/");
-    }
+    void closeTauriOrBrowserWindow().then((closed) => {
+      if (!closed) router.push("/");
+    });
   });
 
   // Register socket listeners based on callMode to prevent cross-protocol
@@ -761,9 +821,9 @@ function CallPageContentInner() {
   useEffect(() => {
     if (callStatus === "ended") {
       hasEndedRef.current = true;
-      window.opener && window.close();
+      void closeTauriOrBrowserWindow();
     }
-  }, [callStatus]);
+  }, [callStatus, closeTauriOrBrowserWindow]);
 
   const handleEndCall = useCallback(() => {
     if (hasEndedRef.current) {
@@ -938,8 +998,8 @@ function CallPageContentInner() {
   let primaryScreenSharerKey: string | null = null;
   // Explicit screen pin wins over the default precedence. Lets the user
   // click a peer's screen tile in the strip to swap THAT screen to main —
-  // without this, the main view would always be the first sharer (own
-  // localScreenStream when you're also sharing) regardless of click.
+  // without this, default picks own localScreenStream first, so clicking
+  // peer's tile when you're also sharing would have no visible effect.
   if (
     screenSharerIdGhimmed &&
     (screenSharerIdGhimmed === currentUserId
@@ -978,12 +1038,6 @@ function CallPageContentInner() {
 
   return (
     <div className="bg-dark h-screen w-full relative overflow-hidden">
-      {/* Secondary incoming-call banner — fires when another caller dials
-          this user while they're already in this call. Mounted INSIDE the
-          popup window because that's where the user is most likely
-          focused; also mounted in the main window via SocketEventChatGlobal
-          so it shows up regardless. */}
-      <WaitingCallBanner />
       {/* PIP overlay. Mounts above the grid in either of two cases:
             (a) someone is sharing screen → main = screen, strip = cameras + screens
             (b) user pinned a camera → main = pinned camera, strip = others
@@ -1401,21 +1455,10 @@ function CallPageContentInner() {
                       </span>
                     </div>
                   </div>
-                  {/* Mic-muted badge — driven by socket signal so it
-                      reflects sender's intent immediately. */}
-                  {member?.id && micOffPeers.has(member.id) && (
-                    <div className="absolute top-4 right-4 z-10 bg-red-500 rounded-full p-2 shadow-lg flex items-center gap-1.5">
-                      <div className="relative w-4 h-4">
-                        <MicrophoneIcon className="w-4 h-4 text-white" />
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="w-full h-0.5 bg-white rotate-45" />
-                        </div>
-                      </div>
-                      <span className="text-white text-xs font-medium">
-                        Đã tắt mic
-                      </span>
-                    </div>
-                  )}
+                  {/* Big mic-muted badge removed — small per-tile
+                      mic-off icons in the strip are enough indication.
+                      A floating banner over the main view duplicated info
+                      and obstructed the video. */}
                 </div>
               );
             })()

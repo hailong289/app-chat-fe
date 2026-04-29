@@ -81,7 +81,6 @@ export const MessageItem = memo(
     const { t } = useTranslation();
     const currentUser = useAuthStore((state) => state.user);
     const currentUserId = currentUser?.id;
-    console.log("🚀 ~ currentUser:", currentUser);
     const isMine = currentUserId ? msg.sender?.id === currentUserId : false;
     const hiddenByMe = currentUserId
       ? (msg.hiddenBy?.includes(currentUserId) ?? false)

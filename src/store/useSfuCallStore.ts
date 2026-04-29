@@ -253,6 +253,38 @@ const useSfuCallStore: UseBoundStore<StoreApi<SfuStoreState>> = create<SfuStoreS
             const { sfu: sfuNow } = get();
             if (!sfuNow.recvTransport || !sfuNow.device) break;
 
+            // If BE forwarded `appData.source === "screen"` (producer was
+            // produced with screen appData), pre-flag this producer as
+            // screen NOW — before consume() runs — so routing puts the
+            // track in `remoteScreenStreams` not `remoteStreams`. Same
+            // mechanism as case "getProducers" above, but for the
+            // already-in-room broadcast path. Falls back gracefully if
+            // BE doesn't include appData (legacy call:share-screen
+            // event still populates screenProducerIds for the same
+            // case).
+            const broadcastAppData = payload.appData as
+              | { source?: string }
+              | undefined;
+            if (broadcastAppData?.source === "screen") {
+              set((prev) => ({
+                sfu: {
+                  ...prev.sfu,
+                  screenProducerIds: new Set([
+                    ...prev.sfu.screenProducerIds,
+                    producerId,
+                  ]),
+                },
+              }));
+              if (payload.userId) {
+                useCallStore.setState((prev) => ({
+                  peersSharingScreen: new Set([
+                    ...prev.peersSharingScreen,
+                    payload.userId,
+                  ]),
+                }));
+              }
+            }
+
             s?.emit("signal", {
               type: "consume",
               roomId: r,
@@ -267,13 +299,61 @@ const useSfuCallStore: UseBoundStore<StoreApi<SfuStoreState>> = create<SfuStoreS
         }
 
         case "getProducers": {
-          // Consume all existing producers (late-join / re-join)
+          // Consume all existing producers (late-join / re-join). When
+          // multiple peers are sharing screen, the response includes
+          // their screen producers — but `kind` is just "video" so we
+          // can't distinguish camera vs screen from that alone. The BE
+          // includes `appData.source === "screen"` for screen producers
+          // (forwarded from the producer's `produce({appData})` call).
+          // Read it here to pre-populate `screenProducerIds` BEFORE the
+          // consume() handler runs, so the routing in case "consume"
+          // puts the track in `remoteScreenStreams` not `remoteStreams`.
+          //
+          // Backward-compat: if BE doesn't return appData yet, the
+          // `appData?.source === "screen"` check is false → fallback to
+          // the legacy `screenProducerIds.has(producerId)` flow that
+          // relies on `call:share-screen` events. That path covers
+          // already-in-room peers but misses late-joiners — exactly the
+          // bug this block fixes once BE upgrades.
           const { socket: s, roomId: r } = useCallStore.getState();
           const { sfu: sfuNow } = get();
           if (!sfuNow.recvTransport || !sfuNow.device) return;
 
-          const producers: Array<{ producerId: string; userId: string; kind: string }> =
-            payload.producers || [];
+          const producers: Array<{
+            producerId: string;
+            userId: string;
+            kind: string;
+            appData?: { source?: string };
+          }> = payload.producers || [];
+
+          // Pre-populate screenProducerIds + peersSharingScreen for
+          // every screen producer in the response.
+          const screenIds: string[] = [];
+          const sharerUserIds: string[] = [];
+          for (const p of producers) {
+            if (p.appData?.source === "screen") {
+              screenIds.push(p.producerId);
+              sharerUserIds.push(p.userId);
+            }
+          }
+          if (screenIds.length > 0) {
+            set((prev) => ({
+              sfu: {
+                ...prev.sfu,
+                screenProducerIds: new Set([
+                  ...prev.sfu.screenProducerIds,
+                  ...screenIds,
+                ]),
+              },
+            }));
+            useCallStore.setState((prev) => ({
+              peersSharingScreen: new Set([
+                ...prev.peersSharingScreen,
+                ...sharerUserIds,
+              ]),
+            }));
+          }
+
           for (const { producerId: pid, userId: pUserId } of producers) {
             s?.emit("signal", {
               type: "consume",

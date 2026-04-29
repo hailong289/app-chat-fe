@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Avatar,
   Badge,
@@ -38,9 +38,23 @@ export function NotificationDropdown() {
     removeNotification,
   } = useNotificationStore();
 
+  // Gate render on `mounted` so the bell button isn't part of SSR
+  // output. Reason: i18next's LanguageDetector resolves on the client
+  // side AFTER hydration, so server renders aria-label="Thông báo"
+  // (fallback locale) while the client wants aria-label="Notifications"
+  // (en) — `suppressHydrationWarning` doesn't propagate from
+  // HeroUI.Button into the inner DOM <button>, so the warning persists
+  // even with the prop set. Skipping SSR is the most reliable fix.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
+
+  if (!mounted) return null;
 
   const formatRelativeTime = (value: string | null) => {
     if (!value) return t("notifications.justNow");
@@ -60,6 +74,12 @@ export function NotificationDropdown() {
         <Button
           variant="light"
           aria-label={t("notifications.title")}
+          // Suppress because aria-label resolves through i18n which may
+          // not have its async language detection finished by the time
+          // SSR runs — server fallback (vi) vs client-detected locale
+          // (en/vi) can differ. The inner text span already does the
+          // same; this lifts the same exemption to the button itself.
+          suppressHydrationWarning
           className="w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white dark:text-gray-100"
         >
           <Badge
