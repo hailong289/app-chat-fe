@@ -14,6 +14,7 @@ const useP2pCallStore: UseBoundStore<StoreApi<P2pState>> = create<P2pState>()((s
   peerConnections: new Map(),
   pendingCandidates: new Map(),
   screenTransceivers: new Map(),
+  remoteScreenTransceivers: new Map(),
   cameraSenders: new Map(),
 
   handleCreatePeerConnection: async (roomId, actionUserId) => {
@@ -108,6 +109,17 @@ const useP2pCallStore: UseBoundStore<StoreApi<P2pState>> = create<P2pState>()((s
           (prev.stream.remoteStreams.get(key)?.getVideoTracks().length ?? 0) > 0;
 
         if (isScreenTrack) {
+          // Stash the receiver transceiver so subsequent share toggles
+          // (sharer reuses same transceiver via replaceTrack — which
+          // does NOT refire ontrack) can harvest receiver.track from
+          // here. Stored in `remoteScreenTransceivers` (NOT
+          // `screenTransceivers`) to avoid key collision with the
+          // sender-side transceiver in 1-on-1 where both peers share.
+          if (event.transceiver) {
+            const next = new Map(get().remoteScreenTransceivers);
+            next.set(key, event.transceiver);
+            set({ remoteScreenTransceivers: next });
+          }
           const existing = prev.stream.remoteScreenStreams.get(key);
           const target = existing ?? new MediaStream();
           if (!target.getTracks().includes(event.track)) {
@@ -372,6 +384,7 @@ const useP2pCallStore: UseBoundStore<StoreApi<P2pState>> = create<P2pState>()((s
       peerConnections: new Map(),
       pendingCandidates: new Map(),
       screenTransceivers: new Map(),
+      remoteScreenTransceivers: new Map(),
       cameraSenders: new Map(),
     });
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   useEffect,
   Suspense,
@@ -20,13 +20,56 @@ import {
 import useCounterStore from "@/store/useCounterStore";
 import { useSocket } from "@/components/providers/SocketProvider";
 import useRoomStore from "@/store/useRoomStore";
+import useAuthStore from "@/store/useAuthStore";
+import { tokenStorage } from "@/utils/tokenStorage";
+import { openDbForUser } from "@/libs/db";
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const firebase = useFirebase();
   const path = usePathname();
+  const router = useRouter();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
+  const fetchMe = useAuthStore((s) => s.fetchMe);
   const collapsedSidebar = useCounterStore((state) => state.collapsedSidebar);
   const toggleSidebar = useCounterStore((state) => state.togoleSidebar);
   const [mounted, setMounted] = useState(false);
+
+  // Auth bootstrap moved to <AuthBootstrap/> in app/providers.tsx so
+  // it covers EVERY page tree — including the /call popup window which
+  // doesn't use this ClientLayout. Without that, the call window
+  // opened with no user state and acceptCall silently failed.
+
+  /**
+   * Client-side route guard. Replaces the previous Next.js middleware
+   * check — middleware can no longer see auth state because:
+   *   - the HttpOnly `tokens` cookie is scoped to /auth, so the browser
+   *     doesn't send it on `/`, `/chat`, etc.
+   *   - the accessToken lives in localStorage, which the Edge runtime
+   *     can't read.
+   *
+   * Behaviour:
+   *   - Protected route + not authenticated → redirect to /auth
+   *   - /auth + already authenticated → redirect to /chat
+   *
+   * Reads `isAuthenticated` from the Zustand store, which the boot
+   * effect in useAuthStore seeds synchronously from
+   * `localStorage["accessToken"]` so we don't flash a redirect while
+   * fetchMe() is still resolving the user profile.
+   */
+  useEffect(() => {
+    if (!path) return;
+    const isAuthRoute = path === "/auth" || path.startsWith("/auth/");
+    const isPublic = isAuthRoute || path === "/dashboard";
+
+    if (isAuthenticated && isAuthRoute) {
+      router.replace("/chat");
+      return;
+    }
+    if (!isAuthenticated && !isPublic) {
+      router.replace("/auth");
+    }
+  }, [isAuthenticated, path, router]);
   const DEFAULT_SIDEBAR_WIDTH = 320;
   const COLLAPSED_SIDEBAR_WIDTH = 72;
   const [sidebarWidth, setSidebarWidth] = useState(
@@ -65,6 +108,13 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const useSimpleLayout = isAuthPage || !isInAppRoute;
 
   useEffect(() => {
+    // Only ask for notification permission AFTER the user has signed
+    // in. Prompting on the auth/landing page is bad UX (user has no
+    // context for what the notifications are for) and on Chrome it
+    // even contributes to permission-quality scoring that can downgrade
+    // future requests. Gating on `isAuthenticated` defers the ask
+    // until the user is committed to the app.
+    if (!isAuthenticated) return;
     const requestPermission = async () => {
       try {
         await firebase.requestPermission();
@@ -72,9 +122,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         console.error("🚫 Không thể cấp quyền thông báo.", err);
       }
     };
-
     requestPermission();
-  }, [firebase]);
+  }, [firebase, isAuthenticated]);
   // Define valid routes
   const validRoutes = ["/", "/chat", "/settings", "/contacts", '/flash-card', '/todo'];
   const isValidRoute =

@@ -110,7 +110,13 @@ export default function LoginPage() {
           showError(error.message || t("auth.login.failed"));
         } else {
           success(t("auth.login.success"));
-          router.push("/"); // Redirect to home page after successful login
+          // Land directly on the chat UI (the actual main interface)
+          // instead of `/` (welcome screen). Users expect a chat app
+          // to open into their conversation list, not a marketing
+          // splash. The ClientLayout auth-guard also bounces /auth →
+          // /chat for already-authed users — this keeps both paths
+          // pointing at the same destination.
+          router.push("/chat");
         }
       },
     });

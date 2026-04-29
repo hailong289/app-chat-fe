@@ -162,6 +162,10 @@
     }
   },
   "chat": {
+    "noRoomSelected": {
+      "title": "Pick a conversation",
+      "subtitle": "Choose one from the list on the left to start chatting"
+    },
     "input": {
       "placeholder": "Type a message...",
       "replyingTo": "Replying to {{name}}",
@@ -500,7 +504,17 @@
   },
   "home": {
     "welcome": "Welcome to Chat App",
-    "description": "A modern chat application that helps you connect and chat with friends and colleagues easily and conveniently."
+    "description": "A modern chat application that helps you connect and chat with friends and colleagues easily and conveniently.",
+    "activity": "Activity",
+    "online": "ONLINE",
+    "viewAll": "View all",
+    "myStatus": "My status",
+    "search": "Search",
+    "tabs": {
+      "all": "All",
+      "group": "Groups",
+      "channel": "Channels"
+    }
   },
   "notifications": {
     "title": "Notifications",
@@ -517,7 +531,8 @@
       "missed": "Missed call",
       "cancelled": "Cancelled",
       "busy": "User busy",
-      "join": "Join call"
+      "join": "Join call",
+      "rejoin": "Rejoin call"
     },
     "type": {
       "group": "Group call",
@@ -810,5 +825,55 @@
       "advanced": "Advanced",
       "expert": "Expert"
     }
+  },
+  "devices": {
+    "title": "Manage devices",
+    "subtitle": "Review login sessions and revoke remote access",
+    "tabs": {
+      "active": "Active",
+      "history": "History"
+    },
+    "current": "This device",
+    "currentBadge": "Current",
+    "unknownDevice": "Unknown device",
+    "unknownLocation": "Unknown location",
+    "ipPrefix": "IP",
+    "lastSeen": "Last active",
+    "createdAt": "Signed in at",
+    "loggedOutAt": "Signed out at",
+    "logoutDevice": "Sign out device",
+    "logoutAll": "Sign out all other devices",
+    "confirmLogoutDevice": {
+      "title": "Sign out this device?",
+      "description": "The session on this device will be revoked immediately. The user will need to sign in again."
+    },
+    "confirmLogoutAll": {
+      "title": "Sign out all devices?",
+      "description": "Every active session will be revoked. You'll remain signed in on this device only."
+    },
+    "empty": "No devices yet",
+    "emptyHistory": "No sign-out history yet",
+    "loading": "Loading...",
+    "loadFailed": "Could not load devices",
+    "logoutDeviceSuccess": "Device signed out",
+    "logoutDeviceFailed": "Failed to sign out device",
+    "logoutAllSuccess": "Other devices signed out",
+    "logoutAllFailed": "Failed to sign out other devices",
+    "revokeReason": {
+      "logout": "Manual sign-out on device",
+      "logout_all": "Signed out everywhere",
+      "logout_device": "Revoked from Settings",
+      "admin_revoke": "Revoked by admin"
+    },
+    "relative": {
+      "justNow": "just now",
+      "minute": "{{count}} min ago",
+      "hour": "{{count}} h ago",
+      "day": "{{count}} d ago"
+    }
+  },
+  "settingsList": {
+    "devices": "Manage devices",
+    "devicesDesc": "Review signed-in devices and sign them out"
   }
 }

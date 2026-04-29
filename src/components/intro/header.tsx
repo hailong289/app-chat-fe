@@ -193,7 +193,6 @@ export const Header = () => {
               </div>
             </DropdownTrigger>
             <DropdownMenu aria-label="User menu">
-              <DropdownItem key="profile">{t("sidebar.profile")}</DropdownItem>
               <DropdownItem
                 key="setting"
                 onPress={() => handleLink("/settings")}

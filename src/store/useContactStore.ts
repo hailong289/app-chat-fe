@@ -26,7 +26,12 @@ const useContactStore = create<ContactState>()(
       page: 1,
       limit: 20,
       getAllContacts: async () => {
-        const allContacts = await db.contacts.toArray();
+        // Defensive coalesce — `db.contacts.toArray()` can return
+        // undefined transiently when the call-popup window mounts
+        // before the per-user IndexedDB has been opened (proxy hits
+        // an edge case during initial cold-start). Treat it as an
+        // empty list instead of crashing on `.map`.
+        const allContacts = (await db.contacts.toArray()) ?? [];
         // Reconcile with the live `onlineUserIds` Set BEFORE setting state.
         // `db.contacts` lags the in-memory state by up to a few hundred ms
         // because `socketHandleOnline` writes via a fire-and-forget

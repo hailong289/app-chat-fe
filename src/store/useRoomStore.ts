@@ -48,6 +48,28 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       error: null,
     });
 
+    // Background prefetch: now that rooms are persisted to IDB, walk
+    // them and warm the message cache for each. The user picks a chat
+    // a moment later and the conversation paints instantly from
+    // IndexedDB instead of waiting on `/api/chat/messages`. Skips
+    // rooms with no `last_message` (genuinely empty rooms — no point
+    // hitting the API to confirm "still empty"). Skips the currently
+    // active room as well: the chat-switch effect already kicked off
+    // its own `loadRoomFromCache` and we don't want a duplicate fetch.
+    //
+    // Fire-and-forget: don't block `getRooms()` resolution, the FE
+    // sidebar should appear right after the first DB write. Errors
+    // inside `warmRoomCaches` are swallowed silently — best-effort.
+    const activeRoomId = get().room?.id;
+    const targets = (rooms as Array<{ id?: string; last_message?: { id?: string | null } | null }>)
+      .filter((r) => !!r.last_message?.id && !!r.id && r.id !== activeRoomId)
+      .map((r) => r.id as string);
+    if (targets.length > 0) {
+      void useMessageStore
+        .getState()
+        .warmRoomCaches(targets, { limit: 20, concurrency: 3 });
+    }
+
     return rooms;
   },
 
@@ -76,11 +98,14 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     }
   },
   getRoomsByType: async (type: string) => {
+    // Defensive coalesce — same edge case as useContactStore: the
+    // proxy can return undefined briefly during cold-start before
+    // openDbForUser fires. Don't crash on .toSorted of undefined.
     let rooms;
     if (type == "all") {
-      rooms = await db.rooms.toArray();
+      rooms = (await db.rooms.toArray()) ?? [];
     } else {
-      rooms = await db.rooms.where("type").equals(type).toArray();
+      rooms = (await db.rooms.where("type").equals(type).toArray()) ?? [];
     }
     const sortedRooms = rooms.toSorted((a, b) => {
       // Prioritize pinned rooms

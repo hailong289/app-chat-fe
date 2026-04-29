@@ -469,7 +469,23 @@ function CallMessageBubble({
     );
   };
 
-  const isCallOngoing = !callHistory.ended_at;
+  // Call is "ongoing" from a rejoin perspective if EITHER:
+  //   (a) the global ended_at is null (call truly hasn't ended), OR
+  //   (b) at least one OTHER member is still active (status started/accepted)
+  // Case (b) covers a known BE quirk where ended_at gets set on the
+  // callHistory snapshot the moment the FIRST user leaves a group call,
+  // even though the call is still going for the remaining participants.
+  // Without (b), a user who left mid-call could never rejoin a group
+  // that's still happily ongoing.
+  const hasActiveMember = callHistory.members.some(
+    (m) =>
+      m.id !== user?.id &&
+      (m.status === "started" || m.status === "accepted"),
+  );
+  const isCallOngoing = !callHistory.ended_at || hasActiveMember;
+  // User has already participated and left → rejoin label.
+  // First-time join (pending/missed/rejected/cancelled) → join label.
+  const hasLeftMidCall = myStatus === "ended";
 
   return (
     <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
@@ -531,7 +547,9 @@ function CallMessageBubble({
                 variant="solid"
                 onPress={handleJoinCall}
               >
-                {t("call.status.join", "Tham gia")}
+                {hasLeftMidCall
+                  ? t("call.status.rejoin", "Tham gia lại")
+                  : t("call.status.join", "Tham gia")}
               </Button>
             </div>
           )}

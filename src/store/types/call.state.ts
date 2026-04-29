@@ -86,6 +86,20 @@ export interface CallState {
     startedAt: string | null;
     isSharingScreen: boolean;
     userIdGhimmed: string;
+    /**
+     * userId của người đang được GHIM màn hình share lên main view.
+     * Mutually exclusive với `userIdGhimmed` (camera pin) — set một cái
+     * sẽ clear cái kia.
+     *
+     * Empty "" = không ghim → main view fallback theo precedence cũ:
+     * own localScreenStream → first peer trong peersSharingScreen.
+     *
+     * Use case: user A đang share + lương tuệ anh cũng đang share.
+     * Default A thấy chính screen của A trên main. Click vào tile
+     * "lương tuệ anh (màn hình)" → screen của lương lên main, screen
+     * của A vào strip.
+     */
+    screenSharerIdGhimmed: string;
   };
   socket: Socket | null;
   devices: {
@@ -140,6 +154,8 @@ export interface CallState {
   /** Audio → video upgrade: add a video track mid-call and produce/renegotiate. */
   upgradeToVideo: () => Promise<void>;
   setUserIdGhimmed: (userId: string) => void;
+  /** Pin a screen-share owner. "" clears. Setting non-empty also clears userIdGhimmed. */
+  setScreenSharerIdGhimmed: (userId: string) => void;
   getDevices: () => Promise<void>;
   setDevice: (
     type: "audioInput" | "audioOutput" | "videoInput",

@@ -1,18 +1,17 @@
 import { useEffect, useMemo } from "react";
-// import { groupMessagesByDate } from "@/libs/timeline-helpers"; // Removed: Filter logic moved to store
 import { MESSAGES_PER_GROUP } from "../constants/messageConstants";
-import { useTranslation } from "react-i18next";
-import { MessageGroup } from "@/store/types/message.state"; // Import type
+import { MessageGroup } from "@/store/types/message.state";
 import useAuthStore from "@/store/useAuthStore";
+import useMessageStore from "@/store/useMessageStore";
 
 interface UseChatMessagesEffectsProps {
   chatId: string;
-  groups: MessageGroup[]; // Changed from messages array
+  groups: MessageGroup[];
   lastReadId: string | null;
   scrollTargetId: string;
   lastServerMessageId: string | null;
   displayedMessagesCount: number;
-  isSwitchingChat: boolean;
+  loadingChatId: string | null;
   isBottomVisible: boolean;
   isLoadingOlder: boolean;
   hasMoreLocalMessages: boolean;
@@ -28,20 +27,21 @@ interface UseChatMessagesEffectsProps {
   hasTriedLoadingFromServer: React.MutableRefObject<boolean>;
   fetchTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>;
   lastFetchedServerMessageIdRef: React.MutableRefObject<string | null>;
-  hasInitialFetchRef: React.MutableRefObject<Record<string, boolean>>;
+  loadedChatIdRef: React.MutableRefObject<string | null>;
   messageState: any;
   socket: any;
-  setIsSwitchingChat: (value: boolean) => void;
+  setLoadingChatId: (
+    value: string | null | ((prev: string | null) => string | null),
+  ) => void;
   setShouldAnimate: (value: boolean) => void;
   setDisplayedMessagesCount: (
-    count: number | ((prev: number) => number)
+    count: number | ((prev: number) => number),
   ) => void;
   setHasMoreOnServer: (value: boolean) => void;
   setExpandedMessages: (
-    value: Set<string> | ((prev: Set<string>) => Set<string>)
+    value: Set<string> | ((prev: Set<string>) => Set<string>),
   ) => void;
   setIsBottomVisible: (value: boolean) => void;
-  setIsFetchingNewMessages: (value: boolean) => void;
   setIsLoadingOlder: (value: boolean) => void;
   setIsLoadingFromAPI: (value: boolean) => void;
   scrollToMessage: (id: string) => Promise<void>;
@@ -51,54 +51,57 @@ interface UseChatMessagesEffectsProps {
 export function useChatMessagesEffects({
   chatId,
   groups,
-  lastReadId,
   scrollTargetId,
   lastServerMessageId,
   displayedMessagesCount,
-  isSwitchingChat,
+  loadingChatId,
   isBottomVisible,
-  isLoadingOlder,
-  hasMoreLocalMessages,
-  hasLoadedAllLocal,
-  isLoadingFromAPI,
-  hasMoreOnServer,
   containerRef,
   bottomRef,
   prevMessageCountRef,
   prevChatIdRef,
   renderedMessageIds,
-  loadingTimeoutRef,
   hasTriedLoadingFromServer,
   fetchTimeoutRef,
   lastFetchedServerMessageIdRef,
-  hasInitialFetchRef,
+  loadedChatIdRef,
   messageState,
   socket,
-  setIsSwitchingChat,
+  setLoadingChatId,
   setShouldAnimate,
   setDisplayedMessagesCount,
   setHasMoreOnServer,
   setExpandedMessages,
   setIsBottomVisible,
-  setIsFetchingNewMessages,
-  setIsLoadingOlder,
-  setIsLoadingFromAPI,
   scrollToMessage,
   handleLoadMore,
 }: UseChatMessagesEffectsProps) {
-  const { t } = useTranslation();
   const currentUser = useAuthStore((state) => state.user);
-  
+
   // Derive flat messages list from groups for internal logic
-  const messages = useMemo(() => groups.flatMap(g => g.messages), [groups]);
+  const messages = useMemo(() => groups.flatMap((g) => g.messages), [groups]);
+  const isLoadingThisChat = loadingChatId === chatId;
 
-  // Effect: Handle chat switching
+  // ────────────────────────────────────────────────────────────────
+  // Effect: chat-switch + initial load — single source of truth.
+  //
+  // One promise, one flag. On chatId change:
+  //   1. Reset transient UI state (scroll, expanded, refs).
+  //   2. If the store already has visible messages for this room
+  //      (returned from a prior visit), paint immediately and run a
+  //      silent background sync via `loadRoomFromCache`.
+  //   3. Otherwise flip `loadingChatId = chatId` so the skeleton shows,
+  //      then await `loadRoomFromCache` → flip back to `null` when the
+  //      network round-trip settles (success, empty, or error).
+  //
+  // Replaces the old chained pair of effects (`isSwitchingChat` set
+  // here, cleared by a separate `messages.length > 0` watcher;
+  // `isFetchingNewMessages` toggled in a third effect) which deadlocked
+  // for genuinely empty rooms — the watcher never fired, the spinner
+  // spun forever.
+  // ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    const isActuallySwitchingChat = prevChatIdRef.current !== chatId;
-
-    if (isActuallySwitchingChat) {
-      setIsSwitchingChat(true);
-      setShouldAnimate(false);
+    if (prevChatIdRef.current !== chatId) {
       prevChatIdRef.current = chatId;
       prevMessageCountRef.current = 0;
       renderedMessageIds.current.clear();
@@ -106,68 +109,114 @@ export function useChatMessagesEffects({
       setHasMoreOnServer(true);
       hasTriedLoadingFromServer.current = false;
       setExpandedMessages(new Set());
-      setIsFetchingNewMessages(false);
       lastFetchedServerMessageIdRef.current = null;
-      hasInitialFetchRef.current = {};
       setIsBottomVisible(false);
-
-      const handleMessageLoaded = () => {
-        setShouldAnimate(true);
-        setIsSwitchingChat(false);
-        requestAnimationFrame(() => {
-          if (scrollTargetId && scrollTargetId !== "null") {
-            scrollToMessage(scrollTargetId);
-          }
-        });
-      };
-
-      messageState
-        .getMessageByRoomId(chatId)
-        .then(() => {
-          requestAnimationFrame(handleMessageLoaded);
-        })
-        .catch(() => {
-          setIsSwitchingChat(false);
-          setShouldAnimate(true);
-        });
     }
-  }, [chatId, scrollTargetId, messageState, scrollToMessage]);
 
-  // Effect: Track when messages are loaded after switching
-  useEffect(() => {
-    if (isSwitchingChat && messages.length > 0) {
-      const timer = setTimeout(() => {
-        setIsSwitchingChat(false);
-        setShouldAnimate(true);
-      }, 100);
-      return () => clearTimeout(timer);
+    // Once-per-chatId guard. Without this, every dep churn (refs,
+    // setters, scrollToMessage callback identity, etc.) re-fires the
+    // effect → loadRoomFromCache → /api/chat/messages spam.
+    if (loadedChatIdRef.current === chatId) return;
+    loadedChatIdRef.current = chatId;
+
+    // Snapshot the chatId this attempt is for. The "is this still the
+    // active chat?" check is done by comparing `loadedChatIdRef.current`
+    // — if the user has since switched, the ref points elsewhere and
+    // we no-op. This replaces a buggy `cancelled` flag that fired in
+    // the cleanup even when the same-chatId guard above re-skipped:
+    // the ref-based check is precise (per-chatId) instead of
+    // per-effect-instance.
+    const myChatId = chatId;
+    const isStillActive = () => loadedChatIdRef.current === myChatId;
+
+    const storeRoom = useMessageStore.getState().messagesRoom[chatId];
+    const hasCachedInStore = !!storeRoom?.groups?.some(
+      (g) => g.messages.length > 0,
+    );
+
+    if (hasCachedInStore) {
+      setShouldAnimate(true);
+      requestAnimationFrame(() => {
+        if (scrollTargetId && scrollTargetId !== "null") {
+          scrollToMessage(scrollTargetId);
+        }
+      });
+    } else {
+      setLoadingChatId(chatId);
+      setShouldAnimate(false);
     }
-  }, [messages.length, isSwitchingChat, setIsSwitchingChat, setShouldAnimate]);
 
-  // Effect: Initial fetch if no local messages
-  useEffect(() => {
-    if (messages.length === 0 && !hasInitialFetchRef.current[chatId]) {
-      hasInitialFetchRef.current[chatId] = true;
-      setIsFetchingNewMessages(true);
+    const finishLoading = () => {
+      // Use functional setState — the comparator handles the "user has
+      // since switched chats" case (cur !== myChatId) without needing a
+      // separate flag. setShouldAnimate is safe in either case.
+      setLoadingChatId((cur) => (cur === myChatId ? null : cur));
+      setShouldAnimate(true);
+    };
 
-      messageState
-        .fetchMessagesFromAPI(chatId, { limit: 100 })
-        .then(() => {
-          setIsFetchingNewMessages(false);
-        })
-        .catch(() => {
-          setIsFetchingNewMessages(false);
-          hasInitialFetchRef.current[chatId] = false;
-        });
-    }
-  }, [chatId, messages.length, messageState, setIsFetchingNewMessages]);
+    // Retry the API call on failure (network error, 5xx, etc.) — up to
+    // 3 attempts with exponential backoff (500ms, 1s, 2s). Empty
+    // results are NOT errors → no retry. After max attempts the
+    // spinner clears so the user isn't trapped.
+    const MAX_ATTEMPTS = 3;
+    const attempt = async (n: number): Promise<void> => {
+      if (!isStillActive()) return;
+      try {
+        const { fetched } = await useMessageStore
+          .getState()
+          .loadRoomFromCache(chatId, 20);
+        await fetched;
+        finishLoading();
+      } catch (err) {
+        if (!isStillActive()) return;
+        if (n >= MAX_ATTEMPTS - 1) {
+          console.warn(
+            `[ChatMessages] loadRoomFromCache failed for ${chatId} after ${MAX_ATTEMPTS} attempts`,
+            err,
+          );
+          finishLoading();
+          return;
+        }
+        const delay = 500 * Math.pow(2, n);
+        setTimeout(() => {
+          if (!isStillActive()) return;
+          void attempt(n + 1);
+        }, delay);
+      }
+    };
+    void attempt(0);
 
-  // Effect: Sync new messages from server
+    // Hard safety net: drop the spinner after 10s. Still gated by
+    // isStillActive so a delayed firing on a newer chat is a no-op.
+    setTimeout(() => {
+      if (isStillActive()) finishLoading();
+    }, 10000);
+  }, [
+    chatId,
+    scrollTargetId,
+    scrollToMessage,
+    setLoadingChatId,
+    setShouldAnimate,
+    setDisplayedMessagesCount,
+    setHasMoreOnServer,
+    setExpandedMessages,
+    setIsBottomVisible,
+    prevChatIdRef,
+    prevMessageCountRef,
+    renderedMessageIds,
+    hasTriedLoadingFromServer,
+    lastFetchedServerMessageIdRef,
+  ]);
+
+  // ────────────────────────────────────────────────────────────────
+  // Effect: silent delta sync when server's `last_message.id` changes
+  // mid-session (socket pushed a new message that bypassed the cache
+  // path). No spinner — user is already reading the chat, so the skim
+  // happens in the background.
+  // ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!lastServerMessageId) return;
-
     const lastLocalMessageId = messages.at(-1)?.id;
-
     if (!lastLocalMessageId) return;
     if (lastFetchedServerMessageIdRef.current === lastServerMessageId) return;
 
@@ -177,15 +226,11 @@ export function useChatMessagesEffects({
       }
 
       fetchTimeoutRef.current = setTimeout(async () => {
-        setIsFetchingNewMessages(true);
         lastFetchedServerMessageIdRef.current = lastServerMessageId;
-
         try {
           await messageState.fetchNewMessages(chatId, lastLocalMessageId);
         } catch {
           lastFetchedServerMessageIdRef.current = null;
-        } finally {
-          setIsFetchingNewMessages(false);
         }
       }, 100);
     }
@@ -197,33 +242,31 @@ export function useChatMessagesEffects({
     };
   }, [
     chatId,
-    messages.length,
+    messages,
     lastServerMessageId,
     messageState,
-    setIsFetchingNewMessages,
+    fetchTimeoutRef,
+    lastFetchedServerMessageIdRef,
   ]);
 
-  // Effect: Socket reconnect handler
+  // ────────────────────────────────────────────────────────────────
+  // Effect: silent re-sync on socket reconnect — pull the latest 50 in
+  // case any messages were missed during the network blip. No spinner.
+  // ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!socket) return;
 
     const handleReconnect = () => {
       setTimeout(async () => {
-        try {
-          setIsFetchingNewMessages(true);
-          await messageState.fetchMessagesFromAPI(chatId, { limit: 50 });
-
-          requestAnimationFrame(() => {
-            if (containerRef.current) {
-              containerRef.current.scrollTop =
-                containerRef.current.scrollHeight;
-            } else if (bottomRef.current) {
-              bottomRef.current.scrollIntoView({ behavior: "smooth" });
-            }
-          });
-        } finally {
-          setIsFetchingNewMessages(false);
-        }
+        await messageState.fetchMessagesFromAPI(chatId, { limit: 50 });
+        requestAnimationFrame(() => {
+          if (containerRef.current) {
+            containerRef.current.scrollTop =
+              containerRef.current.scrollHeight;
+          } else if (bottomRef.current) {
+            bottomRef.current.scrollIntoView({ behavior: "smooth" });
+          }
+        });
       }, 500);
     };
 
@@ -231,25 +274,28 @@ export function useChatMessagesEffects({
     return () => {
       socket.off("connect", handleReconnect);
     };
-  }, [
-    socket,
-    chatId,
-    messageState,
-    containerRef,
-    bottomRef,
-    setIsFetchingNewMessages,
-  ]);
+  }, [socket, chatId, messageState, containerRef, bottomRef]);
 
   // Effect: Scroll detection and load more
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || isSwitchingChat) return;
+    if (!container || isLoadingThisChat) return;
 
     let ticking = false;
 
+    // Track whether the user has performed a real scroll since the
+    // chat tab opened. Without this, brand-new rooms with so few
+    // messages that scrollTop=0 by default would auto-trigger
+    // handleLoadMore the moment the listener registers — looking
+    // exactly like an infinite "loading older messages" loop. We only
+    // arm `handleLoadMore` after we've seen scrollTop change at least
+    // once (true user gesture: wheel, drag, keyboard). The "Load more"
+    // button bypasses this via `force=true`.
+    let userHasScrolled = false;
+    let lastScrollTop = container.scrollTop;
+
     const checkScrollPosition = () => {
       if (!container) return;
-
       const { scrollTop, scrollHeight, clientHeight } = container;
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
       const isAtBottom = distanceFromBottom <= 50;
@@ -258,6 +304,12 @@ export function useChatMessagesEffects({
     };
 
     const handleScroll = () => {
+      const currentTop = container.scrollTop;
+      if (!userHasScrolled && currentTop !== lastScrollTop) {
+        userHasScrolled = true;
+      }
+      lastScrollTop = currentTop;
+
       if (!ticking && container) {
         globalThis.requestAnimationFrame(() => {
           checkScrollPosition();
@@ -275,11 +327,12 @@ export function useChatMessagesEffects({
         container.removeEventListener("scroll", handleScroll);
       }
     };
-  }, [isSwitchingChat, containerRef, setIsBottomVisible, handleLoadMore]);
+  }, [isLoadingThisChat, containerRef, setIsBottomVisible, handleLoadMore]);
 
-  // Effect: Handle new messages added to local store
+  // Effect: Handle new messages added to local store — autoscroll if
+  // the user sent it OR is already at the bottom.
   useEffect(() => {
-    if (isSwitchingChat) return;
+    if (isLoadingThisChat) return;
 
     const currentMessageCount = messages.length;
     const hasNewMessages = currentMessageCount > prevMessageCountRef.current;
@@ -291,12 +344,13 @@ export function useChatMessagesEffects({
         if (prevMessageCountRef.current > 0) {
           const diff = currentMessageCount - prevMessageCountRef.current;
           setDisplayedMessagesCount((prev) =>
-            Math.min(prev + diff, currentMessageCount)
+            Math.min(prev + diff, currentMessageCount),
           );
         }
       }
 
-      const isMine = currentUser?._id && newMessage?.sender?._id === currentUser._id;
+      const isMine =
+        currentUser?._id && newMessage?.sender?._id === currentUser._id;
 
       if (isMine) {
         setTimeout(() => {
@@ -334,11 +388,11 @@ export function useChatMessagesEffects({
     messages,
     isBottomVisible,
     displayedMessagesCount,
-    isSwitchingChat,
+    isLoadingThisChat,
     containerRef,
     bottomRef,
     setDisplayedMessagesCount,
     currentUser,
+    prevMessageCountRef,
   ]);
 }
-

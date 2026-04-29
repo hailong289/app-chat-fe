@@ -194,29 +194,46 @@ export const Home = () => {
 
   const handleChatClick = useCallback(
     (chat: any) => {
-      roomState.getRoomById(chat.id);
-      router.push(`/chat?chatId=${chat.id}`);
+      // Instant: we already have the full room object from the rooms
+      // list, no need to round-trip through getRoomById's async lookup.
+      // setState fires synchronously → both `/` (dashboard) and `/chat`
+      // re-render in the same tick because they each subscribe to
+      // `useRoomStore.room` and conditionally swap from welcome → chat
+      // layout when it's set. No Next.js navigation needed.
+      useRoomStore.setState({ room: chat });
+      // Update the URL bar so refresh / share-link still works, but
+      // keep the user on the current route — no router.push, no
+      // re-mount.
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", `/chat?chatId=${chat.id}`);
+      }
       setIsSearchVisible(false);
       setSearch("");
       setTab(chat.id);
     },
-    [roomState, router],
+    [],
   );
 
   const handleClickAction = useCallback(
     (chat: any) => {
-      roomState.getRoomById(chat.id);
-
-      if (!roomState.rooms.some((r) => r.id === chat.id)) {
+      const existing = roomState.rooms.find((r) => r.id === chat.id);
+      if (existing) {
+        useRoomStore.setState({ room: existing });
+      } else {
+        // No cached private room with this user → create one. Falls
+        // through to the async getRoomById path so the new room id
+        // resolves correctly before the page mounts ChatMessages.
         roomState.createRoom("private", `Chat với ${chat.id}`, [chat.id]);
+        roomState.getRoomById(chat.id);
       }
-
-      router.push(`/chat?chatId=${chat.id}`);
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", `/chat?chatId=${chat.id}`);
+      }
       setIsSearchVisible(false);
       setSearch("");
       setTab(chat.id);
     },
-    [roomState, router],
+    [roomState],
   );
 
   const handleSearchChange = useCallback(
@@ -300,8 +317,11 @@ export const Home = () => {
           <CardBody className="p-4">
             <div className="flex justify-between items-start mb-6 px-1">
               <div className="flex flex-col gap-0.5">
-                <h2 className="font-extrabold text-xl text-foreground tracking-tight whitespace-nowrap">
-                  Hoạt động
+                <h2
+                  suppressHydrationWarning
+                  className="font-extrabold text-xl text-foreground tracking-tight whitespace-nowrap"
+                >
+                  {t("home.activity")}
                 </h2>
                 {contactState.online.length > 0 && (
                   <div className="flex items-center gap-1.5 ml-0.5 mt-1">
@@ -309,8 +329,11 @@ export const Home = () => {
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-success"></span>
                     </span>
-                    <span className="text-[10px] font-bold text-success uppercase tracking-wider opacity-90">
-                      {contactState.online.length} TRỰC TUYẾN
+                    <span
+                      suppressHydrationWarning
+                      className="text-[10px] font-bold text-success uppercase tracking-wider opacity-90"
+                    >
+                      {contactState.online.length} {t("home.online")}
                     </span>
                   </div>
                 )}
@@ -322,7 +345,7 @@ export const Home = () => {
                   className="text-[11px] font-bold text-default-400 hover:text-primary min-w-0 px-2 h-7 rounded-lg uppercase tracking-tight"
                   onClick={handleTab("messages")}
                 >
-                  Xem tất cả
+                  <span suppressHydrationWarning>{t("home.viewAll")}</span>
                 </Button>
                 {btnNewMsg}
               </div>
@@ -340,8 +363,11 @@ export const Home = () => {
                     color="success"
                   />
                 </Badge>
-                <p className="text-xs text-default-500 text-center">
-                  Trạng thái của tôi
+                <p
+                  suppressHydrationWarning
+                  className="text-xs text-default-500 text-center"
+                >
+                  {t("home.myStatus")}
                 </p>
               </div>
 
@@ -375,7 +401,7 @@ export const Home = () => {
           <CardBody className="p-4">
             <div className="flex justify-between items-center mb-3 gap-2">
               <Input
-                placeholder="Tìm kiếm"
+                placeholder={t("home.search")}
                 size="sm"
                 type="text"
                 variant="bordered"
@@ -418,9 +444,9 @@ export const Home = () => {
                   }
                   className="bg-content2 rounded-xl"
                 >
-                  <Tab key="all" title="Tất cả" />
-                  <Tab key="group" title="Nhóm" />
-                  <Tab key="channel" title="Kênh" />
+                  <Tab key="all" title={t("home.tabs.all")} />
+                  <Tab key="group" title={t("home.tabs.group")} />
+                  <Tab key="channel" title={t("home.tabs.channel")} />
                 </Tabs>
               </div>
             )}

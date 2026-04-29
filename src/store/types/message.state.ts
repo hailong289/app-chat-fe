@@ -225,6 +225,16 @@ export interface MessageState {
   messagesRoom: Record<string, RoomData>; // roomId -> room data
 
   upsetMsg: (msgData: MessageType) => Promise<void>;
+  /**
+   * Patch the `call_history` of a single call-type message bubble.
+   * Used by the `call:end` socket handler to refresh members + ended_at
+   * without depending on a follow-up MSGUPSERT.
+   */
+  patchCallMessage: (
+    roomId: string,
+    callId: string,
+    patch: { members?: any[]; ended_at?: string | null },
+  ) => void;
   sendMessage: (data: SendMessageArgs) => Promise<void>;
   resendMessage: (
     roomId: string,
@@ -232,6 +242,27 @@ export interface MessageState {
     socket?: any,
   ) => Promise<void>;
   getMessageByRoomId: (roomId: string) => Promise<void>;
+  /**
+   * Cache-first load: read from IndexedDB → render immediately, then
+   * fire a background delta fetch (`type='new'&msgId=<latestCachedId>`).
+   * Returns the cached snapshot synchronously; newer messages arrive
+   * asynchronously via state update. No "Loading…" spinner when cache
+   * exists.
+   */
+  loadRoomFromCache: (
+    roomId: string,
+    limit?: number,
+  ) => Promise<{ cached: MessageType[]; fetched: Promise<void> }>;
+  /**
+   * Background prefetch: walks a list of rooms (typically the result
+   * of `getRooms()` post-login) and pulls the latest N messages of
+   * each into IndexedDB. Subsequent room-switches paint instantly
+   * from cache without an API spinner.
+   */
+  warmRoomCaches: (
+    roomIds: string[],
+    options?: { limit?: number; concurrency?: number },
+  ) => Promise<void>;
   fetchMessagesFromAPI: (
     roomId: string,
     queryParams?: {

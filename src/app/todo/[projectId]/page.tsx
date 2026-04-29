@@ -971,17 +971,22 @@ export default function KanbanPage() {
   if (!isLoading && !project) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-4 text-center px-6">
-        <p className="text-lg font-semibold text-gray-800 dark:text-white">
+        <p
+          suppressHydrationWarning
+          className="text-lg font-semibold text-gray-800 dark:text-white"
+        >
           {t("todo.kanban.notFound")}
         </p>
-        <p className="text-sm text-gray-500">{t("todo.kanban.notFoundDesc")}</p>
+        <p suppressHydrationWarning className="text-sm text-gray-500">
+          {t("todo.kanban.notFoundDesc")}
+        </p>
         <Button
           color="primary"
           variant="flat"
           onPress={() => router.push("/todo")}
           startContent={<ArrowLeftIcon className="w-4 h-4" />}
         >
-          {t("todo.kanban.backBtn")}
+          <span suppressHydrationWarning>{t("todo.kanban.backBtn")}</span>
         </Button>
       </div>
     );

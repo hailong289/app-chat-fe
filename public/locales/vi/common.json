@@ -500,7 +500,17 @@
   },
   "home": {
     "welcome": "Chào mừng đến với Chat App",
-    "description": "Ứng dụng chat hiện đại giúp bạn kết nối và trò chuyện với bạn bè, đồng nghiệp một cách dễ dàng và tiện lợi."
+    "description": "Ứng dụng chat hiện đại giúp bạn kết nối và trò chuyện với bạn bè, đồng nghiệp một cách dễ dàng và tiện lợi.",
+    "activity": "Hoạt động",
+    "online": "TRỰC TUYẾN",
+    "viewAll": "Xem tất cả",
+    "myStatus": "Trạng thái của tôi",
+    "search": "Tìm kiếm",
+    "tabs": {
+      "all": "Tất cả",
+      "group": "Nhóm",
+      "channel": "Kênh"
+    }
   },
   "notifications": {
     "title": "Thông báo",
@@ -517,7 +527,8 @@
       "missed": "Cuộc gọi nhỡ",
       "cancelled": "Đã hủy",
       "busy": "Người dùng bận",
-      "join": "Tham gia"
+      "join": "Tham gia",
+      "rejoin": "Tham gia lại"
     },
     "type": {
       "group": "Cuộc gọi nhóm",
@@ -810,5 +821,55 @@
       "advanced": "Nâng cao",
       "expert": "Chuyên gia"
     }
+  },
+  "devices": {
+    "title": "Quản lý thiết bị",
+    "subtitle": "Xem các phiên đăng nhập và đăng xuất từ xa",
+    "tabs": {
+      "active": "Đang hoạt động",
+      "history": "Lịch sử"
+    },
+    "current": "Thiết bị này",
+    "currentBadge": "Hiện tại",
+    "unknownDevice": "Thiết bị không xác định",
+    "unknownLocation": "Vị trí không xác định",
+    "ipPrefix": "IP",
+    "lastSeen": "Hoạt động gần nhất",
+    "createdAt": "Đăng nhập lúc",
+    "loggedOutAt": "Đăng xuất lúc",
+    "logoutDevice": "Đăng xuất thiết bị",
+    "logoutAll": "Đăng xuất tất cả thiết bị khác",
+    "confirmLogoutDevice": {
+      "title": "Đăng xuất thiết bị này?",
+      "description": "Phiên đăng nhập trên thiết bị này sẽ bị huỷ ngay lập tức. Người dùng cần đăng nhập lại."
+    },
+    "confirmLogoutAll": {
+      "title": "Đăng xuất tất cả thiết bị?",
+      "description": "Mọi thiết bị đang đăng nhập sẽ bị buộc đăng xuất. Bạn vẫn ở lại trên thiết bị hiện tại."
+    },
+    "empty": "Chưa có thiết bị nào",
+    "emptyHistory": "Chưa có lịch sử đăng xuất",
+    "loading": "Đang tải...",
+    "loadFailed": "Không tải được danh sách thiết bị",
+    "logoutDeviceSuccess": "Đã đăng xuất thiết bị",
+    "logoutDeviceFailed": "Đăng xuất thiết bị thất bại",
+    "logoutAllSuccess": "Đã đăng xuất các thiết bị khác",
+    "logoutAllFailed": "Đăng xuất tất cả thiết bị thất bại",
+    "revokeReason": {
+      "logout": "Tự đăng xuất trên thiết bị",
+      "logout_all": "Đăng xuất tất cả thiết bị",
+      "logout_device": "Đăng xuất từ Cài đặt",
+      "admin_revoke": "Bị quản trị huỷ"
+    },
+    "relative": {
+      "justNow": "vừa xong",
+      "minute": "{{count}} phút trước",
+      "hour": "{{count}} giờ trước",
+      "day": "{{count}} ngày trước"
+    }
+  },
+  "settingsList": {
+    "devices": "Quản lý thiết bị",
+    "devicesDesc": "Xem và đăng xuất các thiết bị đã đăng nhập"
   }
 }
