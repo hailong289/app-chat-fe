@@ -51,7 +51,7 @@ class ApiService {
         const responseData = error.response?.data;
         if (statusCode === 401) {
           deleteCookie("tokens", { path: "/" });
-         useAuthStore.getState().setAuth(false);
+          useAuthStore.getState().setAuth(false);
         }
         return Promise.reject({
           success: false,

@@ -52,7 +52,8 @@ export type MessageType = {
     | "gif"
     | "document"
     | "call"
-    | "quiz";
+    | "quiz"
+    | "todo_project";
   content: string;
   createdAt: string;
   editedAt?: string | null;
@@ -112,6 +113,7 @@ export type MessageType = {
   summary?: MessageSummary | null;
   translation?: MessageTranslation | null;
   quiz?: QuizzResponse;
+  todoProjectId?: string; // Todo project linkage for FE rendering
   /** Populated by backend when msg.type === 'system' (member added/left, call started, etc.) */
   room_event?: RoomEventType | null;
   /** Backend fallback text for system messages — used when room_event is missing */
