@@ -4,19 +4,19 @@
   "version": "0.1.0",
   "identifier": "com.appchat.desktop",
   "build": {
-    "beforeDevCommand": "cd ../ && npm run dev",
-    "frontendDist": "dummy_dist",
-    "devUrl": "https://app-chat-fe-service-dyt45erana-as.a.run.app"
+    "beforeDevCommand": "npm run dev",
+    "frontendDist": "../.next",
+    "devUrl": "http://localhost:3000"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "app-chat-fe",
-        "width": 800,
-        "height": 600,
+        "width": 1280,
+        "height": 800,
         "resizable": true,
-        "fullscreen": false,
-        "url": "https://app-chat-fe-service-dyt45erana-as.a.run.app"
+        "fullscreen": false
       }
     ],
     "security": {

@@ -68,19 +68,29 @@ function _getActiveCallId(): string | null {
   }
 }
 
-function _isTauriRuntime() {
+function _isTauriRuntime(): boolean {
   if (typeof window === "undefined") return false;
-  const tauriWindow = (window as any).__TAURI__?.window;
-  return !!tauriWindow?.WebviewWindow;
+  return !!(window as any).__TAURI_INTERNALS__;
+}
+
+async function _getTauriWebviewWindow() {
+  try {
+    const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+    return WebviewWindow;
+  } catch (err) {
+    console.error("[Tauri] Failed to import WebviewWindow:", err);
+    return null;
+  }
 }
 
 async function _focusTauriCallWindow() {
   if (!_openTauriCallLabel) return false;
   try {
-    const tauriWindow = (window as any).__TAURI__?.window;
-    const existing = await tauriWindow?.WebviewWindow?.getByLabel?.(_openTauriCallLabel);
+    const WebviewWindow = await _getTauriWebviewWindow();
+    if (!WebviewWindow) return false;
+    const existing = await WebviewWindow.getByLabel(_openTauriCallLabel);
     if (existing) {
-      await existing.setFocus?.();
+      await existing.setFocus();
       return true;
     }
     _openTauriCallLabel = null;
@@ -93,18 +103,22 @@ async function _focusTauriCallWindow() {
 
 async function _openTauriCallWindow(url: string, label: string) {
   try {
-    const tauriWindow = (window as any).__TAURI__?.window;
-    if (!tauriWindow?.WebviewWindow) return false;
+    const WebviewWindow = await _getTauriWebviewWindow();
+    if (!WebviewWindow) return false;
 
-    const existing = await tauriWindow.WebviewWindow.getByLabel?.(label);
+    // Tauri v2 WebviewWindow requires an absolute URL
+    const absoluteUrl = url.startsWith("http") ? url : `${window.location.origin}${url}`;
+    console.log("[Tauri] Opening window", label, absoluteUrl);
+
+    const existing = await WebviewWindow.getByLabel(label);
     if (existing) {
       _openTauriCallLabel = label;
-      await existing.setFocus?.();
+      await existing.setFocus();
       return true;
     }
 
-    const created = new tauriWindow.WebviewWindow(label, {
-      url,
+    const created = new WebviewWindow(label, {
+      url: absoluteUrl,
       title: "Call",
       width: 800,
       height: 600,
@@ -115,16 +129,17 @@ async function _openTauriCallWindow(url: string, label: string) {
 
     _openTauriCallLabel = label;
     _setCallActive("pending");
-    created.once?.("tauri://close-requested", () => {
+    created.once("tauri://close-requested", () => {
       _openTauriCallLabel = null;
       _clearCallActive();
     });
-    created.once?.("tauri://destroyed", () => {
+    created.once("tauri://destroyed", () => {
       _openTauriCallLabel = null;
       _clearCallActive();
     });
     return true;
-  } catch {
+  } catch (err) {
+    console.error("[Tauri] _openTauriCallWindow error:", err);
     _openTauriCallLabel = null;
     return false;
   }
@@ -143,6 +158,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       { urls: ["stun:stun.l.google.com:19302"] },
       { urls: ["stun:stun1.l.google.com:19302"] },
       { urls: ["stun:stun2.l.google.com:19302"] },
+      { urls: ["stun:34.21.203.49:3478"] },
       {
         urls: "stun:stun.relay.metered.ca:80",
       },
@@ -237,9 +253,14 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       void _focusTauriCallWindow();
       return;
     }
-    if (_getActiveCallId()) {
-      console.warn("[Call] Already in a call, ignoring openCall");
-      return;
+
+    // Clear stale localStorage flag — in-memory refs are reset on page reload
+    // so a leftover key would permanently block outgoing calls.
+    const hasLiveWindow =
+      (_openCallWindow && !_openCallWindow.closed) || !!_openTauriCallLabel;
+    if (!hasLiveWindow && _getActiveCallId()) {
+      console.warn("[Call] Clearing stale CALL_ACTIVE_KEY before openCall");
+      _clearCallActive();
     }
 
     const memberMap = members.map((m: User) => ({
