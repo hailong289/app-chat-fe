@@ -9,7 +9,6 @@ import { socketEvent } from "@/types/socketEvent.type";
 import useCallStore from "@/store/useCallStore";
 import { useOnlinePresence } from "./hooks/useOnlinePresence";
 import { IncomingCallModal } from "../call/IncomingCallModal";
-import { WaitingCallBanner } from "../call/WaitingCallBanner";
 
 export const SocketEventChatGlobal = () => {
   const { socket: msgSocket } = useSocket("/chat");
@@ -139,10 +138,5 @@ export const SocketEventChatGlobal = () => {
       msgSocket.off(socketEvent.UPDATE_QUIZ, handleUpdateQuiz.current);
     };
   }, [msgSocket, call]);
-  return (
-    <>
-      <IncomingCallModal />
-      <WaitingCallBanner />
-    </>
-  );
+  return <IncomingCallModal />;
 };

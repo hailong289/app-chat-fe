@@ -10,24 +10,6 @@ export interface P2pState {
    */
   screenTransceivers: Map<string, RTCRtpTransceiver>;
   /**
-   * REMOTE-side counterpart of `screenTransceivers`. Stores the transceiver
-   * that `pc.ontrack` fired with for the peer's screen track, so subsequent
-   * share toggles (sender uses replaceTrack on the SAME transceiver, which
-   * does NOT refire ontrack on the receiver) can harvest the still-live
-   * `receiver.track` and re-add it to remoteScreenStreams.
-   *
-   * Why a SEPARATE Map (instead of reusing screenTransceivers): in 1-on-1
-   * P2P where both peers share, each PC ends up with TWO screen
-   * transceivers — one created by our own addTransceiver (sender role)
-   * and one created by SDP from the peer's addTransceiver (receiver role).
-   * Both are under the same peer key. Storing them in the same Map
-   * collides — the second store overwrites the first, breaking either
-   * stop-own-share (Tx.sender becomes the wrong instance) or harvest-
-   * remote-share (Tx.receiver becomes the wrong instance) depending on
-   * order of operations.
-   */
-  remoteScreenTransceivers: Map<string, RTCRtpTransceiver>;
-  /**
    * The camera RTCRtpSender created (or to be created) for each peer. We
    * track it explicitly because once the user toggles camera OFF we
    * `replaceTrack(null)` on this sender, which leaves `sender.track === null`

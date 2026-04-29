@@ -216,7 +216,6 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     startedAt: null,
     isSharingScreen: false,
     userIdGhimmed: "",
-    screenSharerIdGhimmed: "",
   },
   devices: {
     audioInputs: [],
@@ -231,7 +230,6 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   callId: null,
   answer: null,
   incomingCall: null,
-  waitingCall: null,
 
   // ─── Window management ────────────────────────────────────────────────────
 
@@ -314,29 +312,11 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       _clearCallActive();
     }
 
-    // `window.opener` is non-null when this code runs in the call popup
-    // window — the popup IS an active call by definition, so any incoming
-    // request is a secondary call.
-    const isPopupContext =
-      typeof window !== "undefined" && !!window.opener;
-    const alreadyInCall = hasOpenPopup || hasActiveModal || isPopupContext;
+    const alreadyInCall = hasOpenPopup || hasActiveModal;
     if (alreadyInCall) {
-      // Secondary incoming call while user is busy — show the
-      // WaitingCallBanner instead of the full IncomingCallModal. The
-      // banner lets the user accept-and-switch (end current + join new)
-      // or reject without disrupting their active call.
-      console.log("[Call] Showing WaitingCallBanner for", callId, payload);
-      useCallStore.getState().updateCallState({
-        waitingCall: {
-          callId,
-          roomId,
-          callType,
-          callMode,
-          members,
-          actionUserId,
-          receivedAt: Date.now(),
-        },
-      });
+      const socket = useCallStore.getState().socket;
+      socket?.emit("call:busy", { callId, callerUserId: actionUserId });
+      console.log("[Call] User is busy, auto-declining incoming call", callId);
       return;
     }
 
@@ -434,114 +414,6 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
 
   clearIncomingCall: () => {
     useCallStore.getState().updateCallState({ incomingCall: null });
-  },
-
-  // ─── Waiting call (secondary incoming while busy) actions ────────────────
-
-  /**
-   * Accept the waiting call: end the current active call, then join the
-   * new one. Behavior depends on which window is running this:
-   *
-   *   - Popup context (window.opener present): the popup IS the active
-   *     call's window. Emit call:end for THIS call, then navigate the
-   *     popup to the new call URL — same window becomes the new call.
-   *   - Main window: focus the existing popup if any (so the user can
-   *     accept there), otherwise promote waitingCall → incomingCall and
-   *     run acceptIncomingCall to open a new popup.
-   */
-  acceptWaitingCall: () => {
-    const state = useCallStore.getState();
-    const waiting = state.waitingCall;
-    if (!waiting) return;
-    const userId = useAuthStore.getState().user?.id;
-    const socket = state.socket;
-    const isPopupContext =
-      typeof window !== "undefined" && !!window.opener;
-
-    if (isPopupContext) {
-      // End the popup's current call before navigating away. The BE
-      // broadcasts call:end → other participants see this user leave.
-      const currentCallId = state.callId;
-      const currentRoomId = state.roomId;
-      if (currentCallId && currentRoomId) {
-        socket?.emit("call:end", {
-          roomId: currentRoomId,
-          actionUserId: userId,
-          status: "ended",
-          callId: currentCallId,
-        });
-      }
-
-      // Navigate the popup to the new call URL. Same window, no need to
-      // open a new popup or coordinate with the opener — the popup's
-      // /call page lifecycle handles join via the URL params.
-      const encodedMembers = Helpers.enCryptUserInfo(waiting.members);
-      const newUrl = `/call?roomId=${waiting.roomId}&members=${encodedMembers}&callType=${waiting.callType}&callMode=${waiting.callMode}&status=joined&callId=${waiting.callId}`;
-      useCallStore.setState({ waitingCall: null });
-      window.location.href = newUrl;
-      return;
-    }
-
-    // Main-window path. If a popup is open, focus it so the user can
-    // accept there (popup has full call state — emitting call:end from
-    // here would need callId/roomId we don't easily have). Otherwise
-    // (no popup, just an IncomingCallModal showing) promote the waiting
-    // call to incoming and accept normally.
-    if (_openCallWindow && !_openCallWindow.closed) {
-      _openCallWindow.focus();
-      return;
-    }
-    if (_openTauriCallLabel) {
-      void _focusTauriCallWindow();
-      return;
-    }
-    // No popup → maybe IncomingCallModal was showing for the FIRST call.
-    // Reject the original incoming + accept the waiting one.
-    if (state.incomingCall) {
-      socket?.emit("call:end", {
-        roomId: state.incomingCall.roomId,
-        actionUserId: userId,
-        status: "rejected",
-        callId: state.incomingCall.callId,
-      });
-    }
-    useCallStore.setState({
-      incomingCall: waiting,
-      waitingCall: null,
-    });
-    useCallStore.getState().acceptIncomingCall();
-  },
-
-  rejectWaitingCall: () => {
-    const state = useCallStore.getState();
-    const waiting = state.waitingCall;
-    if (!waiting) return;
-    const userId = useAuthStore.getState().user?.id;
-    state.socket?.emit("call:end", {
-      roomId: waiting.roomId,
-      actionUserId: userId,
-      status: "rejected",
-      callId: waiting.callId,
-    });
-    useCallStore.setState({ waitingCall: null });
-  },
-
-  missWaitingCall: () => {
-    const state = useCallStore.getState();
-    const waiting = state.waitingCall;
-    if (!waiting) return;
-    const userId = useAuthStore.getState().user?.id;
-    state.socket?.emit("call:end", {
-      roomId: waiting.roomId,
-      actionUserId: userId,
-      status: "missed",
-      callId: waiting.callId,
-    });
-    useCallStore.setState({ waitingCall: null });
-  },
-
-  clearWaitingCall: () => {
-    useCallStore.setState({ waitingCall: null });
   },
 
   // ─── Call lifecycle ───────────────────────────────────────────────────────
@@ -660,13 +532,6 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     if (incoming && (!callId || incoming.callId === callId)) {
       get().updateCallState({ incomingCall: null });
     }
-    // Same for the WaitingCallBanner — if the secondary call ends (caller
-    // hung up before this user could decide), dismiss the banner so it
-    // doesn't sit there pointing at a dead call.
-    const waiting = get().waitingCall;
-    if (waiting && (!callId || waiting.callId === callId)) {
-      get().updateCallState({ waitingCall: null });
-    }
 
     // Group calls (more than 2 members) NEVER full-teardown when one
     // person leaves — even if that person was the caller. The remaining
@@ -702,14 +567,9 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       newPeerConnections.delete(key);
       const newScreenTransceivers = new Map(useP2pCallStore.getState().screenTransceivers);
       newScreenTransceivers.delete(key);
-      const newRemoteScreenTransceivers = new Map(
-        useP2pCallStore.getState().remoteScreenTransceivers,
-      );
-      newRemoteScreenTransceivers.delete(key);
       useP2pCallStore.setState({
         peerConnections: newPeerConnections,
         screenTransceivers: newScreenTransceivers,
-        remoteScreenTransceivers: newRemoteScreenTransceivers,
       });
 
       const newPeersSharingScreen = new Set(get().peersSharingScreen);
@@ -794,11 +654,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
 
     switch (event) {
       case "request":
-        // Popup window must ALSO process call:request now — otherwise a
-        // user focused on the call popup wouldn't see the WaitingCallBanner
-        // for a secondary incoming call. handleRequestCall detects the
-        // popup context (window.opener present) and routes the payload to
-        // `waitingCall` instead of `incomingCall`.
+        if (window.opener) return;
         await get().handleRequestCall(payload);
         break;
 
@@ -1316,31 +1172,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   },
 
   setUserIdGhimmed: (userId) => {
-    // Pinning a camera clears any active screen-share pin — the two pin
-    // modes are mutually exclusive (main view can show one thing at a
-    // time). Empty string ("") just clears the camera pin.
-    set((prev) => ({
-      ...prev,
-      action: {
-        ...prev.action,
-        userIdGhimmed: userId,
-        ...(userId ? { screenSharerIdGhimmed: "" } : {}),
-      },
-    }));
-  },
-
-  setScreenSharerIdGhimmed: (userId) => {
-    // Pinning a screen-share clears any active camera pin. Empty string
-    // ("") just clears the screen pin and falls back to the default
-    // sharer-precedence (own → first peer).
-    set((prev) => ({
-      ...prev,
-      action: {
-        ...prev.action,
-        screenSharerIdGhimmed: userId,
-        ...(userId ? { userIdGhimmed: "" } : {}),
-      },
-    }));
+    set((prev) => ({ ...prev, action: { ...prev.action, userIdGhimmed: userId } }));
   },
 
   // ─── Audio → Video upgrade ────────────────────────────────────────────────
@@ -1694,18 +1526,6 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
 
       const joinCallId = (state as any).callId || get().callId;
       let joinHistory: any = null;
-      // BE-snapshotted runtime state at the moment of joining: who is
-      // currently sharing screen, who has camera off, who has mic off.
-      // Lets the UI render correct tiles from frame 1 instead of waiting
-      // for the next toggle event from each peer (which may never arrive
-      // for a stable state — e.g. a 30-min steady screen-share would never
-      // re-emit call:share-screen, leaving the late-joiner with the screen
-      // routed into the camera Map).
-      let joinCallState: {
-        sharing: Array<{ userId: string; screenProducerId: string | null }>;
-        cameraOff: string[];
-        micOff: string[];
-      } | null = null;
 
       if (joinCallId) {
         canonicalRoomId = await new Promise<string>((resolve) => {
@@ -1715,10 +1535,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
             { roomId: state.roomId, callId: joinCallId },
             (response: any) => {
               clearTimeout(fallback);
-              if (response?.ok) {
-                joinHistory = response.history || null;
-                joinCallState = response.callState || null;
-              }
+              if (response?.ok) joinHistory = response.history || null;
               resolve(
                 response?.ok && response?.room?.room_id
                   ? response.room.room_id
@@ -1741,45 +1558,6 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
             (Date.now() - new Date(joinHistory.started_at).getTime()) / 1000,
           ),
         );
-      }
-
-      // Seed the UI from the BE snapshot before any toggle event arrives.
-      // Only `peersSharingScreen` + `screenProducerIds` are stored in
-      // useCallStore / useSfuCallStore — cameraOff / micOff currently live
-      // in component state (cameraOffPeers / micOffPeers). To avoid lifting
-      // those into the store right now, we forward them via the URL params
-      // pattern we already use for joined-state propagation; FE component
-      // useEffect can pick them up. For a smaller scope, we just hydrate
-      // the screen-share state here (the highest-impact bug).
-      if (joinCallState) {
-        const sharerIds = (joinCallState as {
-          sharing: Array<{ userId: string; screenProducerId: string | null }>;
-        }).sharing.map((s) => s.userId);
-        const producerIds = (joinCallState as {
-          sharing: Array<{ userId: string; screenProducerId: string | null }>;
-        }).sharing
-          .map((s) => s.screenProducerId)
-          .filter((id): id is string => !!id);
-        if (sharerIds.length > 0) {
-          set((prev) => ({
-            ...prev,
-            peersSharingScreen: new Set([
-              ...prev.peersSharingScreen,
-              ...sharerIds,
-            ]),
-          }));
-        }
-        if (producerIds.length > 0) {
-          useSfuCallStore.setState((prev) => ({
-            sfu: {
-              ...prev.sfu,
-              screenProducerIds: new Set([
-                ...prev.sfu.screenProducerIds,
-                ...producerIds,
-              ]),
-            },
-          }));
-        }
       }
 
       if (effectiveCallMode === "sfu") {

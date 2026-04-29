@@ -158,12 +158,6 @@
       "missed": "{{name}} didn't answer",
       "left": "{{name}} left the call",
       "joined": "{{name}} joined the call"
-    },
-    "waitingBanner": {
-      "subtitle": "Another call is waiting",
-      "subtitleGroup": "Another group call is waiting",
-      "acceptAria": "Accept and switch to the waiting call",
-      "rejectAria": "Decline the waiting call"
     }
   },
   "chat": {

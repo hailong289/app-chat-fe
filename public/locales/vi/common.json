@@ -158,12 +158,6 @@
       "missed": "{{name}} không trả lời",
       "left": "{{name}} đã rời cuộc gọi",
       "joined": "{{name}} đã tham gia cuộc gọi"
-    },
-    "waitingBanner": {
-      "subtitle": "Cuộc gọi khác đang chờ",
-      "subtitleGroup": "Cuộc gọi nhóm khác đang chờ",
-      "acceptAria": "Chấp nhận và chuyển sang cuộc gọi đang chờ",
-      "rejectAria": "Từ chối cuộc gọi đang chờ"
     }
   },
   "chat": {
