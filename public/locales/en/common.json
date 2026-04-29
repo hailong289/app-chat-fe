@@ -13,6 +13,7 @@
     "send": "Send",
     "or": "Or",
     "ok": "OK",
+    "close": "Close",
     "view": "View message",
     "back": "Back"
   },
@@ -524,6 +525,224 @@
       "voice": "Voice Call"
     },
     "members_count": "with {{count}} others"
+  },
+  "todo": {
+    "title": "Todo",
+    "taskCount": "{{count}} tasks",
+    "allProjects": "All",
+    "manageProjects": "Projects",
+    "create": "New task",
+    "projectList": {
+      "subtitle": "Manage your tasks by project",
+      "createProject": "New project",
+      "manage": "Manage",
+      "noProjects": "No projects yet",
+      "noProjectsDesc": "Create your first project to start managing tasks",
+      "noDescription": "No description",
+      "statusesLabel": "Statuses:",
+      "viewBoard": "Open board"
+    },
+    "kanban": {
+      "backToProjects": "Projects",
+      "notFound": "Project not found",
+      "notFoundDesc": "This project does not exist or has been deleted",
+      "backBtn": "Back"
+    },
+    "share": {
+      "btn": "Share",
+      "title": "Share project",
+      "searchPlaceholder": "Search conversations...",
+      "noRooms": "No conversations found",
+      "unnamedRoom": "Unnamed room",
+      "sendBtn": "Send",
+      "sent": "Sent",
+      "joinBtn": "Join project",
+      "joinedBtn": "Joined",
+      "joinedText": "You joined",
+      "viewBtn": "View project",
+      "error": "Failed to share project"
+    },
+    "empty": {
+      "noProjects": "No projects yet. Create a project to start managing tasks.",
+      "createFirst": "Create first project"
+    },
+    "column": {
+      "dropHere": "Drop here",
+      "empty": "No tasks",
+      "addTask": "Add task",
+      "addToColumn": "Add to {{name}}"
+    },
+    "form": {
+      "createTitle": "Create new task",
+      "editTitle": "Edit task",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Enter task title...",
+      "descLabel": "Description",
+      "descPlaceholder": "Describe the task (optional)...",
+      "projectLabel": "Project",
+      "projectPlaceholder": "Select project...",
+      "statusLabel": "Status",
+      "priorityLabel": "Priority",
+      "dueDateLabel": "Due date",
+      "assignLabel": "Assign to",
+      "assignHint": "Select friends to assign (optional). Multiple allowed.",
+      "assignPlaceholder": "Select assignees...",
+      "noFriends": "No friends yet",
+      "cancel": "Cancel",
+      "save": "Save changes",
+      "createSubmit": "Create"
+    },
+    "priority": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "card": {
+      "options": "Options",
+      "edit": "Edit",
+      "assign": "Assign user",
+      "moveTo": "Move to: {{name}}",
+      "delete": "Delete",
+      "assignBtn": "Assign",
+      "reassignBtn": "Reassign ({{count}})"
+    },
+    "assign": {
+      "title": "Assign task",
+      "selected": "Selected:",
+      "cancel": "Cancel",
+      "confirm": "Confirm ({{count}})",
+      "noFriends": "No friends yet"
+    },
+    "delete": {
+      "title": "Delete task",
+      "content": "Are you sure you want to delete this task? This action cannot be undone.",
+      "confirm": "Delete",
+      "cancel": "Cancel"
+    },
+    "toast": {
+      "saved": "Changes saved",
+      "created": "Task created successfully",
+      "deleted": "Task deleted",
+      "assignUpdated": "Assignees updated",
+      "error": "Error",
+      "dragError": "Drag & drop error"
+    },
+    "error": {
+      "projectNotFound": "Project not found",
+      "statusNotAllowed": "Status is not allowed in this project",
+      "statusExists": "Status already exists in project",
+      "generic": "An error occurred"
+    },
+    "projects": {
+      "title": "Manage Projects",
+      "count": "{{count}} projects",
+      "create": "New project",
+      "backToTodo": "Back to Todo",
+      "selectHint": "Select a project to manage its statuses",
+      "noProjects": "No projects yet",
+      "statusCount": "{{count}} statuses",
+      "form": {
+        "createTitle": "Create new project",
+        "editTitle": "Edit project",
+        "nameLabel": "Project name",
+        "namePlaceholder": "Enter project name...",
+        "descLabel": "Description",
+        "descPlaceholder": "Describe the project (optional)...",
+        "cancel": "Cancel",
+        "save": "Save",
+        "create": "Create"
+      },
+      "delete": {
+        "title": "Delete project",
+        "content": "Are you sure you want to delete this project? All statuses will also be removed.",
+        "confirm": "Delete",
+        "cancel": "Cancel"
+      },
+      "toast": {
+        "updated": "Project updated",
+        "created": "Project created successfully",
+        "deleted": "Project deleted"
+      },
+      "error": {
+        "projectNotFound": "Project not found",
+        "statusExists": "Status already exists",
+        "onlyCreator": "Only the project creator can edit or delete"
+      },
+      "status": {
+        "sectionTitle": "Statuses ({{count}})",
+        "add": "Add status",
+        "noStatuses": "No statuses yet",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "edit": "Edit",
+        "delete": "Delete",
+        "deleteDisabled": "Must have at least 1 status",
+        "form": {
+          "addTitle": "Add status",
+          "editTitle": "Edit status",
+          "nameLabel": "Status name",
+          "namePlaceholder": "E.g. Reviewing, Blocked...",
+          "colorLabel": "Color",
+          "cancel": "Cancel",
+          "save": "Save",
+          "add": "Add"
+        },
+        "deleteModal": {
+          "title": "Delete status",
+          "content": "Are you sure you want to delete this status?",
+          "confirm": "Delete",
+          "cancel": "Cancel"
+        },
+        "toast": {
+          "updated": "Status updated",
+          "added": "Status added successfully",
+          "deleted": "Status deleted"
+        },
+        "colors": {
+          "gray": "Gray",
+          "blue": "Blue",
+          "green": "Green",
+          "yellow": "Yellow",
+          "red": "Red",
+          "purple": "Purple",
+          "pink": "Pink",
+          "orange": "Orange"
+        }
+      },
+      "members": {
+        "title": "Project members",
+        "ownerBadge": "Owner",
+        "memberBadge": "Member",
+        "addTitle": "Add member",
+        "addPlaceholder": "Enter member ID",
+        "searchPlaceholder": "Search by name...",
+        "allAdded": "All search results are already members",
+        "addBtn": "Add",
+        "removeBtn": "Remove",
+        "leaveBtn": "Leave project",
+        "leaveConfirmTitle": "Leave project",
+        "leaveConfirmContent": "Are you sure you want to leave this project?",
+        "leaveConfirm": "Leave",
+        "leaveCancel": "Cancel",
+        "removeConfirmTitle": "Remove member",
+        "removeConfirmContent": "Are you sure you want to remove this member?",
+        "removeConfirm": "Remove",
+        "removeCancel": "Cancel",
+        "noMembers": "No members yet",
+        "you": "You",
+        "count": "{{count}} members",
+        "toast": {
+          "added": "Member added successfully",
+          "removed": "Member removed",
+          "left": "You have left the project"
+        },
+        "error": {
+          "cannotLeave": "Creator cannot leave the project",
+          "notFound": "Member not found",
+          "generic": "An error occurred"
+        }
+      }
+    }
   },
   "flashcard": {
     "modal": {

@@ -88,13 +88,15 @@ export interface SendMessageArgs {
     | "audio"
     | "gif"
     | "document"
-    | "quiz";
+    | "quiz"
+    | "todo_project";
   replyTo?: string;
   socket?: any; // Socket instance
   userId?: string; // User ID
   userFullname?: string; // User fullname
   userAvatar?: string; // User avatar
   documentId?: string; // Document ID
+  todoProjectId?: string; // Todo project linkage for FE/UI rendering
   quizId?: string; // Quiz ID
   quiz?: import("@/types/quizz.type").QuizzResponse; // Full quiz object for optimistic UI
 }
@@ -443,6 +445,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       reply,
       type: type || "text",
       documentId: args.documentId, // Add documentId
+      todoProjectId: args.todoProjectId,
       createdAt: new Date().toISOString(),
       pinned: false,
       sender: {
@@ -591,6 +594,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         id,
         documentId: args.documentId, // Send documentId
         quizId: args.quiz?._id, // Send quizId
+        todoProjectId: args.todoProjectId,
       });
       get().autoMarkMessageSent(roomId, id, 3000);
     }

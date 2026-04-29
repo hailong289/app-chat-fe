@@ -13,6 +13,7 @@
     "send": "Gửi",
     "or": "Hoặc",
     "ok": "Đồng ý",
+    "close": "Đóng",
     "view": "Xem tin nhắn",
     "back": "Quay lại"
   },
@@ -524,6 +525,224 @@
       "voice": "Voice Call"
     },
     "members_count": "với {{count}} người khác"
+  },
+  "todo": {
+    "title": "Todo",
+    "taskCount": "{{count}} công việc",
+    "allProjects": "Tất cả",
+    "manageProjects": "Projects",
+    "create": "Tạo mới",
+    "projectList": {
+      "subtitle": "Quản lý công việc theo dự án",
+      "createProject": "Tạo dự án",
+      "manage": "Quản lý",
+      "noProjects": "Chưa có dự án nào",
+      "noProjectsDesc": "Tạo dự án đầu tiên để bắt đầu quản lý công việc",
+      "noDescription": "Không có mô tả",
+      "statusesLabel": "Trạng thái:",
+      "viewBoard": "Mở bảng"
+    },
+    "kanban": {
+      "backToProjects": "Dự án",
+      "notFound": "Không tìm thấy dự án",
+      "notFoundDesc": "Dự án này không tồn tại hoặc đã bị xóa",
+      "backBtn": "Quay lại"
+    },
+    "share": {
+      "btn": "Chia sẻ",
+      "title": "Chia sẻ dự án",
+      "searchPlaceholder": "Tìm kiếm cuộc trò chuyện...",
+      "noRooms": "Không tìm thấy cuộc trò chuyện nào",
+      "unnamedRoom": "Phòng chưa đặt tên",
+      "sendBtn": "Gửi",
+      "sent": "Đã gửi",
+      "joinBtn": "Tham gia dự án",
+      "joinedBtn": "Đã tham gia",
+      "joinedText": "Bạn đã tham gia",
+      "viewBtn": "Xem dự án",
+      "error": "Không thể chia sẻ dự án"
+    },
+    "empty": {
+      "noProjects": "Chưa có project nào. Tạo project để bắt đầu quản lý công việc.",
+      "createFirst": "Tạo project đầu tiên"
+    },
+    "column": {
+      "dropHere": "Thả vào đây",
+      "empty": "Chưa có công việc",
+      "addTask": "Thêm công việc",
+      "addToColumn": "Thêm vào {{name}}"
+    },
+    "form": {
+      "createTitle": "Tạo công việc mới",
+      "editTitle": "Chỉnh sửa công việc",
+      "titleLabel": "Tiêu đề",
+      "titlePlaceholder": "Nhập tiêu đề công việc...",
+      "descLabel": "Mô tả",
+      "descPlaceholder": "Mô tả công việc (tuỳ chọn)...",
+      "projectLabel": "Project",
+      "projectPlaceholder": "Chọn project...",
+      "statusLabel": "Trạng thái",
+      "priorityLabel": "Ưu tiên",
+      "dueDateLabel": "Ngày hết hạn",
+      "assignLabel": "Gán cho",
+      "assignHint": "Chọn bạn bè được giao việc (tuỳ chọn). Có thể chọn nhiều người.",
+      "assignPlaceholder": "Chọn người thực hiện...",
+      "noFriends": "Chưa có bạn bè",
+      "cancel": "Huỷ",
+      "save": "Lưu thay đổi",
+      "createSubmit": "Tạo mới"
+    },
+    "priority": {
+      "high": "Cao",
+      "medium": "Trung bình",
+      "low": "Thấp"
+    },
+    "card": {
+      "options": "Tuỳ chọn",
+      "edit": "Chỉnh sửa",
+      "assign": "Gán người dùng",
+      "moveTo": "Chuyển sang: {{name}}",
+      "delete": "Xóa",
+      "assignBtn": "Gán người",
+      "reassignBtn": "Gán lại ({{count}})"
+    },
+    "assign": {
+      "title": "Gán công việc",
+      "selected": "Đã chọn:",
+      "cancel": "Huỷ",
+      "confirm": "Xác nhận ({{count}})",
+      "noFriends": "Chưa có bạn bè"
+    },
+    "delete": {
+      "title": "Xóa công việc",
+      "content": "Bạn có chắc chắn muốn xóa công việc này không? Thao tác này không thể hoàn tác.",
+      "confirm": "Xóa",
+      "cancel": "Huỷ"
+    },
+    "toast": {
+      "saved": "Đã lưu thay đổi",
+      "created": "Tạo công việc thành công",
+      "deleted": "Đã xóa công việc",
+      "assignUpdated": "Đã cập nhật người được gán",
+      "error": "Lỗi",
+      "dragError": "Lỗi kéo thả"
+    },
+    "error": {
+      "projectNotFound": "Không tìm thấy project",
+      "statusNotAllowed": "Trạng thái không hợp lệ với project này",
+      "statusExists": "Trạng thái đã tồn tại trong project",
+      "generic": "Đã có lỗi xảy ra"
+    },
+    "projects": {
+      "title": "Quản lý Projects",
+      "count": "{{count}} project",
+      "create": "Tạo project",
+      "backToTodo": "Quay lại Todo",
+      "selectHint": "Chọn một project để quản lý trạng thái",
+      "noProjects": "Chưa có project nào",
+      "statusCount": "{{count}} trạng thái",
+      "form": {
+        "createTitle": "Tạo project mới",
+        "editTitle": "Chỉnh sửa project",
+        "nameLabel": "Tên project",
+        "namePlaceholder": "Nhập tên project...",
+        "descLabel": "Mô tả",
+        "descPlaceholder": "Mô tả project (tuỳ chọn)...",
+        "cancel": "Huỷ",
+        "save": "Lưu",
+        "create": "Tạo"
+      },
+      "delete": {
+        "title": "Xóa project",
+        "content": "Bạn có chắc chắn muốn xóa project này? Tất cả trạng thái trong project cũng sẽ bị xóa.",
+        "confirm": "Xóa",
+        "cancel": "Huỷ"
+      },
+      "toast": {
+        "updated": "Đã cập nhật project",
+        "created": "Tạo project thành công",
+        "deleted": "Đã xóa project"
+      },
+      "error": {
+        "projectNotFound": "Không tìm thấy project",
+        "statusExists": "Trạng thái đã tồn tại",
+        "onlyCreator": "Chỉ người tạo dự án mới có quyền sửa hoặc xóa"
+      },
+      "status": {
+        "sectionTitle": "Trạng thái ({{count}})",
+        "add": "Thêm trạng thái",
+        "noStatuses": "Chưa có trạng thái nào",
+        "moveUp": "Lên",
+        "moveDown": "Xuống",
+        "edit": "Chỉnh sửa",
+        "delete": "Xóa",
+        "deleteDisabled": "Phải có ít nhất 1 trạng thái",
+        "form": {
+          "addTitle": "Thêm trạng thái",
+          "editTitle": "Chỉnh sửa trạng thái",
+          "nameLabel": "Tên trạng thái",
+          "namePlaceholder": "Ví dụ: Đang review, Blocked...",
+          "colorLabel": "Màu",
+          "cancel": "Huỷ",
+          "save": "Lưu",
+          "add": "Thêm"
+        },
+        "deleteModal": {
+          "title": "Xóa trạng thái",
+          "content": "Bạn có chắc chắn muốn xóa trạng thái này?",
+          "confirm": "Xóa",
+          "cancel": "Huỷ"
+        },
+        "toast": {
+          "updated": "Đã cập nhật trạng thái",
+          "added": "Thêm trạng thái thành công",
+          "deleted": "Đã xóa trạng thái"
+        },
+        "colors": {
+          "gray": "Xám",
+          "blue": "Xanh dương",
+          "green": "Xanh lá",
+          "yellow": "Vàng",
+          "red": "Đỏ",
+          "purple": "Tím",
+          "pink": "Hồng",
+          "orange": "Cam"
+        }
+      },
+      "members": {
+        "title": "Thành viên dự án",
+        "ownerBadge": "Chủ sở hữu",
+        "memberBadge": "Thành viên",
+        "addTitle": "Thêm thành viên",
+        "addPlaceholder": "Nhập ID thành viên",
+        "searchPlaceholder": "Tìm kiếm theo tên...",
+        "allAdded": "Tất cả kết quả tìm kiếm đã là thành viên",
+        "addBtn": "Thêm",
+        "removeBtn": "Xóa",
+        "leaveBtn": "Rời dự án",
+        "leaveConfirmTitle": "Rời dự án",
+        "leaveConfirmContent": "Bạn có chắc muốn rời khỏi dự án này?",
+        "leaveConfirm": "Rời",
+        "leaveCancel": "Hủy",
+        "removeConfirmTitle": "Xóa thành viên",
+        "removeConfirmContent": "Bạn có chắc muốn xóa thành viên này khỏi dự án?",
+        "removeConfirm": "Xóa",
+        "removeCancel": "Hủy",
+        "noMembers": "Chưa có thành viên nào",
+        "you": "Bạn",
+        "count": "{{count}} thành viên",
+        "toast": {
+          "added": "Đã thêm thành viên",
+          "removed": "Đã xóa thành viên",
+          "left": "Bạn đã rời khỏi dự án"
+        },
+        "error": {
+          "cannotLeave": "Chủ sở hữu không thể rời dự án",
+          "notFound": "Không tìm thấy thành viên",
+          "generic": "Đã xảy ra lỗi"
+        }
+      }
+    }
   },
   "flashcard": {
     "modal": {
