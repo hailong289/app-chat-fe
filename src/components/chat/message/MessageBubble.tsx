@@ -99,7 +99,6 @@ function TodoProjectMessageBubble({
 
   const [isAlreadyJoined, setIsAlreadyJoined] = useState(projectMembersFromMsg?.includes(currentUserId || "") ?? false);
 
-  const fetchProjects = useTodoStore((s) => s.fetchProjects);
   const [isJoining, setIsJoining] = useState(false);
 
   const handleJoinProject = async () => {
@@ -113,7 +112,6 @@ function TodoProjectMessageBubble({
     try {
       setIsJoining(true);
       await todoService.joinProject(todoProjectId);
-      await fetchProjects();
       router.push(`/todo/${todoProjectId}`);
     } catch (err) {
       const e = err as any;
@@ -136,12 +134,25 @@ function TodoProjectMessageBubble({
           {msg.content}
         </p>
 
-        <div className="flex items-start gap-2 text-xs my-2">
-          {isAlreadyJoined ? (
-            <>
-              <p className="pt-2 text-xs font-medium text-green-600 dark:text-green-400">
-                {t("todo.share.joinedText", "Bạn đã tham gia")}
-              </p>
+        {!isMine ? (
+          <div className="flex items-start gap-2 text-xs my-2">
+            {isAlreadyJoined ? (
+              <>
+                <p className="pt-2 text-xs font-medium text-green-600 dark:text-green-400">
+                  {t("todo.share.joinedText", "Bạn đã tham gia")}
+                </p>
+                <Button
+                  size="sm"
+                  color="primary"
+                  variant="solid"
+                  isDisabled={!todoProjectId}
+                  isLoading={isJoining}
+                  onPress={handleJoinProject}
+                >
+                  {t("todo.share.viewBtn", "Xem dự án")}
+                </Button>
+              </>
+            ) : (
               <Button
                 size="sm"
                 color="primary"
@@ -150,22 +161,11 @@ function TodoProjectMessageBubble({
                 isLoading={isJoining}
                 onPress={handleJoinProject}
               >
-                {t("todo.share.viewBtn", "Xem dự án")}
+                {t("todo.share.joinBtn", "Tham gia dự án")}
               </Button>
-            </>
-          ) : (
-            <Button
-              size="sm"
-              color="primary"
-              variant="solid"
-              isDisabled={!todoProjectId}
-              isLoading={isJoining}
-              onPress={handleJoinProject}
-            >
-              {t("todo.share.joinBtn", "Tham gia dự án")}
-            </Button>
-          )}
-        </div>
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   );

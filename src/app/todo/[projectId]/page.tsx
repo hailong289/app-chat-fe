@@ -1852,7 +1852,11 @@ function TodoCard({
                         </DropdownItem>
                       );
                     return (
-                      <DropdownItem key={item.key} startContent={<CheckCircleIcon className="w-4 h-4" />} onPress={() => onStatusChange(todo, (item as any).statusId)}>
+                      <DropdownItem
+                        key={item.key}
+                        startContent={<PencilIcon className="w-4 h-4" />}
+                        onPress={() => onStatusChange(todo, (item as any).statusId)}
+                      >
                         {item.label}
                       </DropdownItem>
                     );
