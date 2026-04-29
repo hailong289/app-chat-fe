@@ -19,6 +19,7 @@ import useTodoStore from "@/store/useTodoStore";
 import { toast } from "@/store/useToastStore";
 import { todoService } from "@/service/todo.service";
 import { Button } from "@heroui/button";
+import { openWindowWithTauri } from "@/utils/openWindow";
 
 interface MessageBubbleProps {
   msg: MessageType;
@@ -462,7 +463,7 @@ function CallMessageBubble({
   const handleJoinCall = () => {
     const encodedMemberInfo = Helpers.enCryptUserInfo(callHistory.members);
     const callMode = callHistory.call_mode || "sfu";
-    window.open(
+    void openWindowWithTauri(
       `/call?roomId=${msg.roomId}&members=${encodedMemberInfo}&callType=${callHistory.call_type}&callMode=${callMode}&status=joined&isCaller=false&callId=${callHistory.call_id}`,
       "",
       "width=800,height=600",

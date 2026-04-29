@@ -3,10 +3,8 @@ import { useEffect, useState } from "react";
 import { useFirebase } from "@/components/providers/firebase.provider";
 import { BellIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import useAuthStore from "@/store/useAuthStore";
-
-function isTauriRuntime() {
-  return typeof window !== "undefined" && !!(window as any).__TAURI__;
-}
+import { openWindowWithTauri } from "@/utils/openWindow";
+import { isTauriRuntime } from "@/libs/helpers";
 
 type PromptMode = "request" | "denied" | null;
 
@@ -85,7 +83,7 @@ export default function NotificationPermission() {
       });
     } else {
       // Browser: hướng dẫn bật lại trong địa chỉ URL (không thể mở settings tự động)
-      window.open(
+      void openWindowWithTauri(
         "https://support.google.com/chrome/answer/3220216",
         "_blank",
         "noopener,noreferrer"

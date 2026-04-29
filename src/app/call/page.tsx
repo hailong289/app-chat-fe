@@ -31,6 +31,7 @@ import useP2pCallStore from "@/store/useP2pCallStore";
 import useSfuCallStore from "@/store/useSfuCallStore";
 import { CallMember } from "@/store/types/call.state";
 import { useTranslation } from "react-i18next";
+import { isTauriRuntime } from "@/libs/helpers";
 
 function CallPageContentInner() {
   const router = useRouter();
@@ -39,6 +40,49 @@ function CallPageContentInner() {
   const [isMounted, setIsMounted] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { t } = useTranslation();
+  const closeTauriOrBrowserWindow = useCallback(async (): Promise<boolean> => {
+    if (isTauriRuntime()) {
+      try {
+        const { Window, getCurrentWindow } = await import("@tauri-apps/api/window");
+        const current = getCurrentWindow();
+        const labels = [current.label, "appCallWindow_out", "appCallWindow_inc"];
+
+        for (const label of labels) {
+          const win = new Window(label);
+          if (!win) continue;
+          try {
+            await win.close();
+          } catch {
+            await win.destroy();
+          }
+          return true;
+        }
+      } catch {}
+    } else if (window.opener) {
+      window.close();
+      return true;
+    }
+    return false;
+  }, []);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const current = getCurrentWindow();
+        unlisten = await current.onCloseRequested(async () => {
+          try {
+            await current.destroy();
+          } catch {}
+        });
+      } catch {}
+    })();
+    return () => {
+      unlisten?.();
+    };
+  }, []);
 
   // callMode is stable for the lifetime of this call window (set from URL params
   // once and never changes). Use it to register only the relevant socket listeners.
@@ -619,11 +663,9 @@ function CallPageContentInner() {
     store.stream.remoteStreams.forEach((s) =>
       s.getTracks().forEach((t) => t.stop()),
     );
-    if (window.opener) {
-      window.close();
-    } else {
-      router.push("/");
-    }
+    void closeTauriOrBrowserWindow().then((closed) => {
+      if (!closed) router.push("/");
+    });
   });
 
   // Register socket listeners based on callMode to prevent cross-protocol
@@ -779,9 +821,9 @@ function CallPageContentInner() {
   useEffect(() => {
     if (callStatus === "ended") {
       hasEndedRef.current = true;
-      window.opener && window.close();
+      void closeTauriOrBrowserWindow();
     }
-  }, [callStatus]);
+  }, [callStatus, closeTauriOrBrowserWindow]);
 
   const handleEndCall = useCallback(() => {
     if (hasEndedRef.current) {

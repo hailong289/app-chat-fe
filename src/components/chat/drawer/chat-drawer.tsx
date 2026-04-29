@@ -72,6 +72,7 @@ import { useEffect } from "react";
 import QuizzList from "./quizz-list";
 import { useSocket } from "@/components/providers/SocketProvider";
 import { QuizzResponse } from "@/types/quizz.type";
+import { openWindowWithTauri } from "@/utils/openWindow";
 
 export default function ChatDrawer({
   isOpen,
@@ -608,7 +609,7 @@ export default function ChatDrawer({
                               <ArrowDownTrayIcon className="w-5 h-5" />
                             );
                             let action: () => void = () => {
-                              window.open(item.url, "_blank");
+                              void openWindowWithTauri(item.url, "_blank");
                             };
 
                             if (isFile) {
@@ -628,7 +629,7 @@ export default function ChatDrawer({
                               actionIcon = (
                                 <ArrowTopRightOnSquareIcon className="w-5 h-5" />
                               );
-                              action = () => window.open(item.url, "_blank");
+                              action = () => void openWindowWithTauri(item.url, "_blank");
                             } else if (isDoc) {
                               icon = (
                                 <DocumentIcon className="w-6 h-6 text-blue-500" />
