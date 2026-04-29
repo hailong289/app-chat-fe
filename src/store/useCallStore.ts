@@ -1,6 +1,7 @@
 import { create, UseBoundStore, StoreApi } from "zustand";
 import { CallMember, CallState } from "./types/call.state";
 import Helpers from "@/libs/helpers";
+import { isTauriRuntime } from "@/libs/helpers";
 import useAuthStore from "./useAuthStore";
 import { tokenStorage } from "@/utils/tokenStorage";
 import { User } from "@/types/auth.type";
@@ -70,16 +71,46 @@ function _getActiveCallId(): string | null {
 }
 
 function _isTauriRuntime() {
-  if (typeof window === "undefined") return false;
-  const tauriWindow = (window as any).__TAURI__?.window;
-  return !!tauriWindow?.WebviewWindow;
+  return isTauriRuntime();
+}
+
+async function _getTauriWebviewWindowApi(): Promise<{
+  getByLabel: (label: string) => Promise<any>;
+  create: (label: string, options: Record<string, any>) => any;
+} | null> {
+  try {
+    // Tauri v2 official API path.
+    const webview = await import("@tauri-apps/api/webviewWindow");
+    if (webview?.WebviewWindow) {
+      return {
+        getByLabel: (label: string) => webview.WebviewWindow.getByLabel(label),
+        create: (label: string, options: Record<string, any>) =>
+          new webview.WebviewWindow(label, options),
+      };
+    }
+  } catch {}
+
+  try {
+    // Fallback for builds relying on global injection.
+    const tauriWindow = (window as any).__TAURI__?.window;
+    if (tauriWindow?.WebviewWindow) {
+      return {
+        getByLabel: (label: string) => tauriWindow.WebviewWindow.getByLabel(label),
+        create: (label: string, options: Record<string, any>) =>
+          new tauriWindow.WebviewWindow(label, options),
+      };
+    }
+  } catch {}
+
+  return null;
 }
 
 async function _focusTauriCallWindow() {
   if (!_openTauriCallLabel) return false;
   try {
-    const tauriWindow = (window as any).__TAURI__?.window;
-    const existing = await tauriWindow?.WebviewWindow?.getByLabel?.(_openTauriCallLabel);
+    const webviewApi = await _getTauriWebviewWindowApi();
+    if (!webviewApi) return false;
+    const existing = await webviewApi.getByLabel(_openTauriCallLabel);
     if (existing) {
       await existing.setFocus?.();
       return true;
@@ -94,17 +125,17 @@ async function _focusTauriCallWindow() {
 
 async function _openTauriCallWindow(url: string, label: string) {
   try {
-    const tauriWindow = (window as any).__TAURI__?.window;
-    if (!tauriWindow?.WebviewWindow) return false;
+    const webviewApi = await _getTauriWebviewWindowApi();
+    if (!webviewApi) return false;
 
-    const existing = await tauriWindow.WebviewWindow.getByLabel?.(label);
+    const existing = await webviewApi.getByLabel(label);
     if (existing) {
       _openTauriCallLabel = label;
       await existing.setFocus?.();
       return true;
     }
 
-    const created = new tauriWindow.WebviewWindow(label, {
+    const created = webviewApi.create(label, {
       url,
       title: "Call",
       width: 800,

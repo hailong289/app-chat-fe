@@ -12,6 +12,8 @@ import React, {
 import { io, Socket } from "socket.io-client";
 import useAuthStore from "@/store/useAuthStore";
 import { subscribeTokenRefresh } from "@/libs/tokenRefresh";
+import { tokenStorage } from "@/utils/tokenStorage";
+import { isTauriRuntime } from "@/libs/helpers";
 
 /* ================= TYPES ================= */
 
@@ -49,9 +51,12 @@ function getAccessToken(): string | null {
   // contains the refresh token scoped to /auth — JS can't read it,
   // and even if it could, it doesn't carry the access token anymore.
   try {
-    return useAuthStore.getState().tokens?.accessToken ?? null;
-  } catch {
+    const memoryToken = useAuthStore.getState().tokens?.accessToken ?? null;
+    if (memoryToken) return memoryToken;
+    if (isTauriRuntime()) return tokenStorage.get();
     return null;
+  } catch {
+    return isTauriRuntime() ? tokenStorage.get() : null;
   }
 }
 
