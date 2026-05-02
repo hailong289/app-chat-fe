@@ -9,7 +9,10 @@
     "build": "next build",
     "start": "next start",
     "build:tauri": "npx tauri dev",
-    "build:tauri:release": "npx tauri build"
+    "build:tauri:release": "npx tauri build",
+    "tauri": "tauri",
+    "android:dev": "npx dotenv-cli -e .env -- tauri android dev",
+    "android:build": "npx dotenv-cli -e .env -- tauri android build"
   },
   "dependencies": {
     "@blocknote/core": "^0.48.1",
@@ -27,7 +30,11 @@
     "@mantine/core": "^8.3.11",
     "@mantine/hooks": "^8.3.11",
     "@mantine/utils": "^6.0.22",
-    "@tauri-apps/api": "2.8.x",
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-fs": "^2.5.1",
+    "@tauri-apps/plugin-notification": "^2.3.3",
+    "@tauri-apps/plugin-os": "^2.3.2",
     "@types/lodash": "^4.17.21",
     "@types/pako": "^2.0.4",
     "axios": "^1.12.2",
@@ -69,7 +76,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@tauri-apps/cli": "^2.8.4",
+    "@tauri-apps/cli": "^2.11.0",
     "@types/cheerio": "^1.0.0",
     "@types/crypto-js": "^4.2.2",
     "@types/node": "^20",

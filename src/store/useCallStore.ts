@@ -268,19 +268,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       void _focusTauriCallWindow();
       return;
     }
-    // No FE-level localStorage check here. Source of truth for "user is
-    // already in a call" lives on the BE: handleCallRequest runs
-    // validateInCallOrClearStale against Redis USER_IN_CALL + DB and
-    // returns `caller_already_in_call` if so. Doing a localStorage check
-    // here would just create stale-claim bugs — popup crashes (browser
-    // killed, OS restart, etc.) leave CALL_ACTIVE_KEY set without any
-    // live window/tauri ref, blocking new calls until manual cleanup.
-    // The only thing FE still owns is the live popup/tauri ref check
-    // above (prevents duplicate popup per browser tab).
 
-    // Defensive: if the caller didn't pass `currentUser` (or store
-    // hadn't hydrated yet), is_caller would crash on null. Bail
-    // instead of opening a half-broken call window.
     if (!currentUser?.id) {
       console.warn("[openCall] missing currentUser, aborting");
       return;
@@ -294,11 +282,26 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     const encodedMemberInfo = Helpers.enCryptUserInfo(memberMap);
     const callUrl = `/call?roomId=${roomId}&members=${encodedMemberInfo}&callType=${mode}&callMode=${callMode}&status=calling&isCaller=true`;
 
+    // ─── Mobile (Android / iOS) — redirect toàn màn hình ──────────────────
+    // WebviewWindow đa cửa sổ không hoạt động tốt trên Android.
+    // Thay vào đó, navigate ngay trong cùng một WebView.
+    const isMobileDevice =
+      typeof navigator !== "undefined" &&
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (_isTauriRuntime() && isMobileDevice) {
+      if (typeof window !== "undefined") {
+        window.location.href = callUrl;
+      }
+      return;
+    }
+    // ─── Desktop Tauri — mở WebviewWindow riêng ────────────────────────────
     if (_isTauriRuntime()) {
       void _openTauriCallWindow(callUrl, "appCallWindow_out");
       return;
     }
 
+    // ─── Web browser — mở popup window ────────────────────────────────────
     _openCallWindow = window.open(
       callUrl,
       "appCallWindow_out",
@@ -349,24 +352,30 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       // don't need a FE timer.
       console.log("[Call] Busy — sending Notification for", callId, payload);
       try {
+        const caller =
+          (members as any[])?.find((m) => m.is_caller) ||
+          (members as any[])?.find((m) => m.id === actionUserId) ||
+          (members as any[])?.[0];
+        const callerName = caller?.fullname || "Người dùng";
+        const isVideo = callType === "video";
+        const isGroup = (members as any[])?.length > 2;
+        const title = isGroup ? "Cuộc gọi nhóm đang chờ" : "Cuộc gọi đang chờ";
+        const body = `${callerName} đang gọi ${isVideo ? "video" : "thoại"} — bấm để chuyển sang`;
+
+        // Dùng sendNativeNotification để hỗ trợ cả Android Tauri lẫn Web
+        import("@/utils/permissions").then(({ sendNativeNotification }) => {
+          sendNativeNotification(title, body, {
+            tag: `waiting-call-${callId}`,
+            icon: "/icons/icon-192x192.png",
+          }).catch(() => {});
+        });
+
+        // Trên Web vẫn giữ Notification API để có .onclick
         if (
           typeof window !== "undefined" &&
           "Notification" in window &&
           Notification.permission === "granted"
         ) {
-          const caller =
-            (members as any[])?.find((m) => m.is_caller) ||
-            (members as any[])?.find((m) => m.id === actionUserId) ||
-            (members as any[])?.[0];
-          const callerName = caller?.fullname || "Người dùng";
-          const isVideo = callType === "video";
-          const isGroup = (members as any[])?.length > 2;
-          const title = isGroup
-            ? "Cuộc gọi nhóm đang chờ"
-            : "Cuộc gọi đang chờ";
-          const body = `${callerName} đang gọi ${
-            isVideo ? "video" : "thoại"
-          } — bấm để chuyển sang`;
           const notif = new Notification(title, {
             body,
             icon: "/icons/icon-192x192.png",
@@ -490,7 +499,16 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
 
     const callUrl = `/call?roomId=${incoming.roomId}&members=${encodedMemberInfo}&callType=${incoming.callType}&callMode=${incoming.callMode}&status=joined&callId=${incoming.callId}`;
 
-    if (_isTauriRuntime()) {
+    const isMobileDevice =
+      typeof navigator !== "undefined" &&
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (_isTauriRuntime() && isMobileDevice) {
+      // Mobile: redirect toàn màn hình thay vì mở cửa sổ mới
+      if (typeof window !== "undefined") {
+        window.location.href = callUrl;
+      }
+    } else if (_isTauriRuntime()) {
       void _openTauriCallWindow(callUrl, "appCallWindow_inc");
     } else {
       _openCallWindow = window.open(
@@ -510,6 +528,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
         }, 1000);
       }
     }
+
 
     useCallStore.getState().updateCallState({ incomingCall: null });
   },

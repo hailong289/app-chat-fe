@@ -1,12 +1,12 @@
 "use client";
 
 import ChatHeader from "@/components/chat/header";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import useRoomStore from "@/store/useRoomStore";
 import ChatInputBar from "@/components/chat/input/inputBar";
 import useAuthStore from "@/store/useAuthStore";
 import { ChatMessages } from "@/components/chat/message/ChatMessages";
-import { ChatBubbleLeftRightIcon } from "@heroicons/react/24/outline";
+import { ChatBubbleLeftRightIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { useTranslation } from "react-i18next";
 
 /**
@@ -15,6 +15,10 @@ import { useTranslation } from "react-i18next";
  * `/chat` route and the dashboard (`/`) can render it: dashboard shows
  * the welcome screen until a room is picked, then swaps to this without
  * a Next.js navigation (instant, store-driven).
+ *
+ * Mobile behavior:
+ * - Khi có room: component chiếm full-screen, ẩn LeftSide qua parent CSS.
+ * - Nút Back (Back Bar) ở trên cùng: bấm để clear room → quay về danh sách.
  */
 export function ChatPageContent() {
   const { t } = useTranslation();
@@ -27,10 +31,6 @@ export function ChatPageContent() {
     }
   };
 
-  // Granular store subscriptions — re-render only when these specific
-  // slices change. Subscribing to the whole `state => state` made the
-  // page re-mount on every store mutation (incoming MSGUPSERT, room
-  // sort, online flag flip, etc.) which compounded the room-switch lag.
   const room = useRoomStore((state) => state.room);
   const user = useAuthStore((state) => state.user);
   const [noAction, setNoAction] = useState<boolean>(false);
@@ -48,6 +48,14 @@ export function ChatPageContent() {
       : "Nhắn tin - Ichat";
   }, [room, user]);
 
+  // Mobile Back: xóa room khỏi store → LeftSide tự hiện lại nhờ CSS
+  const handleMobileBack = useCallback(() => {
+    useRoomStore.setState({ room: null });
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", "/chat");
+    }
+  }, []);
+
   return (
     <div
       className={`
@@ -59,6 +67,19 @@ export function ChatPageContent() {
     >
       {hasRoomSelected ? (
         <>
+          {/* Mobile Back Bar — chỉ hiện trên mobile (<md), nằm trên ChatHeader */}
+          <div className="md:hidden flex items-center gap-2 px-3 py-2 bg-primary dark:bg-slate-800 text-white shrink-0">
+            <button
+              type="button"
+              onClick={handleMobileBack}
+              className="flex items-center gap-1.5 text-white active:opacity-70 transition-opacity"
+              aria-label="Quay lại danh sách"
+            >
+              <ArrowLeftIcon className="w-5 h-5" />
+              <span className="text-sm font-medium">{t("chat.backToList", "Danh sách")}</span>
+            </button>
+          </div>
+
           <ChatHeader
             callback={callbackSetSize}
             noAction={noAction}

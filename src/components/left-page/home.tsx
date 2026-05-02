@@ -196,10 +196,6 @@ export const Home = () => {
     (chat: any) => {
       // Instant: we already have the full room object from the rooms
       // list, no need to round-trip through getRoomById's async lookup.
-      // setState fires synchronously → both `/` (dashboard) and `/chat`
-      // re-render in the same tick because they each subscribe to
-      // `useRoomStore.room` and conditionally swap from welcome → chat
-      // layout when it's set. No Next.js navigation needed.
       useRoomStore.setState({ room: chat });
       // Update the URL bar so refresh / share-link still works, but
       // keep the user on the current route — no router.push, no
