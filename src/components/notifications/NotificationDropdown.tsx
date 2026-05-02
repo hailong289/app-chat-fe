@@ -21,6 +21,7 @@ import { formatDistanceToNow } from "date-fns";
 import { enUS, vi } from "date-fns/locale";
 import { useTranslation } from "react-i18next";
 import useNotificationStore from "@/store/useNotificationStore";
+import { useRouter } from "next/navigation";
 
 /**
  * Bell icon trigger + popover panel of notifications. Replaces the old
@@ -28,6 +29,7 @@ import useNotificationStore from "@/store/useNotificationStore";
  * @param mobileMode Khi true, render dạng icon-only không có text (dùng trên Bottom Nav mobile).
  */
 export function NotificationDropdown({ mobileMode = false }: { mobileMode?: boolean }) {
+  const router = useRouter();
   const { t, i18n } = useTranslation();
   const {
     notifications,
@@ -71,11 +73,17 @@ export function NotificationDropdown({ mobileMode = false }: { mobileMode?: bool
     <Popover placement={mobileMode ? "top" : "right-start"} offset={8}>
       <PopoverTrigger>
         {mobileMode ? (
-          // Mobile mode: compact icon-only cho Bottom Nav
+          // Mobile mode: compact icon-only cho Bottom Nav, click chuyển sang trang /notifications
           <button
             type="button"
-            className="flex flex-col items-center justify-center w-full gap-0.5 text-white/60"
+            className="flex items-center justify-center w-full transition-all duration-300 hover:text-white"
             aria-label={t("notifications.title")}
+            onClick={(e) => {
+              // Ngăn Popover mở
+              e.preventDefault();
+              e.stopPropagation();
+              router.push("/notifications");
+            }}
           >
             <Badge
               color="danger"
@@ -85,9 +93,6 @@ export function NotificationDropdown({ mobileMode = false }: { mobileMode?: bool
             >
               <BellIcon className="w-6 h-6" />
             </Badge>
-            <span className="text-[9px] font-medium leading-none" suppressHydrationWarning>
-              {t("sidebar.notifications")}
-            </span>
           </button>
         ) : (
           // Desktop mode: full-width button với text

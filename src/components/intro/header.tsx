@@ -3,6 +3,7 @@
 import { toast } from "@/store/useToastStore";
 import useAuthStore from "@/store/useAuthStore";
 import useCounterStore from "@/store/useCounterStore";
+import useRoomStore from "@/store/useRoomStore";
 import { useSocket } from "@/components/providers/SocketProvider";
 import {
   Bars3BottomLeftIcon,
@@ -37,6 +38,7 @@ export const Header = () => {
 
   const { logout: handleLogout, user } = useAuthStore();
   const { isToggled, setToggleState } = useCounterStore();
+  const currentRoom = useRoomStore((state) => state.room);
   const { disconnect: disconnectSocket } = useSocket("/chat");
 
   const changeToggle = useCallback(() => {
@@ -141,6 +143,59 @@ export const Header = () => {
     </Dropdown>
   );
 
+  // ─── Mobile More Dropdown (Gộp các tính năng phụ) ──────────────────────────
+  const mobileMoreDropdown = (
+    <Dropdown placement="top-end">
+      <DropdownTrigger>
+        <button
+          type="button"
+          className={`
+            flex items-center justify-center
+            transition-all duration-300
+            ${
+              ["/flash-card", "/todo", "/settings"].some((p) => pathname.startsWith(p))
+                ? "bg-white text-primary w-12 h-12 rounded-full shadow-sm"
+                : "text-white/60 hover:text-white w-12 h-12"
+            }
+          `}
+        >
+          <Avatar
+            className="w-7 h-7 min-w-[28px]"
+            src={user?.avatar ?? ""}
+            name={user?.fullname ?? "User"}
+          />
+        </button>
+      </DropdownTrigger>
+      <DropdownMenu aria-label="More menu" className="text-foreground">
+        <DropdownItem
+          key="flash-card"
+          startContent={<RectangleStackIcon className="w-5 h-5" />}
+          onPress={() => handleLink("/flash-card")}
+        >
+          Flash Card
+        </DropdownItem>
+        <DropdownItem
+          key="todo"
+          startContent={<ClipboardDocumentListIcon className="w-5 h-5" />}
+          onPress={() => handleLink("/todo")}
+        >
+          Todo
+        </DropdownItem>
+        <DropdownItem key="setting" onPress={() => handleLink("/settings")}>
+          {t("sidebar.settings")}
+        </DropdownItem>
+        <DropdownItem
+          key="logout"
+          onPress={logout}
+          className="text-danger"
+          color="danger"
+        >
+          {t("sidebar.logout")}
+        </DropdownItem>
+      </DropdownMenu>
+    </Dropdown>
+  );
+
   return (
     <>
       {/* ══════════════════════════════════════════════════════════════
@@ -219,50 +274,78 @@ export const Header = () => {
           Dùng `fixed` để luôn nằm cố định dưới cùng màn hình.
           Hỗ trợ Safe Area Inset (notch / home indicator trên iPhone/Android).
           ══════════════════════════════════════════════════════════════ */}
-      <nav
-        className="
+      <div
+        className={`
           md:hidden
-          fixed bottom-0 left-0 right-0 z-50
-          flex flex-row items-stretch justify-around
-          bg-primary dark:bg-slate-900
-          shadow-[0_-4px_16px_rgba(0,0,0,0.25)]
-        "
+          fixed bottom-0 left-0 w-full z-50
+          flex justify-center
+          ${currentRoom ? "hidden" : "flex"}
+        `}
         style={{
-          height: "calc(56px + env(safe-area-inset-bottom, 0px))",
-          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          paddingBottom: "max(16px, env(safe-area-inset-bottom, 0px))",
         }}
       >
-        {navItems.map((item) => (
-          <button
-            key={item.path}
-            type="button"
-            className={`
-              flex flex-col items-center justify-center flex-1 gap-0.5 pt-1
-              transition-all duration-200
-              ${activeMobileNav(item.path)}
-            `}
-            onClick={() => handleLink(item.path)}
-          >
-            {item.icon}
-            <span className="text-[9px] font-medium leading-none" suppressHydrationWarning>
-              {item.label}
-            </span>
-          </button>
-        ))}
+        <nav
+          className={`
+            flex flex-row items-center justify-between
+            bg-primary dark:bg-slate-800
+            rounded-full
+            px-2 py-2
+            shadow-[0_8px_30px_rgba(0,0,0,0.4)]
+            w-[92%] max-w-[420px]
+          `}
+        >
+          {/* Chỉ render 3 item chính: Chat, Danh bạ, Tệp */}
+          {navItems.slice(0, 3).map((item) => {
+            const isActive = item.path === "/" ? pathname === "/" : pathname.startsWith(item.path);
+            return (
+              <button
+                key={item.path}
+                type="button"
+                className={`
+                  flex items-center justify-center
+                  transition-all duration-300
+                  ${
+                    isActive
+                      ? "bg-white text-primary w-12 h-12 rounded-full shadow-sm"
+                      : "text-white/60 hover:text-white w-12 h-12"
+                  }
+                `}
+                onClick={() => handleLink(item.path)}
+              >
+                <div className={`${isActive ? "scale-110" : "scale-100"} transition-transform`}>
+                  {item.icon}
+                </div>
+              </button>
+            );
+          })}
 
-        {/* Notifications icon */}
-        <div className="flex flex-col items-center justify-center flex-1 pt-1 border-t-2 border-transparent">
-          <NotificationDropdown mobileMode />
-        </div>
+          {/* Notifications icon */}
+          {(() => {
+            const isActive = pathname.startsWith("/notifications");
+            return (
+              <div
+                className={`
+                  flex items-center justify-center
+                  transition-all duration-300
+                  ${
+                    isActive
+                      ? "bg-white text-primary w-12 h-12 rounded-full shadow-sm"
+                      : "text-white/60 hover:text-white w-12 h-12"
+                  }
+                `}
+              >
+                <div className={`${isActive ? "scale-110" : "scale-100"} transition-transform w-full h-full flex items-center justify-center`}>
+                  <NotificationDropdown mobileMode />
+                </div>
+              </div>
+            );
+          })()}
 
-        {/* User Avatar + tên viết tắt */}
-        <div className="flex flex-col items-center justify-center flex-1 pt-1">
-          {userDropdown}
-          <span className="text-[9px] font-medium text-white/60 mt-0.5 leading-none" suppressHydrationWarning>
-            {user?.fullname?.split(" ").pop() ?? ""}
-          </span>
-        </div>
-      </nav>
+          {/* User Avatar (Mở More Menu) */}
+          {mobileMoreDropdown}
+        </nav>
+      </div>
     </>
   );
 };

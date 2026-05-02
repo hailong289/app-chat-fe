@@ -42,7 +42,6 @@
     "fs:allow-remove",
     "fs:allow-copy-file",
     "fs:allow-exists",
-    "fs:allow-metadata",
     "fs:allow-rename",
     "fs:allow-stat"
   ]

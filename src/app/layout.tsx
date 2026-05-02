@@ -17,6 +17,14 @@ export const metadata: Metadata = {
   description: "Ứng dụng chat hiện đại",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+};
+
 // Force dynamic rendering for every route. This is an authenticated
 // chat app — there is nothing meaningful to statically prerender at
 // build time, and the prerender pass had been intermittently choking

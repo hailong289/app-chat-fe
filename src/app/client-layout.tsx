@@ -33,6 +33,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const fetchMe = useAuthStore((s) => s.fetchMe);
   const collapsedSidebar = useCounterStore((state) => state.collapsedSidebar);
   const toggleSidebar = useCounterStore((state) => state.togoleSidebar);
+  const currentRoom = useRoomStore((state) => state.room);
   const [mounted, setMounted] = useState(false);
 
   // Auth bootstrap moved to <AuthBootstrap/> in app/providers.tsx so
@@ -224,7 +225,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
 
   // Layout chính của app chat
   return (
-    <div className="flex h-screen w-full bg-slate-900 text-foreground">
+    <div className="flex h-screen w-full bg-white dark:bg-slate-900 text-foreground pt-[env(safe-area-inset-top,0px)]">
       {/* Desktop nav — ẩn trên mobile (<md), Header tự render Bottom Nav riêng */}
       <nav className="relative h-full hidden md:block">
         <Suspense fallback={<div className="w-[60px] h-full" />}>
@@ -249,8 +250,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
               className={`
                 relative h-full shrink-0
                 /* Mobile: LeftSide chiếm full width, ẩn khi đang xem Chat detail */
-                w-full md:block
-                /* Trên mobile, nếu đang ở URL có chatId thì ẩn LeftSide, để xem full-screen chat */
+                w-full
+                ${currentRoom ? "hidden md:block" : "block"}
               `}
               style={{ width: typeof window !== "undefined" && window.innerWidth >= 768 ? `${sidebarWidth}px` : undefined }}
             >
@@ -274,9 +275,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
           </>
         )}
 
-        {/* Main content area — thêm padding-bottom trên mobile để không bị Bottom Nav che */}
+        {/* Main content area — thêm padding-bottom trên mobile để không bị Bottom Nav che (chỉ khi không trong chat) */}
         <div
-          className="flex-1 overflow-y-auto h-screen pb-[calc(56px+env(safe-area-inset-bottom,0px))] md:pb-0"
+          className={`flex-1 overflow-y-auto h-screen ${!currentRoom ? "pb-[calc(56px+env(safe-area-inset-bottom,0px))] md:pb-0" : "pb-0"}`}
         >
           {children}
         </div>

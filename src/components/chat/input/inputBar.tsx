@@ -655,68 +655,68 @@ export default function ChatInputBar({
         {(suggestions?.length > 0 ||
           suggestedEmojis?.length > 0 ||
           suggestedGifs?.length > 0) && (
-          <div className="flex  gap-2 px-1 pb-2">
-            {suggestions?.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-                {suggestions.map((suggestion, index) => (
-                  <Chip
-                    key={`text-${index}`}
-                    className="cursor-pointer hover:bg-teal-100 dark:hover:bg-teal-900/40 transition-colors border-teal-200 dark:border-teal-800 shrink-0"
-                    color="primary"
-                    variant="flat"
-                    size="sm"
-                    onClick={() => {
-                      setMessage(suggestion);
-                      setSuggestions([]);
-                      setSuggestedEmojis([]);
-                      setSuggestedGifs([]);
-                      inputRef.current?.focus();
-                    }}
-                  >
-                    {suggestion}
-                  </Chip>
-                ))}
-              </div>
-            )}
+            <div className="flex  gap-2 px-1 pb-2">
+              {suggestions?.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                  {suggestions.map((suggestion, index) => (
+                    <Chip
+                      key={`text-${index}`}
+                      className="cursor-pointer hover:bg-teal-100 dark:hover:bg-teal-900/40 transition-colors border-teal-200 dark:border-teal-800 shrink-0"
+                      color="primary"
+                      variant="flat"
+                      size="sm"
+                      onClick={() => {
+                        setMessage(suggestion);
+                        setSuggestions([]);
+                        setSuggestedEmojis([]);
+                        setSuggestedGifs([]);
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      {suggestion}
+                    </Chip>
+                  ))}
+                </div>
+              )}
 
-            {(suggestedEmojis?.length > 0 || suggestedGifs?.length > 0) && (
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-                {suggestedEmojis.map((emoji, index) => (
-                  <Chip
-                    key={`emoji-${index}`}
-                    className="cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors border-orange-200 dark:border-orange-800 shrink-0"
-                    color="warning"
-                    variant="flat"
-                    size="sm"
-                    onClick={() => {
-                      setMessage((prev) => prev + emoji);
-                      inputRef.current?.focus();
-                    }}
-                  >
-                    {emoji}
-                  </Chip>
-                ))}
-                {suggestedGifs.map((keyword, index) => (
-                  <Chip
-                    key={`gif-${index}`}
-                    className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors border-purple-200 dark:border-purple-800 shrink-0"
-                    color="secondary"
-                    variant="flat"
-                    size="sm"
-                    startContent={<GifIcon className="w-3 h-3" />}
-                    onClick={() => {
-                      setGifSearchQuery(keyword);
-                      searchGifs(keyword);
-                      setIsGifPickerOpen(true);
-                    }}
-                  >
-                    {keyword}
-                  </Chip>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+              {(suggestedEmojis?.length > 0 || suggestedGifs?.length > 0) && (
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                  {suggestedEmojis.map((emoji, index) => (
+                    <Chip
+                      key={`emoji-${index}`}
+                      className="cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors border-orange-200 dark:border-orange-800 shrink-0"
+                      color="warning"
+                      variant="flat"
+                      size="sm"
+                      onClick={() => {
+                        setMessage((prev) => prev + emoji);
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      {emoji}
+                    </Chip>
+                  ))}
+                  {suggestedGifs.map((keyword, index) => (
+                    <Chip
+                      key={`gif-${index}`}
+                      className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors border-purple-200 dark:border-purple-800 shrink-0"
+                      color="secondary"
+                      variant="flat"
+                      size="sm"
+                      startContent={<GifIcon className="w-3 h-3" />}
+                      onClick={() => {
+                        setGifSearchQuery(keyword);
+                        searchGifs(keyword);
+                        setIsGifPickerOpen(true);
+                      }}
+                    >
+                      {keyword}
+                    </Chip>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
         {replyingTo && (
           <button
@@ -738,7 +738,7 @@ export default function ChatInputBar({
                     {t("chat.input.replyingTo", {
                       name:
                         replyingTo.sender?._id === auth?.id ||
-                        replyingTo.sender?.id === auth?.id
+                          replyingTo.sender?.id === auth?.id
                           ? t("chat.input.you")
                           : replyingTo.sender?.fullname || "Unknown",
                     })}
