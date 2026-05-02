@@ -1690,7 +1690,14 @@ function CallPageContentInner() {
         window opens. The popup always lands on status='joined' (or 'calling'
         for caller / 'accepted' once member-joined arrives).
       */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4 z-10">
+      {/* Control buttons — responsive cho cả Desktop lẫn Mobile
+          Mobile: Các nút lớn hơn, xếp ngang, có safe-area padding dưới cùng.
+          Desktop: Giữ nguyên layout cũ.
+      */}
+      <div
+        className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-3 md:gap-4 z-10 py-6 md:py-8"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}
+      >
         <Button
           color={isMicEnabled ? "danger" : "default"}
               className={`rounded-full h-14 w-14 p-0 backdrop-blur-sm ${

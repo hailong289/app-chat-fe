@@ -218,38 +218,52 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   );
 
   if (isValidRoute) {
-    // layout cho trang login/register/404
+    // layout cho trang login/register/404 — không có Bottom Nav
     return <main className="w-full h-screen">{children}</main>;
   }
 
   // Layout chính của app chat
   return (
     <div className="flex h-screen w-full bg-slate-900 text-foreground">
-      <nav className="relative h-full">
+      {/* Desktop nav — ẩn trên mobile (<md), Header tự render Bottom Nav riêng */}
+      <nav className="relative h-full hidden md:block">
         <Suspense fallback={<div className="w-[60px] h-full" />}>
           <Header />
         </Suspense>
       </nav>
+
+      {/* Mobile Bottom Nav — Header tự render fixed bottom nav, đặt trong Suspense */}
+      <div className="md:hidden">
+        <Suspense fallback={null}>
+          <Header />
+        </Suspense>
+      </div>
+
       <main className="flex-1 h-screen flex overflow-hidden">
         {/* Global socket listener / toasts / events */}
 
-        {!isDisableLeftSide && 
-        (
+        {!isDisableLeftSide && (
           <>
             <div
               ref={sidebarRef}
-              className="relative h-full shrink-0"
-              style={{ width: `${sidebarWidth}px` }}
+              className={`
+                relative h-full shrink-0
+                /* Mobile: LeftSide chiếm full width, ẩn khi đang xem Chat detail */
+                w-full md:block
+                /* Trên mobile, nếu đang ở URL có chatId thì ẩn LeftSide, để xem full-screen chat */
+              `}
+              style={{ width: typeof window !== "undefined" && window.innerWidth >= 768 ? `${sidebarWidth}px` : undefined }}
             >
-              <div className="absolute top-3 right-3 z-20">{collapseButton}</div>
+              <div className="absolute top-3 right-3 z-20 hidden md:block">{collapseButton}</div>
               <Suspense fallback={<div className="h-full" />}>
                 <LeftSide />
               </Suspense>
+              {/* Resize handle — chỉ dùng trên Desktop */}
               <div
                 role="separator"
                 aria-orientation="vertical"
                 tabIndex={0}
-                className={`absolute top-0 right-0 h-full w-1 cursor-col-resize transition-colors ${
+                className={`hidden md:block absolute top-0 right-0 h-full w-1 cursor-col-resize transition-colors ${
                   isResizing
                     ? "bg-primary/40"
                     : "bg-transparent hover:bg-primary/20"
@@ -260,7 +274,12 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
           </>
         )}
 
-        <div className="flex-1 overflow-y-auto h-screen">{children}</div>
+        {/* Main content area — thêm padding-bottom trên mobile để không bị Bottom Nav che */}
+        <div
+          className="flex-1 overflow-y-auto h-screen pb-[calc(56px+env(safe-area-inset-bottom,0px))] md:pb-0"
+        >
+          {children}
+        </div>
       </main>
     </div>
   );

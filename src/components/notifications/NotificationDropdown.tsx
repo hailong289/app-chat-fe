@@ -25,8 +25,9 @@ import useNotificationStore from "@/store/useNotificationStore";
 /**
  * Bell icon trigger + popover panel of notifications. Replaces the old
  * full-page Notification tab — opens inline like Messenger / Facebook.
+ * @param mobileMode Khi true, render dạng icon-only không có text (dùng trên Bottom Nav mobile).
  */
-export function NotificationDropdown() {
+export function NotificationDropdown({ mobileMode = false }: { mobileMode?: boolean }) {
   const { t, i18n } = useTranslation();
   const {
     notifications,
@@ -67,35 +68,50 @@ export function NotificationDropdown() {
   };
 
   return (
-    <Popover placement="right-start" offset={8}>
+    <Popover placement={mobileMode ? "top" : "right-start"} offset={8}>
       <PopoverTrigger>
-        {/* Match the sibling sidebar Button styling exactly so the icon stays
-            aligned with the others (left-anchored, same gap, same size). */}
-        <Button
-          variant="light"
-          aria-label={t("notifications.title")}
-          // Suppress because aria-label resolves through i18n which may
-          // not have its async language detection finished by the time
-          // SSR runs — server fallback (vi) vs client-detected locale
-          // (en/vi) can differ. The inner text span already does the
-          // same; this lifts the same exemption to the button itself.
-          suppressHydrationWarning
-          className="w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white dark:text-gray-100"
-        >
-          <Badge
-            color="danger"
-            content={unreadCount > 99 ? "99+" : `${Math.max(unreadCount, 0)}`}
-            isInvisible={!unreadCount}
+        {mobileMode ? (
+          // Mobile mode: compact icon-only cho Bottom Nav
+          <button
+            type="button"
+            className="flex flex-col items-center justify-center w-full gap-0.5 text-white/60"
+            aria-label={t("notifications.title")}
           >
-            <BellIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
-          </Badge>
-          <span
-            className="text-white dark:text-gray-100 truncate"
+            <Badge
+              color="danger"
+              content={unreadCount > 99 ? "99+" : `${Math.max(unreadCount, 0)}`}
+              isInvisible={!unreadCount}
+              size="sm"
+            >
+              <BellIcon className="w-6 h-6" />
+            </Badge>
+            <span className="text-[9px] font-medium leading-none" suppressHydrationWarning>
+              {t("sidebar.notifications")}
+            </span>
+          </button>
+        ) : (
+          // Desktop mode: full-width button với text
+          <Button
+            variant="light"
+            aria-label={t("notifications.title")}
             suppressHydrationWarning
+            className="w-full transition-all relative left-0 top-0 duration-300 justify-start gap-4 text-white dark:text-gray-100"
           >
-            {t("sidebar.notifications")}
-          </span>
-        </Button>
+            <Badge
+              color="danger"
+              content={unreadCount > 99 ? "99+" : `${Math.max(unreadCount, 0)}`}
+              isInvisible={!unreadCount}
+            >
+              <BellIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
+            </Badge>
+            <span
+              className="text-white dark:text-gray-100 truncate"
+              suppressHydrationWarning
+            >
+              {t("sidebar.notifications")}
+            </span>
+          </Button>
+        )}
       </PopoverTrigger>
 
       <PopoverContent className="p-0 w-[380px] max-w-[92vw]">

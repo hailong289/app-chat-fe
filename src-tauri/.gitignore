@@ -2,3 +2,10 @@
 # will have compiled files and executables
 /target/
 /gen/schemas
+
+# Android Build Artifacts
+/gen/android/.gradle
+/gen/android/build
+/gen/android/app/build
+/gen/android/local.properties
+/gen/android/.idea

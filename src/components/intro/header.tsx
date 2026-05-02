@@ -43,9 +43,6 @@ export const Header = () => {
     setToggleState(!isToggled);
   }, [isToggled, setToggleState]);
 
-  // Each nav button navigates to its own route. No more `?tab=...` query —
-  // active state is derived from the URL path so deep links, refresh, and
-  // back navigation all stay consistent.
   const handleLink = useCallback(
     (path: string) => {
       router.push(path);
@@ -53,9 +50,8 @@ export const Header = () => {
     [router],
   );
 
-  // Active highlight from URL: exact match for `/`, startsWith for everything
-  // else (so `/settings/chat` highlights `/settings`).
-  const activeNav = useCallback(
+  // Active highlight — Desktop: background, Mobile: top border + text
+  const activeDesktopNav = useCallback(
     (path: string) => {
       const isActive =
         path === "/" ? pathname === "/" : pathname.startsWith(path);
@@ -64,10 +60,19 @@ export const Header = () => {
     [pathname],
   );
 
-  const logout = useCallback(() => {
-    // Ngắt kết nối socket trước khi logout
-    disconnectSocket();
+  const activeMobileNav = useCallback(
+    (path: string) => {
+      const isActive =
+        path === "/" ? pathname === "/" : pathname.startsWith(path);
+      return isActive
+        ? "text-white border-t-2 border-white"
+        : "text-white/60 border-t-2 border-transparent";
+    },
+    [pathname],
+  );
 
+  const logout = useCallback(() => {
+    disconnectSocket();
     handleLogout((error) => {
       if (error) {
         console.error("Logout error:", error);
@@ -75,159 +80,189 @@ export const Header = () => {
         return;
       }
       toast.success("Đăng xuất thành công!", "Thành công");
-
       router.push("/dashboard");
     });
   }, [handleLogout, router, disconnectSocket]);
 
-  return (
-    <div>
-      <nav
-        className={`
-          relative flex flex-col justify-between top-0 left-0
-          px-1 overflow-hidden transition-all duration-300
-          h-screen
-          bg-primary dark:bg-slate-900
-          ${isToggled ? "w-15" : "w-50"}
-        `}
-      >
-        {/* TOP MENU */}
-        <div className="relative min-w-15 top-0 left-0 w-full mt-10 space-y-6 flex flex-col items-start overflow-hidden">
-          <Button
-            className={`
-              ${activeNav("/")}
-              w-full transition-all relative left-0 top-0 duration-300
-              justify-start gap-4
-              text-white dark:text-gray-100
-            `}
-            variant="light"
-            onPress={() => handleLink("/")}
-          >
-            <ChatBubbleLeftRightIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
-            <span className="truncate" suppressHydrationWarning>
-              {t("sidebar.chats")}
-            </span>
-          </Button>
+  // ─── Shared nav items ──────────────────────────────────────────────────────
+  const navItems = [
+    {
+      path: "/",
+      icon: <ChatBubbleLeftRightIcon className="w-6 h-6" />,
+      label: t("sidebar.chats"),
+    },
+    {
+      path: "/contacts",
+      icon: <UserPlusIcon className="w-6 h-6" />,
+      label: t("sidebar.contacts"),
+    },
+    {
+      path: "/docs",
+      icon: <BookmarkIcon className="w-6 h-6" />,
+      label: t("sidebar.files"),
+    },
+    {
+      path: "/flash-card",
+      icon: <RectangleStackIcon className="w-6 h-6" />,
+      label: "Flash Card",
+    },
+    {
+      path: "/todo",
+      icon: <ClipboardDocumentListIcon className="w-6 h-6" />,
+      label: "Todo",
+    },
+  ];
 
-          <Button
-            className={`
-              ${activeNav("/contacts")}
-              w-full transition-all relative left-0 top-0 duration-300
-              justify-start gap-4
-              text-white dark:text-gray-100
-            `}
-            variant="light"
-            onPress={() => handleLink("/contacts")}
-          >
-            <UserPlusIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
-            <span className="truncate" suppressHydrationWarning>
-              {t("sidebar.contacts")}
-            </span>
-          </Button>
-
-          {/* Notifications — dropdown popover, không phải route riêng */}
-          <NotificationDropdown />
-
-          <Button
-            className={`
-              ${activeNav("/docs")}
-              w-full transition-all relative left-0 top-0 duration-300
-              justify-start gap-4
-              text-white dark:text-gray-100
-            `}
-            variant="light"
-            onPress={() => handleLink("/docs")}
-          >
-            <BookmarkIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
-            <span className="truncate" suppressHydrationWarning>
-              {t("sidebar.files")}
-            </span>
-          </Button>
-
-          <Button
-            className={`
-              ${activeNav("/flash-card")}
-              w-full transition-all relative left-0 top-0 duration-300
-              justify-start gap-4
-              text-white dark:text-gray-100
-            `}
-            variant="light"
-            onPress={() => handleLink("/flash-card")}
-          >
-            <RectangleStackIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
-            <span className="truncate" suppressHydrationWarning>
-              Flash Card
-            </span>
-          </Button>
-
-          <Button
-            className={`
-              ${activeNav("/todo")}
-              w-full transition-all relative left-0 top-0 duration-300
-              justify-start gap-4
-              text-white dark:text-gray-100
-            `}
-            variant="light"
-            onPress={() => handleLink("/todo")}
-          >
-            <ClipboardDocumentListIcon className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100" />
-            <span className="truncate" suppressHydrationWarning>
-              Todo
-            </span>
-          </Button>
+  // ─── User Dropdown — dùng chung cho cả Desktop lẫn Mobile ─────────────────
+  const userDropdown = (
+    <Dropdown>
+      <DropdownTrigger>
+        <div className="flex items-center cursor-pointer">
+          <Avatar
+            className="relative block min-w-[36px] h-[36px]"
+            src={user?.avatar ?? ""}
+            name={user?.fullname ?? "User"}
+          />
         </div>
+      </DropdownTrigger>
+      <DropdownMenu aria-label="User menu">
+        <DropdownItem key="setting" onPress={() => handleLink("/settings")}>
+          {t("sidebar.settings")}
+        </DropdownItem>
+        <DropdownItem
+          key="logout"
+          onPress={logout}
+          className="text-danger"
+          color="danger"
+        >
+          {t("sidebar.logout")}
+        </DropdownItem>
+      </DropdownMenu>
+    </Dropdown>
+  );
 
-        {/* BOTTOM USER + TOGGLE + THEME */}
-        <div className="relative bottom-0 overflow-hidden flex flex-col gap-4 justify-center items-start mb-4">
-          <Dropdown>
-            <DropdownTrigger>
-              <div className="flex w-full transition-all relative left-0 top-0 duration-300 justify-start items-center gap-4 text-white dark:text-gray-100 overflow-hidden cursor-pointer">
-                <Avatar
-                  className="relative block min-w-[40px] h-[40px]"
-                  src={user?.avatar ?? ""}
-                  name={user?.fullname ?? "User"}
-                />
+  return (
+    <>
+      {/* ══════════════════════════════════════════════════════════════
+          DESKTOP NAV — thanh dọc bên trái, ẨN hoàn toàn trên mobile (<md)
+          ══════════════════════════════════════════════════════════════ */}
+      <div className="hidden md:block">
+        <nav
+          className={`
+            relative flex flex-col justify-between top-0 left-0
+            px-1 overflow-hidden transition-all duration-300
+            h-screen
+            bg-primary dark:bg-slate-900
+            ${isToggled ? "w-15" : "w-50"}
+          `}
+        >
+          {/* TOP MENU */}
+          <div className="relative min-w-15 top-0 left-0 w-full mt-10 space-y-6 flex flex-col items-start overflow-hidden">
+            {navItems.map((item) => (
+              <Button
+                key={item.path}
+                className={`
+                  ${activeDesktopNav(item.path)}
+                  w-full transition-all relative left-0 top-0 duration-300
+                  justify-start gap-4
+                  text-white dark:text-gray-100
+                `}
+                variant="light"
+                onPress={() => handleLink(item.path)}
+              >
+                <span className="relative block min-w-[24px] h-[24px] text-white dark:text-gray-100">
+                  {item.icon}
+                </span>
+                <span className="truncate" suppressHydrationWarning>
+                  {item.label}
+                </span>
+              </Button>
+            ))}
+
+            {/* Notifications dropdown */}
+            <NotificationDropdown />
+          </div>
+
+          {/* BOTTOM: User avatar + Toggle + Theme/Language */}
+          <div className="relative bottom-0 overflow-hidden flex flex-col gap-4 justify-center items-start mb-4">
+            <div className="flex w-full transition-all relative left-0 top-0 duration-300 justify-start items-center gap-4 text-white dark:text-gray-100 overflow-hidden">
+              {userDropdown}
+              {!isToggled && (
                 <div className="relative left-0 bottom-0 whitespace-nowrap truncate max-w-[120px]">
                   {user?.fullname}
                 </div>
-              </div>
-            </DropdownTrigger>
-            <DropdownMenu aria-label="User menu">
-              <DropdownItem
-                key="setting"
-                onPress={() => handleLink("/settings")}
-              >
-                {t("sidebar.settings")}
-              </DropdownItem>
-              <DropdownItem
-                key="logout"
-                onPress={logout}
-                className="text-danger"
-                color="danger"
-              >
-                {t("sidebar.logout")}
-              </DropdownItem>
-            </DropdownMenu>
-          </Dropdown>
+              )}
+            </div>
 
-          <Button
-            variant="light"
-            size="sm"
-            onPress={changeToggle}
-            isIconOnly
-            className="text-white dark:text-gray-100"
+            <Button
+              variant="light"
+              size="sm"
+              onPress={changeToggle}
+              isIconOnly
+              className="text-white dark:text-gray-100"
+            >
+              {isToggled ? (
+                <Bars3BottomLeftIcon className="w-6 h-6" />
+              ) : (
+                <XCircleIcon className="w-6 h-6" />
+              )}
+            </Button>
+
+            <ThemeSwitcher />
+            <LanguageSwitcher />
+          </div>
+        </nav>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════
+          MOBILE BOTTOM NAV — thanh ngang dưới đáy, CHỈ hiện trên mobile (<md)
+          Dùng `fixed` để luôn nằm cố định dưới cùng màn hình.
+          Hỗ trợ Safe Area Inset (notch / home indicator trên iPhone/Android).
+          ══════════════════════════════════════════════════════════════ */}
+      <nav
+        className="
+          md:hidden
+          fixed bottom-0 left-0 right-0 z-50
+          flex flex-row items-stretch justify-around
+          bg-primary dark:bg-slate-900
+          shadow-[0_-4px_16px_rgba(0,0,0,0.25)]
+        "
+        style={{
+          height: "calc(56px + env(safe-area-inset-bottom, 0px))",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        }}
+      >
+        {navItems.map((item) => (
+          <button
+            key={item.path}
+            type="button"
+            className={`
+              flex flex-col items-center justify-center flex-1 gap-0.5 pt-1
+              transition-all duration-200
+              ${activeMobileNav(item.path)}
+            `}
+            onClick={() => handleLink(item.path)}
           >
-            {isToggled ? (
-              <Bars3BottomLeftIcon className="w-6 h-6" />
-            ) : (
-              <XCircleIcon className="w-6 h-6" />
-            )}
-          </Button>
+            {item.icon}
+            <span className="text-[9px] font-medium leading-none" suppressHydrationWarning>
+              {item.label}
+            </span>
+          </button>
+        ))}
 
-          <ThemeSwitcher />
-          <LanguageSwitcher />
+        {/* Notifications icon */}
+        <div className="flex flex-col items-center justify-center flex-1 pt-1 border-t-2 border-transparent">
+          <NotificationDropdown mobileMode />
+        </div>
+
+        {/* User Avatar + tên viết tắt */}
+        <div className="flex flex-col items-center justify-center flex-1 pt-1">
+          {userDropdown}
+          <span className="text-[9px] font-medium text-white/60 mt-0.5 leading-none" suppressHydrationWarning>
+            {user?.fullname?.split(" ").pop() ?? ""}
+          </span>
         </div>
       </nav>
-    </div>
+    </>
   );
 };
