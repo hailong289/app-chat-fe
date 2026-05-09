@@ -15,7 +15,9 @@
     "ok": "Đồng ý",
     "close": "Đóng",
     "view": "Xem tin nhắn",
-    "back": "Quay lại"
+    "back": "Quay lại",
+    "noResults": "Không tìm thấy kết quả",
+    "duplicate": "Nhân bản"
   },
   "docs": {
     "untitled": "Tài liệu không tên",

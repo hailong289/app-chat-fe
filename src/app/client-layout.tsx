@@ -125,7 +125,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     requestPermission();
   }, [firebase, isAuthenticated]);
   // Define valid routes
-  const validRoutes = ["/", "/chat", "/settings", "/contacts", '/flash-card', '/todo'];
+  const validRoutes = ["/", "/chat", "/settings", "/contacts", '/flash-card', '/todo', '/docs'];
   const isValidRoute =
     !validRoutes.some(
       (route) => path === route || path.startsWith(route + "/"),

@@ -68,7 +68,7 @@ export default function DocsPage() {
   const handleDelete = async (id: string) => {
     if (
       confirm(
-        t("docs.confirmDelete") ||
+        t("documents.deleteConfirm") ||
           "Are you sure you want to delete this document?"
       )
     ) {
@@ -110,7 +110,7 @@ export default function DocsPage() {
             onPress={handleCreate}
             isLoading={isCreating}
           >
-            {t("docs.newDoc") || "New Document"}
+            {t("documents.createNew") || "New Document"}
           </Button>
         </div>
 
@@ -139,7 +139,7 @@ export default function DocsPage() {
           <div className="text-center py-12 text-gray-500">
             {searchQuery
               ? t("common.noResults") || "No results found"
-              : t("docs.noDocs") || "No documents yet"}
+              : t("documents.empty.title") || "No documents yet"}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
