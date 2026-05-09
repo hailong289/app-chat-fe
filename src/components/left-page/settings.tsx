@@ -48,24 +48,6 @@ const Settings: React.FC = () => {
               <ArrowRightCircleIcon className="w-5 h-5" />
             </Button>
           </Tooltip>
-          <Tooltip content="Tích hợp" placement="right">
-            <Button
-              isIconOnly
-              variant="light"
-              onPress={() => router.push("/settings/intergation")}
-            >
-              <ArrowRightCircleIcon className="w-5 h-5" />
-            </Button>
-          </Tooltip>
-          <Tooltip content="Hỗ trợ" placement="right">
-            <Button
-              isIconOnly
-              variant="light"
-              onPress={() => router.push("/settings/support")}
-            >
-              <ArrowRightCircleIcon className="w-5 h-5" />
-            </Button>
-          </Tooltip>
           <Tooltip content="Đóng danh sách" placement="right">
             <Button
               isIconOnly
@@ -190,54 +172,6 @@ const Settings: React.FC = () => {
                     variant="light"
                     className="text-foreground-500 hover:text-foreground hover:bg-default-100"
                     onPress={() => router.push("/settings/devices")}
-                  >
-                    <ArrowRightCircleIcon className="w-5 h-5" />
-                  </Button>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-
-          {/* Tích hợp */}
-          <Card className="mb-0 shadow-none border-b border-default-200 rounded-none bg-background">
-            <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
-              <div className="flex items-start gap-4 w-full">
-                <div className="w-10/12 flex flex-col">
-                  <span className="font-medium leading-tight">Tích hợp</span>
-                  <span className="text-sm text-foreground-500 leading-tight mt-1">
-                    Quản lý các dịch vụ và ứng dụng được kết nối
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    isIconOnly
-                    variant="light"
-                    className="text-foreground-500 hover:text-foreground hover:bg-default-100"
-                    onPress={() => router.push("/settings/intergation")}
-                  >
-                    <ArrowRightCircleIcon className="w-5 h-5" />
-                  </Button>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-
-          {/* Hỗ trợ */}
-          <Card className="mb-0 shadow-none border-b border-default-200 rounded-none bg-background">
-            <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
-              <div className="flex items-start gap-4 w-full">
-                <div className="w-10/12 flex flex-col">
-                  <span className="font-medium leading-tight">Hỗ trợ</span>
-                  <span className="text-sm text-foreground-500 leading-tight mt-1">
-                    Gửi phản hồi, báo lỗi hoặc cần trợ giúp
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    isIconOnly
-                    variant="light"
-                    className="text-foreground-500 hover:text-foreground hover:bg-default-100"
-                    onPress={() => router.push("/settings/support")}
                   >
                     <ArrowRightCircleIcon className="w-5 h-5" />
                   </Button>
