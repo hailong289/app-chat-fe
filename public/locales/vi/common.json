@@ -15,7 +15,9 @@
     "ok": "Đồng ý",
     "close": "Đóng",
     "view": "Xem tin nhắn",
-    "back": "Quay lại"
+    "back": "Quay lại",
+    "duplicate": "Tạo bản sao",
+    "noResults": "Không tìm thấy kết quả"
   },
   "docs": {
     "untitled": "Tài liệu không tên",
@@ -66,6 +68,8 @@
     "typing": "Đang nhập...",
     "share": "Chia sẻ",
     "members": "Thành viên",
+    "comments": "Bình luận",
+    "commentPlaceholder": "Viết bình luận...",
     "viewer": "Người xem",
     "actions": {
       "export": "Xuất ra PDF",
@@ -448,6 +452,7 @@
     "search": "Tìm kiếm tài liệu",
     "create": "Tạo mới",
     "createNew": "Tạo tài liệu mới",
+    "newDoc": "Tài liệu mới",
     "loading": "Đang tải tài liệu...",
     "empty": {
       "title": "Chưa có tài liệu nào",

@@ -40,6 +40,12 @@ import {
 
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
+// Comment-related styles (.bn-thread, .bn-thread-mark, .bn-comment-editor,
+// .bn-threads-sidebar) live ONLY in @blocknote/react/style.css — not in
+// mantine/style.css. Without this import, saving a comment succeeds but
+// the highlighted anchor and floating thread UI render unstyled, making
+// it look like nothing happened after clicking Save.
+import "@blocknote/react/style.css";
 
 import { SocketIOProvider } from "@/libs/SocketIOProvider";
 import UploadService from "@/service/uploadfile.service";
@@ -215,16 +221,21 @@ export default function BlockNoteEditorBase({
     [ydoc],
   );
 
-  // Comments thread store (Yjs-backed)
+  // Comments thread store (Yjs-backed). Don't gate on `provider` — we'd
+  // miss the editor-creation window when the SocketIO provider hasn't
+  // connected yet, leaving `extensions: []` and the comment button hidden
+  // forever (AddCommentButton returns null when "comments" extension is
+  // missing, see @blocknote/react/.../AddCommentButton.tsx). The Yjs map
+  // works locally without sync; provider only forwards updates to peers
+  // once it does connect.
   const threadStore = useMemo(() => {
-    if (!provider) return null;
     const threadsMap = ydoc.getMap("comments");
     return new YjsThreadStore(
       userId,
       threadsMap,
       new DefaultThreadStoreAuth(userId, "editor"),
     );
-  }, [provider, ydoc, userId]);
+  }, [ydoc, userId]);
 
   // Schema with custom @mention inline content + all default block specs
   const schema = useMemo(
@@ -357,7 +368,10 @@ export default function BlockNoteEditorBase({
           }
         />
 
-        {/* Custom formatting toolbar with Cut/Copy/Paste prepended */}
+        {/* Custom formatting toolbar with Cut/Copy/Paste prepended.
+            getFormattingToolbarItems() in v0.48 already auto-includes the
+            "Add comment" button when CommentsExtension is configured, so
+            we don't need to add it manually. */}
         <FormattingToolbarController
           formattingToolbar={() => (
             <FormattingToolbar>
@@ -368,6 +382,14 @@ export default function BlockNoteEditorBase({
             </FormattingToolbar>
           )}
         />
+
+        {/* New-comment popup + inline thread popover are auto-rendered by
+            BlockNoteDefaultUI when CommentsExtension is configured (props
+            `comments` defaults to true). We don't add explicit Controllers
+            here on purpose. The threads list is ALSO surfaced Word-style in
+            <ThreadsSidebarPanel> (see docs/[id]/page.tsx) — that's a
+            standalone view of the same Yjs-backed thread store, not a
+            duplicate UI. */}
 
         {/* Other default UIs */}
         <FilePanelController />

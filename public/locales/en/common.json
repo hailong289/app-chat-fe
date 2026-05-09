@@ -15,7 +15,9 @@
     "ok": "OK",
     "close": "Close",
     "view": "View message",
-    "back": "Back"
+    "back": "Back",
+    "duplicate": "Duplicate",
+    "noResults": "No results found"
   },
   "docs": {
     "untitled": "Untitled Document",
@@ -66,6 +68,8 @@
     "typing": "Typing...",
     "share": "Share",
     "members": "Members",
+    "comments": "Comments",
+    "commentPlaceholder": "Write a comment...",
     "viewer": "Viewer",
     "actions": {
       "export": "Export to PDF",
@@ -452,6 +456,7 @@
     "search": "Search documents",
     "create": "Create",
     "createNew": "Create New Document",
+    "newDoc": "New Document",
     "loading": "Loading documents...",
     "empty": {
       "title": "No documents yet",
