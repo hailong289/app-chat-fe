@@ -102,7 +102,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     (route) => path === route || path.startsWith(`${route}/`),
   );
 
-  const isDisableLeftSide = path.includes("/flash-card") || path.includes("/todo");
+  const isDisableLeftSide = path.includes("/flash-card") || path.includes("/todo") || path.includes("/docs");
 
   // Dùng layout đơn giản cho: auth + các route không thuộc appRoutes (kiểu 404 / intro riêng)
   const useSimpleLayout = isAuthPage || !isInAppRoute;

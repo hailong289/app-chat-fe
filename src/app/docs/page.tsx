@@ -144,11 +144,14 @@ export default function DocsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredDocuments.map((doc) => (
-              <Card
+              <div 
                 key={doc._id}
-                className="border border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500 transition-colors cursor-pointer"
                 onClick={() => router.push(`/docs/${doc._id}`)}
+                className="cursor-pointer"
               >
+                <Card
+                  className="border border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500 transition-colors h-full"
+                >
                 <CardBody className="p-6 h-40 flex flex-col justify-between">
                   <div className="flex justify-between items-start">
                     <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
@@ -206,6 +209,7 @@ export default function DocsPage() {
                   </div>
                 </CardBody>
               </Card>
+              </div>
             ))}
           </div>
         )}
