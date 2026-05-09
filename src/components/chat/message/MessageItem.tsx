@@ -36,14 +36,18 @@ interface MessageItemProps {
   onRecall: (msg: MessageType) => void;
   onTogglePin: (msg: MessageType) => void;
   onCopy: (content: string) => void;
-  onTranslate: (msg: MessageType) => void;
+  onTranslate: (
+    msg: MessageType,
+    targetLanguage?: string,
+    sourceLanguage?: string,
+  ) => void;
   onSummarize: (msg: MessageType) => void;
   onJumpToMessage: (id: string) => void;
   setMessageRef: (id: string) => (el: HTMLElement | null) => void;
   messageState: any;
 }
 
-import { memo, useEffect } from "react";
+import { memo, useEffect, useState } from "react";
 import isEqual from "react-fast-compare";
 
 export const MessageItem = memo(
@@ -85,6 +89,20 @@ export const MessageItem = memo(
     const hiddenByMe = currentUserId
       ? (msg.hiddenBy?.includes(currentUserId) ?? false)
       : false;
+    const [translateProgress, setTranslateProgress] = useState<{
+      isLoading: boolean;
+      text: string;
+    }>({
+      isLoading: false,
+      text: "",
+    });
+    const [summaryProgress, setSummaryProgress] = useState<{
+      isLoading: boolean;
+      text: string;
+    }>({
+      isLoading: false,
+      text: "",
+    });
 
     useEffect(() => {
       if (renderedMessageIds && !renderedMessageIds.current.has(msg.id)) {
@@ -399,6 +417,8 @@ export const MessageItem = memo(
                       onCopy={onCopy}
                       onTranslate={onTranslate}
                       onSummarize={onSummarize}
+                      onTranslateProgress={setTranslateProgress}
+                      onSummarizeProgress={setSummaryProgress}
                       isMine={isMine}
                       hiddenByMe={hiddenByMe}
                     />
@@ -459,6 +479,45 @@ export const MessageItem = memo(
                       msg.reactions.length > 0 && (
                         <MessageReactions reactions={msg.reactions} />
                       )}
+
+                    {msg.summary?.text && msg.type !== "document" && (
+                      <div
+                        className={`mt-2 rounded-lg border px-3 py-2 text-xs leading-relaxed shadow-sm ${
+                          isMine
+                            ? "bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-100"
+                            : "bg-gray-50 border-gray-200 text-gray-800 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                        }`}
+                      >
+                        <div className="font-semibold mb-1">Tóm tắt tài liệu</div>
+                        <p className="whitespace-pre-wrap">{msg.summary.text}</p>
+                      </div>
+                    )}
+
+                    {translateProgress.text && (
+                      <div
+                        className={`mt-1 flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 ${
+                          isMine ? "justify-end" : "justify-start"
+                        }`}
+                      >
+                        {translateProgress.isLoading && (
+                          <Spinner size="sm" color="default" />
+                        )}
+                        <span>{translateProgress.text}</span>
+                      </div>
+                    )}
+
+                    {summaryProgress.text && (
+                      <div
+                        className={`mt-1 flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 ${
+                          isMine ? "justify-end" : "justify-start"
+                        }`}
+                      >
+                        {summaryProgress.isLoading && (
+                          <Spinner size="sm" color="default" />
+                        )}
+                        <span>{summaryProgress.text}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -66,7 +66,10 @@ function readEventChunk(rawEvent: string): { event?: string; data?: string } {
       continue;
     }
     if (line.startsWith("data:")) {
-      dataLines.push(line.slice(5).trimStart());
+      const rawData = line.slice(5);
+      // SSE spec allows one optional leading space after `data:`.
+      // Remove only that single separator, keep remaining spaces intact.
+      dataLines.push(rawData.startsWith(" ") ? rawData.slice(1) : rawData);
       seenData = true;
       continue;
     }
