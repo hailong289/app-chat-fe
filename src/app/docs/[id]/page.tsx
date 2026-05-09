@@ -219,21 +219,6 @@ export default function DocumentEditorPage() {
   };
 
   // Edit Handlers
-  const handleUndo = () => {
-    if (editor) {
-      editor.undo();
-      editor.focus();
-    }
-  };
-
-  const handleRedo = () => {
-    if (editor) {
-      editor.redo();
-      editor.focus();
-    }
-  };
-
-
   const handleCut = () => {
     if (editor) {
       // Focus the editor first
@@ -454,12 +439,6 @@ export default function DocumentEditorPage() {
                   </Button>
                 </DropdownTrigger>
                 <DropdownMenu aria-label="Edit actions">
-                  <DropdownItem key="undo" shortcut="⌘Z" onPress={handleUndo}>
-                    {t("docs.menu.edit.undo")}
-                  </DropdownItem>
-                  <DropdownItem key="redo" shortcut="⌘⇧Z" onPress={handleRedo}>
-                    {t("docs.menu.edit.redo")}
-                  </DropdownItem>
                   <DropdownItem key="cut" shortcut="⌘X" onPress={handleCut}>
                     {t("docs.menu.edit.cut")}
                   </DropdownItem>
@@ -672,32 +651,31 @@ export default function DocumentEditorPage() {
       </Navbar>
 
       {/* Main Editor Area */}
-      <main className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 flex gap-6 min-h-0 overflow-auto">
-        <Card className="flex-1 flex flex-col shadow-sm border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-visible">
-          <CardBody className="p-0 flex-1 overflow-visible">
-            <div className="editor-wrapper h-full flex flex-col p-4 sm:p-8 lg:p-12 pb-[60vh]">
-              <DynamicEditor
-                key={document._id}
-                onEditorReady={setEditor}
-                onChange={handleEditorChange}
-                ydoc={ydoc}
-                provider={provider}
-                userName={currentUser?.fullname || "Anonymous"}
-                userColor={
-                  activeUsers.find((u) => u.userId === currentUser?._id)
-                    ?.color || "#0066ff"
-                }
-                userAvatar={currentUser?.avatar}
-                sharedWith={document?.sharedWith}
-                editable={canEdit}
-              />
-            </div>
-          </CardBody>
-        </Card>
+      <main className="flex-1 w-full flex gap-6 min-h-0 overflow-auto">
+        <div className="flex-1 flex flex-col min-w-0 py-6">
+          <div className="editor-wrapper flex flex-col px-4 sm:px-8 lg:px-16 py-8 pb-[40vh] w-full max-w-4xl mx-auto bg-white dark:bg-gray-900">
+            <DynamicEditor
+              key={document._id}
+              onEditorReady={setEditor}
+              onChange={handleEditorChange}
+              ydoc={ydoc}
+              provider={provider}
+              userId={currentUser?._id || currentUser?.id}
+              userName={currentUser?.fullname || "Anonymous"}
+              userColor={
+                activeUsers.find((u) => u.userId === currentUser?._id)
+                  ?.color || "#0066ff"
+              }
+              userAvatar={currentUser?.avatar}
+              sharedWith={document?.sharedWith}
+              editable={canEdit}
+            />
+          </div>
+        </div>
 
         {/* Table of Contents Sidebar */}
         {showToc && (
-          <div className="w-64 hidden lg:block shrink-0">
+          <div className="w-64 hidden lg:block shrink-0 pr-6 py-6">
             <div className="sticky top-24">
               <h3 className="font-semibold text-gray-900 dark:text-white mb-4 px-2">
                 {t("docs.toc") || "Table of Contents"}
@@ -741,6 +719,7 @@ export default function DocumentEditorPage() {
             </div>
           </div>
         )}
+
       </main>
 
       {/* Delete Confirmation Modal */}

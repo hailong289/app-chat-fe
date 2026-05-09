@@ -83,12 +83,23 @@ export function SocketProvider({
   namespaces: string[];
   url?: string;
 }>) {
-  const baseUrl = url || process.env.NEXT_PUBLIC_SOCKET_URL!;
+  // Strip trailing slashes — `${baseUrl}${ns}` would otherwise yield
+  // `https://host//chat`, which socket.io-client parses as namespace
+  // `//chat` and the server rejects with "Invalid namespace".
+  const baseUrl = (url || process.env.NEXT_PUBLIC_SOCKET_URL!).replace(/\/+$/, "");
   // Fix: `tokens` is an object literal (with null fields when logged out),
   // so `!s.tokens` is ALWAYS false (object is truthy). Subscribe to the
   // actual access token instead so the connect-on-login effect fires
   // when login flips it from null → real value.
   const accessToken = useAuthStore((s) => s.tokens?.accessToken ?? null);
+  // `userId` is the "confirmed authenticated" signal — it's only set
+  // after fetchMe() succeeds (or login() returns user). We gate socket
+  // creation on this, NOT on `accessToken` alone, because on boot the
+  // store seeds `accessToken` synchronously from a possibly-stale
+  // localStorage entry — connecting before fetchMe verifies it can lead
+  // to handshake failures and spurious token refreshes.
+  const userId = useAuthStore((s) => s.user?.id ?? null);
+  const isAuthConfirmed = !!accessToken && !!userId;
   const isLoggedOut = !accessToken;
 
   const socketsRef = useRef<Record<string, Socket>>({});
@@ -121,7 +132,9 @@ export function SocketProvider({
    * sockets, only the post-logout-empty case kicks in.
    */
   useEffect(() => {
-    if (!accessToken) return; // logged out → don't create sockets
+    // Wait for confirmed auth (fetchMe-verified user), not just a
+    // synchronously-seeded accessToken from localStorage.
+    if (!isAuthConfirmed) return;
     namespaces.forEach((rawNs) => {
       const ns = normalizeNs(rawNs);
       if (socketsRef.current[ns]) return;
@@ -258,13 +271,15 @@ export function SocketProvider({
       socketsRef.current[ns] = socket;
       updateState(ns, { status: "idle" });
     });
-  }, [namespaces, baseUrl, updateState, accessToken]);
+  }, [namespaces, baseUrl, updateState, isAuthConfirmed]);
 
   /* ========= 2️⃣ TOKEN READY → CONNECT / RECONNECT ALL ========= */
-  // Re-runs when `accessToken` changes (login, refresh, logout). Replaces
-  // the old `isLoggedOut`-only dep which never flipped because `tokens`
-  // was always a truthy object literal.
+  // Re-runs when `accessToken` changes (refresh, logout) AND auth has
+  // been confirmed via fetchMe. Without the `isAuthConfirmed` gate, a
+  // stale token from localStorage would dial out before the user is
+  // verified, causing a handshake failure / refresh storm.
   useEffect(() => {
+    if (!isAuthConfirmed) return;
     const token = accessToken || getAccessToken();
     if (!token) return;
 
@@ -275,7 +290,7 @@ export function SocketProvider({
         socket.connect();
       }
     });
-  }, [accessToken, updateState]);
+  }, [accessToken, isAuthConfirmed, updateState]);
 
   /* ========= 2b️⃣ TOKEN REFRESHED → RE-HANDSHAKE SOCKETS ========= */
   // When the access token rotates (refresh succeeded), the Socket.IO

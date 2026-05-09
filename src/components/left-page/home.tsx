@@ -71,6 +71,16 @@ export const Home = () => {
   const [pendingRoom, setPendingRoom] = useState<roomType | null>(null);
   const [isClearHistoryModalOpen, setIsClearHistoryModalOpen] = useState(false);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
+  // Hydration guard — Home is rendered through <LeftSide /> (in ClientLayout),
+  // not through a route page.tsx, so it doesn't get the same mounted-gate
+  // that app/page.tsx has. Without this, t()-driven text (Input placeholder,
+  // Tab titles) renders different strings on server vs client when the
+  // user's stored language differs from the SSR default, causing hydration
+  // mismatch warnings in the console.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<string>(searchParams.get("chatId") || "");
@@ -308,6 +318,8 @@ export const Home = () => {
     },
     [isClearingHistory],
   );
+
+  if (!mounted) return null;
 
   return (
     <div className="h-full flex flex-col">

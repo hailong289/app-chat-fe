@@ -9,6 +9,7 @@ import {
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
+import { persistLanguage } from "@/i18n";
 
 export function LanguageSwitcher() {
   const { i18n } = useTranslation();
@@ -33,7 +34,8 @@ export function LanguageSwitcher() {
   ];
 
   const handleLanguageChange = (lang: string) => {
-    i18n.changeLanguage(lang);
+    void i18n.changeLanguage(lang);
+    persistLanguage(lang);
   };
 
   const currentFlag =
