@@ -67,7 +67,11 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       return;
     }
     if (!isAuthenticated && !isPublic) {
-      router.replace("/auth");
+      // Landing on "/" while logged out goes to /dashboard (the public
+      // marketing page) instead of /auth — visitors should see the app
+      // intro first, not a login form. Every other protected route still
+      // forces /auth so deep-links don't bypass the login screen.
+      router.replace(path === "/" ? "/dashboard" : "/auth");
     }
   }, [isAuthenticated, path, router]);
   const DEFAULT_SIDEBAR_WIDTH = 320;
