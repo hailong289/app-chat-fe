@@ -12,7 +12,7 @@ export enum socketEvent {
   STATUSTYPING = "on:typing",
   ERRORMSG = "error:message",
   USERJOIN = "user:join",
-  VERYFIỄPTION = "exception",
+  EXCEPTION = "exception",
   STATUS = "status:online",
   ROOMDELETE = "room:delete",
   MSGMARKREAD = "mark:read",

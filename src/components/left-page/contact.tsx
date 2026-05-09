@@ -23,6 +23,7 @@ import InvaitationSentModal from "../contact/modal/invitation-sent.modal";
 import ItemContact from "../contact/itemContac";
 import useContactStore from "@/store/useContactStore";
 import useCounterStore from "@/store/useCounterStore";
+import { useSocket } from "../providers/SocketProvider";
 
 const Contacts: React.FC = () => {
   const [tab, setTab] = useState(0);
@@ -31,11 +32,31 @@ const Contacts: React.FC = () => {
   const contactState = useContactStore((state) => state);
   const isCollapsed = useCounterStore((state) => state.collapsedSidebar);
   const toggleSidebar = useCounterStore((state) => state.togoleSidebar);
+  const { socket: chatSocket } = useSocket("/chat");
 
   useEffect(() => {
-    contactState.getAllContacts();
-    contactState.getFriends();
-  }, []);
+    let cancelled = false;
+    (async () => {
+      await contactState.getAllContacts();
+      await contactState.getFriends();
+      // Suggestions fetch is best-effort (errors swallowed in the action).
+      contactState.fetchFriendSuggestions(10);
+      if (cancelled) return;
+      // Poll presence AFTER friends land in db.contacts — otherwise
+      // friends who were already online when this tab opened never light
+      // up (no STATUS broadcast fires for state that didn't transition).
+      const s = chatSocket;
+      if (s?.connected) {
+        contactState.checkOnlineStatus(s);
+      } else if (s) {
+        s.once("connect", () => contactState.checkOnlineStatus(s));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatSocket]);
   useEffect(() => {
     if (searchValue == "") return; // tránh gọi khi rỗng
 
@@ -200,10 +221,18 @@ const Contacts: React.FC = () => {
                     variant="solid"
                     aria-label="Tabs for friend requests and sent requests"
                     fullWidth
+                    classNames={{
+                      // Tab titles are tight in Vietnamese — squeezing all
+                      // three into the narrow contacts panel cuts off the
+                      // last one. Compact font + smaller padding lets all
+                      // three fit at panel widths down to ~280px.
+                      tabList: "px-1 gap-1",
+                      tab: "px-2 text-xs",
+                    }}
                   >
                     <Tab
                       key="0"
-                      title="Danh sách bạn bè"
+                      title="Bạn bè"
                       onClick={() => contactState.getFriends()}
                     >
                       {contactState.friends.map((update) => (
@@ -218,7 +247,7 @@ const Contacts: React.FC = () => {
 
                     <Tab
                       key="1"
-                      title="Lời mời kết bạn"
+                      title="Lời mời"
                       onClick={onPressFriendRequestsInvite}
                     >
                       <Button
@@ -240,6 +269,53 @@ const Contacts: React.FC = () => {
                           type="received"
                         />
                       ))}
+                    </Tab>
+
+                    <Tab
+                      key="2"
+                      title="Gợi ý"
+                      onClick={() => contactState.fetchFriendSuggestions(10)}
+                    >
+                      {contactState.suggestions.length === 0 ? (
+                        <p className="text-center text-default-400 text-sm py-6">
+                          Chưa có gợi ý nào. Hãy kết bạn với một vài người để
+                          nhận thêm gợi ý.
+                        </p>
+                      ) : (
+                        <div className="flex flex-col">
+                          {contactState.suggestions.map((s) => (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => onPress(s.id)}
+                              className="flex items-center gap-3 p-3 rounded-lg hover:bg-default-100 transition text-left"
+                            >
+                              <Avatar
+                                src={s.avatar || undefined}
+                                name={s.fullname}
+                                size="md"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-foreground truncate">
+                                  {s.fullname}
+                                </p>
+                                <p className="text-xs text-default-500 truncate">
+                                  {s.mutualFriendsCount}{" "}
+                                  bạn chung
+                                  {s.mutualSamples.length > 0 && (
+                                    <>
+                                      {" — "}
+                                      {s.mutualSamples.join(", ")}
+                                      {s.mutualFriendsCount >
+                                        s.mutualSamples.length && "…"}
+                                    </>
+                                  )}
+                                </p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </Tab>
                   </Tabs>
                 </div>

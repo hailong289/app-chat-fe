@@ -22,7 +22,6 @@ import { PlusIcon } from "@heroicons/react/16/solid";
 import { useRouter } from "next/navigation";
 import useRoomStore from "@/store/useRoomStore";
 import useAuthStore from "@/store/useAuthStore";
-import useCounterStore from "@/store/useCounterStore";
 import useContactStore from "@/store/useContactStore";
 import { roomMembers, RoomsState, roomType } from "@/store/types/room.state";
 import useCallStore from "@/store/useCallStore";
@@ -36,7 +35,6 @@ export default function ContactProfile({
   contact,
 }: Readonly<ContactProfileProps>) {
   const contactState = useContactStore((state) => state);
-  const countSate = useCounterStore((state) => state);
   const router = useRouter();
   const authState = useAuthStore((state) => state);
   const roomState = useRoomStore((state) => state);
@@ -44,7 +42,6 @@ export default function ContactProfile({
   const handleChatPrivate = (id: string) => {
     roomState.createRoom("private", `Chat với ${id}`, [id]);
     router.push(`/chat?chatId=${id}`);
-    countSate.setTab("home");
   };
 
   const formatDate = (dateString: string) => {
@@ -82,6 +79,13 @@ export default function ContactProfile({
     const room = roomState.getRoomByRoomId(id);
     console.log("🚀 ~ handleStartCall ~ room:", room);
     if (!room) return;
+    // Same guard as chat/header — openCall crashes if currentUser is
+    // null, which can happen briefly while fetchMe() is in flight on
+    // app boot.
+    if (!authState.user) {
+      console.warn("[handleStartCall] no user yet, skipping");
+      return;
+    }
     openCall({
       roomId: room.roomId || "",
       mode,

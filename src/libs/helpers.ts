@@ -101,6 +101,11 @@ class Helpers {
   };
 }
 
+export function isTauriRuntime(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!(window as any).__TAURI__ || !!(window as any).__TAURI_INTERNALS__;
+}
+
 /** Định dạng ms thành chuỗi "X ngày Y giờ", "X phút Y giây", ... */
 export function formatTimeUntil(ms: number): string {
   if (ms <= 0 || !Number.isFinite(ms)) return "0 giây";

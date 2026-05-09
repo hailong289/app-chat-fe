@@ -17,6 +17,15 @@ export const metadata: Metadata = {
   description: "Ứng dụng chat hiện đại",
 };
 
+// Force dynamic rendering for every route. This is an authenticated
+// chat app — there is nothing meaningful to statically prerender at
+// build time, and the prerender pass had been intermittently choking
+// on client-only pages (e.g. /todo/projects → ENOENT
+// build-manifest.json) when their provider chain touched storage or
+// triggered hooks that don't tolerate SSR. Skipping prerender keeps
+// the build deterministic and matches how the app actually runs.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: {

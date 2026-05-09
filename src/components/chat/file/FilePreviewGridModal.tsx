@@ -17,6 +17,7 @@ import {
   ArrowRightIcon,
 } from "@heroicons/react/16/solid";
 import { FilePreview } from "@/store/types/message.state";
+import { openWindowWithTauri } from "@/utils/openWindow";
 import { useTranslation } from "react-i18next";
 
 type Props = {
@@ -107,7 +108,7 @@ export default function FilePreviewGridModal({
       onOpen();
     } else {
       const url = files[i]?.uploadedUrl || files[i]?.url;
-      if (url) window.open(url, "_blank");
+      if (url) void openWindowWithTauri(url, "_blank");
     }
   };
 

@@ -4,12 +4,14 @@ import React from "react";
 import { XMarkIcon, ArrowRightCircleIcon } from "@heroicons/react/24/outline";
 import { Card, CardBody, Button, Tooltip } from "@heroui/react";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import useCounterStore from "@/store/useCounterStore";
 
 const Settings: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
   const isCollapsed = useCounterStore((state) => state.collapsedSidebar);
+  const { t } = useTranslation();
 
   const handleClose = () => {
     router.push(pathname || "/");
@@ -37,20 +39,11 @@ const Settings: React.FC = () => {
               <ArrowRightCircleIcon className="w-5 h-5" />
             </Button>
           </Tooltip>
-          <Tooltip content="Tích hợp" placement="right">
+          <Tooltip content={t("settingsList.devices")} placement="right">
             <Button
               isIconOnly
               variant="light"
-              onPress={() => router.push("/settings/intergation")}
-            >
-              <ArrowRightCircleIcon className="w-5 h-5" />
-            </Button>
-          </Tooltip>
-          <Tooltip content="Hỗ trợ" placement="right">
-            <Button
-              isIconOnly
-              variant="light"
-              onPress={() => router.push("/settings/support")}
+              onPress={() => router.push("/settings/devices")}
             >
               <ArrowRightCircleIcon className="w-5 h-5" />
             </Button>
@@ -149,38 +142,28 @@ const Settings: React.FC = () => {
             </CardBody>
           </Card>
 
-          {/* Tích hợp */}
+          {/* Quản lý thiết bị */}
           <Card className="mb-0 shadow-none border-b border-default-200 rounded-none bg-background">
             <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
               <div className="flex items-start gap-4 w-full">
                 <div className="w-10/12 flex flex-col">
-                  <span className="font-medium leading-tight">Tích hợp</span>
-                  <span className="text-sm text-foreground-500 leading-tight mt-1">
-                    Quản lý các dịch vụ và ứng dụng được kết nối
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    isIconOnly
-                    variant="light"
-                    className="text-foreground-500 hover:text-foreground hover:bg-default-100"
-                    onPress={() => router.push("/settings/intergation")}
+                  {/* suppressHydrationWarning on i18n-driven text:
+                      i18next's LanguageDetector resolves on the client
+                      side, so SSR may render in fallback (vi) while the
+                      client switches to user-detected locale (en) →
+                      hydration text mismatch. The other entries on this
+                      page hard-code Vietnamese so they don't hit this. */}
+                  <span
+                    className="font-medium leading-tight"
+                    suppressHydrationWarning
                   >
-                    <ArrowRightCircleIcon className="w-5 h-5" />
-                  </Button>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-
-          {/* Hỗ trợ */}
-          <Card className="mb-0 shadow-none border-b border-default-200 rounded-none bg-background">
-            <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
-              <div className="flex items-start gap-4 w-full">
-                <div className="w-10/12 flex flex-col">
-                  <span className="font-medium leading-tight">Hỗ trợ</span>
-                  <span className="text-sm text-foreground-500 leading-tight mt-1">
-                    Gửi phản hồi, báo lỗi hoặc cần trợ giúp
+                    {t("settingsList.devices")}
+                  </span>
+                  <span
+                    className="text-sm text-foreground-500 leading-tight mt-1"
+                    suppressHydrationWarning
+                  >
+                    {t("settingsList.devicesDesc")}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -188,7 +171,7 @@ const Settings: React.FC = () => {
                     isIconOnly
                     variant="light"
                     className="text-foreground-500 hover:text-foreground hover:bg-default-100"
-                    onPress={() => router.push("/settings/support")}
+                    onPress={() => router.push("/settings/devices")}
                   >
                     <ArrowRightCircleIcon className="w-5 h-5" />
                   </Button>

@@ -27,6 +27,7 @@
     "@mantine/core": "^8.3.11",
     "@mantine/hooks": "^8.3.11",
     "@mantine/utils": "^6.0.22",
+    "@tauri-apps/api": "2.8.x",
     "@types/lodash": "^4.17.21",
     "@types/pako": "^2.0.4",
     "axios": "^1.12.2",

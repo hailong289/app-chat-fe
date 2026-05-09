@@ -52,7 +52,7 @@ export default function DocsPage() {
     setIsCreating(true);
     try {
       const newDoc = await createDocument({
-        title: t("docs.untitled") || "Untitled Document",
+        title: t("docs.untitled"),
         visibility: "private",
       });
       if (newDoc) {
@@ -66,12 +66,7 @@ export default function DocsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (
-      confirm(
-        t("docs.confirmDelete") ||
-          "Are you sure you want to delete this document?"
-      )
-    ) {
+    if (confirm(t("documents.deleteConfirm"))) {
       await deleteDocument(id);
     }
   };
@@ -97,11 +92,10 @@ export default function DocsPage() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              {t("documents.title") || "Documents"}
+              {t("documents.title")}
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1">
-              {t("documents.subtitle") ||
-                "Manage your documents and collaborate with others."}
+              {t("documents.subtitle")}
             </p>
           </div>
           <Button
@@ -110,14 +104,14 @@ export default function DocsPage() {
             onPress={handleCreate}
             isLoading={isCreating}
           >
-            {t("docs.newDoc") || "New Document"}
+            {t("documents.newDoc")}
           </Button>
         </div>
 
         {/* Search */}
         <div className="relative max-w-md">
           <Input
-            placeholder={t("common.search") || "Search..."}
+            placeholder={t("common.search")}
             startContent={
               <MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />
             }
@@ -138,17 +132,21 @@ export default function DocsPage() {
         ) : filteredDocuments.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             {searchQuery
-              ? t("common.noResults") || "No results found"
-              : t("docs.noDocs") || "No documents yet"}
+              ? t("common.noResults")
+              : t("documents.empty.title")}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredDocuments.map((doc) => (
-              <Card
+              <div 
                 key={doc._id}
-                className="border border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500 transition-colors cursor-pointer"
-                onClick={() => router.push(`/docs/${doc._id}`)}
+                isPressable
+                onPress={() => router.push(`/docs/${doc._id}`)}
+                className="w-full border border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500 transition-colors"
               >
+                <Card
+                  className="border border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500 transition-colors h-full"
+                >
                 <CardBody className="p-6 h-40 flex flex-col justify-between">
                   <div className="flex justify-between items-start">
                     <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
@@ -175,7 +173,7 @@ export default function DocsPage() {
                             }
                             onPress={() => handleDuplicate(doc._id)}
                           >
-                            {t("common.duplicate") || "Duplicate"}
+                            {t("common.duplicate")}
                           </DropdownItem>
                           <DropdownItem
                             key="delete"
@@ -184,7 +182,7 @@ export default function DocsPage() {
                             startContent={<TrashIcon className="w-4 h-4" />}
                             onPress={() => handleDelete(doc._id)}
                           >
-                            {t("common.delete") || "Delete"}
+                            {t("common.delete")}
                           </DropdownItem>
                         </DropdownMenu>
                       </Dropdown>
@@ -206,6 +204,7 @@ export default function DocsPage() {
                   </div>
                 </CardBody>
               </Card>
+              </div>
             ))}
           </div>
         )}

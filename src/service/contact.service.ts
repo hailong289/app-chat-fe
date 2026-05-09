@@ -39,4 +39,13 @@ export default class ContactService {
   static unBlockFriend(userId: string) {
     return apiService.patch(`/social/friends/${userId}/open-blocked`);
   }
+  /**
+   * Friend-of-friend suggestions ranked by mutual-friend count. Returns
+   * `{ suggestions, total }`. Each suggestion carries `mutualFriendsCount`
+   * + up to 3 `mutualSamples` (names) for the UI to render
+   * "X friends including Y, Z".
+   */
+  static getFriendSuggestions(limit = 10) {
+    return apiService.get("/social/users/suggestions", { limit });
+  }
 }

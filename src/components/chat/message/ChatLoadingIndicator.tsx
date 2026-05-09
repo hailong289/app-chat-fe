@@ -5,15 +5,16 @@ import { useTranslation } from "react-i18next";
 interface ChatLoadingIndicatorProps {
   isLoadingOlder: boolean;
   isLoadingFromAPI: boolean;
-  isFetchingNewMessages: boolean;
-  messageStateLoading: boolean;
+  // True while the active chatId is being loaded (cache miss → fetch).
+  // Drives the top banner + floating spinner. Replaces the old pair
+  // `isLoadingMessages` + `messageStateLoading`.
+  isLoadingMessages: boolean;
 }
 
 export function ChatLoadingIndicator({
   isLoadingOlder,
   isLoadingFromAPI,
-  isFetchingNewMessages,
-  messageStateLoading,
+  isLoadingMessages,
 }: Readonly<ChatLoadingIndicatorProps>) {
   const { t } = useTranslation();
   return (
@@ -43,7 +44,7 @@ export function ChatLoadingIndicator({
 
       {/* Loading indicator for new messages */}
       <AnimatePresence>
-        {isFetchingNewMessages && (
+        {isLoadingMessages && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -81,7 +82,7 @@ export function ChatLoadingIndicator({
 
       {/* Floating loading indicator */}
       <AnimatePresence>
-        {(isFetchingNewMessages || messageStateLoading) && (
+        {isLoadingMessages && (
           <motion.div
             initial={{ opacity: 0, x: 20, scale: 0.8 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
@@ -99,9 +100,7 @@ export function ChatLoadingIndicator({
             >
               <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-600 border-t-transparent"></div>
               <span className="font-medium whitespace-nowrap">
-                {isFetchingNewMessages
-                  ? t("chat.messages.loading.new")
-                  : t("chat.messages.loading.general")}
+                {t("chat.messages.loading.new")}
               </span>
             </div>
           </motion.div>

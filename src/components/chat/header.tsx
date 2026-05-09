@@ -76,11 +76,45 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const { openCall } = useCallStore();
   const { user } = useAuthStore();
   const contactState = useContactStore((state) => state);
+  // Resolve "is this conversation showing as online?" using the unified
+  // presence Set (contactState.onlineUserIds) — works for ANY user in the
+  // room, not just the people we've explicitly added as contacts.
+  //
+  //   - private: the *other* member's online state.
+  //   - group:   true if at least one non-self member is online.
+  //   - channel: false (no presence concept).
+  const myUsrId = user?.id;
+  const isUserOnline = contactState.isUserOnline;
+  const headerIsOnline = React.useMemo(() => {
+    const room = roomState.room;
+    if (!room) return false;
+    if (room.type === "channel") return false;
+    const members = room.members ?? [];
+    if (room.type === "private") {
+      const other = members.find((m) => m.id !== myUsrId);
+      return !!other && isUserOnline(other.id);
+    }
+    return members.some((m) => m.id !== myUsrId && isUserOnline(m.id));
+  }, [
+    roomState.room,
+    contactState.onlineUserIds,
+    isUserOnline,
+    myUsrId,
+  ]);
+
+  // Number of distinct online members (excluding self) — useful for the
+  // group header "X online" badge.
   const onlineMembers = React.useMemo(() => {
-    return contactState.online.filter((contact) =>
-      roomState.room?.members.some((member) => member.id === contact.id)
+    const members = roomState.room?.members ?? [];
+    return members.filter(
+      (m) => m.id !== myUsrId && isUserOnline(m.id),
     );
-  }, [contactState.online, roomState.room?.members]);
+  }, [
+    roomState.room?.members,
+    contactState.onlineUserIds,
+    isUserOnline,
+    myUsrId,
+  ]);
 
   const handleSearch = async (query: string) => {
     setSearchValue(query);
@@ -103,6 +137,14 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const handleStartCall = (room: RoomsState, mode: "audio" | "video") => {
     const roomData = room.room;
     if (!roomData) return;
+    // Guard: user can be null while fetchMe() is in flight (or failed
+    // silently). openCall reads `currentUser.id` for the is_caller flag
+    // and would crash on null. Bail out — caller can retry once the
+    // store hydrates.
+    if (!user) {
+      console.warn("[handleStartCall] no user yet, skipping");
+      return;
+    }
     openCall({
       roomId: roomData.roomId || "",
       mode,
@@ -143,12 +185,30 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
                     <Chip
                       size="sm"
                       variant="dot"
-                      color={onlineMembers.length > 0 ? "success" : "default"}
+                      color={headerIsOnline ? "success" : "default"}
                       className="p-0 border-none bg-transparent"
                     >
                       <span className="text-xs text-white">
-                        {onlineMembers.length > 0
+                        {headerIsOnline
                           ? t("chat.header.online")
+                          : t("chat.header.offline")}
+                      </span>
+                    </Chip>
+                  </div>
+                )}
+                {roomState.room?.type === "group" && (
+                  <div className="flex items-center gap-1">
+                    <Chip
+                      size="sm"
+                      variant="dot"
+                      color={headerIsOnline ? "success" : "default"}
+                      className="p-0 border-none bg-transparent"
+                    >
+                      <span className="text-xs text-white">
+                        {headerIsOnline
+                          ? `${onlineMembers.length} ${t(
+                              "chat.header.online",
+                            )}`
                           : t("chat.header.offline")}
                       </span>
                     </Chip>

@@ -13,8 +13,11 @@
     "send": "Send",
     "or": "Or",
     "ok": "OK",
+    "close": "Close",
     "view": "View message",
-    "back": "Back"
+    "back": "Back",
+    "duplicate": "Duplicate",
+    "noResults": "No results found"
   },
   "docs": {
     "untitled": "Untitled Document",
@@ -53,7 +56,9 @@
         "title": "View",
         "mode": "Mode: Editing",
         "showOutline": "Show Outline",
-        "hideOutline": "Hide Outline"
+        "hideOutline": "Hide Outline",
+        "showComments": "Show Comments",
+        "hideComments": "Hide Comments"
       },
       "help": {
         "title": "Help",
@@ -65,6 +70,8 @@
     "typing": "Typing...",
     "share": "Share",
     "members": "Members",
+    "comments": "Comments",
+    "commentPlaceholder": "Write a comment...",
     "viewer": "Viewer",
     "actions": {
       "export": "Export to PDF",
@@ -151,9 +158,20 @@
       "speaker": "Speaker",
       "camera": "Camera",
       "close": "Close"
+    },
+    "toast": {
+      "willClose": "the call will close automatically...",
+      "rejected": "{{name}} declined the call",
+      "missed": "{{name}} didn't answer",
+      "left": "{{name}} left the call",
+      "joined": "{{name}} joined the call"
     }
   },
   "chat": {
+    "noRoomSelected": {
+      "title": "Pick a conversation",
+      "subtitle": "Choose one from the list on the left to start chatting"
+    },
     "input": {
       "placeholder": "Type a message...",
       "replyingTo": "Replying to {{name}}",
@@ -440,6 +458,7 @@
     "search": "Search documents",
     "create": "Create",
     "createNew": "Create New Document",
+    "newDoc": "New Document",
     "loading": "Loading documents...",
     "empty": {
       "title": "No documents yet",
@@ -492,7 +511,24 @@
   },
   "home": {
     "welcome": "Welcome to Chat App",
-    "description": "A modern chat application that helps you connect and chat with friends and colleagues easily and conveniently."
+    "description": "A modern chat application that helps you connect and chat with friends and colleagues easily and conveniently.",
+    "activity": "Activity",
+    "online": "ONLINE",
+    "viewAll": "View all",
+    "myStatus": "My status",
+    "search": "Search",
+    "tabs": {
+      "all": "All",
+      "group": "Groups",
+      "channel": "Channels"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No notifications yet",
+    "markAllRead": "Mark all as read",
+    "remove": "Dismiss",
+    "justNow": "Just now"
   },
   "call": {
     "status": {
@@ -502,7 +538,8 @@
       "missed": "Missed call",
       "cancelled": "Cancelled",
       "busy": "User busy",
-      "join": "Join call"
+      "join": "Join call",
+      "rejoin": "Rejoin call"
     },
     "type": {
       "group": "Group call",
@@ -510,6 +547,224 @@
       "voice": "Voice Call"
     },
     "members_count": "with {{count}} others"
+  },
+  "todo": {
+    "title": "Todo",
+    "taskCount": "{{count}} tasks",
+    "allProjects": "All",
+    "manageProjects": "Projects",
+    "create": "New task",
+    "projectList": {
+      "subtitle": "Manage your tasks by project",
+      "createProject": "New project",
+      "manage": "Manage",
+      "noProjects": "No projects yet",
+      "noProjectsDesc": "Create your first project to start managing tasks",
+      "noDescription": "No description",
+      "statusesLabel": "Statuses:",
+      "viewBoard": "Open board"
+    },
+    "kanban": {
+      "backToProjects": "Projects",
+      "notFound": "Project not found",
+      "notFoundDesc": "This project does not exist or has been deleted",
+      "backBtn": "Back"
+    },
+    "share": {
+      "btn": "Share",
+      "title": "Share project",
+      "searchPlaceholder": "Search conversations...",
+      "noRooms": "No conversations found",
+      "unnamedRoom": "Unnamed room",
+      "sendBtn": "Send",
+      "sent": "Sent",
+      "joinBtn": "Join project",
+      "joinedBtn": "Joined",
+      "joinedText": "You joined",
+      "viewBtn": "View project",
+      "error": "Failed to share project"
+    },
+    "empty": {
+      "noProjects": "No projects yet. Create a project to start managing tasks.",
+      "createFirst": "Create first project"
+    },
+    "column": {
+      "dropHere": "Drop here",
+      "empty": "No tasks",
+      "addTask": "Add task",
+      "addToColumn": "Add to {{name}}"
+    },
+    "form": {
+      "createTitle": "Create new task",
+      "editTitle": "Edit task",
+      "titleLabel": "Title",
+      "titlePlaceholder": "Enter task title...",
+      "descLabel": "Description",
+      "descPlaceholder": "Describe the task (optional)...",
+      "projectLabel": "Project",
+      "projectPlaceholder": "Select project...",
+      "statusLabel": "Status",
+      "priorityLabel": "Priority",
+      "dueDateLabel": "Due date",
+      "assignLabel": "Assign to",
+      "assignHint": "Select friends to assign (optional). Multiple allowed.",
+      "assignPlaceholder": "Select assignees...",
+      "noFriends": "No friends yet",
+      "cancel": "Cancel",
+      "save": "Save changes",
+      "createSubmit": "Create"
+    },
+    "priority": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "card": {
+      "options": "Options",
+      "edit": "Edit",
+      "assign": "Assign user",
+      "moveTo": "Move to: {{name}}",
+      "delete": "Delete",
+      "assignBtn": "Assign",
+      "reassignBtn": "Reassign ({{count}})"
+    },
+    "assign": {
+      "title": "Assign task",
+      "selected": "Selected:",
+      "cancel": "Cancel",
+      "confirm": "Confirm ({{count}})",
+      "noFriends": "No friends yet"
+    },
+    "delete": {
+      "title": "Delete task",
+      "content": "Are you sure you want to delete this task? This action cannot be undone.",
+      "confirm": "Delete",
+      "cancel": "Cancel"
+    },
+    "toast": {
+      "saved": "Changes saved",
+      "created": "Task created successfully",
+      "deleted": "Task deleted",
+      "assignUpdated": "Assignees updated",
+      "error": "Error",
+      "dragError": "Drag & drop error"
+    },
+    "error": {
+      "projectNotFound": "Project not found",
+      "statusNotAllowed": "Status is not allowed in this project",
+      "statusExists": "Status already exists in project",
+      "generic": "An error occurred"
+    },
+    "projects": {
+      "title": "Manage Projects",
+      "count": "{{count}} projects",
+      "create": "New project",
+      "backToTodo": "Back to Todo",
+      "selectHint": "Select a project to manage its statuses",
+      "noProjects": "No projects yet",
+      "statusCount": "{{count}} statuses",
+      "form": {
+        "createTitle": "Create new project",
+        "editTitle": "Edit project",
+        "nameLabel": "Project name",
+        "namePlaceholder": "Enter project name...",
+        "descLabel": "Description",
+        "descPlaceholder": "Describe the project (optional)...",
+        "cancel": "Cancel",
+        "save": "Save",
+        "create": "Create"
+      },
+      "delete": {
+        "title": "Delete project",
+        "content": "Are you sure you want to delete this project? All statuses will also be removed.",
+        "confirm": "Delete",
+        "cancel": "Cancel"
+      },
+      "toast": {
+        "updated": "Project updated",
+        "created": "Project created successfully",
+        "deleted": "Project deleted"
+      },
+      "error": {
+        "projectNotFound": "Project not found",
+        "statusExists": "Status already exists",
+        "onlyCreator": "Only the project creator can edit or delete"
+      },
+      "status": {
+        "sectionTitle": "Statuses ({{count}})",
+        "add": "Add status",
+        "noStatuses": "No statuses yet",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "edit": "Edit",
+        "delete": "Delete",
+        "deleteDisabled": "Must have at least 1 status",
+        "form": {
+          "addTitle": "Add status",
+          "editTitle": "Edit status",
+          "nameLabel": "Status name",
+          "namePlaceholder": "E.g. Reviewing, Blocked...",
+          "colorLabel": "Color",
+          "cancel": "Cancel",
+          "save": "Save",
+          "add": "Add"
+        },
+        "deleteModal": {
+          "title": "Delete status",
+          "content": "Are you sure you want to delete this status?",
+          "confirm": "Delete",
+          "cancel": "Cancel"
+        },
+        "toast": {
+          "updated": "Status updated",
+          "added": "Status added successfully",
+          "deleted": "Status deleted"
+        },
+        "colors": {
+          "gray": "Gray",
+          "blue": "Blue",
+          "green": "Green",
+          "yellow": "Yellow",
+          "red": "Red",
+          "purple": "Purple",
+          "pink": "Pink",
+          "orange": "Orange"
+        }
+      },
+      "members": {
+        "title": "Project members",
+        "ownerBadge": "Owner",
+        "memberBadge": "Member",
+        "addTitle": "Add member",
+        "addPlaceholder": "Enter member ID",
+        "searchPlaceholder": "Search by name...",
+        "allAdded": "All search results are already members",
+        "addBtn": "Add",
+        "removeBtn": "Remove",
+        "leaveBtn": "Leave project",
+        "leaveConfirmTitle": "Leave project",
+        "leaveConfirmContent": "Are you sure you want to leave this project?",
+        "leaveConfirm": "Leave",
+        "leaveCancel": "Cancel",
+        "removeConfirmTitle": "Remove member",
+        "removeConfirmContent": "Are you sure you want to remove this member?",
+        "removeConfirm": "Remove",
+        "removeCancel": "Cancel",
+        "noMembers": "No members yet",
+        "you": "You",
+        "count": "{{count}} members",
+        "toast": {
+          "added": "Member added successfully",
+          "removed": "Member removed",
+          "left": "You have left the project"
+        },
+        "error": {
+          "cannotLeave": "Creator cannot leave the project",
+          "notFound": "Member not found",
+          "generic": "An error occurred"
+        }
+      }
+    }
   },
   "flashcard": {
     "modal": {
@@ -577,5 +832,55 @@
       "advanced": "Advanced",
       "expert": "Expert"
     }
+  },
+  "devices": {
+    "title": "Manage devices",
+    "subtitle": "Review login sessions and revoke remote access",
+    "tabs": {
+      "active": "Active",
+      "history": "History"
+    },
+    "current": "This device",
+    "currentBadge": "Current",
+    "unknownDevice": "Unknown device",
+    "unknownLocation": "Unknown location",
+    "ipPrefix": "IP",
+    "lastSeen": "Last active",
+    "createdAt": "Signed in at",
+    "loggedOutAt": "Signed out at",
+    "logoutDevice": "Sign out device",
+    "logoutAll": "Sign out all other devices",
+    "confirmLogoutDevice": {
+      "title": "Sign out this device?",
+      "description": "The session on this device will be revoked immediately. The user will need to sign in again."
+    },
+    "confirmLogoutAll": {
+      "title": "Sign out all devices?",
+      "description": "Every active session will be revoked. You'll remain signed in on this device only."
+    },
+    "empty": "No devices yet",
+    "emptyHistory": "No sign-out history yet",
+    "loading": "Loading...",
+    "loadFailed": "Could not load devices",
+    "logoutDeviceSuccess": "Device signed out",
+    "logoutDeviceFailed": "Failed to sign out device",
+    "logoutAllSuccess": "Other devices signed out",
+    "logoutAllFailed": "Failed to sign out other devices",
+    "revokeReason": {
+      "logout": "Manual sign-out on device",
+      "logout_all": "Signed out everywhere",
+      "logout_device": "Revoked from Settings",
+      "admin_revoke": "Revoked by admin"
+    },
+    "relative": {
+      "justNow": "just now",
+      "minute": "{{count}} min ago",
+      "hour": "{{count}} h ago",
+      "day": "{{count}} d ago"
+    }
+  },
+  "settingsList": {
+    "devices": "Manage devices",
+    "devicesDesc": "Review signed-in devices and sign them out"
   }
 }

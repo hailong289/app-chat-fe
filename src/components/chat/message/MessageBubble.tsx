@@ -5,7 +5,9 @@ import {
   VideoCameraIcon,
   ArrowTopRightOnSquareIcon,
 } from "@heroicons/react/16/solid";
+import { useEffect, useState } from "react";
 import { LinkPreview } from "./LinkPreview";
+import { SystemMessageBubble } from "./SystemMessageBubble";
 import { extractFirstUrl } from "@/libs/url-helpers";
 import { MAX_MESSAGE_LENGTH } from "../constants/messageConstants";
 import { CallHistoryType, MessageType } from "@/store/types/message.state";
@@ -13,7 +15,11 @@ import { useTranslation } from "react-i18next";
 import { useRouter } from "next/navigation";
 import Helpers from "@/libs/helpers";
 import useAuthStore from "@/store/useAuthStore";
+import useTodoStore from "@/store/useTodoStore";
+import { toast } from "@/store/useToastStore";
+import { todoService } from "@/service/todo.service";
 import { Button } from "@heroui/button";
+import { openWindowWithTauri } from "@/utils/openWindow";
 
 interface MessageBubbleProps {
   msg: MessageType;
@@ -68,6 +74,99 @@ function RecalledMessageBubble({ isMine }: Readonly<{ isMine: boolean }>) {
         {isMine
           ? t("chat.messages.bubble.recalled.me")
           : t("chat.messages.bubble.recalled.other")}
+      </div>
+    </div>
+  );
+}
+
+function TodoProjectMessageBubble({
+  msg,
+  isMine,
+}: Readonly<{ msg: MessageType; isMine: boolean }>) {
+  const router = useRouter();
+  const { t } = useTranslation();
+
+  const { user } = useAuthStore();
+  const currentUserId = user?._id;
+
+  const todoProject = (msg as any).todoProject as
+    | { project_id?: string; project_members?: string[] }
+    | undefined;
+  // Backward compatibility: older messages might still carry `todoProjectId`.
+  const todoProjectId =
+    todoProject?.project_id ??
+    ((msg as any).todoProjectId as string | undefined);
+  const projectMembersFromMsg = todoProject?.project_members;
+
+  const [isAlreadyJoined, setIsAlreadyJoined] = useState(projectMembersFromMsg?.includes(currentUserId || "") ?? false);
+
+  const [isJoining, setIsJoining] = useState(false);
+
+  const handleJoinProject = async () => {
+    if (!todoProjectId || isJoining) return;
+
+    // If already joined, don't call join API.
+    if (isAlreadyJoined) {
+      router.push(`/todo/${todoProjectId}`);
+      return;
+    }
+    try {
+      setIsJoining(true);
+      await todoService.joinProject(todoProjectId);
+      router.push(`/todo/${todoProjectId}`);
+    } catch (err) {
+      const e = err as any;
+      const raw = e?.message ?? e?.error ?? "";
+      toast.error(raw || t("todo.share.error", "Không thể tham gia dự án"));
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  return (
+    <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
+      <div
+        className={`
+          relative px-4 py-2.5 rounded-2xl shadow-sm border
+          ${isMine ? "bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800" : "bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700"}
+        `}
+      >
+        <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+          {msg.content}
+        </p>
+
+        {!isMine ? (
+          <div className="flex items-start gap-2 text-xs my-2">
+            {isAlreadyJoined ? (
+              <>
+                <p className="pt-2 text-xs font-medium text-green-600 dark:text-green-400">
+                  {t("todo.share.joinedText", "Bạn đã tham gia")}
+                </p>
+                <Button
+                  size="sm"
+                  color="primary"
+                  variant="solid"
+                  isDisabled={!todoProjectId}
+                  isLoading={isJoining}
+                  onPress={handleJoinProject}
+                >
+                  {t("todo.share.viewBtn", "Xem dự án")}
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="sm"
+                color="primary"
+                variant="solid"
+                isDisabled={!todoProjectId}
+                isLoading={isJoining}
+                onPress={handleJoinProject}
+              >
+                {t("todo.share.joinBtn", "Tham gia dự án")}
+              </Button>
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -364,14 +463,30 @@ function CallMessageBubble({
   const handleJoinCall = () => {
     const encodedMemberInfo = Helpers.enCryptUserInfo(callHistory.members);
     const callMode = callHistory.call_mode || "sfu";
-    window.open(
+    void openWindowWithTauri(
       `/call?roomId=${msg.roomId}&members=${encodedMemberInfo}&callType=${callHistory.call_type}&callMode=${callMode}&status=joined&isCaller=false&callId=${callHistory.call_id}`,
       "",
       "width=800,height=600",
     );
   };
 
-  const isCallOngoing = !callHistory.ended_at;
+  // Call is "ongoing" from a rejoin perspective if EITHER:
+  //   (a) the global ended_at is null (call truly hasn't ended), OR
+  //   (b) at least one OTHER member is still active (status started/accepted)
+  // Case (b) covers a known BE quirk where ended_at gets set on the
+  // callHistory snapshot the moment the FIRST user leaves a group call,
+  // even though the call is still going for the remaining participants.
+  // Without (b), a user who left mid-call could never rejoin a group
+  // that's still happily ongoing.
+  const hasActiveMember = callHistory.members.some(
+    (m) =>
+      m.id !== user?.id &&
+      (m.status === "started" || m.status === "accepted"),
+  );
+  const isCallOngoing = !callHistory.ended_at || hasActiveMember;
+  // User has already participated and left → rejoin label.
+  // First-time join (pending/missed/rejected/cancelled) → join label.
+  const hasLeftMidCall = myStatus === "ended";
 
   return (
     <div className="relative max-w-xs md:max-w-sm lg:max-w-md">
@@ -433,7 +548,9 @@ function CallMessageBubble({
                 variant="solid"
                 onPress={handleJoinCall}
               >
-                {t("call.status.join", "Tham gia")}
+                {hasLeftMidCall
+                  ? t("call.status.rejoin", "Tham gia lại")
+                  : t("call.status.join", "Tham gia")}
               </Button>
             </div>
           )}
@@ -462,8 +579,18 @@ export function MessageBubble({
     return <RecalledMessageBubble isMine={isMine} />;
   }
 
+  // System messages (member added/left, call started/ended, room renamed,
+  // ...) — rendered centered Messenger-style, no avatar / no bubble tail.
+  if (msg.type === "system") {
+    return <SystemMessageBubble msg={msg} />;
+  }
+
   if (msg.type === "document") {
     return <DocumentMessageBubble msg={msg} isMine={isMine} />;
+  }
+
+  if (msg.type === "todo_project") {
+    return <TodoProjectMessageBubble msg={msg} isMine={isMine} />;
   }
 
   if (msg.content) {

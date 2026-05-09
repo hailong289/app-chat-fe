@@ -71,6 +71,16 @@ export const Home = () => {
   const [pendingRoom, setPendingRoom] = useState<roomType | null>(null);
   const [isClearHistoryModalOpen, setIsClearHistoryModalOpen] = useState(false);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
+  // Hydration guard — Home is rendered through <LeftSide /> (in ClientLayout),
+  // not through a route page.tsx, so it doesn't get the same mounted-gate
+  // that app/page.tsx has. Without this, t()-driven text (Input placeholder,
+  // Tab titles) renders different strings on server vs client when the
+  // user's stored language differs from the SSR default, causing hydration
+  // mismatch warnings in the console.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<string>(searchParams.get("chatId") || "");
@@ -84,40 +94,47 @@ export const Home = () => {
     [search, limit, roomState.type],
   );
 
-  // Load initial data once
+  // Load initial data once. Sequence matters for the online list:
+  //   rooms → chat partners → friends → bulk presence poll.
+  // The poll is only useful AFTER `db.contacts` knows about everyone we
+  // care about — otherwise `checkOnlineStatus` polls an empty id set and
+  // users who were already online when this tab loaded never light up
+  // (no STATUS broadcast fires for state that didn't transition).
   useEffect(() => {
-    roomState.getRoomsByType("all");
-    roomState.getRooms();
+    let cancelled = false;
+    (async () => {
+      await roomState.getRoomsByType("all");
+      await roomState.getRooms();
+      await contactState.syncChatPartners();
+      // Friends usually populate via /contacts, but the online list lives
+      // on /, so we need to seed db.contacts with friends here too.
+      await contactState.getFriends();
+      if (cancelled) return;
+      const s = socket;
+      if (s?.connected) {
+        contactState.checkOnlineStatus(s);
+      } else if (s) {
+        s.once("connect", () => contactState.checkOnlineStatus(s));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-fetch rooms on socket reconnect
+  // Re-poll on every reconnect (covers laptop wake / network blip).
   useEffect(() => {
     if (!socket) return;
-
     const handleReconnect = () => {
-      setTimeout(async () => {
-        try {
-          await roomState.getRooms(queryRoom);
-          // Request online status for all contacts
-          contactState.checkOnlineStatus(socket);
-        } catch (error) {
-          console.error("❌ [SOCKET RECONNECT] Error fetching rooms:", error);
-        }
-      }, 500);
-    };
-
-    socket.on("connect", handleReconnect);
-
-    // Initial check if socket is already connected
-    if (socket.connected) {
       contactState.checkOnlineStatus(socket);
-    }
-
+    };
+    socket.on("connect", handleReconnect);
     return () => {
       socket.off("connect", handleReconnect);
     };
-  }, [socket, queryRoom, roomState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket]);
 
   // Debounce search + query changes
   const getRooms = useRoomStore((state) => state.getRooms);
@@ -187,29 +204,46 @@ export const Home = () => {
 
   const handleChatClick = useCallback(
     (chat: any) => {
-      roomState.getRoomById(chat.id);
-      router.push(`/chat?chatId=${chat.id}`);
+      // Instant: we already have the full room object from the rooms
+      // list, no need to round-trip through getRoomById's async lookup.
+      // setState fires synchronously → both `/` (dashboard) and `/chat`
+      // re-render in the same tick because they each subscribe to
+      // `useRoomStore.room` and conditionally swap from welcome → chat
+      // layout when it's set. No Next.js navigation needed.
+      useRoomStore.setState({ room: chat });
+      // Update the URL bar so refresh / share-link still works, but
+      // keep the user on the current route — no router.push, no
+      // re-mount.
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", `/chat?chatId=${chat.id}`);
+      }
       setIsSearchVisible(false);
       setSearch("");
       setTab(chat.id);
     },
-    [roomState, router],
+    [],
   );
 
   const handleClickAction = useCallback(
     (chat: any) => {
-      roomState.getRoomById(chat.id);
-
-      if (!roomState.rooms.some((r) => r.id === chat.id)) {
+      const existing = roomState.rooms.find((r) => r.id === chat.id);
+      if (existing) {
+        useRoomStore.setState({ room: existing });
+      } else {
+        // No cached private room with this user → create one. Falls
+        // through to the async getRoomById path so the new room id
+        // resolves correctly before the page mounts ChatMessages.
         roomState.createRoom("private", `Chat với ${chat.id}`, [chat.id]);
+        roomState.getRoomById(chat.id);
       }
-
-      router.push(`/chat?chatId=${chat.id}`);
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", `/chat?chatId=${chat.id}`);
+      }
       setIsSearchVisible(false);
       setSearch("");
       setTab(chat.id);
     },
-    [roomState, router],
+    [roomState],
   );
 
   const handleSearchChange = useCallback(
@@ -285,6 +319,8 @@ export const Home = () => {
     [isClearingHistory],
   );
 
+  if (!mounted) return null;
+
   return (
     <div className="h-full flex flex-col">
       {/* Status Section */}
@@ -293,8 +329,11 @@ export const Home = () => {
           <CardBody className="p-4">
             <div className="flex justify-between items-start mb-6 px-1">
               <div className="flex flex-col gap-0.5">
-                <h2 className="font-extrabold text-xl text-foreground tracking-tight whitespace-nowrap">
-                  Hoạt động
+                <h2
+                  suppressHydrationWarning
+                  className="font-extrabold text-xl text-foreground tracking-tight whitespace-nowrap"
+                >
+                  {t("home.activity")}
                 </h2>
                 {contactState.online.length > 0 && (
                   <div className="flex items-center gap-1.5 ml-0.5 mt-1">
@@ -302,8 +341,11 @@ export const Home = () => {
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-success"></span>
                     </span>
-                    <span className="text-[10px] font-bold text-success uppercase tracking-wider opacity-90">
-                      {contactState.online.length} TRỰC TUYẾN
+                    <span
+                      suppressHydrationWarning
+                      className="text-[10px] font-bold text-success uppercase tracking-wider opacity-90"
+                    >
+                      {contactState.online.length} {t("home.online")}
                     </span>
                   </div>
                 )}
@@ -315,7 +357,7 @@ export const Home = () => {
                   className="text-[11px] font-bold text-default-400 hover:text-primary min-w-0 px-2 h-7 rounded-lg uppercase tracking-tight"
                   onClick={handleTab("messages")}
                 >
-                  Xem tất cả
+                  <span suppressHydrationWarning>{t("home.viewAll")}</span>
                 </Button>
                 {btnNewMsg}
               </div>
@@ -333,8 +375,11 @@ export const Home = () => {
                     color="success"
                   />
                 </Badge>
-                <p className="text-xs text-default-500 text-center">
-                  Trạng thái của tôi
+                <p
+                  suppressHydrationWarning
+                  className="text-xs text-default-500 text-center"
+                >
+                  {t("home.myStatus")}
                 </p>
               </div>
 
@@ -368,7 +413,7 @@ export const Home = () => {
           <CardBody className="p-4">
             <div className="flex justify-between items-center mb-3 gap-2">
               <Input
-                placeholder="Tìm kiếm"
+                placeholder={t("home.search")}
                 size="sm"
                 type="text"
                 variant="bordered"
@@ -411,9 +456,9 @@ export const Home = () => {
                   }
                   className="bg-content2 rounded-xl"
                 >
-                  <Tab key="all" title="Tất cả" />
-                  <Tab key="group" title="Nhóm" />
-                  <Tab key="channel" title="Kênh" />
+                  <Tab key="all" title={t("home.tabs.all")} />
+                  <Tab key="group" title={t("home.tabs.group")} />
+                  <Tab key="channel" title={t("home.tabs.channel")} />
                 </Tabs>
               </div>
             )}
@@ -427,7 +472,25 @@ export const Home = () => {
         className="flex-1 overflow-y-auto scroll-smooth w-full shadow-[4px_0_10px_-2px_rgba(0,0,0,0.15)] bg-background"
       >
         <div className="divide-y divide-default-100 w-full">
-          {roomState.rooms.map((chat) => (
+          {roomState.rooms.map((chat) => {
+            // Online dot logic:
+            //   - Private (1-1): show the dot when the other member is online.
+            //   - Group: show the dot when ANY non-self member is online.
+            //   - Channel: skip — channels don't have a "presence" notion.
+            // Source of truth: useContactStore.onlineUserIds (Set), which is
+            // the unified presence stream maintained by socketChatEventGlobal.
+            const myUsrId = authState.user?.id;
+            const isUserOnline = contactState.isUserOnline;
+            let isRoomOnline = false;
+            if (chat.type === "private") {
+              const other = chat.members?.find((m) => m.id !== myUsrId);
+              isRoomOnline = !!other && isUserOnline(other.id);
+            } else if (chat.type === "group") {
+              isRoomOnline = !!chat.members?.some(
+                (m) => m.id !== myUsrId && isUserOnline(m.id),
+              );
+            }
+            return (
             <div
               key={chat.id}
               className={`group relative w-full cursor-pointer transition-all duration-200 hover:bg-default-100 dark:hover:bg-white/5 ${
@@ -476,6 +539,13 @@ export const Home = () => {
                     <div className="absolute -bottom-1 -right-1 bg-background rounded-full p-0.5 shadow-sm">
                       <StarIconSolid className="w-3 h-3 text-warning" />
                     </div>
+                  )}
+                  {/* Online dot — driven by useContactStore.onlineUserIds.
+                      For private rooms reflects the other member; for groups,
+                      lights up when any non-self member is online. Skipped
+                      for channels (no presence concept). */}
+                  {isRoomOnline && (
+                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full ring-2 ring-background" />
                   )}
                 </div>
 
@@ -606,7 +676,8 @@ export const Home = () => {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
 
           <div
             ref={bottomRef}

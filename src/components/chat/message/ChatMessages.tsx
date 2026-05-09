@@ -2,7 +2,7 @@
 import { useReadProgress } from "@/libs/useReadProgress";
 import useMessageStore from "@/store/useMessageStore";
 import { ScrollShadow, Skeleton } from "@heroui/react";
-import { useEffect, useRef, useMemo, useCallback, memo } from "react";
+import { useEffect, useLayoutEffect, useRef, useMemo, useCallback, memo } from "react";
 import useRoomStore from "@/store/useRoomStore";
 import type { RoomsState } from "@/store/types/room.state";
 import { useSocket } from "../../providers/SocketProvider";
@@ -95,14 +95,12 @@ export const ChatMessages = memo(
       [groups, displayedMessagesCount],
     );
 
-    console.log(
-      `🔄 ~ ChatMessages render ~ chatId: ${chatId} - groups: ${groups.length} - messages: ${groups.flatMap((g) => g.messages).length} - displayedCount: ${displayedMessagesCount} - visibleGroups: ${visibleGroups.length}`,
-    );
-    // Create a stable messageState object with methods directly from store
-    // We use getState() to ensure these are non-reactive and stable references
+    // Methods only — the store's `isLoading` flag is no longer part of
+    // the loading UX (we use `state.loadingChatId === chatId` for that).
+    // Keeping the getState() capture stable avoids re-creating handler
+    // closures on every render.
     const messageState = useMemo(
       () => ({
-        isLoading: useMessageStore.getState().isLoading, // Initial value only, if reactive needed, pass separately
         fetchMessagesFromAPI: useMessageStore.getState().fetchMessagesFromAPI,
         getMessageByRoomId: useMessageStore.getState().getMessageByRoomId,
         loadOlderMessages: useMessageStore.getState().loadOlderMessages,
@@ -182,6 +180,12 @@ export const ChatMessages = memo(
     // State management hook
     const state = useChatMessagesState(chatId);
 
+    // Single derived loading flag — true while THIS chatId is being
+    // loaded by the chat-switch / initial-fetch effect. Replaces the
+    // old triplet (`isSwitchingChat`, `isFetchingNewMessages`,
+    // `messageState.isLoading`) which fell out of sync for empty rooms.
+    const isLoadingMessages = state.loadingChatId === chatId;
+
     // Scroll functions
     const { scrollToTop, scrollToBottom, scrollToMessage } = useChatScroll({
       containerRef: state.containerRef,
@@ -207,6 +211,33 @@ export const ChatMessages = memo(
       }
     }, [scrollto, scrollToMessage]);
 
+    // Jump to the bottom INSTANTLY on first paint of a chat. Without
+    // this, messages render top-down (scrollTop=0 by default) so the
+    // user sees the oldest message first, then a smooth-scroll
+    // animation slides them to the latest. useLayoutEffect runs
+    // synchronously after the DOM mutation but BEFORE the browser
+    // paints, so the visible first frame is already at the bottom —
+    // no flash, no animation.
+    //
+    // Guarded by `initialScrolledChatIdRef`: fires exactly once per
+    // chatId. Subsequent message arrivals are handled by the
+    // "auto-scroll on new message" effect inside useChatMessagesEffects
+    // (which is intentionally smooth — user already sees the latest
+    // and a small smooth nudge feels right).
+    const initialScrolledChatIdRef = useRef<string | null>(null);
+    useLayoutEffect(() => {
+      if (!chatId) return;
+      if (initialScrolledChatIdRef.current === chatId) return;
+      if (messages.length === 0) return;
+      const container = state.containerRef.current;
+      if (!container) return;
+      // `behavior: "instant"` (or omitting behavior) snaps without
+      // animation. scrollHeight is up-to-date because this fires
+      // after DOM commit.
+      container.scrollTop = container.scrollHeight;
+      initialScrolledChatIdRef.current = chatId;
+    }, [chatId, messages.length, state.containerRef]);
+
     // Toggle expanded state for long messages
     const toggleExpanded = useCallback(
       (id: string) => {
@@ -229,7 +260,12 @@ export const ChatMessages = memo(
 
     const handleLoadMore = useCallback(
       (force = false) => {
-        if (state.isLoadingOlder || state.isSwitchingChat) return;
+        if (state.isLoadingOlder || isLoadingMessages) return;
+        // Already at the historical bottom: nothing more to fetch
+        // anywhere (cache exhausted + server confirmed no more). Bail
+        // out before the timeout / scroll math so repeated scroll
+        // events don't keep dispatching no-op API calls.
+        if (!hasMoreLocalMessages && !state.hasMoreOnServer) return;
 
         const container = state.containerRef.current;
         if (!container) return;
@@ -325,7 +361,7 @@ export const ChatMessages = memo(
       },
       [
         state.isLoadingOlder,
-        state.isSwitchingChat,
+        isLoadingMessages,
         state.containerRef,
         state.loadingTimeoutRef,
         state.setIsLoadingOlder,
@@ -346,12 +382,12 @@ export const ChatMessages = memo(
     // Effects hook
     useChatMessagesEffects({
       chatId,
-      groups, // Changed from messages
+      groups,
       lastReadId: roomMeta.lastReadId,
       scrollTargetId,
       lastServerMessageId: roomMeta.lastServerMessageId,
-      displayedMessagesCount, // Use consistent count
-      isSwitchingChat: state.isSwitchingChat,
+      displayedMessagesCount,
+      loadingChatId: state.loadingChatId,
       isBottomVisible: state.isBottomVisible,
       isLoadingOlder: state.isLoadingOlder,
       hasMoreLocalMessages,
@@ -367,16 +403,15 @@ export const ChatMessages = memo(
       hasTriedLoadingFromServer: state.hasTriedLoadingFromServer,
       fetchTimeoutRef: state.fetchTimeoutRef,
       lastFetchedServerMessageIdRef: state.lastFetchedServerMessageIdRef,
-      hasInitialFetchRef: state.hasInitialFetchRef,
+      loadedChatIdRef: state.loadedChatIdRef,
       messageState,
       socket,
-      setIsSwitchingChat: state.setIsSwitchingChat,
+      setLoadingChatId: state.setLoadingChatId,
       setShouldAnimate: state.setShouldAnimate,
-      setDisplayedMessagesCount: handleSetDisplayedCount, // Use store setter
+      setDisplayedMessagesCount: handleSetDisplayedCount,
       setHasMoreOnServer: state.setHasMoreOnServer,
       setExpandedMessages: state.setExpandedMessages,
       setIsBottomVisible: state.setIsBottomVisible,
-      setIsFetchingNewMessages: state.setIsFetchingNewMessages,
       setIsLoadingOlder: state.setIsLoadingOlder,
       setIsLoadingFromAPI: state.setIsLoadingFromAPI,
       scrollToMessage,
@@ -394,21 +429,25 @@ export const ChatMessages = memo(
       },
     });
 
+    // Show the full-screen loading overlay only on initial load when
+    // there's no cached content to render. After cache hits, the user
+    // sees their messages and we just sync silently in the background.
+    const showLoadingOverlay = isLoadingMessages && visibleGroups.length === 0;
+
     return (
       <>
-        {/* Loading overlay với Skeleton khi chuyển chat */}
         <AnimatePresence>
-          {state.isSwitchingChat && <ChatLoadingSkeleton chatId={chatId} />}
+          {showLoadingOverlay && <ChatLoadingSkeleton chatId={chatId} />}
         </AnimatePresence>
 
-        {!state.isSwitchingChat && (
+        {!showLoadingOverlay && (
           <ScrollShadow
             ref={state.containerRef}
             className={`
               p-4 overflow-y-auto w-full max-h-[calc(100vh-250px)]
-              transition-all duration-200 
+              transition-all duration-200
               ${
-                state.isFetchingNewMessages
+                isLoadingMessages
                   ? "bg-blue-50/20 dark:bg-blue-950/30"
                   : ""
               }
@@ -416,12 +455,10 @@ export const ChatMessages = memo(
           >
             {/* Top marker */}
             <div ref={state.topRef} className="relative">
-              {/* Loading indicators */}
               <ChatLoadingIndicator
                 isLoadingOlder={state.isLoadingOlder}
                 isLoadingFromAPI={state.isLoadingFromAPI}
-                isFetchingNewMessages={state.isFetchingNewMessages}
-                messageStateLoading={messageState.isLoading}
+                isLoadingMessages={isLoadingMessages}
               />
             </div>
 
@@ -450,21 +487,18 @@ export const ChatMessages = memo(
             {/* Messages container */}
             <motion.div
               animate={{
-                opacity: state.isSwitchingChat ? 0 : 1,
-                y: state.isSwitchingChat ? 10 : 0,
+                opacity: isLoadingMessages ? 0 : 1,
+                y: isLoadingMessages ? 10 : 0,
               }}
               transition={{ duration: 0.2 }}
             >
-              {/* Empty state */}
-              {visibleGroups.length === 0 &&
-                !state.isFetchingNewMessages &&
-                !messageState.isLoading &&
-                !state.isSwitchingChat && <ChatEmptyState />}
+              {/* Empty state — done loading + no messages */}
+              {visibleGroups.length === 0 && !isLoadingMessages && (
+                <ChatEmptyState />
+              )}
 
-              {/* Loading skeleton */}
-              {visibleGroups.length === 0 &&
-                (state.isFetchingNewMessages || messageState.isLoading) &&
-                !state.isSwitchingChat && (
+              {/* Loading skeleton — initial load with no content yet */}
+              {visibleGroups.length === 0 && isLoadingMessages && (
                   <div className="space-y-6 mt-6">
                     <div className="flex items-center justify-center">
                       <Skeleton className="h-6 w-24 rounded-full" />
@@ -543,7 +577,7 @@ export const ChatMessages = memo(
           isVisible={
             !state.isBottomVisible &&
             messages.length > 0 &&
-            !state.isSwitchingChat
+            !isLoadingMessages
           }
           unreadCount={roomMeta.unreadCount}
           isRead={roomMeta.isRead}

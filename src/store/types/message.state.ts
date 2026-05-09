@@ -1,4 +1,5 @@
 import { QuizzResponse } from "@/types/quizz.type";
+import { TodoProject } from "@/types/todo.type";
 import { SendMessageArgs } from "../useMessageStore";
 import { CallMember } from "./call.state";
 
@@ -52,7 +53,8 @@ export type MessageType = {
     | "gif"
     | "document"
     | "call"
-    | "quiz";
+    | "quiz"
+    | "todo_project";
   content: string;
   createdAt: string;
   editedAt?: string | null;
@@ -112,6 +114,57 @@ export type MessageType = {
   summary?: MessageSummary | null;
   translation?: MessageTranslation | null;
   quiz?: QuizzResponse;
+  todoProjectId?: string; // Todo project linkage for FE rendering
+  todoProject?: TodoProject; // Optional: populated when backend enriches todo_project messages
+  /** Populated by backend when msg.type === 'system' (member added/left, call started, etc.) */
+  room_event?: RoomEventType | null;
+  /** Backend fallback text for system messages — used when room_event is missing */
+  placeholder?: string;
+};
+
+export type RoomEventActor = {
+  _id: string;
+  id: string; // usr_id (ULID)
+  fullname: string;
+  avatar: string;
+};
+
+/** Structured payload of a room event linked to a system message. */
+export type RoomEventType = {
+  event_id: string;
+  event_type:
+    // member lifecycle
+    | "member.joined"
+    | "member.added"
+    | "member.left"
+    | "member.deleted"
+    | "member.create"
+    | "member.edit"
+    | "member.pinded"
+    | "member.unPinded"
+    | "member.change.role"
+    | "member.change.name"
+    | "member.change.avatar"
+    | "member.change.nickName"
+    // group call lifecycle
+    | "call.started"
+    | "call.joined"
+    | "call.left"
+    | "call.ended";
+  placeholder: string;
+  /**
+   * Payload as a parsed object. Set by the FE after normalization. The wire
+   * shape may carry it either as `payload` (object — when the message is
+   * pushed via Socket.IO, no proto serialization) or as `payloadJson` (a
+   * JSON-encoded string — when the message is fetched via gRPC, where proto
+   * can't serialize untyped objects). Normalize at receive time so consumers
+   * (SystemMessageBubble, etc.) can always read `.payload`.
+   */
+  payload?: Record<string, unknown>;
+  payloadJson?: string;
+  createdAt: string;
+  actor: RoomEventActor | null;
+  targets: RoomEventActor[];
 };
 
 export interface CallHistoryType {
@@ -172,6 +225,16 @@ export interface MessageState {
   messagesRoom: Record<string, RoomData>; // roomId -> room data
 
   upsetMsg: (msgData: MessageType) => Promise<void>;
+  /**
+   * Patch the `call_history` of a single call-type message bubble.
+   * Used by the `call:end` socket handler to refresh members + ended_at
+   * without depending on a follow-up MSGUPSERT.
+   */
+  patchCallMessage: (
+    roomId: string,
+    callId: string,
+    patch: { members?: any[]; ended_at?: string | null },
+  ) => void;
   sendMessage: (data: SendMessageArgs) => Promise<void>;
   resendMessage: (
     roomId: string,
@@ -179,6 +242,27 @@ export interface MessageState {
     socket?: any,
   ) => Promise<void>;
   getMessageByRoomId: (roomId: string) => Promise<void>;
+  /**
+   * Cache-first load: read from IndexedDB → render immediately, then
+   * fire a background delta fetch (`type='new'&msgId=<latestCachedId>`).
+   * Returns the cached snapshot synchronously; newer messages arrive
+   * asynchronously via state update. No "Loading…" spinner when cache
+   * exists.
+   */
+  loadRoomFromCache: (
+    roomId: string,
+    limit?: number,
+  ) => Promise<{ cached: MessageType[]; fetched: Promise<void> }>;
+  /**
+   * Background prefetch: walks a list of rooms (typically the result
+   * of `getRooms()` post-login) and pulls the latest N messages of
+   * each into IndexedDB. Subsequent room-switches paint instantly
+   * from cache without an API spinner.
+   */
+  warmRoomCaches: (
+    roomIds: string[],
+    options?: { limit?: number; concurrency?: number },
+  ) => Promise<void>;
   fetchMessagesFromAPI: (
     roomId: string,
     queryParams?: {
