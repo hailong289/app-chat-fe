@@ -212,6 +212,14 @@
       "useFile": "Use this file",
       "cancel": "Cancel"
     },
+    "stt": {
+      "transcribe": "Convert to text",
+      "transcribing": "Transcribing...",
+      "success": "Transcribed successfully",
+      "failed": "Failed to transcribe",
+      "noSpeech": "No speech detected in this audio",
+      "alreadyTranscribed": "Already transcribed"
+    },
     "messages": {
       "you": "You",
       "empty": {

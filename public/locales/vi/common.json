@@ -208,6 +208,14 @@
       "useFile": "Dùng file này",
       "cancel": "Hủy"
     },
+    "stt": {
+      "transcribe": "Chuyển thành văn bản",
+      "transcribing": "Đang nhận dạng...",
+      "success": "Đã chuyển thành văn bản",
+      "failed": "Không thể nhận dạng giọng nói",
+      "noSpeech": "Không phát hiện giọng nói trong audio",
+      "alreadyTranscribed": "Đã có bản chuyển"
+    },
     "messages": {
       "you": "Bạn",
       "empty": {

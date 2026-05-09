@@ -26,6 +26,15 @@ export type FilePreview = {
   file?: File; // File gốc để upload
   uploadError?: any; // optional structured error info when upload failed
   summary?: string; // AI Summary of the attachment
+  /**
+   * Speech-to-Text transcript for audio attachments. Populated by the BE
+   * (`POST /ai/transcribe-attachment`) on demand when the user clicks the
+   * "Convert to text" button on a voice message bubble. `null` /
+   * `undefined` means not yet transcribed; empty string means the audio
+   * was processed but no speech detected.
+   */
+  transcript?: string | null;
+  transcribedAt?: string | null;
 };
 
 export type MessageSummary = {

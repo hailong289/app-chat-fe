@@ -50,12 +50,19 @@ interface CompactFileGalleryProps {
   files: FilePreview[];
   maxDisplay?: number; // Số file hiển thị tối đa, còn lại show "+N"
   className?: string;
+  /**
+   * Parent message id — required so audio attachments can call the
+   * Speech-to-Text endpoint (which needs both attachmentId and messageId
+   * for ownership validation).
+   */
+  messageId?: string;
 }
 
 export const CompactFileGallery = ({
   files,
   maxDisplay = 3,
   className = "",
+  messageId,
 }: CompactFileGalleryProps) => {
   const { t } = useTranslation();
   const [selectedFile, setSelectedFile] = useState<FilePreview | null>(null);
@@ -169,7 +176,7 @@ export const CompactFileGallery = ({
         )}
 
         {fileKind === "audio" && (
-          <div className="w-full h-full flex items-center justify-center bg-default-100 dark:bg-default-50">
+          <div className="w-full bg-default-100 dark:bg-default-50 p-2 flex flex-col gap-1">
             <MiniAudioBubble
               src={file.url}
               initialDuration={
@@ -180,7 +187,10 @@ export const CompactFileGallery = ({
               onPlayChange={() => {
                 // nếu sau này muốn stop các audio khác -> xử lý ở parent
               }}
-              className="w-full px-2"
+              className="w-full"
+              attachmentId={file._id}
+              messageId={messageId}
+              initialTranscript={file.transcript ?? null}
             />
           </div>
         )}

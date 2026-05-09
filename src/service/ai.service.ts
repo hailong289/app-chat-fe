@@ -30,6 +30,15 @@ export interface TranslationResponse {
   to: string;
 }
 
+export interface TranscribeAttachmentResponse {
+  transcript: string;
+  detectedLanguage?: string;
+  attachmentId: string;
+  messageId: string;
+  /** True when BE returned a previously-saved transcript without re-running AI. */
+  cached?: boolean;
+}
+
 export const aiService = {
   search: async (
     query: string,
@@ -92,6 +101,37 @@ export const aiService = {
       translated: response.data?.metadata ?? "",
       from,
       to,
+    };
+  },
+
+  /**
+   * Speech-to-Text on an existing voice-message audio attachment.
+   *
+   * The audio is already on S3 (uploaded as part of the voice message),
+   * so we only send the IDs — BE fetches the file server-side and persists
+   * the transcript onto the Attachment record. Subsequent calls for the
+   * same attachment return the cached transcript without re-running AI
+   * (`response.cached === true`).
+   */
+  transcribeAttachment: async (
+    attachmentId: string,
+    messageId: string,
+    language: "vi" | "en" = "vi"
+  ): Promise<TranscribeAttachmentResponse> => {
+    const response = await apiService.post<{
+      metadata: TranscribeAttachmentResponse;
+    }>("/ai/transcribe-attachment", {
+      attachmentId,
+      messageId,
+      language,
+    });
+    const m = response.data?.metadata;
+    return {
+      transcript: m?.transcript ?? "",
+      detectedLanguage: m?.detectedLanguage,
+      attachmentId: m?.attachmentId ?? attachmentId,
+      messageId: m?.messageId ?? messageId,
+      cached: m?.cached ?? false,
     };
   },
 };

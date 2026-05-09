@@ -457,6 +457,7 @@ export const MessageItem = memo(
                             files={msg.attachments}
                             maxDisplay={2}
                             className="w-full"
+                            messageId={msg.id || msg._id}
                           />
                         </div>
                       )}
