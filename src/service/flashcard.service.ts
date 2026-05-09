@@ -1,5 +1,6 @@
 import { CreateFlashcardDeckPayload, CreateFlashcardPayload, UpdateFlashcardPayload, FlashcardDeck, Flashcard } from "@/types/flashcard.type";
 import apiService from "./api.service";
+import { consumeAiSse } from "./ai-stream.service";
 
 export interface APIDeckResponse {
   message?: string;
@@ -97,12 +98,34 @@ export const flashcardService = {
     return response.data;
   },
 
-  generateFlashcard: async (payload: FormData | Record<string, unknown>): Promise<GenerateFlashcardResponse> => {
-    const response = await apiService.post<{ metadata: GenerateFlashcardResponse }>(
-      "/ai/generate-flashcard",
-      payload
-    );
-    return response.data?.metadata;
+  generateFlashcard: async (
+    payload: FormData | Record<string, unknown>,
+    options?: { onChunk?: (chunk: string) => void },
+  ): Promise<GenerateFlashcardResponse> => {
+    const requestBody = payload instanceof FormData ? payload : JSON.stringify(payload);
+    const { metadata, chunks } = await consumeAiSse("/ai/stream/generate-flashcard", {
+      method: "POST",
+      body: requestBody,
+      onChunk: options?.onChunk,
+    });
+    if (metadata) return metadata as GenerateFlashcardResponse;
+
+    if (chunks.length > 0) {
+      try {
+        return JSON.parse(chunks.join("")) as GenerateFlashcardResponse;
+      } catch {
+        // fall through to default
+      }
+    }
+
+    return {
+      deck_name: "",
+      deck_description: "",
+      deck_level: "beginner",
+      deck_language: "vi",
+      deck_tags: [],
+      flashcards: [],
+    };
   },
 
   updateProgress: async (cardId: string, payload: FlashcardProgressPayload): Promise<any> => {

@@ -8,6 +8,14 @@ import {
   useDisclosure,
   Spinner,
   Pagination,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Input,
+  Select,
+  SelectItem,
 } from "@heroui/react";
 import {
   TrashIcon,
@@ -17,6 +25,7 @@ import {
   PencilIcon,
   EyeIcon,
   AcademicCapIcon,
+  SparklesIcon,
 } from "@heroicons/react/24/outline";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -24,11 +33,12 @@ import useAuthStore from "@/store/useAuthStore";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { flashcardService } from "@/service/flashcard.service";
 import { FlashcardDeck } from "@/types/flashcard.type";
+import useToast from "@/hooks/useToast";
 
 export default function FlashCardPage() {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
-  const userId = currentUser?._id || "";
+  const { success, error: showError } = useToast();
 
   const {
     isOpen: isDeleteOpen,
@@ -40,6 +50,14 @@ export default function FlashCardPage() {
 
   const [decks, setDecks] = useState<FlashcardDeck[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+  const [aiInputType, setAiInputType] = useState<"text" | "document">("text");
+  const [aiTopic, setAiTopic] = useState("");
+  const [aiFile, setAiFile] = useState<File | null>(null);
+  const [aiCardCount, setAiCardCount] = useState("10");
+  const [aiDifficulty, setAiDifficulty] = useState("3");
+  const [aiStreamText, setAiStreamText] = useState("");
+  const [aiGeneratedCards, setAiGeneratedCards] = useState(0);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -92,6 +110,111 @@ export default function FlashCardPage() {
     router.push("/flash-card/create");
   };
 
+  const {
+    isOpen: isAiOpen,
+    onOpen: onAiOpen,
+    onClose: onAiClose,
+  } = useDisclosure();
+
+  const handleCloseAiModal = () => {
+    if (isGeneratingAi) return;
+    onAiClose();
+    setAiInputType("text");
+    setAiTopic("");
+    setAiFile(null);
+    setAiCardCount("10");
+    setAiDifficulty("3");
+    setAiStreamText("");
+    setAiGeneratedCards(0);
+  };
+
+  const handleCreateWithAi = async () => {
+    const cardCount = Math.min(50, Math.max(1, parseInt(aiCardCount) || 10));
+    const difficulty = Math.min(5, Math.max(1, parseInt(aiDifficulty) || 3));
+    const topic = aiTopic.trim();
+
+    if (aiInputType === "text" && !topic) {
+      showError("Vui lòng nhập chủ đề để tạo flashcard bằng AI.");
+      return;
+    }
+
+    if (aiInputType === "document" && !aiFile) {
+      showError("Vui lòng chọn tài liệu để tạo flashcard bằng AI.");
+      return;
+    }
+
+    try {
+      setIsGeneratingAi(true);
+      setAiStreamText("");
+      setAiGeneratedCards(0);
+      const payload =
+        aiInputType === "document" && aiFile
+          ? (() => {
+              const formData = new FormData();
+              formData.append("type", "document");
+              formData.append("topic", topic);
+              formData.append("card_count", String(cardCount));
+              formData.append("difficulty", String(difficulty));
+              formData.append("language", "vi");
+              formData.append("file", aiFile);
+              return formData;
+            })()
+          : {
+              topic,
+              type: "text",
+              card_count: cardCount,
+              difficulty,
+              language: "vi",
+            };
+
+      const generated = await flashcardService.generateFlashcard(payload, {
+        onChunk: (chunk) => {
+          setAiStreamText((prev) => {
+            const next = `${prev}${chunk}`;
+            const tail = next.length > 12000 ? next.slice(-12000) : next;
+            const count = tail.match(/"card_front"\s*:/g)?.length ?? 0;
+            setAiGeneratedCards(count);
+            return tail;
+          });
+        },
+      });
+
+      await flashcardService.createDeck({
+        deck_name: generated.deck_name || `Bộ thẻ: ${topic || aiFile?.name || "AI"}`,
+        ...(generated.deck_description && {
+          deck_description: generated.deck_description,
+        }),
+        ...(generated.deck_level && { deck_level: generated.deck_level as any }),
+        ...(generated.deck_language && { deck_language: generated.deck_language }),
+        ...(generated.deck_tags?.length ? { deck_tags: generated.deck_tags } : {}),
+        flashcards: (generated.flashcards || []).map((card) => ({
+          card_front: card.card_front,
+          card_back: card.card_back,
+          ...(card.card_hint ? { card_hint: card.card_hint } : {}),
+          ...(card.card_tags?.length ? { card_tags: card.card_tags } : {}),
+          ...(card.card_difficulty ? { card_difficulty: card.card_difficulty } : {}),
+        })),
+      });
+
+      await fetchDecks();
+      success("Đã tạo bộ flashcard với AI thành công.");
+      handleCloseAiModal();
+    } catch (error) {
+      console.error("Error creating flashcard with AI:", error);
+      showError("Không thể tạo flashcard với AI. Vui lòng thử lại.");
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
+  const aiTargetCards = Math.min(50, Math.max(1, parseInt(aiCardCount) || 10));
+  const aiCurrentCards = Math.min(aiGeneratedCards, aiTargetCards);
+  const aiPercent = Math.min(100, Math.round((aiCurrentCards / aiTargetCards) * 100));
+  const aiStatusText =
+    aiGeneratedCards > 0
+      ? `AI đang tạo ${aiCurrentCards}/${aiTargetCards} thẻ (${aiPercent}%)`
+      : "AI đang phân tích nội dung và lên cấu trúc flashcard...";
+
   const handleEdit = (id: string) => {
     router.push(`/flash-card/${id}/edit`);
   };
@@ -126,13 +249,23 @@ export default function FlashCardPage() {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             Thẻ Ghi Nhớ
           </h1>
-          <Button
-            color="primary"
-            startContent={<PlusIcon className="w-5 h-5" />}
-            onPress={handleCreate}
-          >
-            Tạo bộ
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="flat"
+              color="secondary"
+              startContent={<SparklesIcon className="w-5 h-5" />}
+              onPress={onAiOpen}
+            >
+              Tạo với AI
+            </Button>
+            <Button
+              color="primary"
+              startContent={<PlusIcon className="w-5 h-5" />}
+              onPress={handleCreate}
+            >
+              Tạo bộ
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -331,6 +464,102 @@ export default function FlashCardPage() {
         color="danger"
         isLoading={isDeleting}
       />
+
+      <Modal isOpen={isAiOpen} onClose={handleCloseAiModal} placement="center">
+        <ModalContent>
+          <ModalHeader>Tạo flashcard với AI</ModalHeader>
+          <ModalBody className="space-y-3">
+            <Input
+              label="Nguồn dữ liệu"
+              value={aiInputType === "text" ? "Text chủ đề" : "Tài liệu file"}
+              isReadOnly
+              className="hidden"
+            />
+            <Select
+              label="Nguồn dữ liệu"
+              selectedKeys={new Set([aiInputType])}
+              onSelectionChange={(keys) => {
+                const selected = Array.from(keys)[0] as "text" | "document";
+                if (!selected) return;
+                setAiInputType(selected);
+                setAiFile(null);
+              }}
+            >
+              <SelectItem key="text">Text chủ đề</SelectItem>
+              <SelectItem key="document">Tài liệu file</SelectItem>
+            </Select>
+            {aiInputType === "text" ? (
+              <Input
+                label="Chủ đề"
+                placeholder="VD: React hooks, TOEIC vocabulary, Giải tích 2..."
+                value={aiTopic}
+                onChange={(e) => setAiTopic(e.target.value)}
+                isRequired
+              />
+            ) : (
+              <Input
+                type="file"
+                label="Tài liệu"
+                accept=".pdf,.doc,.docx,.txt"
+                onChange={(e) => setAiFile(e.target.files?.[0] || null)}
+                description={aiFile ? `Đã chọn: ${aiFile.name}` : "Hỗ trợ PDF, DOC, DOCX, TXT"}
+                isRequired
+              />
+            )}
+            <Input
+              type="number"
+              label="Số lượng thẻ"
+              min={1}
+              max={50}
+              value={aiCardCount}
+              onChange={(e) => setAiCardCount(e.target.value)}
+            />
+            <Select
+              label="Độ khó"
+              selectedKeys={new Set([aiDifficulty])}
+              onSelectionChange={(keys) => {
+                const selected = Array.from(keys)[0] as string;
+                if (selected) setAiDifficulty(selected);
+              }}
+            >
+              <SelectItem key="1">1 - Rất dễ</SelectItem>
+              <SelectItem key="2">2 - Dễ</SelectItem>
+              <SelectItem key="3">3 - Trung bình</SelectItem>
+              <SelectItem key="4">4 - Khó</SelectItem>
+              <SelectItem key="5">5 - Rất khó</SelectItem>
+            </Select>
+            {isGeneratingAi && (
+              <div className="w-full p-3 rounded-lg bg-default-100/60 border border-default-200">
+                <p className="text-xs uppercase tracking-wide text-default-500 mb-2">
+                  Tiến trình AI
+                </p>
+                <p className="text-sm text-default-600/90">{aiStatusText}</p>
+                <p className="text-xs text-default-500/80 mt-1 line-clamp-2">
+                  {aiStreamText
+                    ? "AI đang suy nghĩ và tổng hợp dữ liệu..."
+                    : "Đang chờ dữ liệu stream từ AI..."}
+                </p>
+              </div>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="light" onPress={handleCloseAiModal} isDisabled={isGeneratingAi}>
+              Hủy
+            </Button>
+            <Button
+              color="secondary"
+              onPress={handleCreateWithAi}
+              isLoading={isGeneratingAi}
+              isDisabled={
+                isGeneratingAi ||
+                (aiInputType === "text" ? !aiTopic.trim() : !aiFile)
+              }
+            >
+              Tạo với AI
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

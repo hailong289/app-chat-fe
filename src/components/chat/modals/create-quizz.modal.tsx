@@ -62,6 +62,18 @@ export const CreateQuizzModal = ({
   const [responseTime, setResponseTime] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const [streamProgressText, setStreamProgressText] = useState<string>("");
+  const [generatedCount, setGeneratedCount] = useState<number>(0);
+
+  const resetGeneratedState = useCallback(() => {
+    setQuizzData(null);
+    setEditedQuizz(null);
+    setIsEditing(false);
+    setResponseTime(null);
+    setError(null);
+    setStreamProgressText("");
+    setGeneratedCount(0);
+  }, []);
 
   // Reset form khi modal đóng
   useEffect(() => {
@@ -102,9 +114,10 @@ export const CreateQuizzModal = ({
   ];
 
   const generateQuizzWithAi = async () => {
+    // Always clear previous generated payload before a new AI request.
+    resetGeneratedState();
+    setMode("create");
     setIsGenerating(true);
-    setResponseTime(null);
-    setError(null);
     setElapsedTime(0);
     const startTime = Date.now();
     
@@ -123,7 +136,7 @@ export const CreateQuizzModal = ({
       } else {
         // Nếu là text, gửi JSON
         submitData = {
-          type: "document" as const,
+          type: "text",
           question_type: form.quizzType,
           question_max_points: parseInt(form.totalScore) || 0,
           question_max: parseInt(form.numberOfQuestions) || 0,
@@ -132,7 +145,18 @@ export const CreateQuizzModal = ({
       }
       
       // Gọi API để tạo quizz
-      const response = await QuizzService.generateQuizz(submitData);
+      const response = await QuizzService.generateQuizz(submitData, {
+        onChunk: (chunk) => {
+          setStreamProgressText((prev) => {
+            const next = `${prev}${chunk}`;
+            const tail = next.length > 12000 ? next.slice(-12000) : next;
+            const matches = tail.match(/"question_text"\s*:/g);
+            const estimated = matches?.length ?? 0;
+            setGeneratedCount(estimated);
+            return tail;
+          });
+        },
+      });
       
       // Tính thời gian phản hồi
       const endTime = Date.now();
@@ -402,6 +426,13 @@ export const CreateQuizzModal = ({
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const targetQuestionCount = Math.max(1, parseInt(form.numberOfQuestions) || 1);
+  const progressCurrent = Math.min(generatedCount, targetQuestionCount);
+  const progressPercent = Math.min(
+    100,
+    Math.round((progressCurrent / targetQuestionCount) * 100),
+  );
+
   const displayQuizz = isEditing ? editedQuizz : quizzData;
 
   return (
@@ -451,6 +482,7 @@ export const CreateQuizzModal = ({
                           setEditedQuizz(quizzData);
                         } else {
                           // Nếu đang xem trước, quay về tạo quizz
+                          resetGeneratedState();
                           setMode("create");
                         }
                       }}
@@ -469,6 +501,16 @@ export const CreateQuizzModal = ({
                   <p className="text-sm text-gray-500 font-medium">
                     Thời gian đang chạy: {elapsedTime.toFixed(1)}s
                   </p>
+                  <div className="w-full max-w-3xl p-3 rounded-lg bg-default-100/60 border border-default-200">
+                    <p className="text-xs uppercase tracking-wide text-default-500 mb-2">
+                      Tiến trình AI
+                    </p>
+                    <p className="text-sm text-default-600/90">
+                      {generatedCount > 0
+                        ? `AI đang tạo ${progressCurrent}/${targetQuestionCount} câu hỏi (${progressPercent}%)`
+                        : "AI đang phân tích nội dung và lên cấu trúc câu hỏi..."}
+                    </p>
+                  </div>
                 </div>
               )}
               {!isGenerating && mode === "create" ? (
