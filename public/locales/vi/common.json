@@ -56,7 +56,9 @@
         "title": "Xem",
         "mode": "Chế độ: Đang chỉnh sửa",
         "showOutline": "Hiện mục lục",
-        "hideOutline": "Ẩn mục lục"
+        "hideOutline": "Ẩn mục lục",
+        "showComments": "Hiện bình luận",
+        "hideComments": "Ẩn bình luận"
       },
       "help": {
         "title": "Trợ giúp",

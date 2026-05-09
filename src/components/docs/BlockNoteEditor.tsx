@@ -294,6 +294,34 @@ export default function BlockNoteEditorBase({
     if (editor && onEditorReady) onEditorReady(editor);
   }, [editor, onEditorReady]);
 
+  // Pre-populate current user into the comment UserStore cache.
+  //
+  // BlockNote's <Comments /> component (Comments.tsx:34-37) hard-throws if
+  // `users.get(thread.resolvedBy)` returns undefined when rendering a
+  // resolved thread. The store loads users via the async `resolveUsers`
+  // callback, but the first render happens BEFORE the promise resolves —
+  // for any thread the current user has resolved (very common), the throw
+  // crashes the editor before our resolveUsers callback ever runs.
+  //
+  // Writing directly into the private `userCache` Map and emitting the
+  // store's "update" event sidesteps the race for the current user; threads
+  // resolved by other users still fall back to the async path, and their
+  // first render benefits from a non-empty cache too (the warning becomes
+  // a transient miss instead of an instant crash).
+  useEffect(() => {
+    if (!editor) return;
+    const commentsExt = editor.getExtension?.("comments") as any;
+    const userStore = commentsExt?.userStore;
+    if (!userStore?.userCache) return;
+    if (userStore.userCache.has(userId)) return;
+    userStore.userCache.set(userId, {
+      id: userId,
+      username: userName || "Anonymous",
+      avatarUrl: userAvatar || "",
+    });
+    userStore.emit?.("update", userStore.userCache);
+  }, [editor, userId, userName, userAvatar]);
+
   // When BlockNoteView has children, it disables ALL default UIs.
   // We explicitly disable each default and re-add via controllers so we can
   // also include custom suggestion menus (@) and custom toolbar buttons.

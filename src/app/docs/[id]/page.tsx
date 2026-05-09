@@ -1,22 +1,11 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
-import dynamic from "next/dynamic";
 import { useDocumentSync } from "@/hooks/useDocumentSync";
 import useAuthStore from "@/store/useAuthStore";
 import useDocumentStore from "@/store/useDocumentStore";
 import { DynamicEditor } from "@/components/docs/DynamicEditor";
 import { Doc } from "yjs";
-
-// BlockNote pulls in non-SSR-safe deps (ProseMirror, BlockNoteContext);
-// load the comments panel client-only just like DynamicEditor.
-const ThreadsSidebarPanel = dynamic(
-  () =>
-    import("@/components/docs/ThreadsSidebarPanel").then(
-      (m) => m.ThreadsSidebarPanel,
-    ),
-  { ssr: false },
-);
 import useToast from "@/hooks/useToast";
 import ShareModal from "@/components/docs/ShareModal";
 import {
@@ -731,17 +720,6 @@ export default function DocumentEditorPage() {
           </div>
         )}
 
-        {/* Comments Sidebar (Word-style) — replaces the buggy
-            FloatingThreadController popup. Threads are rendered in a fixed
-            panel on the right of the document instead of as a floating
-            popover that dismisses on focus. */}
-        {editor && (
-          <aside className="w-80 hidden lg:block shrink-0 pr-6 py-6 border-l border-default-200 dark:border-gray-800 pl-4">
-            <div className="sticky top-24 max-h-[calc(100vh-7rem)]">
-              <ThreadsSidebarPanel editor={editor} />
-            </div>
-          </aside>
-        )}
       </main>
 
       {/* Delete Confirmation Modal */}

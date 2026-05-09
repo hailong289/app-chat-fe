@@ -56,7 +56,9 @@
         "title": "View",
         "mode": "Mode: Editing",
         "showOutline": "Show Outline",
-        "hideOutline": "Hide Outline"
+        "hideOutline": "Hide Outline",
+        "showComments": "Show Comments",
+        "hideComments": "Hide Comments"
       },
       "help": {
         "title": "Help",
