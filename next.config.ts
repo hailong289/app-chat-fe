@@ -3,7 +3,6 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   // Allow overriding output directory for local dev (useful when default .next is locked on Windows)
-  distDir: process.env.NEXT_DIST_DIR || ".next",
   reactStrictMode: false, // Disabled for React 19 / Next 15 BlockNote compatibility
   // Removed 'output: standalone' - using standard build for Docker
 
