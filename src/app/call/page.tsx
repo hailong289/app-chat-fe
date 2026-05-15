@@ -13,16 +13,7 @@ import {
   Select,
   SelectItem,
 } from "@heroui/react";
-import {
-  MicrophoneIcon,
-  PhoneXMarkIcon,
-  VideoCameraIcon,
-  VideoCameraSlashIcon,
-  SpeakerWaveIcon,
-  SpeakerXMarkIcon,
-  ComputerDesktopIcon,
-  Cog6ToothIcon,
-} from "@heroicons/react/24/solid";
+import { MicrophoneIcon, PhoneXMarkIcon, VideoCameraIcon, VideoCameraSlashIcon, SpeakerWaveIcon, SpeakerXMarkIcon, ComputerDesktopIcon, Cog6ToothIcon, ChatBubbleLeftRightIcon } from "@heroicons/react/24/solid";
 import { useSocket } from "@/components/providers/SocketProvider";
 import useAuthStore from "@/store/useAuthStore";
 import Helpers from "@/libs/helpers";
@@ -32,6 +23,8 @@ import useSfuCallStore from "@/store/useSfuCallStore";
 import { CallMember } from "@/store/types/call.state";
 import { useTranslation } from "react-i18next";
 import { isTauriRuntime } from "@/libs/helpers";
+import { useSpeechToText } from "@/hooks/useSpeechToText";
+import { SpeechToTextPanel } from "@/components/call/SpeechToTextPanel";
 
 function CallPageContentInner() {
   const router = useRouter();
@@ -40,6 +33,11 @@ function CallPageContentInner() {
   const [isMounted, setIsMounted] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { t } = useTranslation();
+
+  // ─── Speech-to-Text state ─────────────────────────────────────────────────
+  const [isSttPanelOpen, setIsSttPanelOpen] = useState(false);
+  const [sttLang, setSttLang] = useState("vi-VN");
+
   const closeTauriOrBrowserWindow = useCallback(async (): Promise<boolean> => {
     if (isTauriRuntime()) {
       try {
@@ -94,6 +92,14 @@ function CallPageContentInner() {
 
   const currentUser = useAuthStore((state) => state.user);
   const currentUserId = currentUser?.id;
+
+  // ─── Speech-to-Text (Web Speech API) ─────────────────────────────────────
+  const stt = useSpeechToText({ lang: sttLang, speakerName: currentUser?.fullname || "Bạn" });
+  const handleSttCopy = useCallback(() => {
+    const text = stt.segments.filter(s => s.isFinal).map(s => `[${s.timestamp}] ${s.text}`).join("\n");
+    if (text) navigator.clipboard.writeText(text).catch(() => {});
+  }, [stt.segments]);
+
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const hasEndedRef = useRef(false);
@@ -1771,7 +1777,45 @@ function CallPageContentInner() {
             >
               <Cog6ToothIcon className="h-6 w-6 text-white" />
             </Button>
+            {/* STT button - only during accepted calls */}
+            {callStatus === "accepted" && (
+              <Button
+                isIconOnly
+                className={`rounded-full h-14 w-14 p-0 backdrop-blur-sm ${
+                  isSttPanelOpen || stt.isListening ? "bg-secondary" : "bg-white/20"
+                }`}
+                aria-label="Speech to Text"
+                onPress={() => {
+                  if (!isSttPanelOpen) {
+                    setIsSttPanelOpen(true);
+                  } else {
+                    if (stt.isListening) stt.stop();
+                    setIsSttPanelOpen(false);
+                  }
+                }}
+              >
+                <ChatBubbleLeftRightIcon className="h-6 w-6 text-white" />
+              </Button>
+            )}
       </div>
+
+      {/* Speech-to-Text panel */}
+      {isSttPanelOpen && (
+        <SpeechToTextPanel
+          isListening={stt.isListening}
+          isSupported={stt.isSupported}
+          segments={stt.segments}
+          onToggle={stt.toggle}
+          onClear={stt.clear}
+          onCopy={handleSttCopy}
+          onClose={() => {
+            stt.stop();
+            setIsSttPanelOpen(false);
+          }}
+          lang={sttLang}
+          onLangChange={setSttLang}
+        />
+      )}
 
       <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)}>
         <ModalContent>

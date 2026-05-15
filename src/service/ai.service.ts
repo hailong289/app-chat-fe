@@ -228,20 +228,28 @@ export const aiService = {
     };
   },
 
+  /**
+   * Translate text using AI.
+   * @param model Pass `null` to use the cheapest/free model (model 0). Omit to use default.
+   */
   translate: async (
     text: string,
     from: string,
-    to: string
+    to: string,
+    model?: string | null,
   ): Promise<TranslationResponse> => {
     const { metadata } = await consumeAiSse("/ai/stream/translation", {
       method: "POST",
-      body: JSON.stringify({ text, from, to }),
+      body: JSON.stringify({ text, from, to, model: model ?? null }),
     });
 
-    return {
-      translated: (metadata as string) ?? "",
-      from,
-      to,
-    };
+    const result = metadata as { translated?: string; metadata?: { translated?: string } } | string | null;
+    let translated = "";
+    if (typeof result === "string") translated = result;
+    else if (result && typeof result === "object") {
+      translated = (result as any).translated ?? (result as any).metadata?.translated ?? "";
+    }
+
+    return { translated, from, to };
   },
 };
