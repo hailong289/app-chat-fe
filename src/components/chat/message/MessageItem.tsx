@@ -7,6 +7,7 @@ import { MessageActions } from "./MessageActions";
 import { MessageReactions } from "./MessageReactions";
 import { ReplyPreview } from "./ReplyPreview";
 import { QuizMessageCard } from "./QuizMessageCard";
+import { FlashcardDeckMessageCard } from "./FlashcardDeckMessageCard";
 import { SystemMessageBubble } from "./SystemMessageBubble";
 import { MessageType } from "@/store/types/message.state";
 import { ArrowPathIcon, EyeDropperIcon } from "@heroicons/react/16/solid";
@@ -352,6 +353,34 @@ export const MessageItem = memo(
               className="flex flex-col items-center gap-1.5 px-4 py-1"
             >
               <QuizMessageCard quiz={msg.quiz} currentUser={currentUser} isSender={isMine} roomId={chatId} />
+              <span className="text-[11px] text-default-400">
+                {msg.sender.fullname} • {formatMessageTime(msg.createdAt)}
+              </span>
+            </div>
+          </motion.div>
+        </div>
+      );
+    }
+
+    // Flashcard Deck message — layout riêng, căn giữa (giống quiz)
+    if (msg.type === "flashcard" && msg.desk && !msg.isDeleted) {
+      return (
+        <div className={messageSpacing}>
+          <motion.div
+            layout
+            key={`msg-box-${msg.id}`}
+            initial={shouldAnimateThis ? { opacity: 0, y: 10, scale: 0.95 } : false}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={shouldAnimateThis ? { opacity: 0, scale: 0.95 } : undefined}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+          >
+            <UnreadDivider />
+            <div
+              ref={setMessageRef(msg.id)}
+              data-mid={msg.id}
+              className="flex flex-col items-center gap-1.5 px-4 py-1"
+            >
+              <FlashcardDeckMessageCard deck={msg.desk} isSender={isMine} />
               <span className="text-[11px] text-default-400">
                 {msg.sender.fullname} • {formatMessageTime(msg.createdAt)}
               </span>

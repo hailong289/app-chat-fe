@@ -16,6 +16,8 @@ import {
   Input,
   Select,
   SelectItem,
+  Avatar,
+  Chip,
 } from "@heroui/react";
 import {
   TrashIcon,
@@ -26,6 +28,7 @@ import {
   EyeIcon,
   AcademicCapIcon,
   SparklesIcon,
+  ShareIcon,
 } from "@heroicons/react/24/outline";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -34,6 +37,10 @@ import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { flashcardService } from "@/service/flashcard.service";
 import { FlashcardDeck } from "@/types/flashcard.type";
 import useToast from "@/hooks/useToast";
+import useRoomStore from "@/store/useRoomStore";
+import useMessageStore from "@/store/useMessageStore";
+import { useSocket } from "@/components/providers/SocketProvider";
+import { roomType } from "@/store/types/room.state";
 
 export default function FlashCardPage() {
   const router = useRouter();
@@ -58,6 +65,18 @@ export default function FlashCardPage() {
   const [aiDifficulty, setAiDifficulty] = useState("3");
   const [aiStreamText, setAiStreamText] = useState("");
   const [aiGeneratedCards, setAiGeneratedCards] = useState(0);
+
+  // Share state
+  const { isOpen: isShareOpen, onOpen: onShareOpen, onClose: onShareClose } = useDisclosure();
+  const [sharingDeckId, setSharingDeckId] = useState<string | null>(null);
+  const [shareSearchQuery, setShareSearchQuery] = useState("");
+  const [sharingRoomId, setSharingRoomId] = useState<string | null>(null);
+  const [sharedRoomIds, setSharedRoomIds] = useState<Set<string>>(new Set());
+
+  const rooms = useRoomStore((s) => s.rooms);
+  const getRooms = useRoomStore((s) => s.getRooms);
+  const sendMessage = useMessageStore((s) => s.sendMessage);
+  const { socket, connect } = useSocket("/chat");
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -85,6 +104,58 @@ export default function FlashCardPage() {
   useEffect(() => {
     fetchDecks();
   }, []);
+
+  useEffect(() => {
+    getRooms();
+  }, [getRooms]);
+
+  const filteredRooms = useMemo(() => {
+    const q = shareSearchQuery.trim().toLowerCase();
+    const sorted = [...rooms].sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+    if (!q) return sorted.slice(0, 10);
+    return sorted.filter((r) => (r.name ?? "").toLowerCase().includes(q));
+  }, [rooms, shareSearchQuery]);
+
+  const handleShareClick = (id: string) => {
+    setSharingDeckId(id);
+    setShareSearchQuery("");
+    setSharedRoomIds(new Set());
+    onShareOpen();
+  };
+
+  const handleShareToRoom = async (room: roomType) => {
+    if (!sharingDeckId || !socket || sharingRoomId === room.id) return;
+    setSharingRoomId(room.id);
+    
+    if (!socket.connected) {
+      connect();
+    }
+
+    try {
+      const deck = decks.find(d => d.deck_id === sharingDeckId);
+      const shareContent = `${currentUser?.fullname ?? "Bạn"} đã chia sẻ một bộ thẻ ghi nhớ: ${deck?.deck_name ?? "Flashcard Deck"}`;
+      await sendMessage({
+        roomId: room.id,
+        content: shareContent,
+        attachments: [],
+        type: "flashcard",
+        desk_id: sharingDeckId,
+        desk: deck,
+        socket,
+        userId: currentUser?._id || "",
+        userFullname: currentUser?.fullname ?? "",
+        userAvatar: currentUser?.avatar ?? "",
+      });
+      setSharedRoomIds((prev) => new Set([...prev, room.id]));
+      success("Chia sẻ bộ thẻ thành công");
+    } catch {
+      showError("Lỗi khi chia sẻ bộ thẻ");
+    } finally {
+      setSharingRoomId(null);
+    }
+  };
 
   const handleDeleteClick = (id: string) => {
     setDeckToDelete(id);
@@ -386,6 +457,16 @@ export default function FlashCardPage() {
                         isIconOnly
                         variant="flat"
                         size="sm"
+                        color="secondary"
+                        onPress={() => handleShareClick(setId)}
+                        aria-label="Chia sẻ bộ flashcard"
+                      >
+                        <ShareIcon className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        isIconOnly
+                        variant="flat"
+                        size="sm"
                         color="success"
                         onPress={() => handleStudy(setId)}
                         aria-label="Học bộ flashcard"
@@ -556,6 +637,82 @@ export default function FlashCardPage() {
               }
             >
               Tạo với AI
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Share Modal */}
+      <Modal isOpen={isShareOpen} onClose={onShareClose} placement="center">
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">
+            <h3 className="text-lg font-bold">Chia sẻ bộ thẻ ghi nhớ</h3>
+          </ModalHeader>
+          <ModalBody className="pb-6">
+            <Input
+              placeholder="Tìm kiếm phòng chat..."
+              value={shareSearchQuery}
+              onChange={(e) => setShareSearchQuery(e.target.value)}
+              className="mb-4"
+              size="sm"
+            />
+            {filteredRooms.length === 0 ? (
+              <p className="text-sm text-center text-gray-400 py-6">Không tìm thấy phòng chat nào</p>
+            ) : (
+              <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
+                {filteredRooms.map((room) => {
+                  const isShared = sharedRoomIds.has(room.id);
+                  const isSharing = sharingRoomId === room.id;
+                  const roomName = room.name ?? "Phòng chưa đặt tên";
+                  return (
+                    <div
+                      key={room.id}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors cursor-pointer border
+                        ${isShared
+                          ? "bg-success/10 border-success/30 dark:bg-success/10"
+                          : "border-transparent hover:bg-gray-50 dark:hover:bg-gray-800"
+                        }`}
+                      onClick={() => !isShared && !isSharing && handleShareToRoom(room)}
+                    >
+                      <Avatar
+                        src={room.avatar ?? undefined}
+                        name={roomName}
+                        size="sm"
+                        className="shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {roomName}
+                        </p>
+                        <p className="text-[11px] text-gray-400 capitalize">{room.type}</p>
+                      </div>
+                      {isShared ? (
+                        <Chip size="sm" color="success" variant="flat" className="text-[11px] h-5 shrink-0">
+                          Đã gửi
+                        </Chip>
+                      ) : (
+                        <Button
+                          size="sm"
+                          color="primary"
+                          variant="flat"
+                          isLoading={isSharing}
+                          isDisabled={!!sharingRoomId}
+                          className="h-7 text-xs shrink-0"
+                          onPress={() => handleShareToRoom(room)}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Gửi
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={onShareClose}>
+              Đóng
             </Button>
           </ModalFooter>
         </ModalContent>

@@ -78,6 +78,11 @@ export const flashcardService = {
     return response.data;
   },
 
+  cloneDeck: async (deckId: string): Promise<FlashcardDeck> => {
+    const response = await apiService.post<APIDeckResponse>(`/learning/flashcard/deck/clone`, { deck_id: deckId });
+    return response.data?.metadata;
+  },
+
   updateDeck: async (id: string, payload: Partial<CreateFlashcardDeckPayload>): Promise<FlashcardDeck> => {
     const response = await apiService.patch<APIDeckResponse>(`/learning/flashcard/deck/update/${id}`, payload);
     return response.data?.metadata;
