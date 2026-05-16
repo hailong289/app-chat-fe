@@ -133,12 +133,28 @@ export default function ChatInputBar({
   const auth = useAuthStore((state) => state.user);
 
   const lastMessage = useMemo(() => messages.at(-1), [messages]);
+  // Ref để track message id đã fetch suggest — tránh gọi API nhiều lần
+  // cho cùng 1 message (VD: khi messages array update trạng thái gửi,
+  // reactions, typing indicator... làm component re-render).
+  const fetchedSuggestionForRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (!lastMessage || lastMessage.sender._id === auth?.id) {
-      setSuggestions([]);
+    useEffect(() => {
+    const msgId = lastMessage?.id ?? null;
+
+    // Reset khi không có message hoặc message của mình
+    if (!msgId || lastMessage?.sender._id === auth?.id) {
+      if (fetchedSuggestionForRef.current !== null) {
+        setSuggestions([]);
+        setSuggestedEmojis([]);
+        setSuggestedGifs([]);
+        fetchedSuggestionForRef.current = null;
+      }
       return;
     }
+
+    // Chỉ gọi API nếu message id khác với lần fetch trước
+    if (fetchedSuggestionForRef.current === msgId) return;
+    fetchedSuggestionForRef.current = msgId;
 
     const fetchSuggestions = async () => {
       try {
@@ -157,6 +173,8 @@ export default function ChatInputBar({
     };
 
     fetchSuggestions();
+    // Chỉ phụ thuộc vào msgId (string), không phải object reference
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastMessage?.id, auth?.id]);
 
   const room = useRoomStore((state) => state.room);

@@ -1,4 +1,4 @@
-import { getCookie } from "cookies-next";
+import { tokenStorage } from "@/utils/tokenStorage";
 
 type StreamEnvelope = {
   event?: "start" | "chunk" | "progress" | "done" | "error";
@@ -42,14 +42,16 @@ function buildHeaders(body?: BodyInit): HeadersInit {
     headers["Content-Type"] = "application/json";
   }
 
-  const tokens = getCookie("tokens")?.toString();
-  if (tokens) {
-    try {
-      const { accessToken } = JSON.parse(tokens);
-      if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    } catch {
-      // Ignore malformed cookies; backend will return auth error.
-    }
+  // ⚠️ Đọc accessToken từ localStorage (qua tokenStorage) chứ KHÔNG phải
+  // từ cookie "tokens" — cookie đó là HttpOnly (JS không đọc được).
+  //
+  // Cách lấy token đúng:
+  //   - tokenStorage.get()     → localStorage["accessToken"] ✅
+  //   - useAuthStore state     → Zustand store (chỉ dùng trong React hooks)
+  //   - getCookie("tokens")    ❌ HttpOnly cookie → undefined ở client
+  const accessToken = tokenStorage.get();
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
   return headers;
 }
