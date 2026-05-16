@@ -31,6 +31,24 @@ export interface TranslationResponse {
   to: string;
 }
 
+export interface UsageReportItem {
+  group: string;
+  totalCalls: number;
+  successCalls: number;
+  errorCalls: number;
+  totalTokenInput: number;
+  totalTokenOutput: number;
+  totalCostUsd: number;
+  avgLatencyMs: number;
+  uniqueUserCount: number;
+}
+
+export interface UsageReportResponse {
+  groupBy: string;
+  total: number;
+  items: UsageReportItem[];
+}
+
 type SummaryDocumentRequest =
   | { type: "document"; file: File }
   | { type: "file_url"; file_url: string };
@@ -251,5 +269,26 @@ export const aiService = {
     }
 
     return { translated, from, to };
+  },
+
+  /**
+   * Lấy báo cáo thống kê sử dụng AI.
+   * Query params:
+   *   - service : lọc theo service (moderation, translation, suggest-replies, ...)
+   *   - userId  : lọc theo user
+   *   - from    : ngày bắt đầu (ISO string)
+   *   - to      : ngày kết thúc (ISO string)
+   *   - groupBy : 'service' | 'userId' | 'day' (mặc định: 'service')
+   */
+  getUsageReport: async (params?: {
+    service?: string;
+    userId?: string;
+    from?: string;
+    to?: string;
+    groupBy?: 'service' | 'userId' | 'day';
+  }): Promise<UsageReportResponse> => {
+    const response = await apiService.get("/ai/usage/report", params);
+    // response.data is the raw gRPC response (no metadata wrapper)
+    return response.data || { groupBy: params?.groupBy || 'service', total: 0, items: [] };
   },
 };
