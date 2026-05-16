@@ -287,8 +287,17 @@ export const aiService = {
     to?: string;
     groupBy?: 'service' | 'userId' | 'day';
   }): Promise<UsageReportResponse> => {
-    const response = await apiService.get("/ai/usage/report", params);
+    const response = await apiService.get<UsageReportResponse>(
+      "/ai/usage/report",
+      params,
+    );
     // response.data is the raw gRPC response (no metadata wrapper)
-    return response.data || { groupBy: params?.groupBy || 'service', total: 0, items: [] };
+    return (
+      response.data ?? {
+        groupBy: params?.groupBy ?? "service",
+        total: 0,
+        items: [],
+      }
+    );
   },
 };
