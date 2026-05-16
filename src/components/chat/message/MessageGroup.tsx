@@ -24,7 +24,11 @@ interface MessageGroupProps {
   onRecall: (msg: MessageType) => void;
   onTogglePin: (msg: MessageType) => void;
   onCopy: (content: string) => void;
-  onTranslate: (msg: MessageType) => void;
+  onTranslate: (
+    msg: MessageType,
+    targetLanguage?: string,
+    sourceLanguage?: string,
+  ) => void;
   onSummarize: (msg: MessageType) => void;
   onJumpToMessage: (id: string) => void;
   setMessageRef: (id: string) => (el: HTMLElement | null) => void;

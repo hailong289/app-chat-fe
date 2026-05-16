@@ -274,11 +274,15 @@ export function useMessageHandlers({
   );
 
   const handleTranslate = useCallback(
-    async (msg: MessageType, targetLanguage?: string) => {
+    async (
+      msg: MessageType,
+      targetLanguage?: string,
+      sourceLanguage?: string,
+    ) => {
       if (!msg.content) return;
 
       const to = targetLanguage || i18n.language || "en";
-      const from = "auto";
+      const from = sourceLanguage || "auto";
 
       try {
         const result = await aiService.translate(msg.content, from, to);
@@ -312,18 +316,10 @@ export function useMessageHandlers({
           return;
         } else {
           const fileUrl = attachment.uploadedUrl || attachment.url;
-          const response = await fetch(fileUrl);
-          if (!response.ok) {
-            throw new Error("Failed to download file for summary");
-          }
-
-          const blob = await response.blob();
-          const fileName = attachment.name || `document-${msg.id}`;
-          const fileType =
-            attachment.mimeType || blob.type || "application/octet-stream";
-          const file = new File([blob], fileName, { type: fileType });
-
-          result = await aiService.summaryDocument(file);
+          result = await aiService.summaryDocument({
+            type: "file_url",
+            file_url: fileUrl,
+          });
         }
 
         await useMessageStore.getState().setMessageSummary(chatId, msg.id, {

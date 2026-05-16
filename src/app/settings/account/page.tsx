@@ -95,6 +95,7 @@ export default function SettingsAccount() {
       fullname: formData.fullname,
       gender: formData.gender as "male" | "female" | "other",
       dateOfBirth: formData.dateOfBirth,
+      address: formData.address,
       callback: (error) => {
         if (error) {
           console.error(error);

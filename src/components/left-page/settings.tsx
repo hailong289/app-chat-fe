@@ -48,6 +48,15 @@ const Settings: React.FC = () => {
               <ArrowRightCircleIcon className="w-5 h-5" />
             </Button>
           </Tooltip>
+          <Tooltip content="Thống kê AI" placement="right">
+            <Button
+              isIconOnly
+              variant="light"
+              onPress={() => router.push("/settings/usage")}
+            >
+              <ArrowRightCircleIcon className="w-5 h-5" />
+            </Button>
+          </Tooltip>
           <Tooltip content="Đóng danh sách" placement="right">
             <Button
               isIconOnly
@@ -147,12 +156,6 @@ const Settings: React.FC = () => {
             <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
               <div className="flex items-start gap-4 w-full">
                 <div className="w-10/12 flex flex-col">
-                  {/* suppressHydrationWarning on i18n-driven text:
-                      i18next's LanguageDetector resolves on the client
-                      side, so SSR may render in fallback (vi) while the
-                      client switches to user-detected locale (en) →
-                      hydration text mismatch. The other entries on this
-                      page hard-code Vietnamese so they don't hit this. */}
                   <span
                     className="font-medium leading-tight"
                     suppressHydrationWarning
@@ -172,6 +175,32 @@ const Settings: React.FC = () => {
                     variant="light"
                     className="text-foreground-500 hover:text-foreground hover:bg-default-100"
                     onPress={() => router.push("/settings/devices")}
+                  >
+                    <ArrowRightCircleIcon className="w-5 h-5" />
+                  </Button>
+                </div>
+              </div>
+            </CardBody>
+          </Card>
+
+          {/* Thống kê AI */}
+          <Card className="mb-0 shadow-none border-b border-default-200 rounded-none bg-background">
+            <CardBody className="flex items-start justify-between px-4 py-4 flex-row">
+              <div className="flex items-start gap-4 w-full">
+                <div className="w-10/12 flex flex-col">
+                  <span className="font-medium leading-tight">
+                    Thống kê AI
+                  </span>
+                  <span className="text-sm text-foreground-500 leading-tight mt-1">
+                    Xem báo cáo sử dụng các tính năng AI
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    isIconOnly
+                    variant="light"
+                    className="text-foreground-500 hover:text-foreground hover:bg-default-100"
+                    onPress={() => router.push("/settings/usage")}
                   >
                     <ArrowRightCircleIcon className="w-5 h-5" />
                   </Button>
