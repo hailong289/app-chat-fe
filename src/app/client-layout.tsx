@@ -3,12 +3,14 @@
 import { usePathname, useRouter } from "next/navigation";
 import {
   useEffect,
+  useLayoutEffect,
   Suspense,
   useState,
   useRef,
   useCallback,
   useMemo,
 } from "react";
+import { isWebEmbedMode, isWebEmbedRoute } from "@/libs/web-embed";
 import { Header } from "@/components/intro/header";
 import { LeftSide } from "@/components/intro/left-side";
 import { useFirebase } from "@/components/providers/firebase.provider";
@@ -34,6 +36,15 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const collapsedSidebar = useCounterStore((state) => state.collapsedSidebar);
   const toggleSidebar = useCounterStore((state) => state.togoleSidebar);
   const [mounted, setMounted] = useState(false);
+  const [webEmbed, setWebEmbed] = useState(() =>
+    typeof window !== "undefined" ? isWebEmbedMode() : false,
+  );
+
+  const hideLeftAppNav = isWebEmbedRoute(path) && webEmbed;
+
+  useLayoutEffect(() => {
+    setWebEmbed(isWebEmbedMode());
+  }, [path]);
 
   // Auth bootstrap moved to <AuthBootstrap/> in app/providers.tsx so
   // it covers EVERY page tree — including the /call popup window which
@@ -229,11 +240,13 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   // Layout chính của app chat
   return (
     <div className="flex h-screen w-full bg-slate-900 text-foreground">
-      <nav className="relative h-full">
-        <Suspense fallback={<div className="w-[60px] h-full" />}>
-          <Header />
-        </Suspense>
-      </nav>
+      {!hideLeftAppNav ? (
+        <nav className="relative h-full">
+          <Suspense fallback={<div className="w-[60px] h-full" />}>
+            <Header />
+          </Suspense>
+        </nav>
+      ) : null}
       <main className="flex-1 h-screen flex overflow-hidden">
         {/* Global socket listener / toasts / events */}
 

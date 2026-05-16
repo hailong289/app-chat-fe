@@ -29,8 +29,9 @@
     }
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
+    "next.config.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
     ".next/types/**/*.ts",
     "global.d.ts",
     "heroui.d.ts",
@@ -38,6 +39,7 @@
     ".next-turbo/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "src-tauri"
   ]
 }
