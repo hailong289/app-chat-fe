@@ -75,7 +75,8 @@ export default class AuthService {
   }
 
   static updateProfile(data: UpdateProfilePayload) {
-    return apiService.post<AuthResponse>("/auth/update-profile", data);
+    const { callback: _callback, ...body } = data;
+    return apiService.post<AuthResponse>("/auth/update-profile", body);
   }
 
   static updateAvatar(data: UpdateAvatarPayload) {

@@ -54,7 +54,8 @@ export type MessageType = {
     | "document"
     | "call"
     | "quiz"
-    | "todo_project";
+    | "todo_project"
+    | "flashcard";
   content: string;
   createdAt: string;
   editedAt?: string | null;
@@ -114,6 +115,7 @@ export type MessageType = {
   summary?: MessageSummary | null;
   translation?: MessageTranslation | null;
   quiz?: QuizzResponse;
+  desk?: any; // Using any or importing FlashcardDeck. For simplicity any, but wait, let's use FlashcardDeck if we can. Actually let's import FlashcardDeck at the top. Wait, no, just use any or import it.
   todoProjectId?: string; // Todo project linkage for FE rendering
   todoProject?: TodoProject; // Optional: populated when backend enriches todo_project messages
   /** Populated by backend when msg.type === 'system' (member added/left, call started, etc.) */

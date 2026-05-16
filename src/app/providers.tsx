@@ -1,7 +1,7 @@
 // app/providers.tsx
 "use client";
 
-import "@/i18n";
+import { syncLanguageFromStorage } from "@/i18n";
 import "@mantine/core/styles.css";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { HeroUIProvider, ToastProvider } from "@heroui/react";
@@ -46,6 +46,13 @@ function AuthBootstrap() {
   return null;
 }
 
+function I18nLanguageSync() {
+  useEffect(() => {
+    syncLanguageFromStorage();
+  }, []);
+  return null;
+}
+
 export function Providers({
   children,
 }: {
@@ -65,6 +72,7 @@ export function Providers({
       <MantineProvider>
         <HeroUIProvider>
           <AuthBootstrap />
+          <I18nLanguageSync />
           <ToastProvider />
           <AlertModal />
           {children}

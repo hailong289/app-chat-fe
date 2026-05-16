@@ -6,8 +6,6 @@ import { Button } from "@heroui/button";
 import { Chip } from "@heroui/chip";
 import {
   ChatBubbleLeftRightIcon,
-  UserGroupIcon,
-  BellIcon,
   DocumentTextIcon,
   ClipboardDocumentListIcon,
   SparklesIcon,
@@ -18,18 +16,32 @@ import {
   LanguageIcon,
   MagnifyingGlassIcon,
   LightBulbIcon,
-  MicrophoneIcon,
-  CameraIcon,
+  PhoneIcon,
+  DocumentMagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
 import { useRouter } from "next/navigation";
 import useAuthStore from "@/store/useAuthStore";
 import { useEffect, useMemo } from "react";
 
+/**
+ * Public landing page. Shown to logged-out visitors at "/" (via redirect
+ * in client-layout) and at "/dashboard" directly.
+ *
+ * Content rule: every claim on this page must map to something that
+ * actually exists in the codebase.
+ *   - Feature cards mirror the real FE routes (chat, docs, todo,
+ *     flash-card, call) and the BE AI gRPC endpoints (8 methods on
+ *     AIService — see apps/ai/src/ai.controller.ts).
+ *   - Stats reflect verifiable architectural facts (microservice count,
+ *     AI endpoint count) rather than aspirational performance numbers.
+ *   - Tech stack lists deps actually wired up in code; OCR /
+ *     speech-to-text / fake testimonials were removed because there
+ *     was no implementation behind them.
+ */
 export default function DashboardPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
 
-  // Redirect nếu đã login
   useEffect(() => {
     if (isAuthenticated) {
       router.push("/chat");
@@ -39,114 +51,90 @@ export default function DashboardPage() {
   const features = [
     {
       icon: ChatBubbleLeftRightIcon,
-      title: "Chat Realtime",
+      title: "Chat realtime",
       description:
-        "Trò chuyện nhóm với Socket.IO, hỗ trợ 1000+ kết nối đồng thời, độ trễ < 1s",
+        "Chat 1-1, nhóm, kênh. Pin / recall / reply / reaction. Đồng bộ qua Socket.IO + Kafka cho scale ngang.",
       color: "primary",
     },
     {
       icon: DocumentTextIcon,
-      title: "Docs - Tài liệu",
+      title: "Docs cộng tác",
       description:
-        "Wiki/Markdown tích hợp, chia sẻ tài liệu học tập, ghi chú cộng tác nhóm",
+        "Soạn tài liệu rich-text (BlockNote) đồng thời nhiều người qua Yjs. Comment inline + thread + reaction.",
       color: "secondary",
     },
     {
       icon: ClipboardDocumentListIcon,
-      title: "ToDoList - Quản lý công việc",
+      title: "Todo & Kanban",
       description:
-        "Quản lý bài tập, deadline, phân công nhiệm vụ cho nhóm học tập",
+        "Quản lý dự án, board kanban kéo-thả, gán việc, deadline, chia sẻ vào phòng chat.",
       color: "success",
     },
     {
-      icon: SparklesIcon,
-      title: "AI Thông minh",
+      icon: PhoneIcon,
+      title: "Voice / Video call",
       description:
-        "Tóm tắt hội thoại, gợi ý trả lời, kiểm duyệt nội dung tự động",
+        "Cuộc gọi 1-1 và nhóm dựa trên Mediasoup SFU. Push notify khi có cuộc gọi đến qua FCM.",
       color: "warning",
     },
     {
       icon: AcademicCapIcon,
-      title: "Hỗ trợ học tập",
+      title: "Flashcards & Quiz",
       description:
-        "Flashcards tự động, Quiz AI, ghi chú thông minh từ cuộc trò chuyện",
+        "Tạo bộ thẻ ghi nhớ và bài quiz tự động từ AI hoặc nhập tay. Phục vụ ôn tập, kiểm tra nhanh.",
       color: "danger",
+    },
+    {
+      icon: SparklesIcon,
+      title: "Gợi ý trả lời",
+      description:
+        "AI suggest reply theo ngữ cảnh cuộc trò chuyện, kèm emoji & GIF keyword đề xuất.",
+      color: "primary",
+    },
+    {
+      icon: LanguageIcon,
+      title: "Dịch tin nhắn",
+      description:
+        "Dịch tin nhắn sang ngôn ngữ hiển thị hiện tại (vi/en) qua AIService.Translation.",
+      color: "secondary",
     },
     {
       icon: MagnifyingGlassIcon,
       title: "Tìm kiếm ngữ nghĩa",
       description:
-        "Tìm kiếm thông minh với AI, hiểu ngữ cảnh và ý nghĩa câu hỏi",
+        "Embedding tin nhắn / tài liệu / file. Tìm theo ý nghĩa thay vì khớp từ khoá.",
       color: "default",
     },
     {
-      icon: LanguageIcon,
-      title: "Dịch tự động",
+      icon: DocumentMagnifyingGlassIcon,
+      title: "Tóm tắt tài liệu",
       description:
-        "Dịch tin nhắn realtime, hỗ trợ đa ngôn ngữ cho cộng tác quốc tế",
-      color: "primary",
-    },
-    {
-      icon: MicrophoneIcon,
-      title: "Speech-to-Text",
-      description:
-        "Nhận diện giọng nói thành văn bản, ghi chú bài giảng tự động",
-      color: "secondary",
-    },
-    {
-      icon: CameraIcon,
-      title: "OCR - Nhận dạng ảnh",
-      description:
-        "Chụp ảnh bảng, slide và chuyển thành văn bản có thể chỉnh sửa",
+        "AI tóm tắt nội dung doc dài thành các điểm chính, hỗ trợ ôn nhanh và onboarding.",
       color: "success",
-    },
-  ];
-
-  const testimonials = [
-    {
-      name: "Nguyễn Thị Hoa",
-      role: "Sinh viên CNTT - ĐH Bách Khoa",
-      content:
-        "App giúp nhóm em quản lý bài tập tốt hơn. Flashcards AI rất hữu ích cho việc ôn thi!",
-      avatar: "👩‍🎓",
-    },
-    {
-      name: "Trần Văn Nam",
-      role: "Giảng viên - ĐH Khoa học Tự nhiên",
-      content:
-        "Tính năng tóm tắt hội thoại giúp tôi nắm bắt nhanh câu hỏi của sinh viên. Rất tiện lợi!",
-      avatar: "👨‍🏫",
-    },
-    {
-      name: "Lê Minh Tuấn",
-      role: "Team Lead - Startup EdTech",
-      content:
-        "Docs + ToDoList + Chat trong một nền tảng giúp team phối hợp hiệu quả hơn 30%.",
-      avatar: "👨‍💼",
     },
   ];
 
   const aiFeatures = [
     {
       icon: LightBulbIcon,
-      title: "Gợi ý trả lời thông minh",
-      description: "AI đề xuất câu trả lời dựa trên ngữ cảnh cuộc trò chuyện",
+      title: "SuggestReplies",
+      description:
+        "Đề xuất 3 câu trả lời + emoji + GIF keyword theo ngữ cảnh.",
     },
     {
       icon: DocumentTextIcon,
-      title: "Tóm tắt hội thoại",
-      description:
-        "Tự động tóm tắt các cuộc thảo luận dài thành những điểm chính",
+      title: "SummaryDocument",
+      description: "Tóm tắt nội dung tài liệu thành các điểm chính.",
     },
     {
       icon: AcademicCapIcon,
-      title: "Flashcards & Quiz",
-      description: "Tạo thẻ ghi nhớ và bài kiểm tra từ nội dung học tập",
+      title: "Quizz / GenerateFlashcard",
+      description: "Sinh quiz và bộ thẻ flashcard từ tài liệu / tin nhắn.",
     },
     {
       icon: ShieldCheckIcon,
-      title: "Kiểm duyệt nội dung",
-      description: "Phát hiện và lọc nội dung không phù hợp tự động",
+      title: "Moderation",
+      description: "Kiểm duyệt tin nhắn để lọc nội dung độc hại tự động.",
     },
   ];
 
@@ -196,14 +184,14 @@ export default function DashboardPage() {
               endContent={<ArrowRightIcon className="w-4 h-4" />}
               onPress={() => router.push("/auth/register")}
             >
-              Đăng ký ngay
+              Đăng ký
             </Button>
           </div>
         </div>
       </nav>
 
       <div className="max-w-6xl mx-auto px-4 py-10 space-y-16">
-        {/* Header Section */}
+        {/* Hero */}
         <section className="text-center">
           <div className="flex justify-center mb-8">
             <div className="relative">
@@ -218,47 +206,43 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <h1 className="text-4xl md:text-6xl font-extrabold mb-4 bg-gradient-to-r from-primary-500 via-sky-500 to-secondary-500 bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-6xl font-extrabold mb-4 bg-linear-to-r from-primary-500 via-sky-500 to-secondary-500 bg-clip-text text-transparent">
             Học tập và cộng tác với AI
           </h1>
 
           <p className="text-lg md:text-xl text-slate-600 dark:text-slate-300 mb-8 max-w-3xl mx-auto">
-            Nền tảng chat đa nền tảng tích hợp AI, Docs và ToDoList — thiết kế
-            cho sinh viên, nhóm học tập và giảng viên trên kiến trúc
-            Microservices hiện đại.
+            Nền tảng tích hợp Chat, Docs cộng tác, Todo, Voice/Video call và
+            các tính năng AI — xây dựng trên kiến trúc microservices NestJS.
           </p>
 
-          {/* Stats Banner */}
+          {/* Architectural facts (verifiable, not aspirational). */}
           <div className="flex justify-center gap-8 mb-10 flex-wrap">
             <div className="text-center">
-              <div className="text-3xl font-bold text-primary-500">1000+</div>
+              <div className="text-3xl font-bold text-primary-500">9</div>
               <div className="text-sm text-slate-500 dark:text-slate-400">
-                Kết nối đồng thời
+                Microservices
               </div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-secondary-500">
-                &lt; 1s
-              </div>
+              <div className="text-3xl font-bold text-secondary-500">8</div>
               <div className="text-sm text-slate-500 dark:text-slate-400">
-                Độ trễ tin nhắn
+                AI endpoints
               </div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-emerald-500">8+ AI</div>
+              <div className="text-3xl font-bold text-emerald-500">5</div>
               <div className="text-sm text-slate-500 dark:text-slate-400">
-                Tính năng AI
+                Module sản phẩm
               </div>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold text-amber-500">99.9%</div>
+              <div className="text-3xl font-bold text-amber-500">2</div>
               <div className="text-sm text-slate-500 dark:text-slate-400">
-                Uptime hệ thống
+                Ngôn ngữ (vi / en)
               </div>
             </div>
           </div>
 
-          {/* CTA Buttons */}
           <div className="flex justify-center gap-4 flex-wrap">
             <Button
               color="primary"
@@ -288,11 +272,11 @@ export default function DashboardPage() {
         <section id="features" className="space-y-6">
           <div className="text-center space-y-3">
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-slate-50">
-              Tính năng toàn diện
+              Tính năng đã triển khai
             </h2>
             <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-              Chat · Docs · Tasks · AI — tất cả trong một nền tảng duy nhất cho
-              học tập và cộng tác.
+              Mỗi card tương ứng một module có route / API thật trong hệ
+              thống.
             </p>
           </div>
 
@@ -330,15 +314,15 @@ export default function DashboardPage() {
 
         {/* AI Features Section */}
         <section>
-          <Card className="bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 border border-purple-200 dark:from-purple-900/40 dark:via-pink-900/30 dark:to-blue-900/40 dark:border-purple-700/40">
+          <Card className="bg-linear-to-br from-purple-50 via-pink-50 to-blue-50 border border-purple-200 dark:from-purple-900/40 dark:via-pink-900/30 dark:to-blue-900/40 dark:border-purple-700/40">
             <CardHeader className="flex flex-col items-center pb-0 pt-8">
               <SparklesIcon className="w-12 h-12 text-purple-500 dark:text-purple-300 mb-4" />
               <h2 className="text-3xl font-bold text-center mb-2 text-slate-900 dark:text-slate-50">
-                Trí tuệ nhân tạo hỗ trợ học tập
+                AI service — 8 endpoints
               </h2>
               <p className="text-slate-600 dark:text-slate-300 text-center max-w-2xl">
-                Hơn 8 tính năng AI giúp tối ưu hóa quá trình học tập và cộng tác
-                cho cả sinh viên và giảng viên.
+                Service AI riêng biệt giao tiếp qua gRPC + Kafka. Dùng Google
+                Generative AI cho LLM, embedding cho semantic search.
               </p>
             </CardHeader>
             <CardBody className="pt-8 pb-8">
@@ -359,115 +343,78 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
+              <p className="text-xs text-center text-slate-500 dark:text-slate-400 mt-6">
+                Endpoint khác: Search / SearchMessages, Embedding cho chat &
+                doc, file processing.
+              </p>
             </CardBody>
           </Card>
         </section>
 
-        {/* Testimonials */}
-        <section className="space-y-6">
-          <div className="text-center space-y-3">
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-slate-50">
-              Đánh giá từ cộng đồng
-            </h2>
-            <p className="text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">
-              Sinh viên, giảng viên và các nhóm học tập đang sử dụng EduChat mỗi
-              ngày.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, index) => (
-              <Card
-                key={index}
-                className="border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900/80"
-                shadow="none"
-              >
-                <CardBody>
-                  <div className="flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="text-4xl">{testimonial.avatar}</div>
-                      <div>
-                        <p className="font-semibold text-slate-900 dark:text-slate-100">
-                          {testimonial.name}
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {testimonial.role}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-slate-600 dark:text-slate-300 text-sm italic">
-                      &quot;{testimonial.content}&quot;
-                    </p>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
-          </div>
-        </section>
-
-        {/* Use Cases Section */}
+        {/* Use Cases */}
         <section className="space-y-6">
           <h2 className="text-3xl md:text-4xl font-bold text-center text-slate-900 dark:text-slate-50">
             Dành cho ai?
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-            <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-100 dark:from-blue-900/60 dark:to-cyan-900/60 dark:border-blue-700/40">
+            <Card className="bg-linear-to-br from-blue-50 to-cyan-50 border border-blue-100 dark:from-blue-900/60 dark:to-cyan-900/60 dark:border-blue-700/40">
               <CardBody className="p-6">
                 <div className="text-4xl mb-4">👨‍🎓</div>
                 <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-slate-50">
                   Sinh viên & Nhóm học tập
                 </h3>
                 <ul className="text-sm text-slate-700 dark:text-slate-200 space-y-2">
-                  <li>✅ Chat nhóm, chia sẻ tài liệu học tập</li>
-                  <li>✅ Tóm tắt bài giảng bằng AI</li>
-                  <li>✅ Quản lý deadline bài tập</li>
+                  <li>✅ Chat nhóm, chia sẻ tài liệu</li>
+                  <li>✅ Tóm tắt tài liệu bằng AI</li>
+                  <li>✅ Quản lý deadline trên kanban</li>
                   <li>✅ Ôn thi với Flashcards & Quiz</li>
                 </ul>
               </CardBody>
             </Card>
 
-            <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 dark:from-green-900/60 dark:to-emerald-900/60 dark:border-emerald-700/40">
+            <Card className="bg-linear-to-br from-emerald-50 to-teal-50 border border-emerald-100 dark:from-green-900/60 dark:to-emerald-900/60 dark:border-emerald-700/40">
               <CardBody className="p-6">
                 <div className="text-4xl mb-4">👨‍🏫</div>
                 <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-slate-50">
                   Giảng viên
                 </h3>
                 <ul className="text-sm text-slate-700 dark:text-slate-200 space-y-2">
-                  <li>✅ Tương tác với sinh viên realtime</li>
-                  <li>✅ Chia sẻ tài liệu giảng dạy</li>
-                  <li>✅ Tạo Quiz kiểm tra nhanh</li>
-                  <li>✅ Theo dõi tiến độ nhóm học</li>
+                  <li>✅ Voice / Video call với lớp</li>
+                  <li>✅ Soạn tài liệu cộng tác (Docs)</li>
+                  <li>✅ Tạo Quiz nhanh từ AI</li>
+                  <li>✅ Theo dõi tiến độ qua Todo</li>
                 </ul>
               </CardBody>
             </Card>
 
-            <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-100 dark:from-purple-900/60 dark:to-pink-900/60 dark:border-purple-700/40">
+            <Card className="bg-linear-to-br from-purple-50 to-pink-50 border border-purple-100 dark:from-purple-900/60 dark:to-pink-900/60 dark:border-purple-700/40">
               <CardBody className="p-6">
                 <div className="text-4xl mb-4">👨‍💼</div>
                 <h3 className="text-xl font-semibold mb-2 text-slate-900 dark:text-slate-50">
-                  Doanh nghiệp nhỏ
+                  Team nhỏ
                 </h3>
                 <ul className="text-sm text-slate-700 dark:text-slate-200 space-y-2">
-                  <li>✅ Quản lý dự án với Tasks</li>
-                  <li>✅ Lưu trữ tài liệu với Docs</li>
-                  <li>✅ Cộng tác nhóm hiệu quả</li>
-                  <li>✅ Dịch đa ngôn ngữ tự động</li>
+                  <li>✅ Kanban quản lý dự án</li>
+                  <li>✅ Doc cộng tác có comment</li>
+                  <li>✅ Họp video qua SFU</li>
+                  <li>✅ Tìm kiếm ngữ nghĩa</li>
                 </ul>
               </CardBody>
             </Card>
           </div>
         </section>
 
-        {/* Tech Stack Section */}
+        {/* Tech Stack */}
         <section>
-          <Card className="bg-gradient-to-br from-slate-100 to-slate-50 border border-slate-200 dark:from-slate-900 dark:to-slate-950 dark:border-slate-700/60">
+          <Card className="bg-linear-to-br from-slate-100 to-slate-50 border border-slate-200 dark:from-slate-900 dark:to-slate-950 dark:border-slate-700/60">
             <CardHeader className="flex flex-col items-center pb-0 pt-8">
               <ShieldCheckIcon className="w-12 h-12 text-primary-500 dark:text-primary-300 mb-4" />
               <h2 className="text-3xl font-bold text-center mb-2 text-slate-900 dark:text-slate-50">
-                Kiến trúc Microservices hiện đại
+                Kiến trúc microservices
               </h2>
               <p className="text-slate-600 dark:text-slate-300 text-center max-w-2xl">
-                Xây dựng trên nền tảng Node.js / NestJS, tối ưu cho realtime, mở
-                rộng ngang với Kafka & Docker.
+                9 service NestJS độc lập giao tiếp qua gRPC + Kafka, đóng gói
+                bằng Docker.
               </p>
             </CardHeader>
             <CardBody className="pt-8 pb-8">
@@ -475,19 +422,24 @@ export default function DashboardPage() {
                 {[
                   { name: "Node.js", color: "success" },
                   { name: "NestJS", color: "danger" },
+                  { name: "gRPC", color: "primary" },
+                  { name: "Kafka", color: "warning" },
                   { name: "MongoDB", color: "success" },
                   { name: "Redis", color: "danger" },
                   { name: "Socket.IO", color: "primary" },
-                  { name: "Kafka", color: "warning" },
+                  { name: "Mediasoup (SFU)", color: "secondary" },
                   { name: "Docker", color: "primary" },
                   { name: "Next.js 15", color: "default" },
-                  { name: "React Native", color: "primary" },
-                  { name: "OpenAI API", color: "success" },
-                  { name: "Google AI", color: "warning" },
-                  { name: "Hugging Face", color: "secondary" },
-                  { name: "Firebase", color: "danger" },
+                  { name: "BlockNote", color: "secondary" },
+                  { name: "Yjs (CRDT)", color: "warning" },
+                  { name: "HeroUI", color: "primary" },
+                  { name: "Tailwind", color: "secondary" },
                   { name: "TypeScript", color: "primary" },
-                  { name: "Tailwind v4", color: "secondary" },
+                  { name: "Google Generative AI", color: "success" },
+                  { name: "Firebase FCM", color: "danger" },
+                  { name: "Zustand", color: "default" },
+                  { name: "i18next", color: "primary" },
+                  { name: "React 19", color: "secondary" },
                 ].map((tech, index) => (
                   <Chip
                     key={index}
@@ -500,40 +452,40 @@ export default function DashboardPage() {
                 ))}
               </div>
 
-              {/* Architecture Highlight */}
               <div className="mt-8 max-w-4xl mx-auto">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
                   <div className="p-4 bg-white rounded-lg border border-slate-200 dark:bg-slate-900/80 dark:border-slate-700">
                     <div className="text-2xl font-bold text-primary-500 dark:text-primary-300 mb-1">
-                      8+
+                      9
                     </div>
                     <div className="text-sm text-slate-700 dark:text-slate-300">
-                      Microservices độc lập
+                      Microservices
                     </div>
                     <div className="text-xs text-slate-500 dark:text-slate-500 mt-1">
-                      User, Message, Docs, Tasks, AI...
+                      ai · auth · chat · socket · sfu · learning · notification
+                      · filesystem · api-gateway
                     </div>
                   </div>
                   <div className="p-4 bg-white rounded-lg border border-slate-200 dark:bg-slate-900/80 dark:border-slate-700">
                     <div className="text-2xl font-bold text-secondary-500 dark:text-secondary-300 mb-1">
-                      1000+
+                      gRPC + Kafka
                     </div>
                     <div className="text-sm text-slate-700 dark:text-slate-300">
-                      Concurrent connections
+                      Giao tiếp giữa service
                     </div>
                     <div className="text-xs text-slate-500 dark:text-slate-500 mt-1">
-                      Horizontal scaling với Kafka
+                      gRPC sync, Kafka event-driven async
                     </div>
                   </div>
                   <div className="p-4 bg-white rounded-lg border border-slate-200 dark:bg-slate-900/80 dark:border-slate-700">
                     <div className="text-2xl font-bold text-emerald-500 dark:text-emerald-300 mb-1">
-                      &lt; 1s
+                      Yjs
                     </div>
                     <div className="text-sm text-slate-700 dark:text-slate-300">
-                      Message latency trung bình
+                      Realtime collab
                     </div>
                     <div className="text-xs text-slate-500 dark:text-slate-500 mt-1">
-                      Realtime với Socket.IO
+                      CRDT cho Docs cộng tác đa người
                     </div>
                   </div>
                 </div>
@@ -544,14 +496,14 @@ export default function DashboardPage() {
 
         {/* Final CTA */}
         <section>
-          <Card className="bg-gradient-to-r from-primary-600 to-secondary-600 border-none">
+          <Card className="bg-linear-to-r from-primary-600 to-secondary-600 border-none">
             <CardBody className="py-10 text-center">
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-                Bắt đầu học tập thông minh hơn
+                Sẵn sàng dùng thử
               </h2>
               <p className="text-white/90 mb-8 max-w-xl mx-auto text-sm md:text-base">
-                Tham gia EduChat — Nền tảng chat tích hợp AI được thiết kế riêng
-                cho sinh viên, nhóm học tập và giảng viên.
+                Đăng ký tài khoản miễn phí để khám phá toàn bộ tính năng đã
+                triển khai.
               </p>
               <div className="flex justify-center gap-4 flex-wrap">
                 <Button
@@ -560,7 +512,7 @@ export default function DashboardPage() {
                   startContent={<RocketLaunchIcon className="w-5 h-5" />}
                   onPress={() => router.push("/auth/register")}
                 >
-                  Đăng ký miễn phí
+                  Đăng ký
                 </Button>
                 <Button
                   size="lg"
@@ -569,7 +521,7 @@ export default function DashboardPage() {
                   startContent={<AcademicCapIcon className="w-5 h-5" />}
                   onPress={() => router.push("/auth")}
                 >
-                  Dùng thử ngay
+                  Đăng nhập
                 </Button>
               </div>
             </CardBody>
@@ -578,14 +530,14 @@ export default function DashboardPage() {
 
         {/* Footer */}
         <footer className="text-center pt-4 pb-8 text-slate-500 dark:text-slate-500 text-sm space-y-1">
-          <p>🎓 EduChat — Nền tảng học tập thông minh với AI</p>
+          <p>🎓 EduChat — Đề tài tốt nghiệp UIT</p>
           <p>
-            Kiến trúc Microservices · 1000+ Concurrent Users · &lt;1s Latency ·
-            8+ AI Features
+            9 microservices · 8 AI endpoints · NestJS / Next.js / Yjs /
+            Mediasoup
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-600">
-            © 2025 EduChat. Đề tài nghiên cứu ứng dụng chat đa nền tảng tích hợp
-            AI phục vụ học tập.
+            © 2025 EduChat. Đề tài nghiên cứu nền tảng chat đa nền tảng tích
+            hợp AI phục vụ học tập.
           </p>
         </footer>
       </div>

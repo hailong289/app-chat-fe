@@ -3,7 +3,6 @@
 import { usePathname } from "next/navigation";
 import { Home } from "../left-page/home";
 import Contacts from "../left-page/contact";
-import Document from "../left-page/document";
 import Settings from "../left-page/settings";
 import useCounterStore from "@/store/useCounterStore";
 
@@ -19,7 +18,6 @@ export const LeftSide = () => {
   const renderPanel = () => {
     if (pathname === "/" || pathname.startsWith("/chat")) return <Home />;
     if (pathname.startsWith("/contacts")) return <Contacts />;
-    if (pathname.startsWith("/docs")) return <Document />;
     if (pathname.startsWith("/settings")) return <Settings />;
     // /flash-card, /todo, /call render their full page on the right side
     // and don't have a dedicated left-side panel — leave the area empty.

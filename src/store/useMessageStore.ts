@@ -80,7 +80,8 @@ export interface SendMessageArgs {
     | "gif"
     | "document"
     | "quiz"
-    | "todo_project";
+    | "todo_project"
+    | "flashcard";
   replyTo?: string;
   socket?: any; // Socket instance
   userId?: string; // User ID
@@ -90,6 +91,8 @@ export interface SendMessageArgs {
   todoProjectId?: string; // Todo project linkage for FE/UI rendering
   quizId?: string; // Quiz ID
   quiz?: import("@/types/quizz.type").QuizzResponse; // Full quiz object for optimistic UI
+  desk_id?: string; // Add desk_id
+  desk?: any; // Full desk object for optimistic UI
 }
 import { upsertOne, deleteOne } from "@/libs/crud";
 import { db } from "@/libs/db";
@@ -441,6 +444,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       isDeleted: false,
       read_by: [],
       quiz: args.quiz,
+      desk: args.desk,
     };
 
     // Thêm dữ liệu tạm
@@ -574,6 +578,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         id,
         documentId: args.documentId, // Send documentId
         quizId: args.quiz?._id, // Send quizId
+        desk_id: args.desk_id || args.desk?.deck_id,
         todoProjectId: args.todoProjectId,
       });
       get().autoMarkMessageSent(roomId, id, 3000);

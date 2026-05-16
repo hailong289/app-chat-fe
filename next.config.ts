@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
+  // Allow overriding output directory for local dev (useful when default .next is locked on Windows)
   reactStrictMode: false, // Disabled for React 19 / Next 15 BlockNote compatibility
   // Removed 'output: standalone' - using standard build for Docker
 
@@ -21,6 +23,25 @@ const nextConfig: NextConfig = {
         tls: false,
       };
     }
+
+    // Force a single Yjs instance across all chunks. Without this, the
+    // dynamic-imported BlockNoteEditor chunk resolves its own copy of yjs
+    // (BlockNote bundles it as a dependency) while the main page chunk
+    // resolves another copy via direct `import { Doc } from "yjs"`. Two
+    // modules → two `Y.Doc` constructors → `instanceof` checks fail and
+    // Yjs prints the well-known warning (see yjs/yjs#438). Aliasing to an
+    // absolute path collapses both back to one module instance.
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      yjs: path.resolve(__dirname, "node_modules/yjs"),
+      "y-protocols": path.resolve(__dirname, "node_modules/y-protocols"),
+      // Same dedup story as yjs: linkifyjs maintains internal "is initialized"
+      // state, so two bundled copies cause "already initialized — won't register
+      // custom scheme" warning when @tiptap/extension-link tries to add http/
+      // https schemes from a chunk that loaded its own linkifyjs.
+      linkifyjs: path.resolve(__dirname, "node_modules/linkifyjs"),
+    };
+
     return config;
   },
 
@@ -63,3 +84,5 @@ const nextConfig: NextConfig = {
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
 };
+
+export default nextConfig;
