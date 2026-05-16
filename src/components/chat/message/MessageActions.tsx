@@ -12,6 +12,14 @@ import {
   Popover,
   PopoverTrigger,
   PopoverContent,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Select,
+  SelectItem,
+  Spinner,
 } from "@heroui/react";
 import { FlashcardConfigModal } from "@/components/flash-card/modals/FlashcardConfigModal";
 import { useState } from "react";
@@ -19,6 +27,18 @@ import { MessageType } from "@/store/types/message.state";
 import { EMOJIS } from "../constants/messageConstants";
 import { canRecallMessage } from "../../../utils/messageHelpers";
 import { useTranslation } from "react-i18next";
+
+const TRANSLATE_LANGUAGE_OPTIONS = [
+  { code: "auto", label: "Tự động nhận diện" },
+  { code: "vi", label: "Tiếng Việt" },
+  { code: "en", label: "English" },
+  { code: "ja", label: "Japanese" },
+  { code: "ko", label: "Korean" },
+  { code: "zh", label: "Chinese" },
+  { code: "fr", label: "French" },
+  { code: "de", label: "German" },
+  { code: "es", label: "Spanish" },
+] as const;
 interface MessageActionsProps {
   readonly msg: MessageType;
   readonly socket: any;
@@ -29,8 +49,20 @@ interface MessageActionsProps {
   readonly onRecall: (msg: MessageType) => void;
   readonly onTogglePin: (msg: MessageType) => void;
   readonly onCopy: (content: string) => void;
-  readonly onTranslate?: (msg: MessageType) => void;
+  readonly onTranslate?: (
+    msg: MessageType,
+    targetLanguage?: string,
+    sourceLanguage?: string,
+  ) => void;
   readonly onSummarize?: (msg: MessageType) => void;
+  readonly onTranslateProgress?: (state: {
+    isLoading: boolean;
+    text: string;
+  }) => void;
+  readonly onSummarizeProgress?: (state: {
+    isLoading: boolean;
+    text: string;
+  }) => void;
   readonly noAction?: boolean;
   readonly isMine: boolean;
   readonly hiddenByMe: boolean;
@@ -48,6 +80,8 @@ export function MessageActions({
   onCopy,
   onTranslate,
   onSummarize,
+  onTranslateProgress,
+  onSummarizeProgress,
   noAction = false,
   isMine,
   hiddenByMe,
@@ -56,21 +90,43 @@ export function MessageActions({
   const [isTranslating, setIsTranslating] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+  const [isTranslateModalOpen, setIsTranslateModalOpen] = useState(false);
+  const [sourceLanguage, setSourceLanguage] = useState("auto");
+  const [targetLanguage, setTargetLanguage] = useState("vi");
 
   const canTranslate = msg.type === "text" && !!onTranslate;
   const canSummarize =
     !!onSummarize &&
     (msg.type === "document" || (msg.attachments?.length ?? 0) > 0);
+  const hasUsableAttachment =
+    (msg.attachments || []).some((a) => Boolean(a.uploadedUrl || a.url));
   const canGenerateFlashcard =
-    msg.type === "text" || msg.type === "document" || (msg.attachments?.length ?? 0) > 0;
+    msg.type === "document" || hasUsableAttachment;
 
   const handleTranslate = async () => {
     if (!onTranslate) return;
+    setIsTranslateModalOpen(false);
     try {
       setIsTranslating(true);
-      await onTranslate(msg);
+      onTranslateProgress?.({
+        isLoading: true,
+        text: "Đang gửi yêu cầu dịch...",
+      });
+      await Promise.resolve();
+      onTranslateProgress?.({
+        isLoading: true,
+        text: `Đang dịch ${sourceLanguage === "auto" ? "tự động nhận diện" : sourceLanguage} -> ${targetLanguage}...`,
+      });
+      await onTranslate(msg, targetLanguage, sourceLanguage);
+      onTranslateProgress?.({
+        isLoading: false,
+        text: "Đã hoàn tất dịch.",
+      });
     } finally {
       setIsTranslating(false);
+      setTimeout(() => {
+        onTranslateProgress?.({ isLoading: false, text: "" });
+      }, 1200);
     }
   };
 
@@ -78,9 +134,25 @@ export function MessageActions({
     if (!onSummarize) return;
     try {
       setIsSummarizing(true);
+      onSummarizeProgress?.({
+        isLoading: true,
+        text: "Đang gửi yêu cầu tóm tắt...",
+      });
+      await Promise.resolve();
+      onSummarizeProgress?.({
+        isLoading: true,
+        text: "AI đang đọc tài liệu và tóm tắt nội dung...",
+      });
       await onSummarize(msg);
+      onSummarizeProgress?.({
+        isLoading: false,
+        text: "Đã tóm tắt xong tài liệu.",
+      });
     } finally {
       setIsSummarizing(false);
+      setTimeout(() => {
+        onSummarizeProgress?.({ isLoading: false, text: "" });
+      }, 1200);
     }
   };
   // Actions are hidden for deleted/hidden messages
@@ -135,7 +207,7 @@ export function MessageActions({
             {canTranslate ? (
               <DropdownItem
                 key="translate"
-                onPress={handleTranslate}
+                onPress={() => setIsTranslateModalOpen(true)}
                 isDisabled={isTranslating}
               >
                 {isTranslating
@@ -263,6 +335,51 @@ export function MessageActions({
       msg={msg}
       onClose={() => setIsConfigModalOpen(false)}
     />
+
+    <Modal isOpen={isTranslateModalOpen} onClose={() => setIsTranslateModalOpen(false)} placement="center">
+      <ModalContent>
+        <ModalHeader>Dịch tin nhắn</ModalHeader>
+        <ModalBody className="space-y-3">
+          <Select
+            label="Ngôn ngữ tin nhắn"
+            selectedKeys={new Set([sourceLanguage])}
+            onSelectionChange={(keys) => {
+              const selected = Array.from(keys)[0] as string;
+              if (selected) setSourceLanguage(selected);
+            }}
+          >
+            {TRANSLATE_LANGUAGE_OPTIONS.map((lang) => (
+              <SelectItem key={lang.code}>{lang.label}</SelectItem>
+            ))}
+          </Select>
+          <Select
+            label="Ngôn ngữ đích"
+            selectedKeys={new Set([targetLanguage])}
+            onSelectionChange={(keys) => {
+              const selected = Array.from(keys)[0] as string;
+              if (selected) setTargetLanguage(selected);
+            }}
+          >
+            {TRANSLATE_LANGUAGE_OPTIONS.map((lang) => (
+              <SelectItem key={lang.code}>{lang.label}</SelectItem>
+            ))}
+          </Select>
+
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            variant="light"
+            onPress={() => setIsTranslateModalOpen(false)}
+            isDisabled={isTranslating}
+          >
+            Hủy
+          </Button>
+          <Button color="primary" onPress={handleTranslate} isLoading={isTranslating}>
+            Dịch
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
     </>
   );
 }

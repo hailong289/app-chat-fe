@@ -68,6 +68,8 @@ export function FlashcardConfigModal({
   const [cardCount, setCardCount] = useState(10);
   const [difficulty, setDifficulty] = useState(3);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [streamPreview, setStreamPreview] = useState("");
+  const [generatedCardsCount, setGeneratedCardsCount] = useState(0);
 
   // --- Result step ---
   const [deckName, setDeckName] = useState("");
@@ -84,6 +86,8 @@ export function FlashcardConfigModal({
 
   const handleClose = () => {
     setStep("config");
+    setStreamPreview("");
+    setGeneratedCardsCount(0);
     onClose();
   };
 
@@ -91,6 +95,8 @@ export function FlashcardConfigModal({
 
   const handleGenerate = async () => {
     setIsGenerating(true);
+    setStreamPreview("");
+    setGeneratedCardsCount(0);
     try {
       let payload: FormData | Record<string, unknown>;
 
@@ -121,7 +127,17 @@ export function FlashcardConfigModal({
         };
       }
 
-      const data = await flashcardService.generateFlashcard(payload);
+      const data = await flashcardService.generateFlashcard(payload, {
+        onChunk: (chunk) => {
+          setStreamPreview((prev) => {
+            const next = `${prev}${chunk}`;
+            const tail = next.length > 12000 ? next.slice(-12000) : next;
+            const estimatedCount = tail.match(/"card_front"\s*:/g)?.length ?? 0;
+            setGeneratedCardsCount(estimatedCount);
+            return tail;
+          });
+        },
+      });
       applyGeneratedData(data);
       setStep("result");
     } catch (error) {
@@ -249,6 +265,15 @@ export function FlashcardConfigModal({
   };
 
   // ---------- render ----------
+  const progressCurrent = Math.min(generatedCardsCount, cardCount);
+  const progressPercent = Math.min(
+    100,
+    Math.round((progressCurrent / Math.max(cardCount, 1)) * 100),
+  );
+  const progressText =
+    generatedCardsCount > 0
+      ? `AI đang tạo ${progressCurrent}/${cardCount} thẻ (${progressPercent}%)`
+      : "AI đang phân tích tài liệu và chuẩn bị flashcard...";
 
   return (
     <Modal
@@ -298,6 +323,19 @@ export function FlashcardConfigModal({
                   </SelectItem>
                 ))}
               </Select>
+              {isGenerating && (
+                <div className="w-full p-3 rounded-lg bg-default-100/60 border border-default-200">
+                  <p className="text-xs uppercase tracking-wide text-default-500 mb-2">
+                    Tiến trình AI
+                  </p>
+                  <p className="text-sm text-default-600/90">{progressText}</p>
+                  <p className="text-xs text-default-500/80 mt-1 line-clamp-2">
+                    {streamPreview
+                      ? "AI đang suy nghĩ và sinh nội dung thẻ..."
+                      : "Đang chờ dữ liệu stream từ AI..."}
+                  </p>
+                </div>
+              )}
             </>
           ) : (
             <div className="space-y-5">

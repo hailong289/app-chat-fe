@@ -7,6 +7,7 @@ import { MessageActions } from "./MessageActions";
 import { MessageReactions } from "./MessageReactions";
 import { ReplyPreview } from "./ReplyPreview";
 import { QuizMessageCard } from "./QuizMessageCard";
+import { FlashcardDeckMessageCard } from "./FlashcardDeckMessageCard";
 import { SystemMessageBubble } from "./SystemMessageBubble";
 import { MessageType } from "@/store/types/message.state";
 import { ArrowPathIcon, EyeDropperIcon } from "@heroicons/react/16/solid";
@@ -37,14 +38,18 @@ interface MessageItemProps {
   onRecall: (msg: MessageType) => void;
   onTogglePin: (msg: MessageType) => void;
   onCopy: (content: string) => void;
-  onTranslate: (msg: MessageType) => void;
+  onTranslate: (
+    msg: MessageType,
+    targetLanguage?: string,
+    sourceLanguage?: string,
+  ) => void;
   onSummarize: (msg: MessageType) => void;
   onJumpToMessage: (id: string) => void;
   setMessageRef: (id: string) => (el: HTMLElement | null) => void;
   messageState: any;
 }
 
-import { memo, useEffect } from "react";
+import { memo, useEffect, useState } from "react";
 import isEqual from "react-fast-compare";
 
 export const MessageItem = memo(
@@ -85,6 +90,20 @@ export const MessageItem = memo(
     const hiddenByMe = currentUserId
       ? (msg.hiddenBy?.includes(currentUserId) ?? false)
       : false;
+    const [translateProgress, setTranslateProgress] = useState<{
+      isLoading: boolean;
+      text: string;
+    }>({
+      isLoading: false,
+      text: "",
+    });
+    const [summaryProgress, setSummaryProgress] = useState<{
+      isLoading: boolean;
+      text: string;
+    }>({
+      isLoading: false,
+      text: "",
+    });
 
     useEffect(() => {
       if (renderedMessageIds && !renderedMessageIds.current.has(msg.id)) {
@@ -343,6 +362,34 @@ export const MessageItem = memo(
       );
     }
 
+    // Flashcard Deck message — layout riêng, căn giữa (giống quiz)
+    if (msg.type === "flashcard" && msg.desk && !msg.isDeleted) {
+      return (
+        <div className={messageSpacing}>
+          <motion.div
+            layout
+            key={`msg-box-${msg.id}`}
+            initial={shouldAnimateThis ? { opacity: 0, y: 10, scale: 0.95 } : false}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={shouldAnimateThis ? { opacity: 0, scale: 0.95 } : undefined}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+          >
+            <UnreadDivider />
+            <div
+              ref={setMessageRef(msg.id)}
+              data-mid={msg.id}
+              className="flex flex-col items-center gap-1.5 px-4 py-1"
+            >
+              <FlashcardDeckMessageCard deck={msg.desk} isSender={isMine} />
+              <span className="text-[11px] text-default-400">
+                {msg.sender.fullname} • {formatMessageTime(msg.createdAt)}
+              </span>
+            </div>
+          </motion.div>
+        </div>
+      );
+    }
+
     return (
       <div className={messageSpacing}>
         <motion.div
@@ -421,6 +468,8 @@ export const MessageItem = memo(
                       onCopy={onCopy}
                       onTranslate={onTranslate}
                       onSummarize={onSummarize}
+                      onTranslateProgress={setTranslateProgress}
+                      onSummarizeProgress={setSummaryProgress}
                       isMine={isMine}
                       hiddenByMe={hiddenByMe}
                     />
@@ -481,6 +530,45 @@ export const MessageItem = memo(
                       msg.reactions.length > 0 && (
                         <MessageReactions reactions={msg.reactions} />
                       )}
+
+                    {msg.summary?.text && msg.type !== "document" && (
+                      <div
+                        className={`mt-2 rounded-lg border px-3 py-2 text-xs leading-relaxed shadow-sm ${
+                          isMine
+                            ? "bg-blue-50 border-blue-200 text-blue-900 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-100"
+                            : "bg-gray-50 border-gray-200 text-gray-800 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                        }`}
+                      >
+                        <div className="font-semibold mb-1">Tóm tắt tài liệu</div>
+                        <p className="whitespace-pre-wrap">{msg.summary.text}</p>
+                      </div>
+                    )}
+
+                    {translateProgress.text && (
+                      <div
+                        className={`mt-1 flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 ${
+                          isMine ? "justify-end" : "justify-start"
+                        }`}
+                      >
+                        {translateProgress.isLoading && (
+                          <Spinner size="sm" color="default" />
+                        )}
+                        <span>{translateProgress.text}</span>
+                      </div>
+                    )}
+
+                    {summaryProgress.text && (
+                      <div
+                        className={`mt-1 flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 ${
+                          isMine ? "justify-end" : "justify-start"
+                        }`}
+                      >
+                        {summaryProgress.isLoading && (
+                          <Spinner size="sm" color="default" />
+                        )}
+                        <span>{summaryProgress.text}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
