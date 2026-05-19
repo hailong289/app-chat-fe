@@ -140,8 +140,8 @@ function normalizeSummaryPayload(value: unknown): SummaryDocumentResponse | unde
       : undefined;
   const keyPoints = rawKeyPoints
     ? rawKeyPoints
-        .filter((x): x is string => typeof x === "string")
-        .map((x) => normalizeTextWhitespace(x))
+      .filter((x): x is string => typeof x === "string")
+      .map((x) => normalizeTextWhitespace(x))
     : undefined;
   const language = typeof obj.language === "string" ? obj.language : undefined;
 
@@ -219,15 +219,15 @@ export const aiService = {
     const body =
       payload.type === "document"
         ? (() => {
-            const form = new FormData();
-            form.append("file", payload.file);
-            form.append("type", "document");
-            return form;
-          })()
+          const form = new FormData();
+          form.append("file", payload.file);
+          form.append("type", "document");
+          return form;
+        })()
         : JSON.stringify({
-            type: "file_url",
-            file_url: payload.file_url,
-          });
+          type: "file_url",
+          file_url: payload.file_url,
+        });
 
     const { metadata, chunks } = await consumeAiSse("/ai/stream/summary-document", {
       method: "POST",
