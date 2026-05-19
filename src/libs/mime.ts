@@ -11,3 +11,18 @@ export function pickAudioMime() {
   }
   return { mimeType: "", ext: "webm" };
 }
+
+export function getSupportedMimeType(): string {
+  if (typeof window === "undefined" || typeof MediaRecorder === "undefined") {
+    return "audio/webm";
+  }
+
+  const types = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/ogg;codecs=opus",
+    "audio/mp4",
+  ];
+
+  return types.find((type) => MediaRecorder.isTypeSupported(type)) ?? "audio/webm";
+}
