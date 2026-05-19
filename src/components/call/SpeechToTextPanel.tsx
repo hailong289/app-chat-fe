@@ -43,6 +43,8 @@ interface SpeechToTextPanelProps {
   /** Current speech recognition language code e.g. "vi-VN" */
   lang: string;
   onLangChange: (lang: string) => void;
+  sttEngine: "browser" | "google";
+  onSttEngineChange: (engine: "browser" | "google") => void;
 }
 
 export function SpeechToTextPanel({
@@ -55,6 +57,8 @@ export function SpeechToTextPanel({
   onClose,
   lang,
   onLangChange,
+  sttEngine,
+  onSttEngineChange,
 }: SpeechToTextPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLangMenu, setShowLangMenu] = useState(false);
@@ -129,7 +133,7 @@ export function SpeechToTextPanel({
         .map((s) => {
           const tr = translations.get(s.id);
           const trText = tr?.translated ? ` → ${tr.translated}` : "";
-          return `[${s.timestamp}] ${s.text}${trText}`;
+          return `[${s.timestamp}] [${s.speaker}] ${s.text}${trText}`;
         })
         .join("\n");
       if (text) navigator.clipboard.writeText(text).catch(() => {});
@@ -137,9 +141,10 @@ export function SpeechToTextPanel({
   }, [isVietnamese, onCopy, segments, translations]);
 
   return (
-    <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-40 w-[min(540px,92vw)] bg-black/85 backdrop-blur-md rounded-2xl border border-white/15 shadow-2xl flex flex-col overflow-hidden">
+    <div className="absolute inset-y-0 right-0 z-40 flex h-full w-full max-w-[420px] flex-col overflow-hidden border-l border-white/15 bg-black/90 shadow-2xl backdrop-blur-md sm:w-[420px]">
       {/* Header */}
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
+      <div className="shrink-0 border-b border-white/10 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2">
         {isListening && (
           <span className="relative flex h-2.5 w-2.5 shrink-0">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
@@ -150,6 +155,22 @@ export function SpeechToTextPanel({
           Phiên Âm Giọng Nói
           {isListening && <span className="text-red-400 ml-2 text-xs">● LIVE</span>}
         </span>
+
+        <select
+          title="Chọn engine nhận dạng"
+          value={sttEngine}
+          onChange={(e) =>
+            onSttEngineChange(e.target.value as "browser" | "google")
+          }
+          className="max-w-28 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg px-2 py-1.5 outline-none"
+        >
+          <option className="bg-gray-900 text-white" value="google">
+            Google AI
+          </option>
+          <option className="bg-gray-900 text-white" value="browser">
+            Browser
+          </option>
+        </select>
 
         {/* Lang picker button */}
         <div className="relative">
@@ -165,7 +186,7 @@ export function SpeechToTextPanel({
 
           {/* Dropdown */}
           {showLangMenu && (
-            <div className="absolute bottom-full mb-2 right-0 bg-gray-900 border border-white/15 rounded-xl shadow-2xl overflow-hidden z-50 w-52">
+            <div className="absolute right-0 top-full mt-2 bg-gray-900 border border-white/15 rounded-xl shadow-2xl overflow-hidden z-50 w-52">
               <div className="text-white/40 text-[10px] font-semibold uppercase px-3 py-1.5 border-b border-white/10">
                 Ngôn ngữ nhận dạng
               </div>
@@ -222,18 +243,28 @@ export function SpeechToTextPanel({
         >
           <XMarkIcon className="w-4 h-4" />
         </button>
+        </div>
       </div>
 
       {/* Transcript body */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 max-h-64 min-h-[80px]"
+        className="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-2.5"
         onClick={() => setShowLangMenu(false)}
       >
         {!isSupported ? (
           <p className="text-white/50 text-xs text-center py-4">
-            Trình duyệt không hỗ trợ Speech Recognition.<br />
-            Hãy dùng Chrome hoặc Edge.
+            {sttEngine === "google" ? (
+              <>
+                Trình duyệt không hỗ trợ thu âm MediaRecorder.<br />
+                Hãy đổi sang Browser STT hoặc dùng Chrome/Edge.
+              </>
+            ) : (
+              <>
+                Trình duyệt không hỗ trợ Speech Recognition.<br />
+                Hãy dùng Chrome hoặc Edge.
+              </>
+            )}
           </p>
         ) : segments.length === 0 ? (
           <p className="text-white/40 text-xs text-center py-4 select-none">
@@ -250,6 +281,9 @@ export function SpeechToTextPanel({
                   {seg.timestamp}
                 </span>
                 <div className="flex-1 min-w-0 space-y-0.5">
+                  <span className="text-white/45 text-[10px] font-semibold leading-none">
+                    {seg.speaker}
+                  </span>
                   {/* Original text */}
                   <p
                     className={`text-sm leading-relaxed break-words ${
@@ -280,7 +314,7 @@ export function SpeechToTextPanel({
       </div>
 
       {/* Footer: toggle button */}
-      <div className="px-4 py-3 border-t border-white/10 flex items-center gap-3">
+      <div className="shrink-0 px-4 py-3 border-t border-white/10 flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => { setShowLangMenu(false); onToggle(); }}

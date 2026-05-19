@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Socket } from "socket.io-client";
 
 export interface SpeechSegment {
   id: string;
@@ -15,6 +16,21 @@ interface UseSpeechToTextOptions {
   /** Called whenever a new final/interim segment is emitted */
   onSegment?: (seg: SpeechSegment) => void;
   speakerName?: string;
+  /** Socket.IO client connected to the /call namespace */
+  socket?: Socket | null;
+  /** Current call room id */
+  roomId?: string | null;
+  /** Fallback display name for remote STT segments */
+  remoteSpeakerName?: string;
+}
+
+interface RemoteSttPayload {
+  actionUserId?: string;
+  roomId?: string;
+  speaker?: string;
+  text: string;
+  isFinal: boolean;
+  timestamp?: string;
 }
 
 const SpeechRecognitionAPI =
@@ -26,6 +42,9 @@ export function useSpeechToText({
   lang = "vi-VN",
   onSegment,
   speakerName = "Bạn",
+  socket,
+  roomId,
+  remoteSpeakerName = "Người tham gia",
 }: UseSpeechToTextOptions = {}) {
   const [isListening, setIsListening] = useState(false);
   const [segments, setSegments] = useState<SpeechSegment[]>([]);
@@ -36,6 +55,12 @@ export function useSpeechToText({
   onSegmentRef.current = onSegment;
   const speakerNameRef = useRef(speakerName);
   speakerNameRef.current = speakerName;
+  const socketRef = useRef(socket);
+  socketRef.current = socket;
+  const roomIdRef = useRef(roomId);
+  roomIdRef.current = roomId;
+  const remoteSpeakerNameRef = useRef(remoteSpeakerName);
+  remoteSpeakerNameRef.current = remoteSpeakerName;
 
   const start = useCallback(() => {
     if (!SpeechRecognitionAPI || isListening) return;
@@ -72,6 +97,16 @@ export function useSpeechToText({
           });
           interimIdRef.current = null;
           onSegmentRef.current?.(finalSeg);
+
+          if (socketRef.current && roomIdRef.current) {
+            socketRef.current.emit("call:stt-segment", {
+              roomId: roomIdRef.current,
+              speaker: speakerNameRef.current,
+              text: transcript,
+              isFinal: true,
+              timestamp: finalSeg.timestamp,
+            });
+          }
         } else {
           // Interim: update or create an interim segment
           setSegments((prev) => {
@@ -141,6 +176,37 @@ export function useSpeechToText({
     setSegments([]);
     interimIdRef.current = null;
   }, []);
+
+  useEffect(() => {
+    if (!socket || !roomId) return;
+
+    const handleRemoteStt = (data: RemoteSttPayload) => {
+      if (data.roomId && data.roomId !== roomIdRef.current) return;
+
+      const remoteSeg: SpeechSegment = {
+        id: Date.now().toString() + Math.random(),
+        speaker: data.speaker || remoteSpeakerNameRef.current,
+        text: data.text,
+        isFinal: data.isFinal,
+        timestamp:
+          data.timestamp ||
+          new Date().toLocaleTimeString("vi-VN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          }),
+      };
+
+      setSegments((prev) => [...prev, remoteSeg]);
+      onSegmentRef.current?.(remoteSeg);
+    };
+
+    socket.on("call:stt-segment", handleRemoteStt);
+
+    return () => {
+      socket.off("call:stt-segment", handleRemoteStt);
+    };
+  }, [socket, roomId]);
 
   // Cleanup on unmount
   useEffect(() => {
