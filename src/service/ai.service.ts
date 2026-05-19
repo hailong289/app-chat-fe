@@ -140,8 +140,8 @@ function normalizeSummaryPayload(value: unknown): SummaryDocumentResponse | unde
       : undefined;
   const keyPoints = rawKeyPoints
     ? rawKeyPoints
-        .filter((x): x is string => typeof x === "string")
-        .map((x) => normalizeTextWhitespace(x))
+      .filter((x): x is string => typeof x === "string")
+      .map((x) => normalizeTextWhitespace(x))
     : undefined;
   const language = typeof obj.language === "string" ? obj.language : undefined;
 
@@ -219,15 +219,15 @@ export const aiService = {
     const body =
       payload.type === "document"
         ? (() => {
-            const form = new FormData();
-            form.append("file", payload.file);
-            form.append("type", "document");
-            return form;
-          })()
+          const form = new FormData();
+          form.append("file", payload.file);
+          form.append("type", "document");
+          return form;
+        })()
         : JSON.stringify({
-            type: "file_url",
-            file_url: payload.file_url,
-          });
+          type: "file_url",
+          file_url: payload.file_url,
+        });
 
     const { metadata, chunks } = await consumeAiSse("/ai/stream/summary-document", {
       method: "POST",
@@ -287,17 +287,17 @@ export const aiService = {
     to?: string;
     groupBy?: 'service' | 'userId' | 'day';
   }): Promise<UsageReportResponse> => {
-    const response = await apiService.get<UsageReportResponse>(
-      "/ai/usage/report",
-      params,
-    );
+    const response = await apiService.get("/ai/usage/report", params);
+    const fallback: UsageReportResponse = {
+      groupBy: params?.groupBy || 'service',
+      total: 0,
+      items: [],
+    };
+    const data = response.data;
     // response.data is the raw gRPC response (no metadata wrapper)
-    return (
-      response.data ?? {
-        groupBy: params?.groupBy ?? "service",
-        total: 0,
-        items: [],
-      }
-    );
+    if (!data || typeof data !== "object" || !("groupBy" in data)) {
+      return fallback;
+    }
+    return data as UsageReportResponse;
   },
 };

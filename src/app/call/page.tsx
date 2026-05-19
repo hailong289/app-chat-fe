@@ -24,6 +24,7 @@ import { CallMember } from "@/store/types/call.state";
 import { useTranslation } from "react-i18next";
 import { isTauriRuntime } from "@/libs/helpers";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
+import { useGoogleStt } from "@/hooks/useGoogleStt";
 import { SpeechToTextPanel } from "@/components/call/SpeechToTextPanel";
 
 function CallPageContentInner() {
@@ -37,6 +38,7 @@ function CallPageContentInner() {
   // ─── Speech-to-Text state ─────────────────────────────────────────────────
   const [isSttPanelOpen, setIsSttPanelOpen] = useState(false);
   const [sttLang, setSttLang] = useState("vi-VN");
+  const [sttEngine, setSttEngine] = useState<"browser" | "google">("google");
 
   const closeTauriOrBrowserWindow = useCallback(async (): Promise<boolean> => {
     if (isTauriRuntime()) {
@@ -92,13 +94,6 @@ function CallPageContentInner() {
 
   const currentUser = useAuthStore((state) => state.user);
   const currentUserId = currentUser?.id;
-
-  // ─── Speech-to-Text (Web Speech API) ─────────────────────────────────────
-  const stt = useSpeechToText({ lang: sttLang, speakerName: currentUser?.fullname || "Bạn" });
-  const handleSttCopy = useCallback(() => {
-    const text = stt.segments.filter(s => s.isFinal).map(s => `[${s.timestamp}] ${s.text}`).join("\n");
-    if (text) navigator.clipboard.writeText(text).catch(() => {});
-  }, [stt.segments]);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
@@ -189,6 +184,56 @@ function CallPageContentInner() {
 
   } = useCallStore();
 
+  // ─── Speech-to-Text (Web Speech API) ─────────────────────────────────────
+  const remoteMember = members.find((m: CallMember) => m.id !== currentUserId);
+  const remoteSpeakerName = remoteMember?.fullname || "Người tham gia";
+  const sttBrowser = useSpeechToText({
+    lang: sttLang,
+    speakerName: currentUser?.fullname || "Bạn",
+    socket,
+    roomId,
+    remoteSpeakerName,
+  });
+  const sttGoogle = useGoogleStt({
+    socket,
+    roomId,
+    speakerName: currentUser?.fullname || "Bạn",
+    remoteSpeakerName,
+    language: sttLang.startsWith("vi") ? "vi" : "en",
+    chunkDurationMs: 3000,
+    onError: (message) => {
+      console.warn("[GoogleSTT]", message);
+      setSttEngine((current) =>
+        current === "google" ? "browser" : current,
+      );
+    },
+  });
+  const stt = sttEngine === "google" ? sttGoogle : sttBrowser;
+  const stopBrowserStt = sttBrowser.stop;
+  const stopGoogleStt = sttGoogle.stop;
+  const clearBrowserStt = sttBrowser.clear;
+  const clearGoogleStt = sttGoogle.clear;
+
+  useEffect(() => {
+    if (sttEngine === "google") {
+      stopBrowserStt();
+    } else {
+      stopGoogleStt();
+    }
+  }, [sttEngine, stopBrowserStt, stopGoogleStt]);
+
+  const handleSttCopy = useCallback(() => {
+    const text = stt.segments
+      .filter((s) => s.isFinal)
+      .map((s) => `[${s.timestamp}] [${s.speaker}] ${s.text}`)
+      .join("\n");
+    if (text) navigator.clipboard.writeText(text).catch(() => {});
+  }, [stt.segments]);
+
+  const handleSttClear = useCallback(() => {
+    clearBrowserStt();
+    clearGoogleStt();
+  }, [clearBrowserStt, clearGoogleStt]);
 
   // ─── Active speaker detection (Web Audio level meter) ───────────────────
   //
@@ -1806,7 +1851,7 @@ function CallPageContentInner() {
           isSupported={stt.isSupported}
           segments={stt.segments}
           onToggle={stt.toggle}
-          onClear={stt.clear}
+          onClear={handleSttClear}
           onCopy={handleSttCopy}
           onClose={() => {
             stt.stop();
@@ -1814,6 +1859,8 @@ function CallPageContentInner() {
           }}
           lang={sttLang}
           onLangChange={setSttLang}
+          sttEngine={sttEngine}
+          onSttEngineChange={setSttEngine}
         />
       )}
 
