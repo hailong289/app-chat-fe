@@ -37,6 +37,7 @@ function CallPageContentInner() {
 
   // ─── Speech-to-Text state ─────────────────────────────────────────────────
   const [isSttPanelOpen, setIsSttPanelOpen] = useState(false);
+  const [videoAreaShifted, setVideoAreaShifted] = useState(false);
   const [sttLang, setSttLang] = useState("vi-VN");
   const [sttEngine, setSttEngine] = useState<"browser" | "google">("google");
 
@@ -1414,7 +1415,7 @@ function CallPageContentInner() {
           overlay an avatar so the UI doesn't show a confusing black box.
           callType (audio/video) only controls the initial camera state on
           accept; runtime UI is unified. */}
-      <div className="absolute inset-0 bg-black">
+      <div className={`absolute inset-y-0 left-0 bg-black transition-all duration-300 ease-in-out ${videoAreaShifted ? 'right-[420px]' : 'right-0'}`}>
         {remoteStreams.size > 0 || userIdGhimmed ? (
           userIdGhimmed || remoteStreams.size === 1 ? (
             // Single stream - full screen (Pinned or only one remote)
@@ -1632,7 +1633,7 @@ function CallPageContentInner() {
           rendering this floating PiP would duplicate + overlap the strip. */}
       {isCameraEnabled && localStream && remoteStreams.size > 0 && !isPipOverlayActive && (
         <div
-          className="absolute bottom-24 right-4 w-48 h-36 rounded-lg overflow-hidden border-2 border-white shadow-lg z-20"
+          className={`absolute bottom-24 w-48 h-36 rounded-lg overflow-hidden border-2 border-white shadow-lg z-20 transition-all duration-300 ease-in-out ${videoAreaShifted ? 'right-[436px]' : 'right-4'}`}
         >
           <video
             ref={(el) => {
@@ -1723,7 +1724,7 @@ function CallPageContentInner() {
       )}
 
       {/* Call info overlay */}
-      <div className="absolute top-8 left-1/2 transform -translate-x-1/2 text-center z-10">
+      <div className={`absolute top-8 text-center z-10 transition-all duration-300 ease-in-out ${videoAreaShifted ? 'left-[calc(50%-210px)] -translate-x-1/2' : 'left-1/2 -translate-x-1/2'}`}>
         <h2 className="text-white text-xl font-semibold mb-1">
           {callStatus === "accepted"
             ? t("callPage.status.connected")
@@ -1741,7 +1742,7 @@ function CallPageContentInner() {
         window opens. The popup always lands on status='joined' (or 'calling'
         for caller / 'accepted' once member-joined arrives).
       */}
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4 z-10">
+      <div className={`absolute bottom-8 flex items-center gap-4 z-10 transition-all duration-300 ease-in-out ${videoAreaShifted ? 'left-[calc(50%-210px)] -translate-x-1/2' : 'left-1/2 -translate-x-1/2'}`}>
         <Button
           color={isMicEnabled ? "danger" : "default"}
               className={`rounded-full h-14 w-14 p-0 backdrop-blur-sm ${
@@ -1833,9 +1834,11 @@ function CallPageContentInner() {
                 onPress={() => {
                   if (!isSttPanelOpen) {
                     setIsSttPanelOpen(true);
+                    setVideoAreaShifted(true);
                   } else {
                     if (stt.isListening) stt.stop();
                     setIsSttPanelOpen(false);
+                    setVideoAreaShifted(false);
                   }
                 }}
               >
@@ -1856,6 +1859,7 @@ function CallPageContentInner() {
           onClose={() => {
             stt.stop();
             setIsSttPanelOpen(false);
+            setVideoAreaShifted(false);
           }}
           lang={sttLang}
           onLangChange={setSttLang}
