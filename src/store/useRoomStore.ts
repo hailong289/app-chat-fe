@@ -548,6 +548,41 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       return { rooms: updatedRooms, room: updatedRoom, isLoading: false };
     });
   },
+  updatePinnedMessageFromSocket: (roomId: string, msg: { id: string; content: string; type?: string; pinned: boolean }) => {
+    set((state) => {
+      const targetRoom = state.rooms.find((r) => r.id === roomId || r.roomId === roomId);
+      if (!targetRoom) return state;
+
+      const pinnedMessages = targetRoom.pinned_messages || [];
+      const exists = pinnedMessages.some((pm) => pm.id === msg.id);
+
+      let updatedPinnedMessages: typeof pinnedMessages;
+      if (msg.pinned && !exists) {
+        updatedPinnedMessages = [...pinnedMessages, { id: msg.id, content: msg.content, type: msg.type || 'text' }];
+      } else if (!msg.pinned && exists) {
+        updatedPinnedMessages = pinnedMessages.filter((pm) => pm.id !== msg.id);
+      } else {
+        return state; // no change
+      }
+
+      const updatedRooms = state.rooms.map((r) =>
+        r.id === targetRoom.id || r.roomId === roomId
+          ? {
+              ...r,
+              pinned_messages: updatedPinnedMessages,
+              pinned_count: updatedPinnedMessages.length,
+            }
+          : r,
+      );
+
+      const updatedRoom =
+        state.room?.id === targetRoom.id
+          ? { ...state.room, pinned_messages: updatedPinnedMessages, pinned_count: updatedPinnedMessages.length }
+          : state.room;
+
+      return { rooms: updatedRooms, room: updatedRoom };
+    });
+  },
   getRoomByRoomId: (roomId: string) => {
     const room = get().rooms.find((r) => r.id === roomId);
     return room;

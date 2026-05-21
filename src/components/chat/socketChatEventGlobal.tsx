@@ -40,6 +40,27 @@ export const SocketEventChatGlobal = () => {
   const onCallBusy = useRef((payload: any) =>
     useCallStore.getState().eventCall("busy", payload)
   );
+
+  // ── Message action inbound handlers ──────────────────────────────
+  // Backend broadcasts updated messages via message:upsert after each
+  // action (react/pin/delete/recall). These explicit listeners provide
+  // a safety net in case the backend emits dedicated events.
+  const onMsgReact = useRef((msg: any) => {
+    useMessageStore.getState().upsetMsg(msg);
+  });
+  const onMsgPinned = useRef((msg: any) => {
+    useMessageStore.getState().upsetMsg(msg);
+    if (msg.roomId) {
+      useRoomStore.getState().updatePinnedMessageFromSocket(msg.roomId, msg);
+    }
+  });
+  const onMsgDelete = useRef((msg: any) => {
+    useMessageStore.getState().upsetMsg(msg);
+  });
+  const onMsgRecall = useRef((msg: any) => {
+    useMessageStore.getState().upsetMsg(msg);
+  });
+
   // Multi-device handoff: this user accepted/joined the call from another
   // device → server tells THIS tab to release. We don't have a popup yet
   // (modal still showing), so just clear the incoming modal silently.
@@ -148,6 +169,10 @@ export const SocketEventChatGlobal = () => {
     call.on("call:handoff", onCallHandoff.current);
     msgSocket.on(socketEvent.ROOM_REFRESH, onRoomRefresh.current);
     msgSocket.on(socketEvent.UPDATE_QUIZ, handleUpdateQuiz.current);
+    msgSocket.on(socketEvent.MSGREACT, onMsgReact.current);
+    msgSocket.on(socketEvent.MSGPINNED, onMsgPinned.current);
+    msgSocket.on(socketEvent.MSGDELETE, onMsgDelete.current);
+    msgSocket.on(socketEvent.MSGRECALL, onMsgRecall.current);
 
     // Periodic presence refresh — covers the case where the user opened
     // their friend list 5 minutes after app start and would otherwise see
@@ -177,6 +202,10 @@ export const SocketEventChatGlobal = () => {
       msgSocket.off(socketEvent.STATUSTYPING, roomState.handleTypingEvent);
       msgSocket.off(socketEvent.ROOM_REFRESH, onRoomRefresh.current);
       msgSocket.off(socketEvent.UPDATE_QUIZ, handleUpdateQuiz.current);
+      msgSocket.off(socketEvent.MSGREACT, onMsgReact.current);
+      msgSocket.off(socketEvent.MSGPINNED, onMsgPinned.current);
+      msgSocket.off(socketEvent.MSGDELETE, onMsgDelete.current);
+      msgSocket.off(socketEvent.MSGRECALL, onMsgRecall.current);
     };
   }, [msgSocket, call]);
   return <IncomingCallModal />;
