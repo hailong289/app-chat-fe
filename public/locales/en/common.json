@@ -95,7 +95,7 @@
     "login": {
       "title": "Login",
       "subtitle": "Welcome back! Please login to continue.",
-      "usernamePlaceholder": "Email or phone number",
+      "emailPlaceholder": "Email",
       "passwordPlaceholder": "Password",
       "rememberMe": "Remember me",
       "forgotPassword": "Forgot password?",
@@ -108,11 +108,7 @@
     "register": {
       "title": "Create Account",
       "subtitle": "Create an account to connect with everyone.",
-      "emailTab": "Email",
-      "phoneTab": "Phone Number",
       "fullnamePlaceholder": "Full Name",
-      "emailPlaceholder": "Email",
-      "phonePlaceholder": "Phone Number",
       "passwordPlaceholder": "Password",
       "confirmPasswordPlaceholder": "Confirm Password",
       "dobLabel": "Date of Birth",
@@ -124,13 +120,24 @@
       "hasAccount": "Already have an account?",
       "loginNow": "Login now",
       "success": "Registration successful!",
-      "failed": "Registration failed."
+      "failed": "Registration failed.",
+      "sendOtp": "Send OTP",
+      "verifyOtp": "Verify OTP",
+      "backToEmail": "Back",
+      "otpTitle": "Enter OTP",
+      "otpHint": "An OTP has been sent to {{email}}. Please check your inbox.",
+      "otpSent": "OTP sent to your email",
+      "otpSendFailed": "Failed to send OTP. Please try again.",
+      "otpInvalid": "Invalid or expired OTP",
+      "otpLength": "OTP must be exactly 6 digits",
+      "resendOtp": "Resend OTP",
+      "resendIn": "Resend in {{seconds}}s",
+      "completeTitle": "Complete Your Profile",
+      "tokenExpired": "Registration session has expired. Please start over."
     },
     "validation": {
       "required": "This field is required",
       "emailInvalid": "Please enter a valid email",
-      "phoneInvalid": "Please enter a valid phone number",
-      "usernameInvalid": "Please enter a valid email or phone number",
       "passwordMin": "Password must be at least 6 characters",
       "passwordMatch": "Passwords do not match"
     }

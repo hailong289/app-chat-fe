@@ -12,7 +12,6 @@ import {
   Divider,
 } from "@heroui/react";
 import Image from "next/image";
-import { InboxIcon, PhoneIcon } from "@heroicons/react/24/solid";
 import { PayloadLogin } from "@/types/auth.type";
 import useAuthStore from "@/store/useAuthStore";
 import useToast from "@/hooks/useToast";
@@ -25,21 +24,12 @@ export default function LoginPage() {
   const { t } = useTranslation();
   const loginSchema = Joi.object({
     username: Joi.string()
+      .email({ tlds: { allow: false } })
       .required()
       .messages({
         "any.required": t("auth.validation.required"),
         "string.empty": t("auth.validation.required"),
-      })
-      .custom((value, helpers) => {
-        // Kiểm tra email
-        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (emailPattern.test(value)) return value;
-        // Kiểm tra số điện thoại Việt Nam
-        const phonePattern = /^(\+84|84|0)(3|5|7|8|9)\d{8}$/;
-        if (phonePattern.test(value.replace(/\s/g, ""))) return value;
-        return helpers.message({
-          custom: t("auth.validation.usernameInvalid"),
-        });
+        "string.email": t("auth.validation.emailInvalid"),
       }),
     password: Joi.string()
       .required()
@@ -160,9 +150,9 @@ export default function LoginPage() {
         <CardBody>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
-              type="text"
-              label={t("auth.login.usernamePlaceholder")}
-              placeholder={t("auth.login.usernamePlaceholder")}
+              type="email"
+              label={t("auth.login.emailPlaceholder")}
+              placeholder={t("auth.login.emailPlaceholder")}
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
               onBlur={(e) => validateField("username", e.target.value)}
