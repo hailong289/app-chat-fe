@@ -1,16 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Button,
   Card,
   CardBody,
   CardHeader,
-  Input,
-  Tabs,
-  Tab,
   DatePicker,
+  Input,
+  InputOtp,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
   Select,
   SelectItem,
 } from "@heroui/react";
@@ -20,7 +24,6 @@ import {
   CalendarDateTime,
   ZonedDateTime,
 } from "@internationalized/date";
-import { PayloadRegister } from "@/types/auth.type";
 import Helpers from "@/libs/helpers";
 import useToast from "@/hooks/useToast";
 import useAuthStore from "@/store/useAuthStore";
@@ -28,95 +31,54 @@ import { useRouter } from "next/navigation";
 import Joi from "joi";
 import { useFirebase } from "@/components/providers/firebase.provider";
 import { useTranslation } from "react-i18next";
+import { getApiErrorMessage } from "@/utils/apiError";
+
+const OTP_COUNTDOWN = 60;
+
+const registerSchema = Joi.object({
+  fullname: Joi.string().required().messages({
+    "any.required": "Trường này không được để trống",
+    "string.empty": "Trường này không được để trống",
+  }),
+  email: Joi.string()
+    .email({ tlds: { allow: false } })
+    .required()
+    .messages({
+      "any.required": "Trường này không được để trống",
+      "string.empty": "Trường này không được để trống",
+      "string.email": "Vui lòng nhập email hợp lệ",
+    }),
+  password: Joi.string().min(6).required().messages({
+    "any.required": "Trường này không được để trống",
+    "string.empty": "Trường này không được để trống",
+    "string.min": "Mật khẩu phải có ít nhất 6 ký tự",
+  }),
+  confirm: Joi.string()
+    .required()
+    .valid(Joi.ref("password"))
+    .messages({
+      "any.required": "Trường này không được để trống",
+      "string.empty": "Trường này không được để trống",
+      "any.only": "Mật khẩu xác nhận không khớp",
+    }),
+  gender: Joi.string().valid("male", "female", "other").required().messages({
+    "any.required": "Trường này không được để trống",
+    "any.only": "Trường này không được để trống",
+  }),
+  dateOfBirth: Joi.any(),
+  fcmToken: Joi.string().optional().allow(null),
+});
 
 export default function RegisterPage() {
   const { t } = useTranslation();
-  const registerSchema = Joi.object({
-    type: Joi.string()
-      .valid("email", "phone")
-      .required()
-      .messages({
-        "any.required": t("auth.validation.required"),
-        "string.empty": t("auth.validation.required"),
-        "any.only": t("auth.validation.required"),
-      }),
-    fullname: Joi.string()
-      .required()
-      .messages({
-        "any.required": t("auth.validation.required"),
-        "string.empty": t("auth.validation.required"),
-      }),
-    username: Joi.string()
-      .required()
-      .custom((value, helpers) => {
-        const type = helpers.prefs.context?.type; // lấy type từ object cha
+  const firebase = useFirebase();
+  const router = useRouter();
+  const { success, error: showError } = useToast();
+  const { isLoading, sendOtp, verifyOtp, register } = useAuthStore();
 
-        if (type === "email") {
-          const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          if (!emailPattern.test(value)) {
-            return helpers.error("string.email");
-          }
-        }
-
-        if (type === "phone") {
-          const phonePattern = /^(\+84|84|0)(3|5|7|8|9)\d{8}$/;
-          if (!phonePattern.test(value.replace(/\s/g, ""))) {
-            return helpers.error("string.pattern.base");
-          }
-        }
-
-        return value;
-      })
-      .messages({
-        "any.required": t("auth.validation.required"),
-        "string.empty": t("auth.validation.required"),
-        "string.email": t("auth.validation.emailInvalid"),
-        "string.pattern.base": t("auth.validation.phoneInvalid"),
-      }),
-    password: Joi.string()
-      .min(6)
-      .required()
-      .messages({
-        "any.required": t("auth.validation.required"),
-        "string.empty": t("auth.validation.required"),
-        "string.min": t("auth.validation.passwordMin"),
-      }),
-    confirm: Joi.string()
-      .required()
-      .custom((value, helpers) => {
-        // Lấy password từ object cha (submit form)
-        const root = helpers.state.ancestors?.[0] || {};
-        const passwordFromRoot = root.password;
-
-        // Lấy password từ context (validate field đơn lẻ)
-        const passwordFromContext = helpers.prefs.context?.password;
-
-        const password = passwordFromRoot ?? passwordFromContext;
-
-        if (value !== password) {
-          return helpers.error("any.only");
-        }
-        return value;
-      })
-      .messages({
-        "any.required": t("auth.validation.required"),
-        "string.empty": t("auth.validation.required"),
-        "any.only": t("auth.validation.passwordMatch"),
-      }),
-    dateOfBirth: Joi.any(),
-    gender: Joi.string()
-      .valid("male", "female", "other")
-      .required()
-      .messages({
-        "any.required": t("auth.validation.required"),
-        "string.empty": t("auth.validation.required"),
-        "any.only": t("auth.validation.required"),
-      }),
-    fcmToken: Joi.string().optional().allow(null),
-  });
   const [form, setForm] = useState({
     fullname: "",
-    username: "",
+    email: "",
     password: "",
     confirm: "",
     gender: "male" as "male" | "female" | "other",
@@ -125,14 +87,19 @@ export default function RegisterPage() {
       | CalendarDateTime
       | ZonedDateTime
       | null,
-    type: "email" as "email" | "phone",
     fcmToken: null as string | null,
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const { success, error: showError } = useToast();
-  const { isLoading, register } = useAuthStore();
-  const router = useRouter();
-  const firebase = useFirebase();
+
+  // OTP modal state
+  const [otpModalOpen, setOtpModalOpen] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [countdown, setCountdown] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Pending form data (held while OTP modal is open)
+  const pendingFormRef = useRef<typeof form | null>(null);
 
   useEffect(() => {
     if (firebase.token) {
@@ -140,46 +107,163 @@ export default function RegisterPage() {
     }
   }, [firebase.token]);
 
-  const validateField = (field: keyof PayloadRegister, value: string) => {
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  function startCountdown() {
+    setCountdown(OTP_COUNTDOWN);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current!);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
+
+  function validateField(field: string, value: any) {
+    if (field === "confirm") {
+      const { error } = Joi.string()
+        .required()
+        .valid(form.password)
+        .messages({
+          "any.required": "Trường này không được để trống",
+          "string.empty": "Trường này không được để trống",
+          "any.only": "Mật khẩu xác nhận không khớp",
+        })
+        .validate(value);
+      setFieldErrors((prev) => ({
+        ...prev,
+        confirm: error ? error.details[0].message : "",
+      }));
+      return;
+    }
+
     const fieldSchema = registerSchema.extract(field);
-    const { error } = fieldSchema.validate(value, {
-      context: { type: form.type, password: form.password },
-    });
+    const { error } = fieldSchema.validate(value);
     setFieldErrors((prev) => ({
       ...prev,
       [field]: error ? error.details[0].message : "",
     }));
-  };
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const { error, value: parsedData } = registerSchema.validate(form);
+    const { error, value: parsed } = registerSchema.validate(form, {
+      abortEarly: false,
+    });
     if (error) {
-      const errors: Record<string, string> = {};
-      error.details.forEach((detail) => {
-        const field = detail.path[0] as string;
-        errors[field] = detail.message;
+      const errs: Record<string, string> = {};
+      error.details.forEach((d) => {
+        errs[d.path[0] as string] = d.message;
       });
-      setFieldErrors(errors);
+      setFieldErrors(errs);
       return;
     }
-    register({
-      fullname: parsedData.fullname,
-      username: parsedData.username,
-      password: parsedData.password,
-      confirm: parsedData.confirm,
-      dateOfBirth: parsedData.dateOfBirth,
-      gender: parsedData.gender as "male" | "female" | "other",
-      type: parsedData.type,
-      fcmToken: parsedData.fcmToken,
+    // Save form data and send OTP
+    pendingFormRef.current = parsed;
+    sendOtp({
+      email: parsed.email,
+      type: "register",
       callback: (err) => {
         if (err) {
-          console.error("Registration failed:", err);
-          showError(err.message || t("auth.register.failed"));
+          showError(
+            getApiErrorMessage(err, t("auth.register.otpSendFailed")),
+          );
         } else {
-          success(t("auth.register.success"));
-          router.push("/chat"); // Open the chat UI directly (same target as login)
+          success(t("auth.register.otpSent"));
+          setOtp("");
+          setOtpError("");
+          setOtpModalOpen(true);
+          startCountdown();
         }
+      },
+    });
+  }
+
+  function handleResendOtp() {
+    if (countdown > 0 || isLoading || !pendingFormRef.current) return;
+    sendOtp({
+      email: pendingFormRef.current.email,
+      type: "register",
+      callback: (err) => {
+        if (err) {
+          showError(
+            getApiErrorMessage(err, t("auth.register.otpSendFailed")),
+          );
+        } else {
+          success(t("auth.register.otpSent"));
+          startCountdown();
+        }
+      },
+    });
+  }
+
+  function handleOtpConfirm() {
+    if (otp.length !== 6) {
+      setOtpError(t("auth.register.otpLength"));
+      return;
+    }
+    if (!pendingFormRef.current) return;
+    const saved = pendingFormRef.current;
+
+    verifyOtp({
+      indicator: saved.email,
+      otp,
+      type: "register",
+      callback: (result, err) => {
+        if (err) {
+          setOtpError(
+            getApiErrorMessage(err, t("auth.register.otpInvalid")),
+          );
+          return;
+        }
+        const tempRegisterToken = result?.tempRegisterToken;
+        if (!tempRegisterToken) {
+          setOtpError(t("auth.register.otpInvalid"));
+          return;
+        }
+
+        // Immediately register with the token
+        const dateOfBirth =
+          saved.dateOfBirth instanceof CalendarDate ||
+          saved.dateOfBirth instanceof CalendarDateTime ||
+          saved.dateOfBirth instanceof ZonedDateTime
+            ? `${(saved.dateOfBirth as CalendarDate).year}-${String(
+                (saved.dateOfBirth as CalendarDate).month,
+              ).padStart(2, "0")}-${String(
+                (saved.dateOfBirth as CalendarDate).day,
+              ).padStart(2, "0")}`
+            : "";
+
+        setOtpModalOpen(false);
+        register({
+          fullname: saved.fullname,
+          tempRegisterToken,
+          password: saved.password,
+          gender: saved.gender,
+          dateOfBirth,
+          fcmToken: saved.fcmToken,
+          callback: (regErr) => {
+            if (regErr) {
+              const msg = getApiErrorMessage(regErr, t("auth.register.failed"));
+              if (msg.includes("hết hạn") || msg.includes("expired")) {
+                showError(t("auth.register.tokenExpired"));
+              } else {
+                showError(msg);
+              }
+            } else {
+              success(t("auth.register.success"));
+              router.push("/chat");
+            }
+          },
+        });
       },
     });
   }
@@ -187,7 +271,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-dvh grid place-items-center bg-content">
       <Card className="w-full max-w-md">
-        <CardHeader className="flex-col  gap-1">
+        <CardHeader className="flex-col gap-1">
           <Image
             src="/logo.png"
             alt="Logo"
@@ -195,239 +279,181 @@ export default function RegisterPage() {
             height={100}
             className="object-contain"
           />
-          <h1 className="text-2xl font-semibold">{t("auth.register.title")}</h1>
+          <h1 className="text-2xl font-semibold">
+            {t("auth.register.title")}
+          </h1>
         </CardHeader>
         <CardBody>
-          <Tabs
-            fullWidth
-            selectedKey={form.type}
-            size="md"
-            onSelectionChange={(key) =>
-              setForm({ ...form, type: key as "email" | "phone", username: "" })
-            }
-            color="primary"
-          >
-            <Tab key="email" title={t("auth.register.emailTab")}>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <Input
-                  type="text"
-                  label={t("auth.register.fullnamePlaceholder")}
-                  placeholder={t("auth.register.fullnamePlaceholder")}
-                  value={form.fullname}
-                  onChange={(e) =>
-                    setForm({ ...form, fullname: e.target.value })
-                  }
-                  onBlur={(e) => validateField("fullname", e.target.value)}
-                  isRequired
-                  errorMessage={fieldErrors.fullname}
-                  isInvalid={!!fieldErrors.fullname}
-                />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              type="text"
+              label={t("auth.register.fullnamePlaceholder")}
+              placeholder={t("auth.register.fullnamePlaceholder")}
+              value={form.fullname}
+              onChange={(e) => setForm({ ...form, fullname: e.target.value })}
+              onBlur={(e) => validateField("fullname", e.target.value)}
+              isRequired
+              isInvalid={!!fieldErrors.fullname}
+              errorMessage={fieldErrors.fullname}
+            />
 
-                <Input
-                  type="email"
-                  label={t("auth.register.emailPlaceholder")}
-                  placeholder={t("auth.register.emailPlaceholder")}
-                  value={form.username}
-                  onChange={(e) =>
-                    setForm({ ...form, username: e.target.value })
-                  }
-                  onBlur={(e) => validateField("username", e.target.value)}
-                  isRequired
-                  errorMessage={fieldErrors.username}
-                  isInvalid={!!fieldErrors.username}
-                />
+            <Input
+              type="email"
+              label={t("auth.login.emailPlaceholder")}
+              placeholder={t("auth.login.emailPlaceholder")}
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              onBlur={(e) => validateField("email", e.target.value)}
+              isRequired
+              isInvalid={!!fieldErrors.email}
+              errorMessage={fieldErrors.email}
+            />
 
-                <Input
-                  type="password"
-                  label={t("auth.register.passwordPlaceholder")}
-                  placeholder={t("auth.register.passwordPlaceholder")}
-                  value={form.password}
-                  onChange={(e) =>
-                    setForm({ ...form, password: e.target.value })
-                  }
-                  onBlur={(e) => validateField("password", e.target.value)}
-                  isRequired
-                  isInvalid={!!fieldErrors.password}
-                  errorMessage={fieldErrors.password}
-                />
-                <Input
-                  type="password"
-                  label={t("auth.register.confirmPasswordPlaceholder")}
-                  placeholder={t("auth.register.confirmPasswordPlaceholder")}
-                  value={form.confirm}
-                  onChange={(e) =>
-                    setForm({ ...form, confirm: e.target.value })
-                  }
-                  onBlur={(e) => validateField("confirm", e.target.value)}
-                  isRequired
-                  isInvalid={!!fieldErrors.confirm}
-                  errorMessage={fieldErrors.confirm}
-                />
+            <Input
+              type="password"
+              label={t("auth.register.passwordPlaceholder")}
+              placeholder={t("auth.register.passwordPlaceholder")}
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              onBlur={(e) => validateField("password", e.target.value)}
+              isRequired
+              isInvalid={!!fieldErrors.password}
+              errorMessage={fieldErrors.password}
+            />
 
-                <DatePicker
-                  label={t("auth.register.dobLabel")}
-                  onChange={(date) => setForm({ ...form, dateOfBirth: date })}
-                  defaultValue={Helpers.getDefaultDate() as any}
-                  isRequired
-                  errorMessage={fieldErrors.dateOfBirth}
-                  isInvalid={!!fieldErrors.dateOfBirth}
-                />
+            <Input
+              type="password"
+              label={t("auth.register.confirmPasswordPlaceholder")}
+              placeholder={t("auth.register.confirmPasswordPlaceholder")}
+              value={form.confirm}
+              onChange={(e) => setForm({ ...form, confirm: e.target.value })}
+              onBlur={(e) => validateField("confirm", e.target.value)}
+              isRequired
+              isInvalid={!!fieldErrors.confirm}
+              errorMessage={fieldErrors.confirm}
+            />
 
-                <Select
-                  className="w-full"
-                  label={t("auth.register.genderLabel")}
-                  defaultSelectedKeys={new Set([form.gender])}
-                  errorMessage={fieldErrors.gender}
-                  isInvalid={!!fieldErrors.gender}
-                  onSelectionChange={(key) =>
-                    setForm({
-                      ...form,
-                      gender: key.currentKey as "male" | "female" | "other",
-                    })
-                  }
-                >
-                  <SelectItem key="male">
-                    {t("auth.register.genderMale")}
-                  </SelectItem>
-                  <SelectItem key="female">
-                    {t("auth.register.genderFemale")}
-                  </SelectItem>
-                </Select>
+            <DatePicker
+              label={t("auth.register.dobLabel")}
+              onChange={(date) => setForm({ ...form, dateOfBirth: date })}
+              defaultValue={Helpers.getDefaultDate() as any}
+              isRequired
+              errorMessage={fieldErrors.dateOfBirth}
+              isInvalid={!!fieldErrors.dateOfBirth}
+            />
 
-                <div className="text-center my-3">
-                  <Button
-                    type="submit"
-                    className="btn-primary"
-                    fullWidth
-                    disabled={isLoading}
-                    isLoading={isLoading}
-                  >
-                    {t("auth.register.submit")}
-                  </Button>
-                </div>
+            <Select
+              className="w-full"
+              label={t("auth.register.genderLabel")}
+              defaultSelectedKeys={new Set([form.gender])}
+              errorMessage={fieldErrors.gender}
+              isInvalid={!!fieldErrors.gender}
+              onSelectionChange={(key) =>
+                setForm({
+                  ...form,
+                  gender: key.currentKey as "male" | "female" | "other",
+                })
+              }
+            >
+              <SelectItem key="male">
+                {t("auth.register.genderMale")}
+              </SelectItem>
+              <SelectItem key="female">
+                {t("auth.register.genderFemale")}
+              </SelectItem>
+            </Select>
 
-                <p className="text-center text-sm">
-                  {t("auth.register.hasAccount")}{" "}
-                  <Link
-                    href="/auth"
-                    className="text-primary font-semibold hover:underline"
-                  >
-                    {t("auth.register.loginNow")}
-                  </Link>
-                </p>
-              </form>
-            </Tab>
-            <Tab key="phone" title={t("auth.register.phoneTab")}>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <Input
-                  type="text"
-                  label={t("auth.register.fullnamePlaceholder")}
-                  placeholder={t("auth.register.fullnamePlaceholder")}
-                  value={form.fullname}
-                  onChange={(e) =>
-                    setForm({ ...form, fullname: e.target.value })
-                  }
-                  onBlur={(e) => validateField("fullname", e.target.value)}
-                  isRequired
-                  errorMessage={fieldErrors.fullname}
-                  isInvalid={!!fieldErrors.fullname}
-                />
+            <Button
+              type="submit"
+              className="w-full"
+              color="primary"
+              isLoading={isLoading}
+              disabled={isLoading}
+            >
+              {t("auth.register.submit")}
+            </Button>
 
-                <Input
-                  type="tel"
-                  label={t("auth.register.phonePlaceholder")}
-                  placeholder={t("auth.register.phonePlaceholder")}
-                  value={form.username}
-                  onChange={(e) =>
-                    setForm({ ...form, username: e.target.value })
-                  }
-                  onBlur={(e) => validateField("username", e.target.value)}
-                  isRequired
-                  errorMessage={fieldErrors.username}
-                  isInvalid={!!fieldErrors.username}
-                />
-
-                <Input
-                  type="password"
-                  label={t("auth.register.passwordPlaceholder")}
-                  placeholder={t("auth.register.passwordPlaceholder")}
-                  value={form.password}
-                  onChange={(e) =>
-                    setForm({ ...form, password: e.target.value })
-                  }
-                  onBlur={(e) => validateField("password", e.target.value)}
-                  isRequired
-                  errorMessage={fieldErrors.password}
-                  isInvalid={!!fieldErrors.password}
-                />
-                <Input
-                  type="password"
-                  label={t("auth.register.confirmPasswordPlaceholder")}
-                  placeholder={t("auth.register.confirmPasswordPlaceholder")}
-                  value={form.confirm}
-                  onChange={(e) =>
-                    setForm({ ...form, confirm: e.target.value })
-                  }
-                  onBlur={(e) => validateField("confirm", e.target.value)}
-                  isRequired
-                  errorMessage={fieldErrors.confirm}
-                  isInvalid={!!fieldErrors.confirm}
-                />
-
-                <DatePicker
-                  label={t("auth.register.dobLabel")}
-                  onChange={(date) => setForm({ ...form, dateOfBirth: date })}
-                  defaultValue={Helpers.getDefaultDate() as any}
-                  isRequired
-                  errorMessage={fieldErrors.dateOfBirth}
-                  isInvalid={!!fieldErrors.dateOfBirth}
-                />
-
-                <Select
-                  className="w-full"
-                  label={t("auth.register.genderLabel")}
-                  defaultSelectedKeys={new Set([form.gender])}
-                  onSelectionChange={(key) =>
-                    setForm({
-                      ...form,
-                      gender: key.currentKey as "male" | "female" | "other",
-                    })
-                  }
-                >
-                  <SelectItem key="male">
-                    {t("auth.register.genderMale")}
-                  </SelectItem>
-                  <SelectItem key="female">
-                    {t("auth.register.genderFemale")}
-                  </SelectItem>
-                </Select>
-
-                <div className="text-center my-3">
-                  <Button
-                    type="submit"
-                    className="btn-primary"
-                    fullWidth
-                    disabled={isLoading}
-                    isLoading={isLoading}
-                  >
-                    {t("auth.register.submit")}
-                  </Button>
-                </div>
-
-                <p className="text-center text-sm">
-                  {t("auth.register.hasAccount")}{" "}
-                  <Link
-                    href="/auth"
-                    className="text-primary font-semibold hover:underline"
-                  >
-                    {t("auth.register.loginNow")}
-                  </Link>
-                </p>
-              </form>
-            </Tab>
-          </Tabs>
+            <p className="text-center text-sm">
+              {t("auth.register.hasAccount")}{" "}
+              <Link
+                href="/auth"
+                className="text-primary font-semibold hover:underline"
+              >
+                {t("auth.register.loginNow")}
+              </Link>
+            </p>
+          </form>
         </CardBody>
       </Card>
+
+      {/* OTP Modal */}
+      <Modal
+        isOpen={otpModalOpen}
+        onClose={() => setOtpModalOpen(false)}
+        size="sm"
+        isDismissable={false}
+      >
+        <ModalContent>
+          {() => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                {t("auth.register.otpTitle")}
+              </ModalHeader>
+              <ModalBody className="flex flex-col items-center gap-3 pb-4">
+                <p className="text-sm text-default-500 text-center">
+                  {t("auth.register.otpHint", {
+                    email: pendingFormRef.current?.email ?? "",
+                  })}
+                </p>
+                <InputOtp
+                  length={6}
+                  value={otp}
+                  onValueChange={(v) => {
+                    setOtp(v);
+                    setOtpError("");
+                  }}
+                  isInvalid={!!otpError}
+                  errorMessage={otpError}
+                  autoFocus
+                />
+                <div className="text-sm text-default-500">
+                  {countdown > 0 ? (
+                    <span>
+                      {t("auth.register.resendIn", { seconds: countdown })}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResendOtp}
+                      disabled={isLoading}
+                      className="text-primary hover:underline disabled:opacity-50"
+                    >
+                      {t("auth.register.resendOtp")}
+                    </button>
+                  )}
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button
+                  variant="flat"
+                  onPress={() => setOtpModalOpen(false)}
+                  disabled={isLoading}
+                >
+                  {t("common.cancel")}
+                </Button>
+                <Button
+                  color="primary"
+                  onPress={handleOtpConfirm}
+                  isLoading={isLoading}
+                  disabled={isLoading}
+                >
+                  {t("common.confirm")}
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

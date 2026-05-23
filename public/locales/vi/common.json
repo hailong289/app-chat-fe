@@ -103,16 +103,13 @@
       "noAccount": "Chưa có tài khoản?",
       "registerNow": "Đăng ký ngay",
       "success": "Đăng nhập thành công!",
-      "failed": "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin."
+      "failed": "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.",
+      "emailPlaceholder": "Email"
     },
     "register": {
       "title": "Đăng ký tài khoản",
       "subtitle": "Tạo tài khoản để kết nối với mọi người.",
-      "emailTab": "Email",
-      "phoneTab": "Số điện thoại",
       "fullnamePlaceholder": "Họ và tên",
-      "emailPlaceholder": "Email",
-      "phonePlaceholder": "Số điện thoại",
       "passwordPlaceholder": "Mật khẩu",
       "confirmPasswordPlaceholder": "Xác nhận mật khẩu",
       "dobLabel": "Ngày sinh",
@@ -124,13 +121,24 @@
       "hasAccount": "Đã có tài khoản?",
       "loginNow": "Đăng nhập ngay",
       "success": "Đăng ký thành công!",
-      "failed": "Đăng ký thất bại."
+      "failed": "Đăng ký thất bại.",
+      "sendOtp": "Gửi OTP",
+      "verifyOtp": "Xác nhận OTP",
+      "backToEmail": "Quay lại",
+      "otpTitle": "Nhập mã OTP",
+      "otpHint": "Mã OTP đã được gửi đến {{email}}. Vui lòng kiểm tra hộp thư.",
+      "otpSent": "Đã gửi OTP đến email của bạn",
+      "otpSendFailed": "Gửi OTP thất bại. Vui lòng thử lại.",
+      "otpInvalid": "Mã OTP không hợp lệ hoặc đã hết hạn",
+      "otpLength": "Mã OTP phải có đúng 6 chữ số",
+      "resendOtp": "Gửi lại OTP",
+      "resendIn": "Gửi lại sau {{seconds}}s",
+      "completeTitle": "Hoàn tất hồ sơ",
+      "tokenExpired": "Phiên đăng ký đã hết hạn. Vui lòng thực hiện lại."
     },
     "validation": {
       "required": "Trường này không được để trống",
       "emailInvalid": "Vui lòng nhập email hợp lệ",
-      "phoneInvalid": "Vui lòng nhập số điện thoại hợp lệ",
-      "usernameInvalid": "Vui lòng nhập email hoặc số điện thoại hợp lệ",
       "passwordMin": "Mật khẩu phải có ít nhất 6 ký tự",
       "passwordMatch": "Mật khẩu xác nhận không khớp"
     }

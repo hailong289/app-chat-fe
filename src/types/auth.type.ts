@@ -1,19 +1,29 @@
 export interface PayloadLogin {
   username: string;
   password: string;
-  type?: "email" | "phone";
   fcmToken: string | null;
   callback?: (error?: any) => void; // Optional callback for success
 }
 
+export interface PayloadSendOtp {
+  email: string;
+  type: "register" | "reset-password";
+  callback?: (error?: any) => void;
+}
+
+export interface PayloadVerifyOtp {
+  indicator: string;
+  otp: string;
+  type: "register" | "reset-password";
+  callback?: (result?: { tempRegisterToken?: string; accessToken?: string }, error?: any) => void;
+}
+
 export interface PayloadRegister {
   fullname: string;
-  username: string;
+  tempRegisterToken: string;
   password: string;
-  confirm: string;
   gender: "male" | "female" | "other";
   dateOfBirth: string;
-  type?: "email" | "phone";
   fcmToken: string | null;
   callback?: (error?: any) => void; // Optional callback for success
 }

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { AuthState } from "./types/auth.state";
 import AuthService from "@/service/auth.service";
+import { PayloadSendOtp, PayloadVerifyOtp } from "@/types/auth.type";
 import * as LocalStorageUtils from "@/utils/localStorage";
 import { tokenStorage } from "@/utils/tokenStorage";
 import { AuthResponse } from "@/types/auth.type";
@@ -118,6 +119,47 @@ const useAuthStore = create<AuthState>()(
           payload.callback?.(error);
         } finally {
           release();
+        }
+      },
+
+      sendOtp: async (payload: PayloadSendOtp) => {
+        set({ isLoading: true });
+        try {
+          const response = await AuthService.sendOtp({
+            email: payload.email,
+            type: payload.type,
+          });
+          const data = response.data;
+          if (data?.statusCode && data.statusCode >= 400) {
+            payload.callback?.({
+              message: data.message,
+              statusCode: data.statusCode,
+              reasonStatusCode: data.reasonStatusCode,
+            });
+            return;
+          }
+          payload.callback?.();
+        } catch (error) {
+          payload.callback?.(error);
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      verifyOtp: async (payload: PayloadVerifyOtp) => {
+        set({ isLoading: true });
+        try {
+          const response = await AuthService.verifyOtp({
+            indicator: payload.indicator,
+            otp: payload.otp,
+            type: payload.type,
+          });
+          const metadata = response.data.metadata as any;
+          payload.callback?.(metadata);
+        } catch (error) {
+          payload.callback?.(undefined, error);
+        } finally {
+          set({ isLoading: false });
         }
       },
 
