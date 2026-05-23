@@ -5,14 +5,15 @@
   "identifier": "com.appchat.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "frontendDist": "../.next",
-    "devUrl": "http://localhost:3000"
+    "frontendDist": null,
+    "devUrl": "$NEXT_PUBLIC_APP_URL"
   },
   "app": {
     "withGlobalTauri": true,
     "windows": [
       {
         "title": "app-chat-fe",
+        "url": "$NEXT_PUBLIC_APP_URL",
         "width": 1280,
         "height": 800,
         "resizable": true,

@@ -4,6 +4,8 @@ on:
   push:
     branches-ignore:
       - developer
+      - master
+      - staging
 
 jobs:
   auto-pr:
