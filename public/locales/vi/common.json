@@ -130,6 +130,8 @@
       "otpSent": "Đã gửi OTP đến email của bạn",
       "otpSendFailed": "Gửi OTP thất bại. Vui lòng thử lại.",
       "otpInvalid": "Mã OTP không hợp lệ hoặc đã hết hạn",
+      "otpVerifyIncomplete": "Xác thực OTP chưa hoàn tất. Vui lòng thử lại.",
+      "emailUsed": "Email đã được sử dụng",
       "otpLength": "Mã OTP phải có đúng 6 chữ số",
       "resendOtp": "Gửi lại OTP",
       "resendIn": "Gửi lại sau {{seconds}}s",

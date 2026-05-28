@@ -225,13 +225,12 @@ export default function RegisterPage() {
           return;
         }
         const tempRegisterToken = result?.tempRegisterToken;
-        const isVerified = !!result?.valid || !!tempRegisterToken;
-        if (!isVerified) {
-          setOtpError(t("auth.register.otpInvalid"));
+        if (!tempRegisterToken) {
+          setOtpError(t("auth.register.otpVerifyIncomplete"));
           return;
         }
 
-        // Immediately register with the token
+        // Register with token from OTP verify
         const dateOfBirth =
           saved.dateOfBirth instanceof CalendarDate ||
           saved.dateOfBirth instanceof CalendarDateTime ||
@@ -246,9 +245,6 @@ export default function RegisterPage() {
         setOtpModalOpen(false);
         register({
           fullname: saved.fullname,
-          email: saved.email,
-          type: "email",
-          phone: "",
           tempRegisterToken,
           password: saved.password,
           gender: saved.gender,
