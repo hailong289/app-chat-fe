@@ -225,7 +225,8 @@ export default function RegisterPage() {
           return;
         }
         const tempRegisterToken = result?.tempRegisterToken;
-        if (!tempRegisterToken) {
+        const isVerified = !!result?.valid || !!tempRegisterToken;
+        if (!isVerified) {
           setOtpError(t("auth.register.otpInvalid"));
           return;
         }
@@ -245,6 +246,9 @@ export default function RegisterPage() {
         setOtpModalOpen(false);
         register({
           fullname: saved.fullname,
+          email: saved.email,
+          type: "email",
+          phone: "",
           tempRegisterToken,
           password: saved.password,
           gender: saved.gender,

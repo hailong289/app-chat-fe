@@ -15,12 +15,18 @@ export interface PayloadVerifyOtp {
   indicator: string;
   otp: string;
   type: "register" | "reset-password";
-  callback?: (result?: { tempRegisterToken?: string; accessToken?: string }, error?: any) => void;
+  callback?: (
+    result?: { tempRegisterToken?: string; accessToken?: string; valid?: boolean },
+    error?: any,
+  ) => void;
 }
 
 export interface PayloadRegister {
   fullname: string;
-  tempRegisterToken: string;
+  email?: string;
+  phone?: string;
+  type?: "email" | "phone";
+  tempRegisterToken?: string;
   password: string;
   gender: "male" | "female" | "other";
   dateOfBirth: string;
