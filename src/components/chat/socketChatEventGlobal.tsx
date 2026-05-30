@@ -7,7 +7,9 @@ import useMessageStore from "@/store/useMessageStore";
 import useContactStore from "@/store/useContactStore";
 import { socketEvent } from "@/types/socketEvent.type";
 import useCallStore from "@/store/useCallStore";
+import useAuthStore from "@/store/useAuthStore";
 import { useOnlinePresence } from "./hooks/useOnlinePresence";
+import { useDeliveredAcker } from "./hooks/useDeliveredAcker";
 import { IncomingCallModal } from "../call/IncomingCallModal";
 
 export const SocketEventChatGlobal = () => {
@@ -16,6 +18,7 @@ export const SocketEventChatGlobal = () => {
   const roomState = useRoomStore((state) => state);
   const contactState = useContactStore((state) => state);
   const messageState = useMessageStore((state) => state);
+  const ackDelivered = useDeliveredAcker(msgSocket);
 
   // Enable online presence heartbeat on every namespace this client uses.
   // Each socket has its own SOCKET_ALIVE TTL on the BE; the cron prunes
@@ -155,7 +158,25 @@ export const SocketEventChatGlobal = () => {
 
   useEffect(() => {
     if (!msgSocket || !call) return;
-    msgSocket.on(socketEvent.MSGUPSERT, messageState.upsetMsg);
+    // Wrapped upsert: store the message, then ACK delivered for messages
+    // authored by OTHERS so the sender's bubble can flip to "delivered".
+    const onMsgUpsertAck = (msg: any) => {
+      messageState.upsetMsg(msg);
+      const myId = useAuthStore.getState().user?._id;
+      if (msg?.sender?.id && msg.sender.id !== myId && msg?.roomId && msg?.id) {
+        ackDelivered(String(msg.roomId), String(msg.id));
+      }
+    };
+    const onMsgStatus = (evt: {
+      roomId: string;
+      userId: string;
+      kind: "delivered" | "read";
+      upToMsgId: string;
+    }) => {
+      roomState.applyMessageStatus(evt);
+    };
+    msgSocket.on(socketEvent.MSGUPSERT, onMsgUpsertAck);
+    msgSocket.on(socketEvent.MSGSTATUS, onMsgStatus);
     msgSocket.on(socketEvent.MSGMARKREAD, roomState.setRoomReaded);
     msgSocket.on(socketEvent.STATUS, onStatus.current);
     msgSocket.on("status:online:bulk", onStatusBulk.current);
@@ -193,7 +214,8 @@ export const SocketEventChatGlobal = () => {
       call.off("call:end", onCallEnd.current);
       call.off("call:busy", onCallBusy.current);
       call.off("call:handoff", onCallHandoff.current);
-      msgSocket.off(socketEvent.MSGUPSERT, messageState.upsetMsg);
+      msgSocket.off(socketEvent.MSGUPSERT, onMsgUpsertAck);
+      msgSocket.off(socketEvent.MSGSTATUS, onMsgStatus);
       msgSocket.off(socketEvent.MSGMARKREAD, roomState.setRoomReaded);
       msgSocket.off(socketEvent.STATUS, onStatus.current);
       msgSocket.off("status:online:bulk", onStatusBulk.current);
@@ -207,6 +229,6 @@ export const SocketEventChatGlobal = () => {
       msgSocket.off(socketEvent.MSGDELETE, onMsgDelete.current);
       msgSocket.off(socketEvent.MSGRECALL, onMsgRecall.current);
     };
-  }, [msgSocket, call]);
+  }, [msgSocket, call, ackDelivered]);
   return <IncomingCallModal />;
 };
