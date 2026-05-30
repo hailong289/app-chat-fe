@@ -93,11 +93,15 @@ export const MessageItem = memo(
 
     // Active room (carries room_type + members[] with delivered/read watermarks)
     const room = useRoomStore((s) => s.room);
-    // Ordered message-id list for this room's timeline (for watermark comparison)
-    const order = useMessageStore((s) => {
-      const rd = s.messagesRoom[chatId];
-      return rd?.groups ? rd.groups.flatMap((g) => g.messages).map((m) => m.id) : [];
-    });
+    // Ordered message-id list for this room's timeline (for watermark comparison).
+    // Select the STABLE `groups` reference, then derive the id list with useMemo —
+    // returning a fresh array straight from the selector breaks useSyncExternalStore
+    // (new snapshot every render → infinite loop).
+    const groups = useMessageStore((s) => s.messagesRoom[chatId]?.groups);
+    const order = useMemo(
+      () => (groups ? groups.flatMap((g) => g.messages).map((m) => m.id) : []),
+      [groups],
+    );
     const derived = useMemo(
       () =>
         room && currentUserId
