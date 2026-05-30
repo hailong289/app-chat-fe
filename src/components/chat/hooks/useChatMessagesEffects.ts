@@ -3,6 +3,7 @@ import { MESSAGES_PER_GROUP } from "../constants/messageConstants";
 import { MessageGroup } from "@/store/types/message.state";
 import useAuthStore from "@/store/useAuthStore";
 import useMessageStore from "@/store/useMessageStore";
+import useRoomStore from "@/store/useRoomStore";
 
 interface UseChatMessagesEffectsProps {
   chatId: string;
@@ -258,7 +259,20 @@ export function useChatMessagesEffects({
 
     const handleReconnect = () => {
       setTimeout(async () => {
-        await messageState.fetchMessagesFromAPI(chatId, { limit: 50 });
+        // Delta-sync from the last local message id instead of a blind
+        // 50-message refetch — cheaper and preserves the existing tail.
+        // Fall back to a bounded snapshot only when the room is empty.
+        const lastLocalId = messages.length
+          ? messages[messages.length - 1].id
+          : undefined;
+        if (lastLocalId) {
+          await messageState.fetchNewMessages(chatId, lastLocalId);
+        } else {
+          await messageState.fetchMessagesFromAPI(chatId, { limit: 50 });
+        }
+        // Refresh the room list so unread/watermark counters reflect any
+        // activity that landed in OTHER rooms during the offline window.
+        await useRoomStore.getState().getRooms?.();
         requestAnimationFrame(() => {
           if (containerRef.current) {
             containerRef.current.scrollTop =
@@ -274,7 +288,7 @@ export function useChatMessagesEffects({
     return () => {
       socket.off("connect", handleReconnect);
     };
-  }, [socket, chatId, messageState, containerRef, bottomRef]);
+  }, [socket, chatId, messages, messageState, containerRef, bottomRef]);
 
   // Effect: Scroll detection and load more
   useEffect(() => {
