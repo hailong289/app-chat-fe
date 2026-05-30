@@ -111,6 +111,7 @@ export type MessageType = {
     | "uploading"
     | "uploaded"
     | "recalled";
+  _lean?: boolean;
   call_history?: CallHistoryType | null;
   summary?: MessageSummary | null;
   translation?: MessageTranslation | null;

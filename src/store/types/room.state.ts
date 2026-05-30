@@ -102,7 +102,10 @@ export type pinned_messagesType = {
 
 export type roomMembers = {
   id: string;
+  user_id?: string;
   name: string | null;
   role: "admin" | "member" | "owner" | "guest" | null;
   avatar: string | null;
+  last_delivered_id?: string | null;
+  last_read_id?: string | null;
 };
