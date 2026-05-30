@@ -36,6 +36,12 @@ export interface RoomsState {
     lastMessageId: string;
     roomId: string;
   }) => Promise<void>;
+  applyMessageStatus: (evt: {
+    roomId: string;
+    userId: string;
+    kind: "delivered" | "read";
+    upToMsgId: string;
+  }) => void;
   markMessageAsRead: (roomId: string, messageId: string, socket: any) => void;
   roomDeleteSocket: (data: { roomId: string }) => void;
   roomTypingSocket: (data: { isTyping: boolean; socket: any }) => void;

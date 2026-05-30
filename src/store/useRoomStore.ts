@@ -387,6 +387,39 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       get().getRoomById(data.roomId);
     }
   },
+  applyMessageStatus: (evt) => {
+    set((state) => {
+      const rooms = state.rooms.map((r) => {
+        if (
+          r._id !== evt.roomId &&
+          r.roomId !== evt.roomId &&
+          r.id !== evt.roomId
+        )
+          return r;
+        const members = (r.members ?? []).map((m) => {
+          const mid = String(m.id ?? m.user_id ?? "");
+          if (mid !== String(evt.userId)) return m;
+          if (evt.kind === "read") {
+            return {
+              ...m,
+              last_read_id: evt.upToMsgId,
+              last_delivered_id: evt.upToMsgId,
+            };
+          }
+          return { ...m, last_delivered_id: evt.upToMsgId };
+        });
+        return { ...r, members };
+      });
+      const room =
+        state.room &&
+        (state.room._id === evt.roomId ||
+          state.room.roomId === evt.roomId ||
+          state.room.id === evt.roomId)
+          ? rooms.find((r) => r._id === state.room!._id) ?? state.room
+          : state.room;
+      return { rooms, room };
+    });
+  },
   markMessageAsRead: (roomId: string, messageId: string, socket: any) => {
     // Emit socket event
     socket?.emit("mark:read", {
