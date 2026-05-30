@@ -13,6 +13,9 @@ import { MessageType } from "@/store/types/message.state";
 import { ArrowPathIcon, EyeDropperIcon } from "@heroicons/react/16/solid";
 import { useTranslation } from "react-i18next";
 import useAuthStore from "@/store/useAuthStore";
+import useRoomStore from "@/store/useRoomStore";
+import useMessageStore from "@/store/useMessageStore";
+import { deriveStatus, deriveGroupCounts } from "@/store/lib/messageStatus";
 
 interface MessageItemProps {
   msg: MessageType;
@@ -49,7 +52,7 @@ interface MessageItemProps {
   messageState: any;
 }
 
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import isEqual from "react-fast-compare";
 
 export const MessageItem = memo(
@@ -87,6 +90,22 @@ export const MessageItem = memo(
     const currentUser = useAuthStore((state) => state.user);
     const currentUserId = currentUser?.id;
     const isMine = currentUserId ? msg.sender?.id === currentUserId : false;
+
+    // Active room (carries room_type + members[] with delivered/read watermarks)
+    const room = useRoomStore((s) => s.room);
+    // Ordered message-id list for this room's timeline (for watermark comparison)
+    const order = useMessageStore((s) => {
+      const rd = s.messagesRoom[chatId];
+      return rd?.groups ? rd.groups.flatMap((g) => g.messages).map((m) => m.id) : [];
+    });
+    const derived = useMemo(
+      () =>
+        room && currentUserId
+          ? deriveStatus(msg as any, room as any, currentUserId, order)
+          : null,
+      [room, currentUserId, msg, order],
+    );
+
     const hiddenByMe = currentUserId
       ? (msg.hiddenBy?.includes(currentUserId) ?? false)
       : false;
@@ -269,23 +288,33 @@ export const MessageItem = memo(
             {formatMessageTime(msg.createdAt)}
           </span>
           {isMine && msg.status === "sent" && (
-            <span className="text-xs text-gray-400 dark:text-gray-500">
-              {/* Prefer read_by array length if available, fallback to count or 0 */}
-              {(msg.read_by?.length ?? msg.read_by_count ?? 0) > 0 ? (
+            <span className="text-xs">
+              {/* 4-state ticks derived from per-member delivered/read watermarks */}
+              {derived === "read" && (
                 <Tooltip
                   content={t("chat.messages.item.seen")}
                   size="sm"
                   placement="left-start"
                 >
-                  ✓✓
+                  <span className="text-blue-500">✓✓</span>
                 </Tooltip>
-              ) : (
+              )}
+              {derived === "delivered" && (
+                <Tooltip
+                  content={t("chat.messages.item.seen")}
+                  size="sm"
+                  placement="left-start"
+                >
+                  <span className="text-gray-400 dark:text-gray-500">✓✓</span>
+                </Tooltip>
+              )}
+              {(derived === "sent" || derived === null) && (
                 <Tooltip
                   content={t("chat.messages.item.sent")}
                   size="sm"
                   placement="left-start"
                 >
-                  ✓
+                  <span className="text-gray-400 dark:text-gray-500">✓</span>
                 </Tooltip>
               )}
             </span>
@@ -430,6 +459,25 @@ export const MessageItem = memo(
             {isLastInGroup && isMine && (
               <ReadAvatars reads={msg.read_by} count={msg.read_by_count} />
             )}
+
+            {/* Per-recipient delivered/read counts (group rooms, last of group) */}
+            {isMine &&
+              isLastInGroup &&
+              room?.type === "group" &&
+              currentUserId &&
+              (() => {
+                const c = deriveGroupCounts(
+                  msg as any,
+                  room as any,
+                  currentUserId,
+                  order,
+                );
+                return c.total > 0 ? (
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                    {`Đã nhận ${c.deliveredCount}/${c.total} · Đã đọc ${c.readCount}/${c.total}`}
+                  </span>
+                ) : null;
+              })()}
 
             <div
               className={`flex w-full items-end gap-2 group ${
