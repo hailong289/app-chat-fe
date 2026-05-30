@@ -13,6 +13,7 @@ import i18n from "@/i18n";
 import useAuthStore from "./useAuthStore";
 import useRoomStore from "./useRoomStore";
 import { roomType } from "./types/room.state";
+import { mergeLeanSafe } from "./lib/messageStatus";
 
 // Helper to get all messages from groups
 const getAllMessagesFromGroups = (roomData?: RoomData): MessageType[] => {
@@ -218,9 +219,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       msgData.createdAt = new Date().toISOString();
     }
 
-    // Lưu vào IndexedDB trước
-    msgData.status = "sent";
-
     // Normalize roomId: Socket may send MongoDB _id but frontend uses room.id (UUID)
     // Look up the room by _id to get the correct id for storage
     const roomStore = useRoomStore.getState();
@@ -258,11 +256,13 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       let updatedMessages: MessageType[];
       if (existingIndex === -1) {
         // ID không tồn tại → thêm vào array
-        updatedMessages = [...prevMessages, msgData];
+        updatedMessages = [...prevMessages, { ...msgData, status: msgData.status ?? "sent" }];
       } else {
         // ID đã tồn tại → cập nhật
         updatedMessages = prevMessages.map((msg, idx) =>
-          idx === existingIndex ? { ...msg, ...msgData } : msg,
+          idx === existingIndex
+            ? (mergeLeanSafe(msg, msgData) as unknown as MessageType)
+            : msg,
         );
       }
 
