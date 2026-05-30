@@ -3,15 +3,17 @@ import { useEffect, useMemo, useRef, useCallback } from "react";
 type MsgLite = { id: string; isMine?: boolean; deleted?: boolean };
 
 export function useReadProgress(opts: {
+  roomId?: string; // Room ID to scope/reset read status refs
   messages: MsgLite[]; // đã sort ASC theo thời gian
-  container?: HTMLElement | null; // nếu scroll trong 1 div; nếu scroll toàn trang -> để null
+  containerRef?: React.RefObject<HTMLElement | null> | null; // Ref đến scroll container
   stickyBottomPx?: number; // chiều cao sticky ở đáy (nếu có), để IO trừ lề
-  minVisibleRatio?: number; // phần trăm hiển thị tối thiểu để tính "đã đọc"
+  minVisibleRatio?: number; // phần trạng hiển thị tối thiểu để tính "đã đọc"
   onCommit?: (lastReadId: string) => void; // gọi server/bus khi tăng mốc
 }) {
   const {
+    roomId = "",
     messages,
-    container = null,
+    containerRef = null,
     stickyBottomPx = 0,
     minVisibleRatio = 0.5,
     onCommit,
@@ -29,6 +31,17 @@ export function useReadProgress(opts: {
   // Track last read to prevent backward jumps or duplicates
   const lastReadIdRef = useRef<string>("");
   
+  // Track last committed to debounce
+  const lastCommittedId = useRef<string>("");
+
+  // Reset refs when roomId changes
+  const prevRoomIdRef = useRef<string>("");
+  if (prevRoomIdRef.current !== roomId) {
+    prevRoomIdRef.current = roomId;
+    lastReadIdRef.current = "";
+    lastCommittedId.current = "";
+  }
+
   // Index lookup for O(1) comparison
   // We keep this up to date synchronously with renders
   const indexOfRef = useRef(new Map<string, number>());
@@ -41,20 +54,19 @@ export function useReadProgress(opts: {
 
   // Debounced commit
   const commitTimer = useRef<NodeJS.Timeout | null>(null);
-  const lastCommittedId = useRef<string>("");
 
   const debouncedCommit = useCallback((id: string) => {
     if (!onCommitRef.current || lastCommittedId.current === id) return;
     
     if (commitTimer.current) clearTimeout(commitTimer.current);
     
-    // Tăng debounce lên chút cho an toàn với scroll nhanh
+    // Optimized: 100ms micro-debounce for extremely responsive read-receipt (2 blue checkmarks)
     commitTimer.current = setTimeout(() => {
       lastCommittedId.current = id;
       if (onCommitRef.current) {
         onCommitRef.current(id);
       }
-    }, 500);
+    }, 100);
   }, []);
 
   // Registry for ref callbacks to ensure stability
@@ -62,17 +74,22 @@ export function useReadProgress(opts: {
   // Store elements map for manual lookup if needed
   const elementsMap = useRef(new Map<string, HTMLElement>());
 
+  // Helper to dynamically retrieve scroll container
+  const getContainer = useCallback(() => {
+    return containerRef ? containerRef.current : null;
+  }, [containerRef]);
+
   // 2. Core Logic Helpers
   const isAtBottom = useCallback(() => {
-    const target = container || document.documentElement;
+    const target = getContainer() || document.documentElement;
     // Use a slighly larger threshold (50px) to be safe
     return target.scrollHeight - (target.scrollTop + target.clientHeight) <= 50;
-  }, [container]);
+  }, [getContainer]);
 
   const hasScroll = useCallback(() => {
-    const target = container || document.documentElement;
+    const target = getContainer() || document.documentElement;
     return target.scrollHeight > target.clientHeight + 10;
-  }, [container]);
+  }, [getContainer]);
 
   const getLastReadableMessageId = useCallback(() => {
     const msgs = messagesRef.current;
@@ -100,6 +117,7 @@ export function useReadProgress(opts: {
 
   // 3. Setup Observer (Runs once per container/options change)
   useEffect(() => {
+    const containerEl = getContainer();
     const handleIntersect: IntersectionObserverCallback = (entries) => {
       // Fast path: if at bottom, mark latest as read immediately
       if (isAtBottom()) {
@@ -145,7 +163,7 @@ export function useReadProgress(opts: {
     };
 
     const io = new IntersectionObserver(handleIntersect, {
-      root: container,
+      root: containerEl,
       rootMargin: `0px 0px -${stickyBottomPx}px 0px`,
       threshold: [0, (minVisibleRatio || 0.5)], // Minimal thresholds
     });
@@ -162,7 +180,7 @@ export function useReadProgress(opts: {
       io.disconnect();
       observerRef.current = undefined;
     };
-  }, [container, stickyBottomPx, minVisibleRatio, isAtBottom, getLastReadableMessageId, updateLastRead]);
+  }, [getContainer, stickyBottomPx, minVisibleRatio, isAtBottom, getLastReadableMessageId, updateLastRead]);
 
   // 4. Stable Ref Factory
   const getRef = useCallback((id: string) => {
@@ -197,9 +215,30 @@ export function useReadProgress(opts: {
     return cb;
   }, []);
 
+  // 4.5. Instant Read Check when messages or roomId changes (Reactive Sync)
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    const checkAndMarkRead = () => {
+      if (!hasScroll() || isAtBottom()) {
+        const lastId = getLastReadableMessageId();
+        if (lastId) {
+          updateLastRead(lastId);
+        }
+      }
+    };
+
+    // Run check immediately on mount/update
+    checkAndMarkRead();
+
+    // Also run after a short delay to allow DOM/scroll layout to settle
+    const t = setTimeout(checkAndMarkRead, 300);
+    return () => clearTimeout(t);
+  }, [messages, roomId, hasScroll, isAtBottom, getLastReadableMessageId, updateLastRead]);
+
   // 5. Scroll Fallback
   useEffect(() => {
-    const target = container || window;
+    const target = getContainer() || window;
     let ticking = false;
 
     const onScroll = () => {
@@ -231,7 +270,7 @@ export function useReadProgress(opts: {
       target.removeEventListener("scroll", onScroll);
       clearTimeout(timer);
     };
-  }, [container, hasScroll, isAtBottom, getLastReadableMessageId, updateLastRead]);
+  }, [getContainer, hasScroll, isAtBottom, getLastReadableMessageId, updateLastRead]);
 
   // Clean up timers
   useEffect(() => {

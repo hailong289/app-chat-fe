@@ -1,5 +1,6 @@
 import { ArrowUturnLeftIcon } from "@heroicons/react/16/solid";
 import { useTranslation } from "react-i18next";
+import useAuthStore from "@/store/useAuthStore";
 
 interface ReplyPreviewProps {
   readonly reply: any;
@@ -8,8 +9,17 @@ interface ReplyPreviewProps {
 
 export function ReplyPreview({ reply, onJump }: ReplyPreviewProps) {
   const { t } = useTranslation("common");
+  const currentUser = useAuthStore((state) => state.user);
 
   if (!reply) return null;
+
+  const currentUserId = currentUser?.id || currentUser?._id;
+  const replySenderId = reply.sender?.id || reply.sender?._id || reply.sender;
+  const replyIsMine = !!(
+    currentUserId &&
+    replySenderId &&
+    String(currentUserId) === String(replySenderId)
+  );
 
   // Field mapping:
   // - reply.isDeleted (or reply.status === 'recalled' or reply.isDelete) => message was recalled/deleted by sender
@@ -42,7 +52,7 @@ export function ReplyPreview({ reply, onJump }: ReplyPreviewProps) {
   if (isDeleted) {
     previewText = t("chat.messages.reply.deleted");
   } else if (isRecalled) {
-    if (reply.isMine) {
+    if (replyIsMine) {
       previewText = t("chat.messages.reply.recalled.me");
     } else {
       previewText = t("chat.messages.reply.recalled.other");
@@ -69,7 +79,7 @@ export function ReplyPreview({ reply, onJump }: ReplyPreviewProps) {
       <div className="flex items-center gap-2 mb-1">
         <ArrowUturnLeftIcon className="h-3 w-3 text-teal-600 dark:text-teal-300 flex-shrink-0" />
         <span className="text-xs font-semibold text-teal-600 dark:text-teal-300">
-          {reply.isMine
+          {replyIsMine
             ? t("chat.messages.you")
             : reply.sender?.name || "Unknown"}
         </span>

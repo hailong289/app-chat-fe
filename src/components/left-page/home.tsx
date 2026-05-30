@@ -478,8 +478,9 @@ export const Home = () => {
             //   - Group: show the dot when ANY non-self member is online.
             //   - Channel: skip — channels don't have a "presence" notion.
             // Source of truth: useContactStore.onlineUserIds (Set), which is
-            // the unified presence stream maintained by socketChatEventGlobal.
-            const myUsrId = authState.user?.id;
+            const myUsrId = authState.user?.id || authState.user?._id;
+            const lastMsgSenderId = chat?.last_message?.sender?.id || (chat?.last_message?.sender as any)?._id;
+            const lastMsgIsMine = !!(myUsrId && lastMsgSenderId && String(myUsrId) === String(lastMsgSenderId));
             const isUserOnline = contactState.isUserOnline;
             let isRoomOnline = false;
             if (chat.type === "private") {
@@ -577,8 +578,8 @@ export const Home = () => {
                               chat?.last_message?.content?.slice(0, 10) || ""
                             }
                           >
-                            {chat?.last_message?.isMine ? "Bạn: " : ""}
-                            {!chat?.last_message?.isMine &&
+                            {lastMsgIsMine ? "Bạn: " : ""}
+                            {!lastMsgIsMine &&
                               chat?.last_message?.sender?.name &&
                               `${chat?.last_message?.sender?.name}: `}
                             {chat?.last_message?.content?.slice(0, 10) ||

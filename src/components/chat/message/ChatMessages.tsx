@@ -1,6 +1,7 @@
 "use client";
 import { useReadProgress } from "@/libs/useReadProgress";
 import useMessageStore from "@/store/useMessageStore";
+import useAuthStore from "@/store/useAuthStore";
 import { ScrollShadow, Skeleton } from "@heroui/react";
 import { useEffect, useLayoutEffect, useRef, useMemo, useCallback, memo } from "react";
 import useRoomStore from "@/store/useRoomStore";
@@ -53,6 +54,7 @@ export const ChatMessages = memo(
     toggleInput: boolean;
   }) => {
     const { t } = useTranslation();
+    const currentUser = useAuthStore((state: any) => state.user);
     // Performance monitoring
     const startTime = useRef(performance.now());
 
@@ -158,7 +160,37 @@ export const ChatMessages = memo(
     // Compute the most up-to-date message id to use for grouping/scrolling
     const latestMessageId = messages.at(-1)?.id ?? null;
     const lastMsgId = roomMeta.lastServerMessageId ?? latestMessageId ?? "null";
-    const scrollTargetId = roomMeta.lastReadId ?? lastMsgId;
+
+    // Mapped messages for read-progress and isMine identification
+    const currentUserId = currentUser?.id || currentUser?._id;
+    const mappedMessagesForRead = useMemo(() => {
+      return messages.map((m) => ({
+        id: m.id,
+        isMine: !!(currentUserId && (m.sender?.id === currentUserId || m.sender?._id === currentUserId)),
+        deleted: m.isDeleted || m.type === "system",
+      }));
+    }, [messages, currentUserId]);
+
+    // Optimized: Scroll to the FIRST UNREAD message from others instead of the last read message,
+    // which prevents jumping back to old messages that are already read or sent by ourselves.
+    // If all subsequent messages are sent by ourselves (or no unread messages from others are found),
+    // we scroll straight to the bottom (lastMsgId) to ensure a perfectly smooth and correct layout.
+    const scrollTargetId = useMemo(() => {
+      if (roomMeta.unreadCount > 0 && roomMeta.lastReadId) {
+        const lastReadIdx = mappedMessagesForRead.findIndex((m) => m.id === roomMeta.lastReadId);
+        if (lastReadIdx !== -1) {
+          const firstUnread = mappedMessagesForRead.slice(lastReadIdx + 1).find((m) => !m.isMine && !m.deleted);
+          if (firstUnread) {
+            return firstUnread.id;
+          }
+          return lastMsgId;
+        } else {
+          const firstUnread = mappedMessagesForRead.find((m) => !m.isMine && !m.deleted);
+          return firstUnread ? firstUnread.id : lastMsgId;
+        }
+      }
+      return lastMsgId;
+    }, [roomMeta.unreadCount, roomMeta.lastReadId, mappedMessagesForRead, lastMsgId]);
 
     const storeSetDisplayedCount = useMessageStore(
       (state) => state.setDisplayedMessagesCount,
@@ -205,9 +237,14 @@ export const ChatMessages = memo(
       }
     }, [toggleInput, scrollToBottom]);
 
+    const lastScrolledToIdRef = useRef<string | null>(null);
     useEffect(() => {
-      if (scrollto) {
+      if (scrollto && scrollto !== "null" && scrollto !== "undefined") {
+        if (lastScrolledToIdRef.current === scrollto) return;
+        lastScrolledToIdRef.current = scrollto;
         scrollToMessage(scrollto);
+      } else {
+        lastScrolledToIdRef.current = null;
       }
     }, [scrollto, scrollToMessage]);
 
@@ -419,9 +456,11 @@ export const ChatMessages = memo(
     });
 
     // Read progress hook
+
     const { setMessageRef } = useReadProgress({
-      messages,
-      container: state.containerRef.current,
+      roomId: chatId,
+      messages: mappedMessagesForRead,
+      containerRef: state.containerRef,
       stickyBottomPx: 0,
       minVisibleRatio: 0.5,
       onCommit: (id: string) => {

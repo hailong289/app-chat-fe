@@ -277,7 +277,7 @@ export default function ChatInputBar({
   const [gifs, setGifs] = useState<any[]>([]);
   const [isLoadingGifs, setIsLoadingGifs] = useState(false);
 
-  const TENOR_API_KEY = process.env.NEXT_PUBLIC_REACT_APP_TENOR_API_KEY || "";
+  const TENOR_API_KEY = process.env.NEXT_PUBLIC_REACT_APP_TENOR_API_KEY || "LIVDSRZULELA";
   const TENOR_CLIENT_KEY = "chat-app";
 
   const searchGifs = useCallback(
@@ -383,8 +383,27 @@ export default function ChatInputBar({
 
         setToggleInput(!toggleInput);
       } catch (error) {
-        console.error("❌ Error downloading GIF:", error);
-        setMessage((prev) => prev + (prev ? " " : "") + gifUrl);
+        console.error("❌ Error downloading GIF, falling back to direct URL message:", error);
+        
+        // Direct URL fallback: Send the GIF message immediately via socket with URL in content.
+        // This completely bypasses client-side CORS issues in secure origins / production / Tauri!
+        try {
+          await sendMessage({
+            roomId: chatId,
+            content: gifUrl, // Tenor URL as the message content
+            attachments: [], // Empty attachments so no upload runs
+            type: "gif",
+            socket,
+            userId: auth?.id,
+            userFullname: auth?.fullname,
+            userAvatar: auth?.avatar,
+          });
+          setToggleInput(!toggleInput);
+        } catch (sendError) {
+          console.error("❌ Failed to send GIF fallback message:", sendError);
+          // Last resort: append it to text box so the user can send it as text
+          setMessage((prev) => prev + (prev ? " " : "") + gifUrl);
+        }
       }
     },
     [auth, chatId, message, sendMessage, socket, setToggleInput, toggleInput]

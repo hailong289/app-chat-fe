@@ -560,6 +560,31 @@ function CallMessageBubble({
   );
 }
 
+function GifMessageBubble({
+  msg,
+  isMine,
+}: Readonly<{ msg: MessageType; isMine: boolean }>) {
+  // Find external or uploaded URL for GIF
+  const gifUrl =
+    msg.attachments?.[0]?.url ||
+    msg.attachments?.[0]?.uploadedUrl ||
+    msg.content;
+
+  if (!gifUrl) return null;
+
+  return (
+    <div className="relative max-w-xs md:max-w-sm lg:max-w-md overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 shadow-sm transition-all duration-200 hover:shadow-md">
+      <img
+        src={gifUrl}
+        alt="GIF"
+        className="w-full h-auto object-contain max-h-72 rounded-2xl"
+        loading="lazy"
+        unselectable="on"
+      />
+    </div>
+  );
+}
+
 export function MessageBubble({
   msg,
   isSameSenderAsPrev,
@@ -591,6 +616,10 @@ export function MessageBubble({
 
   if (msg.type === "todo_project") {
     return <TodoProjectMessageBubble msg={msg} isMine={isMine} />;
+  }
+
+  if (msg.type === "gif") {
+    return <GifMessageBubble msg={msg} isMine={isMine} />;
   }
 
   if (msg.content) {

@@ -88,8 +88,10 @@ export const MessageItem = memo(
   }: Readonly<MessageItemProps>) {
     const { t } = useTranslation();
     const currentUser = useAuthStore((state) => state.user);
-    const currentUserId = currentUser?.id;
-    const isMine = currentUserId ? msg.sender?.id === currentUserId : false;
+    const currentUserId = currentUser?.id || currentUser?._id;
+    const isMine = currentUserId
+      ? !!(msg.sender?.id === currentUserId || msg.sender?._id === currentUserId)
+      : false;
 
     // Active room (carries room_type + members[] with delivered/read watermarks)
     const room = useRoomStore((s) => s.room);
@@ -134,12 +136,16 @@ export const MessageItem = memo(
       }
     }, [msg.id, renderedMessageIds]);
 
-    const isSameSenderAsPrev = prevMsg?.sender._id === msg.sender._id;
-    const isSameSenderAsNext = nextMsg?.sender._id === msg.sender._id;
+    const prevSenderId = prevMsg?.sender?._id || prevMsg?.sender?.id;
+    const nextSenderId = nextMsg?.sender?._id || nextMsg?.sender?.id;
+    const currentSenderId = msg.sender?._id || msg.sender?.id;
+
+    const isSameSenderAsPrev = !!(prevSenderId && currentSenderId && prevSenderId === currentSenderId);
+    const isSameSenderAsNext = !!(nextSenderId && currentSenderId && nextSenderId === currentSenderId);
     const shouldAnimateThis =
       shouldAnimate && isNewMessage && !renderedMessageIds?.current.has(msg.id);
 
-    const PinnedIcon = () => {
+    const renderPinnedIcon = () => {
       return (
         <button
           className={`absolute top-2 ${
@@ -154,11 +160,8 @@ export const MessageItem = memo(
       );
     };
 
-    // Custom pinned icon if needed logic check uses isMine which is available in scope
-    // The PinnedIcon component was accessing isMine correctly as long as it's defined in outer scope
-
     // Small helper that renders the "Tin chưa đọc" divider
-    const UnreadDivider = () => {
+    const renderUnreadDivider = () => {
       if (!isUnreadDivider) return null;
       return (
         <motion.div
@@ -210,13 +213,7 @@ export const MessageItem = memo(
     };
 
     // Renders small read avatars + overflow count
-    const ReadAvatars = ({
-      reads,
-      count,
-    }: {
-      reads?: any[];
-      count?: number;
-    }) => {
+    const renderReadAvatars = (reads?: any[], count?: number) => {
       console.log("🚀 ~ ReadAvatars ~ reads:", reads);
       if (!reads || (count ?? 0) <= 0) return null;
       return (
@@ -244,7 +241,7 @@ export const MessageItem = memo(
     };
 
     // Avatar slot component to avoid duplicating markup
-    const AvatarSlot = ({ side }: { side: "left" | "right" }) => {
+    const renderAvatarSlot = (side: "left" | "right") => {
       if (side === "left" && isMine) return null;
       if (side === "right" && !isMine) return null;
       return (
@@ -265,7 +262,7 @@ export const MessageItem = memo(
     };
 
     // Timestamp + resend/status UI
-    const TimestampAndStatus = () => {
+    const renderTimestampAndStatus = () => {
       if (!showAvatar) return null;
       return (
         <div
@@ -296,29 +293,45 @@ export const MessageItem = memo(
               {/* 4-state ticks derived from per-member delivered/read watermarks */}
               {derived === "read" && (
                 <Tooltip
-                  content={t("chat.messages.item.seen")}
+                  content={
+                    room?.type === "group"
+                      ? t("chat.messages.item.seen_all", "Đã đọc bởi tất cả thành viên")
+                      : t("chat.messages.item.seen", "Đã đọc")
+                  }
                   size="sm"
                   placement="left-start"
                 >
-                  <span className="text-blue-500">✓✓</span>
+                  <span className="text-blue-500 cursor-help">✓✓</span>
                 </Tooltip>
               )}
               {derived === "delivered" && (
                 <Tooltip
-                  content={t("chat.messages.item.seen")}
+                  content={
+                    room?.type === "group"
+                      ? (() => {
+                          const c = deriveGroupCounts(
+                            msg as any,
+                            room as any,
+                            currentUserId || "",
+                            order,
+                          );
+                          return `Đã nhận ${c.deliveredCount}/${c.total}`;
+                        })()
+                      : t("chat.messages.item.delivered", "Đã nhận")
+                  }
                   size="sm"
                   placement="left-start"
                 >
-                  <span className="text-gray-400 dark:text-gray-500">✓✓</span>
+                  <span className="text-gray-400 dark:text-gray-500 cursor-help">✓✓</span>
                 </Tooltip>
               )}
               {(derived === "sent" || derived === null) && (
                 <Tooltip
-                  content={t("chat.messages.item.sent")}
+                  content={t("chat.messages.item.sent", "Đã gửi")}
                   size="sm"
                   placement="left-start"
                 >
-                  <span className="text-gray-400 dark:text-gray-500">✓</span>
+                  <span className="text-gray-400 dark:text-gray-500 cursor-help">✓</span>
                 </Tooltip>
               )}
             </span>
@@ -341,6 +354,75 @@ export const MessageItem = memo(
                 </Tooltip>
               </span>
             )}
+
+          {/* Read avatars stack after the checkmark tick */}
+          {isMine &&
+            currentUserId &&
+            (() => {
+              if (room?.type === "group") {
+                // Find all group members who have read this message
+                const others = (room.members ?? []).filter((m: any) => {
+                  const mId = m.id ?? m.user_id ?? m._id ?? "";
+                  return String(mId) !== String(currentUserId);
+                });
+
+                const readers = others.filter((m: any) => {
+                  const w = order.indexOf(String(m.last_read_id));
+                  const mIndex = order.indexOf(String(msg.id));
+                  return w !== -1 && mIndex !== -1 && w >= mIndex;
+                });
+
+                if (readers.length === 0) return null;
+
+                return (
+                  <div className="flex gap-0.5 items-center ml-1">
+                    {readers.slice(0, 3).map((m: any) => (
+                      <Tooltip
+                        key={m.id}
+                        content={m.name || "User"}
+                        size="sm"
+                      >
+                        <Avatar
+                          src={m.avatar || undefined}
+                          className="w-3.5 h-3.5 ring-1 ring-white dark:ring-gray-800 flex-shrink-0"
+                          name={m.name || "User"}
+                        />
+                      </Tooltip>
+                    ))}
+                    {readers.length > 3 && (
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-0.5 font-medium">
+                        +{readers.length - 3}
+                      </span>
+                    )}
+                  </div>
+                );
+              } else {
+                // 1v1 Private Room: Show recipient avatar when read
+                if (derived === "read") {
+                  const otherMember = (room?.members ?? []).find(
+                    (m: any) => {
+                      const mId = m.id ?? m.user_id ?? m._id ?? "";
+                      return String(mId) !== String(currentUserId);
+                    }
+                  );
+                  if (otherMember) {
+                    return (
+                      <Tooltip
+                        content={otherMember.name || "User"}
+                        size="sm"
+                      >
+                        <Avatar
+                          src={otherMember.avatar || undefined}
+                          className="w-3.5 h-3.5 ring-1 ring-white dark:ring-gray-800 flex-shrink-0 ml-1"
+                          name={otherMember.name || "User"}
+                        />
+                      </Tooltip>
+                    );
+                  }
+                }
+              }
+              return null;
+            })()}
         </div>
       );
     };
@@ -351,14 +433,14 @@ export const MessageItem = memo(
       return (
         <div className={messageSpacing}>
           <motion.div
-            layout
+            layout="position"
             key={`msg-box-${msg.id}`}
             initial={shouldAnimateThis ? { opacity: 0, y: 6 } : false}
             animate={{ opacity: 1, y: 0 }}
             exit={shouldAnimateThis ? { opacity: 0 } : undefined}
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
-            <UnreadDivider />
+            {renderUnreadDivider()}
             <div ref={setMessageRef(msg.id)} data-mid={msg.id}>
               <SystemMessageBubble msg={msg} />
             </div>
@@ -372,14 +454,14 @@ export const MessageItem = memo(
       return (
         <div className={messageSpacing}>
           <motion.div
-            layout
+            layout="position"
             key={`msg-box-${msg.id}`}
             initial={shouldAnimateThis ? { opacity: 0, y: 10, scale: 0.95 } : false}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={shouldAnimateThis ? { opacity: 0, scale: 0.95 } : undefined}
             transition={{ duration: 0.25, ease: "easeOut" }}
           >
-            <UnreadDivider />
+            {renderUnreadDivider()}
             <div
               ref={setMessageRef(msg.id)}
               data-mid={msg.id}
@@ -400,14 +482,14 @@ export const MessageItem = memo(
       return (
         <div className={messageSpacing}>
           <motion.div
-            layout
+            layout="position"
             key={`msg-box-${msg.id}`}
             initial={shouldAnimateThis ? { opacity: 0, y: 10, scale: 0.95 } : false}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={shouldAnimateThis ? { opacity: 0, scale: 0.95 } : undefined}
             transition={{ duration: 0.25, ease: "easeOut" }}
           >
-            <UnreadDivider />
+            {renderUnreadDivider()}
             <div
               ref={setMessageRef(msg.id)}
               data-mid={msg.id}
@@ -426,7 +508,7 @@ export const MessageItem = memo(
     return (
       <div className={messageSpacing}>
         <motion.div
-          layout
+          layout="position"
           key={`msg-box-${msg.id}`}
           initial={
             shouldAnimateThis
@@ -445,7 +527,7 @@ export const MessageItem = memo(
             default: { duration: 0.2, ease: "easeOut" },
           }}
         >
-          <UnreadDivider />
+          {renderUnreadDivider()}
 
           <fieldset
             ref={setMessageRef(msg.id)}
@@ -457,31 +539,9 @@ export const MessageItem = memo(
             {/* Pinned icon */}
             {!(currentUserId && msg.hiddenBy?.includes(currentUserId)) &&
               !msg.isDeleted &&
-              msg.pinned && <PinnedIcon />}
+              msg.pinned && renderPinnedIcon()}
 
-            {/* Read avatars cho tin của mình (bên trái bubble) */}
-            {isLastInGroup && isMine && (
-              <ReadAvatars reads={msg.read_by} count={msg.read_by_count} />
-            )}
 
-            {/* Per-recipient delivered/read counts (group rooms, last of group) */}
-            {isMine &&
-              isLastInGroup &&
-              room?.type === "group" &&
-              currentUserId &&
-              (() => {
-                const c = deriveGroupCounts(
-                  msg as any,
-                  room as any,
-                  currentUserId,
-                  order,
-                );
-                return c.total > 0 ? (
-                  <span className="text-xs text-gray-400 dark:text-gray-500">
-                    {`Đã nhận ${c.deliveredCount}/${c.total} · Đã đọc ${c.readCount}/${c.total}`}
-                  </span>
-                ) : null;
-              })()}
 
             <div
               className={`flex w-full items-end gap-2 group ${
@@ -489,7 +549,7 @@ export const MessageItem = memo(
               }`}
             >
               {/* Avatar bên trái (tin người khác) */}
-              <AvatarSlot side="left" />
+              {renderAvatarSlot("left")}
 
               {/* Message bubble */}
               <div
@@ -552,7 +612,8 @@ export const MessageItem = memo(
                     {/* Attachments */}
                     {!msg.isDeleted &&
                       msg.attachments &&
-                      msg.attachments.length > 0 && (
+                      msg.attachments.length > 0 &&
+                      msg.type !== "gif" && (
                         <div className="mb-2">
                           <CompactFileGallery
                             files={msg.attachments}
@@ -625,16 +686,16 @@ export const MessageItem = memo(
                 </div>
 
                 {/* Timestamp - chỉ hiện ở tin cuối nhóm */}
-                <TimestampAndStatus />
+                {renderTimestampAndStatus()}
               </div>
 
               {/* Avatar bên phải (tin của mình) */}
-              <AvatarSlot side="right" />
+              {renderAvatarSlot("right")}
             </div>
 
             {/* Read avatars for other people's last message */}
             {!isMine && msg.id === lastMsgId && (
-              <ReadAvatars reads={msg.read_by} count={msg.read_by_count} />
+              renderReadAvatars(msg.read_by, msg.read_by_count)
             )}
           </fieldset>
         </motion.div>

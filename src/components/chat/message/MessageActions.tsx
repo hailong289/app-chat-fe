@@ -155,8 +155,13 @@ export function MessageActions({
       }, 1200);
     }
   };
-  // Actions are hidden for deleted/hidden messages
-  if (msg.isDeleted || hiddenByMe) return null;
+  // Actions are hidden for deleted/hidden messages, or if the message is not yet successfully sent (pending, uploading, failed)
+  const isPendingOrFailed =
+    msg.status === "pending" ||
+    msg.status === "uploading" ||
+    msg.status === "failed";
+
+  if (msg.isDeleted || hiddenByMe || isPendingOrFailed) return null;
 
   return (
     <>

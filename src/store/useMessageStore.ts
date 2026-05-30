@@ -95,8 +95,38 @@ export interface SendMessageArgs {
   desk_id?: string; // Add desk_id
   desk?: any; // Full desk object for optimistic UI
 }
-import { upsertOne, deleteOne } from "@/libs/crud";
+import { upsertOne, deleteOne, upsertMany } from "@/libs/crud";
 import { db } from "@/libs/db";
+
+// Buffered write queue for IndexedDB messages to batch socket updates
+let messageWriteQueue: MessageType[] = [];
+let writeQueueTimeout: NodeJS.Timeout | null = null;
+
+const flushMessageWriteQueue = async () => {
+  if (messageWriteQueue.length === 0) return;
+  const batch = [...messageWriteQueue];
+  messageWriteQueue = [];
+  writeQueueTimeout = null;
+
+  try {
+    await upsertMany(db.messages, batch);
+  } catch (error) {
+    console.error("❌ [IndexedDB] Failed to batch-write messages:", error);
+  }
+};
+
+const queueMessageForDB = (msg: MessageType) => {
+  const existingIdx = messageWriteQueue.findIndex((m) => m.id === msg.id);
+  if (existingIdx !== -1) {
+    messageWriteQueue[existingIdx] = msg;
+  } else {
+    messageWriteQueue.push(msg);
+  }
+
+  if (!writeQueueTimeout) {
+    writeQueueTimeout = setTimeout(flushMessageWriteQueue, 150); // 150ms batching window
+  }
+};
 import { ObjectId } from "bson";
 import UploadService from "@/service/uploadfile.service";
 import MessageService from "@/service/message.service";
@@ -256,12 +286,12 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       let updatedMessages: MessageType[];
       if (existingIndex === -1) {
         // ID không tồn tại → thêm vào array
-        updatedMessages = [...prevMessages, { ...msgData, status: msgData.status ?? "sent" }];
+        updatedMessages = [...prevMessages, { ...msgData, roomId: normalizedRoomId, status: msgData.status ?? "sent" }];
       } else {
         // ID đã tồn tại → cập nhật
         updatedMessages = prevMessages.map((msg, idx) =>
           idx === existingIndex
-            ? (mergeLeanSafe(msg, msgData) as unknown as MessageType)
+            ? (mergeLeanSafe(msg, { ...msgData, roomId: normalizedRoomId }) as unknown as MessageType)
             : msg,
         );
       }
@@ -358,6 +388,9 @@ const useMessageStore = create<MessageState>()((set, get) => ({
                 isMine: isMine,
               },
               is_read: isActiveRoom || isMine,
+              // If we are actively in the chat room OR if we sent the message,
+              // immediately advance our read index locally to keep data fully in sync.
+              last_read_id: (isActiveRoom || isMine) ? msgData.id : targetRoom.last_read_id,
             };
             currentRoomStore.updateRoomSocket(updatedRoom);
           }
@@ -367,7 +400,14 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       }
     };
 
-    const indexedDBTask = () => upsertOne(db.messages, msgData);
+    const indexedDBTask = () => {
+      const sanitized = sanitizeMessageForDB({
+        ...msgData,
+        roomId: normalizedRoomId,
+      });
+      queueMessageForDB(sanitized);
+      return Promise.resolve();
+    };
 
     // Fire both tasks in parallel, don't await - let them complete in background
     Promise.all([
@@ -499,6 +539,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
             // Ensure is_read is true since we are sending
             is_read: true,
             unread_count: 0, // Reset if we are sending (implies we read everything)
+            last_read_id: data.id, // Update last_read_id to the sent message!
           };
           roomStore.updateRoomSocket(updatedRoom);
         }
@@ -525,7 +566,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
               id,
               attachments: uploadedAttachments.map((att) => att._id),
             });
-            get().autoMarkMessageSent(roomId, id, 3000);
+            get().autoMarkMessageSent(roomId, id, 300);
           } else {
             console.warn(
               "⚠️ All attachments failed to upload — marking message failed",
@@ -581,7 +622,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         desk_id: args.desk_id || args.desk?.deck_id,
         todoProjectId: args.todoProjectId,
       });
-      get().autoMarkMessageSent(roomId, id, 3000);
+      get().autoMarkMessageSent(roomId, id, 300);
     }
   },
 
@@ -629,11 +670,10 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         attachments: sanitizeAttachmentsFromAPI(msg.attachments),
       }));
 
-      // Lưu từng tin nhắn vào IndexedDB
-      await Promise.all(
-        newMessages.map((msg: MessageType) =>
-          upsertOne(db.messages, sanitizeMessageForDB(msg)),
-        ),
+      // Lưu tin nhắn vào IndexedDB bằng bulk operation để tối ưu hiệu năng
+      await upsertMany(
+        db.messages,
+        newMessages.map((msg: MessageType) => sanitizeMessageForDB(msg)),
       );
 
       // Cập nhật state
@@ -793,7 +833,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           id: messageId,
         });
 
-        get().autoMarkMessageSent(roomId, messageId, 3000);
+        get().autoMarkMessageSent(roomId, messageId, 300);
         return;
       }
 
@@ -846,7 +886,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           attachments: successful.map((att) => att._id),
         });
 
-        get().autoMarkMessageSent(roomId, messageId, 3000);
+        get().autoMarkMessageSent(roomId, messageId, 300);
       } else {
         console.warn(
           "⚠️ Some or all attachments failed to upload on resend — marking message failed",
@@ -974,10 +1014,18 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     //    Mismatch (or empty cache) → fall back to the type=new delta
     //    fetch in the background.
     const latestCachedId = cached[cached.length - 1]?.id;
-    const room = useRoomStore
-      .getState()
-      .rooms.find((r) => r.id === roomId || r.roomId === roomId);
-    const serverLatestId = room?.last_message?.id ?? null;
+    const roomStore = useRoomStore.getState();
+    const room =
+      roomStore.room &&
+      (roomStore.room.id === roomId ||
+        roomStore.room._id === roomId ||
+        roomStore.room.roomId === roomId)
+        ? roomStore.room
+        : roomStore.rooms.find(
+            (r) =>
+              r.id === roomId || r._id === roomId || r.roomId === roomId
+          );
+    const serverLatestId = room?.last_message?.id || (room?.last_message as any)?._id || null;
     const cacheIsFresh =
       !!latestCachedId &&
       !!serverLatestId &&
@@ -1120,11 +1168,10 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         attachments: sanitizeAttachmentsFromAPI(msg.attachments),
       }));
 
-      // Upsert từng tin nhắn vào IndexedDB (đã được sanitize)
-      await Promise.all(
-        messages.map((msg: MessageType) =>
-          upsertOne(db.messages, sanitizeMessageForDB(msg)),
-        ),
+      // Upsert tin nhắn vào IndexedDB bằng bulk operation để tối ưu hiệu năng
+      await upsertMany(
+        db.messages,
+        messages.map((msg: MessageType) => sanitizeMessageForDB(msg)),
       );
 
       // Lấy room hiện tại và merge messages
@@ -2030,9 +2077,15 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           msg.status === "uploading" ||
           !msg.status
         ) {
-          return { ...msg, status: "sent" as const };
+          const newMsg = { ...msg, status: "sent" as const };
+          upsertOne(db.messages, sanitizeMessageForDB({ ...newMsg, roomId })).catch((e) =>
+            console.error("autoMarkMessageSent upsert error:", e)
+          );
+          return newMsg;
         }
-        upsertOne(db.messages, msg);
+        upsertOne(db.messages, sanitizeMessageForDB({ ...msg, roomId })).catch((e) =>
+          console.error("autoMarkMessageSent upsert error:", e)
+        );
         return msg;
       });
 

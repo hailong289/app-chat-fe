@@ -94,10 +94,21 @@ export const MessageGroup = memo(
                 ? group.messages[msgIdx + 1]
                 : null;
 
-            const isSameSenderAsPrev = prevMsg?.sender._id === msg.sender._id;
-            const isSameSenderAsNext = nextMsg?.sender._id === msg.sender._id;
+            const rendersAvatar = (m: MessageType | null) => {
+              if (!m) return false;
+              if (m.isDeleted) return false;
+              if (m.type === "system" || m.type === "quiz" || m.type === "flashcard") return false;
+              return true;
+            };
 
-            const showAvatar = !isSameSenderAsNext || isLastInGroup;
+            const prevSenderId = prevMsg?.sender?._id || prevMsg?.sender?.id;
+            const nextSenderId = nextMsg?.sender?._id || nextMsg?.sender?.id;
+            const currentSenderId = msg.sender?._id || msg.sender?.id;
+
+            const isSameSenderAsPrev = !!(prevSenderId && currentSenderId && prevSenderId === currentSenderId && rendersAvatar(prevMsg));
+            const isSameSenderAsNext = !!(nextSenderId && currentSenderId && nextSenderId === currentSenderId && rendersAvatar(nextMsg));
+
+            const showAvatar = rendersAvatar(msg) && (!isSameSenderAsNext || isLastInGroup);
             const messageSpacing = isSameSenderAsPrev ? "mt-1" : "mt-4";
 
             const isNewMessage = !renderedMessageIds.current.has(msg.id);

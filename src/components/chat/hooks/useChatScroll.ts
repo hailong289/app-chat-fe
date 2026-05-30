@@ -87,6 +87,14 @@ export function useChatScroll({
       // Reset interaction flag
       isUserInteracting.current = false;
 
+      // 0. If the target is the very last message, scroll fully to the bottom
+      // instead of centering it (which leaves an ugly gap below).
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage && lastMessage.id === id) {
+        scrollToBottom();
+        return;
+      }
+
       // Helper function để highlight message
       const highlightMessage = (element: Element) => {
         element.classList.add("message-highlight-flash");

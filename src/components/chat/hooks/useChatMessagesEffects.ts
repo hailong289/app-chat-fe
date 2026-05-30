@@ -120,6 +120,10 @@ export function useChatMessagesEffects({
     if (loadedChatIdRef.current === chatId) return;
     loadedChatIdRef.current = chatId;
 
+    // Background sync: Fetch the latest full room details (with updated member watermarks)
+    // from the server to ensure checkmarks (ticks) are accurate and fully synchronized.
+    void useRoomStore.getState().fetchAndUpdateRoom(chatId);
+
     // Snapshot the chatId this attempt is for. The "is this still the
     // active chat?" check is done by comparing `loadedChatIdRef.current`
     // — if the user has since switched, the ref points elsewhere and
@@ -363,23 +367,24 @@ export function useChatMessagesEffects({
         }
       }
 
-      const isMine =
-        currentUser?._id && newMessage?.sender?._id === currentUser._id;
+      const currentUserId = currentUser?.id || currentUser?._id;
+      const senderId = newMessage?.sender?.id || newMessage?.sender?._id;
+      const isMine = !!(currentUserId && senderId && currentUserId === senderId);
 
       if (isMine) {
-        setTimeout(() => {
+        const scrollToBottomSnap = () => {
           if (containerRef.current) {
-            containerRef.current.scrollTo({
-              top: containerRef.current.scrollHeight,
-              behavior: "smooth",
-            });
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
           } else if (bottomRef.current) {
             bottomRef.current.scrollIntoView({
-              behavior: "smooth",
               block: "end",
             });
           }
-        }, 150);
+        };
+        // Scroll instantly to snap, then again to ensure it stays glued
+        scrollToBottomSnap();
+        setTimeout(scrollToBottomSnap, 50);
+        setTimeout(scrollToBottomSnap, 150);
       } else if (isBottomVisible && bottomRef.current) {
         requestAnimationFrame(() => {
           if (containerRef.current) {

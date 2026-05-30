@@ -19,7 +19,7 @@ export function useDeliveredAcker(socket: Socket | null | undefined) {
       timers.current[roomId] = setTimeout(() => {
         lastAcked.current[roomId] = msgId;
         socket.emit(socketEvent.MSGDELIVERED, { roomId, msgId });
-      }, 300);
+      }, 50); // 50ms micro-debounce for extremely responsive delivered updates
     },
     [socket],
   );

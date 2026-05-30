@@ -328,18 +328,43 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
   },
   // handel socket
   updateRoomSocket: (data: roomType) => {
-    // Nếu id của data bằng id của room hiện tại thì cập nhật luôn room
-    if (get().room?.id === data.id) {
+    // Nếu id của data khớp với room hiện tại thì cập nhật luôn room
+    const currentRoom = get().room;
+    if (
+      currentRoom &&
+      (currentRoom.id === data.id ||
+        currentRoom._id === data._id ||
+        currentRoom.roomId === data.roomId ||
+        currentRoom.id === data._id ||
+        currentRoom._id === data.id ||
+        currentRoom.roomId === data.id ||
+        currentRoom.id === data.roomId)
+    ) {
       set({ room: data });
     }
     const currentType = get().type;
     if (currentType === "all" || currentType === data.type) {
       set((state) => {
-        const exists = state.rooms.some((r) => r.id === data.id);
+        const exists = state.rooms.some(
+          (r) =>
+            r.id === data.id ||
+            r._id === data._id ||
+            r.roomId === data.roomId ||
+            r.id === data._id ||
+            r._id === data.id
+        );
         let rooms;
         if (exists) {
           // Nếu đã có thì update room trong state
-          rooms = state.rooms.map((r) => (r.id === data.id ? data : r));
+          rooms = state.rooms.map((r) =>
+            r.id === data.id ||
+            r._id === data._id ||
+            r.roomId === data.roomId ||
+            r.id === data._id ||
+            r._id === data.id
+              ? { ...r, ...data }
+              : r
+          );
         } else {
           // Nếu chưa có thì thêm mới vào state
           rooms = [data, ...state.rooms];
@@ -368,8 +393,41 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
   },
 
   setRoomReaded: async (data: { lastMessageId: string; roomId: string }) => {
+    // 1. Optimistically update Zustand store state immediately
+    set((state) => {
+      const updatedRooms = state.rooms.map((r) => {
+        if (r.id === data.roomId || r._id === data.roomId || r.roomId === data.roomId) {
+          return {
+            ...r,
+            last_read_id: data.lastMessageId,
+            is_read: true,
+            unread_count: 0,
+          };
+        }
+        return r;
+      });
+
+      const updatedRoom =
+        state.room &&
+        (state.room.id === data.roomId ||
+          state.room._id === data.roomId ||
+          state.room.roomId === data.roomId)
+          ? {
+              ...state.room,
+              last_read_id: data.lastMessageId,
+              is_read: true,
+              unread_count: 0,
+            }
+          : state.room;
+
+      return {
+        rooms: updatedRooms,
+        room: updatedRoom,
+      };
+    });
+
+    // 2. Perform IndexedDB write and await it to prevent race conditions
     try {
-      // Cập nhật trong IndexedDB
       await updateOne(db.rooms, data.roomId, {
         last_read_id: data.lastMessageId,
         is_read: true,
@@ -379,8 +437,8 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       console.error("❌ Error updating room read status in IndexedDB:", error);
     }
 
-    // Refresh state
-    get().getRoomsByType(get().type);
+    // 3. Refresh rooms list from database
+    await get().getRoomsByType(get().type);
 
     // Nếu là room hiện tại, refresh room detail
     if (data.roomId === get().room?.id) {
@@ -415,10 +473,42 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
         (state.room._id === evt.roomId ||
           state.room.roomId === evt.roomId ||
           state.room.id === evt.roomId)
-          ? rooms.find((r) => r._id === state.room!._id) ?? state.room
+          ? rooms.find(
+              (r) =>
+                r.id === state.room!.id ||
+                r._id === state.room!._id ||
+                r.roomId === state.room!.roomId
+            ) ?? state.room
           : state.room;
       return { rooms, room };
     });
+
+    // Persist status updates to IndexedDB to keep status ticks persistent across re-entry/refresh
+    const targetRoom = get().room;
+    const updatedRoom =
+      get().rooms.find(
+        (r) =>
+          r.id === evt.roomId ||
+          r._id === evt.roomId ||
+          r.roomId === evt.roomId
+      ) ||
+      (targetRoom &&
+      (targetRoom.id === evt.roomId ||
+        targetRoom._id === evt.roomId ||
+        targetRoom.roomId === evt.roomId)
+        ? targetRoom
+        : null);
+
+    if (updatedRoom) {
+      const dbRoomId = updatedRoom.id || updatedRoom._id || updatedRoom.roomId;
+      if (dbRoomId) {
+        updateOne(db.rooms, dbRoomId, { members: updatedRoom.members }).catch(
+          (error) => {
+            console.error("❌ Error updating room members status in IndexedDB:", error);
+          }
+        );
+      }
+    }
   },
   markMessageAsRead: (roomId: string, messageId: string, socket: any) => {
     // Emit socket event

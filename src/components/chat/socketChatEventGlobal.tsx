@@ -162,9 +162,23 @@ export const SocketEventChatGlobal = () => {
     // authored by OTHERS so the sender's bubble can flip to "delivered".
     const onMsgUpsertAck = (msg: any) => {
       messageState.upsetMsg(msg);
-      const myId = useAuthStore.getState().user?._id;
-      if (msg?.sender?.id && msg.sender.id !== myId && msg?.roomId && msg?.id) {
+      const myId = useAuthStore.getState().user?._id || useAuthStore.getState().user?.id;
+      const senderId = msg?.sender?.id || msg?.sender?._id;
+      if (senderId && String(senderId) !== String(myId) && msg?.roomId && msg?.id) {
         ackDelivered(String(msg.roomId), String(msg.id));
+
+        // If the recipient is currently viewing this room, immediately mark the message as read!
+        const activeRoom = useRoomStore.getState().room;
+        const isActiveRoom =
+          activeRoom &&
+          (activeRoom.id === msg.roomId ||
+            activeRoom._id === msg.roomId ||
+            activeRoom.roomId === msg.roomId);
+        if (isActiveRoom) {
+          useRoomStore
+            .getState()
+            .markMessageAsRead(String(msg.roomId), String(msg.id), msgSocket);
+        }
       }
     };
     const onMsgStatus = (evt: {

@@ -64,7 +64,11 @@ export function groupMessagesByDate<
   const translate = t || i18n.t;
   const groups: Record<string, T[]> = {};
 
-  messages.forEach((msg) => {
+  // Create a map of message ID to its index in the original array to achieve O(1) lookups
+  const messageIndexMap = new Map<string, number>();
+  messages.forEach((msg, idx) => {
+    messageIndexMap.set(msg.id, idx);
+
     const date = new Date(msg.createdAt);
     const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 
@@ -77,7 +81,7 @@ export function groupMessagesByDate<
   // Tìm vị trí tin nhắn đã đọc cuối cùng
   let lastReadIndex = -1;
   if (lastReadId) {
-    lastReadIndex = messages.findIndex((msg) => msg.id === lastReadId);
+    lastReadIndex = messageIndexMap.get(lastReadId) ?? -1;
   }
 
   // Convert to array and sort by date (oldest first)
@@ -101,18 +105,20 @@ export function groupMessagesByDate<
     const date = new Date(year, month, day);
     const groupMessages = groups[dateKey];
 
-    // Ensure messages within group are sorted by createdAt
-    groupMessages.sort(
-      (a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
+    // Ensure messages within group are sorted by createdAt, falling back to ID if equal
+    groupMessages.sort((a, b) => {
+      const timeA = new Date(a.createdAt).getTime();
+      const timeB = new Date(b.createdAt).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      return a.id.localeCompare(b.id);
+    });
 
     // Kiểm tra xem group này có tin nhắn mới không
     let newMessageIndex = -1;
     if (lastReadIndex >= 0) {
       for (let idx = 0; idx < groupMessages.length; idx++) {
         const msg = groupMessages[idx];
-        const msgIndex = messages.findIndex((m) => m.id === msg.id);
+        const msgIndex = messageIndexMap.get(msg.id) ?? -1;
         if (msgIndex > lastReadIndex && newMessageIndex === -1) {
           newMessageIndex = idx;
         }
