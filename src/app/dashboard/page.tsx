@@ -11,7 +11,6 @@ import {
   SparklesIcon,
   RocketLaunchIcon,
   ShieldCheckIcon,
-  ArrowRightIcon,
   AcademicCapIcon,
   LanguageIcon,
   MagnifyingGlassIcon,
@@ -22,6 +21,7 @@ import {
 import { useRouter } from "next/navigation";
 import useAuthStore from "@/store/useAuthStore";
 import { useEffect, useMemo } from "react";
+import { PublicMarketingNav } from "@/components/intro/PublicMarketingNav";
 
 /**
  * Public landing page. Shown to logged-out visitors at "/" (via redirect
@@ -159,36 +159,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
-      {/* Navigation Bar */}
-      <nav className="sticky top-0 z-50 backdrop-blur-lg bg-white/80 border-b border-slate-200 dark:bg-slate-900/90 dark:border-slate-800">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="Logo" width={40} height={40} />
-            <span className="text-xl font-bold text-slate-900 dark:text-slate-50">
-              EduChat <span className="text-primary-500">·</span>{" "}
-              <span className="text-slate-500 dark:text-slate-300">
-                Học tập thông minh
-              </span>
-            </span>
-          </div>
-          <div className="flex gap-3">
-            <Button
-              variant="bordered"
-              className="border-slate-300 text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-              onPress={() => router.push("/auth")}
-            >
-              Đăng nhập
-            </Button>
-            <Button
-              color="primary"
-              endContent={<ArrowRightIcon className="w-4 h-4" />}
-              onPress={() => router.push("/auth/register")}
-            >
-              Đăng ký
-            </Button>
-          </div>
-        </div>
-      </nav>
+      <PublicMarketingNav />
 
       <div className="max-w-6xl mx-auto px-4 py-10 space-y-16">
         {/* Hero */}
@@ -257,6 +228,14 @@ export default function DashboardPage() {
               variant="bordered"
               size="lg"
               className="font-semibold border-slate-300 text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800"
+              onPress={() => router.push("/download")}
+            >
+              Tải ứng dụng
+            </Button>
+            <Button
+              variant="light"
+              size="lg"
+              className="font-semibold text-slate-700 dark:text-slate-200"
               onPress={() => {
                 document
                   .getElementById("features")

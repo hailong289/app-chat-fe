@@ -71,7 +71,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!path) return;
     const isAuthRoute = path === "/auth" || path.startsWith("/auth/");
-    const isPublic = isAuthRoute || path === "/dashboard";
+    const isPublic =
+      isAuthRoute || path === "/dashboard" || path === "/download";
 
     if (isAuthenticated && isAuthRoute) {
       router.replace("/chat");

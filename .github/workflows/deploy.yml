@@ -1,175 +1,248 @@
-name: Deploy App Chat FE
-
-on:
-  push:
-    branches:
-      - master
-
-jobs:
-  # ─────────────────────────────────────────────
-  # JOB 1: Deploy web lên Cloud Run
-  # ─────────────────────────────────────────────
-  deploy-web:
-    name: Deploy Web to Cloud Run
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: project-3a90e7bd-fcfe-474a-a03
-
-      - run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
-
-      - name: Build & Push Docker image
-        run: |
-          IMAGE="asia-southeast1-docker.pkg.dev/project-3a90e7bd-fcfe-474a-a03/microservices/appchat:latest"
-          docker build -t $IMAGE \
-            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
-            --build-arg NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }} \
-            --build-arg NEXT_PUBLIC_SOCKET_URL=${{ secrets.NEXT_PUBLIC_SOCKET_URL }} \
-            --build-arg NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }} \
-            --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }} \
-            --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }} \
-            --build-arg NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }} \
-            --build-arg NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }} \
-            --build-arg NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }} \
-            --build-arg NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }} \
-            --build-arg NEXT_PUBLIC_FIREBASE_VAPID_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }} \
-            -f Dockerfile .
-          docker push $IMAGE
-
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy app-chat-fe-service \
-            --image asia-southeast1-docker.pkg.dev/project-3a90e7bd-fcfe-474a-a03/microservices/appchat:latest \
-            --region asia-southeast1 \
-            --platform managed \
-            --allow-unauthenticated \
-            --min-instances=0 \
-            --max-instances=3 \
-            --cpu=1 \
-            --memory=512Mi \
-            --port=8080 \
-            --timeout=60s \
-            --set-env-vars NODE_ENV=${{ secrets.NODE_ENV }} \
-            --set-env-vars NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
-            --set-env-vars NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }} \
-            --set-env-vars NEXT_PUBLIC_SOCKET_URL=${{ secrets.NEXT_PUBLIC_SOCKET_URL }} \
-            --set-env-vars NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }} \
-            --set-env-vars NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }} \
-            --set-env-vars NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }} \
-            --set-env-vars NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }} \
-            --set-env-vars NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }} \
-            --set-env-vars NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }} \
-            --set-env-vars NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }} \
-            --set-env-vars NEXT_PUBLIC_FIREBASE_VAPID_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }}
-
-  # ─────────────────────────────────────────────
-  # JOB 2: Build Tauri Desktop (Windows + macOS)
-  # ─────────────────────────────────────────────
-  build-desktop:
-    name: Build Tauri Desktop (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest]
-    env:
-      NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
-      NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
-      NEXT_PUBLIC_SOCKET_URL: ${{ secrets.NEXT_PUBLIC_SOCKET_URL }}
-      NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
-      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
-      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
-      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
-      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
-      NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
-      NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }}
-      NEXT_PUBLIC_FIREBASE_VAPID_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }}
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: Install dependencies
-        run: npm install --legacy-peer-deps
-
-      - name: Build Next.js app
-        run: npm run build
-
-      - name: Build Tauri app
-        run: npm run build:tauri:release
-
-      - name: Upload Tauri artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: tauri-build-${{ matrix.os }}
-          path: |
-            src-tauri/target/release/bundle/**
-
-  # ─────────────────────────────────────────────
-  # JOB 4: Notification (bắn ngay khi từng job xong)
-  # ─────────────────────────────────────────────
-  notify-web:
-    name: Notify Web Deploy Result
-    runs-on: ubuntu-latest
-    needs: deploy-web
-    if: always()
-    steps:
-      - name: Send Discord notification (web)
-        run: |
-          WEB_STATUS="${{ needs.deploy-web.result }}"
-
-          if [ "$WEB_STATUS" == "success" ]; then
-            MESSAGE="✅ Web deploy thành công!\n🌐 Web: https://app-chat-fe-service-dyt45erana-as.a.run.app/"
-          else
-            MESSAGE="❌ Web deploy thất bại!\nKiểm tra tại ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          fi
-
-          curl --location '${{ secrets.DISCORD_WEBHOOK_URL }}' \
-            --header 'Content-Type: application/json' \
-            --data "{\"content\": \"$MESSAGE\", \"embeds\": null, \"attachments\": []}"
-
-  notify-desktop:
-    name: Notify Desktop Build Result
-    runs-on: ubuntu-latest
-    needs: build-desktop
-    if: always()
-    steps:
-      - name: Send Discord notification (desktop)
-        run: |
-          DESKTOP_STATUS="${{ needs.build-desktop.result }}"
-
-          if [ "$DESKTOP_STATUS" == "success" ]; then
-            MESSAGE="✅ Desktop build (Windows + macOS) thành công!\n🖥️ Artifacts đã sẵn sàng tại Actions."
-          else
-            MESSAGE="❌ Desktop build (Windows + macOS) thất bại!\nKiểm tra tại ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          fi
-
-          curl --location '${{ secrets.DISCORD_WEBHOOK_URL }}' \
-            --header 'Content-Type: application/json' \
-            --data "{\"content\": \"$MESSAGE\", \"embeds\": null, \"attachments\": []}"
+name: Deploy App Chat FE
+
+on:
+  push:
+    branches:
+      - master
+
+env:
+  GH_RELEASE_DOWNLOAD_BASE: https://github.com/${{ github.repository }}/releases/latest/download
+
+jobs:
+  # ─────────────────────────────────────────────
+  # JOB 1: Deploy web lên Cloud Run
+  # ─────────────────────────────────────────────
+  deploy-web:
+    name: Deploy Web to Cloud Run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: project-3a90e7bd-fcfe-474a-a03
+
+      - run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+
+      - name: Build & Push Docker image
+        run: |
+          IMAGE="asia-southeast1-docker.pkg.dev/project-3a90e7bd-fcfe-474a-a03/microservices/appchat:latest"
+          docker build -t $IMAGE \
+            --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
+            --build-arg NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }} \
+            --build-arg NEXT_PUBLIC_SOCKET_URL=${{ secrets.NEXT_PUBLIC_SOCKET_URL }} \
+            --build-arg NEXT_PUBLIC_DESKTOP_DOWNLOAD_WINDOWS=${{ env.GH_RELEASE_DOWNLOAD_BASE }}/EduChat-Windows.msi \
+            --build-arg NEXT_PUBLIC_DESKTOP_DOWNLOAD_MACOS=${{ env.GH_RELEASE_DOWNLOAD_BASE }}/EduChat-macOS.dmg \
+            --build-arg NEXT_PUBLIC_DESKTOP_DOWNLOAD_LINUX=${{ env.GH_RELEASE_DOWNLOAD_BASE }}/EduChat-Linux.deb \
+            --build-arg NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }} \
+            --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }} \
+            --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }} \
+            --build-arg NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }} \
+            --build-arg NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }} \
+            --build-arg NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }} \
+            --build-arg NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }} \
+            --build-arg NEXT_PUBLIC_FIREBASE_VAPID_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }} \
+            -f Dockerfile .
+          docker push $IMAGE
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy app-chat-fe-service \
+            --image asia-southeast1-docker.pkg.dev/project-3a90e7bd-fcfe-474a-a03/microservices/appchat:latest \
+            --region asia-southeast1 \
+            --platform managed \
+            --allow-unauthenticated \
+            --min-instances=0 \
+            --max-instances=3 \
+            --cpu=1 \
+            --memory=512Mi \
+            --port=8080 \
+            --timeout=60s \
+            --set-env-vars NODE_ENV=${{ secrets.NODE_ENV }} \
+            --set-env-vars NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
+            --set-env-vars NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }} \
+            --set-env-vars NEXT_PUBLIC_SOCKET_URL=${{ secrets.NEXT_PUBLIC_SOCKET_URL }} \
+            --set-env-vars NEXT_PUBLIC_DESKTOP_DOWNLOAD_WINDOWS=${{ env.GH_RELEASE_DOWNLOAD_BASE }}/EduChat-Windows.msi \
+            --set-env-vars NEXT_PUBLIC_DESKTOP_DOWNLOAD_MACOS=${{ env.GH_RELEASE_DOWNLOAD_BASE }}/EduChat-macOS.dmg \
+            --set-env-vars NEXT_PUBLIC_DESKTOP_DOWNLOAD_LINUX=${{ env.GH_RELEASE_DOWNLOAD_BASE }}/EduChat-Linux.deb \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }} \
+            --set-env-vars NEXT_PUBLIC_FIREBASE_VAPID_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }}
+
+  # ─────────────────────────────────────────────
+  # JOB 2: Build Tauri Desktop (Windows + macOS + Linux)
+  # ─────────────────────────────────────────────
+  build-desktop:
+    name: Build Tauri Desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    env:
+      NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+      NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+      NEXT_PUBLIC_SOCKET_URL: ${{ secrets.NEXT_PUBLIC_SOCKET_URL }}
+      NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+      NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+      NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }}
+      NEXT_PUBLIC_FIREBASE_VAPID_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build Next.js app
+        run: npm run build
+
+      - name: Build Tauri app
+        run: npm run build:tauri:release
+
+      - name: Upload Tauri artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-build-${{ matrix.os }}
+          path: |
+            src-tauri/target/release/bundle/**
+
+  # ─────────────────────────────────────────────
+  # JOB 3: Publish installers lên GitHub Releases
+  # ─────────────────────────────────────────────
+  publish-desktop-release:
+    name: Publish Desktop to GitHub Releases
+    needs: build-desktop
+    if: always() && needs.build-desktop.result != 'cancelled' && needs.build-desktop.result != 'skipped'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tauri-build-*
+          merge-multiple: true
+          path: bundles
+
+      - name: Prepare release assets
+        run: bash scripts/prepare-release-assets.sh bundles release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-${{ github.run_number }}
+          name: Desktop build ${{ github.run_number }}
+          make_latest: true
+          draft: false
+          prerelease: false
+          files: release/*
+          body: |
+            Bản cài desktop Tauri (tự động từ CI).
+
+            | Nền tảng | File |
+            |----------|------|
+            | Windows | `EduChat-Windows.msi` |
+            | macOS | `EduChat-macOS.dmg` |
+            | Linux | `EduChat-Linux.deb` |
+
+            Commit: `${{ github.sha }}`
+
+            Trang tải: https://github.com/${{ github.repository }}/releases/latest
+
+  # ─────────────────────────────────────────────
+  # JOB 4: Notification (bắn ngay khi từng job xong)
+  # ─────────────────────────────────────────────
+  notify-web:
+    name: Notify Web Deploy Result
+    runs-on: ubuntu-latest
+    needs: deploy-web
+    if: always()
+    steps:
+      - name: Send Discord notification (web)
+        run: |
+          WEB_STATUS="${{ needs.deploy-web.result }}"
+
+          if [ "$WEB_STATUS" == "success" ]; then
+            MESSAGE="✅ Web deploy thành công!\n🌐 Web: https://app-chat-fe-service-dyt45erana-as.a.run.app/\n📥 Download: ${{ secrets.NEXT_PUBLIC_APP_URL }}/download"
+          else
+            MESSAGE="❌ Web deploy thất bại!\nKiểm tra tại ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+
+          curl --location '${{ secrets.DISCORD_WEBHOOK_URL }}' \
+            --header 'Content-Type: application/json' \
+            --data "{\"content\": \"$MESSAGE\", \"embeds\": null, \"attachments\": []}"
+
+  notify-desktop:
+    name: Notify Desktop Build Result
+    runs-on: ubuntu-latest
+    needs: [build-desktop, publish-desktop-release]
+    if: always()
+    steps:
+      - name: Send Discord notification (desktop)
+        run: |
+          BUILD_STATUS="${{ needs.build-desktop.result }}"
+          RELEASE_STATUS="${{ needs.publish-desktop-release.result }}"
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/latest"
+
+          if [ "$RELEASE_STATUS" == "success" ]; then
+            MESSAGE="✅ Desktop đã publish lên GitHub Releases!\n📦 ${RELEASE_URL}\n🔗 Windows: ${{ env.GH_RELEASE_DOWNLOAD_BASE }}/EduChat-Windows.msi"
+          elif [ "$BUILD_STATUS" == "success" ]; then
+            MESSAGE="⚠️ Desktop build xong nhưng publish release thất bại.\nKiểm tra: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          else
+            MESSAGE="❌ Desktop build thất bại (một hoặc nhiều nền tảng).\nKiểm tra: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+
+          curl --location '${{ secrets.DISCORD_WEBHOOK_URL }}' \
+            --header 'Content-Type: application/json' \
+            --data "{\"content\": \"$MESSAGE\", \"embeds\": null, \"attachments\": []}"
+
