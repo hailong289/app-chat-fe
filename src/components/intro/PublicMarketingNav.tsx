@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Button } from "@heroui/button";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useRouter, usePathname } from "next/navigation";
+import useAuthStore from "@/store/useAuthStore";
 
 type PublicMarketingNavProps = {
   showDownloadLink?: boolean;
@@ -14,6 +15,7 @@ export function PublicMarketingNav({
 }: PublicMarketingNavProps) {
   const router = useRouter();
   const path = usePathname();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   return (
     <nav className="sticky top-0 z-50 backdrop-blur-lg bg-white/80 border-b border-slate-200 dark:bg-slate-900/90 dark:border-slate-800">
@@ -50,20 +52,32 @@ export function PublicMarketingNav({
               Giới thiệu
             </Button>
           )}
-          <Button
-            variant="bordered"
-            className="border-slate-300 text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
-            onPress={() => router.push("/auth")}
-          >
-            Đăng nhập
-          </Button>
-          <Button
-            color="primary"
-            endContent={<ArrowRightIcon className="w-4 h-4" />}
-            onPress={() => router.push("/auth/register")}
-          >
-            Đăng ký
-          </Button>
+          {isAuthenticated ? (
+            <Button
+              color="primary"
+              endContent={<ArrowRightIcon className="w-4 h-4" />}
+              onPress={() => router.push("/chat")}
+            >
+              Vào chat
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="bordered"
+                className="border-slate-300 text-slate-800 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                onPress={() => router.push("/auth")}
+              >
+                Đăng nhập
+              </Button>
+              <Button
+                color="primary"
+                endContent={<ArrowRightIcon className="w-4 h-4" />}
+                onPress={() => router.push("/auth/register")}
+              >
+                Đăng ký
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </nav>

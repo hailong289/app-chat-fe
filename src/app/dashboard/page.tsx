@@ -19,8 +19,7 @@ import {
   DocumentMagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
 import { useRouter } from "next/navigation";
-import useAuthStore from "@/store/useAuthStore";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { PublicMarketingNav } from "@/components/intro/PublicMarketingNav";
 
 /**
@@ -40,13 +39,6 @@ import { PublicMarketingNav } from "@/components/intro/PublicMarketingNav";
  */
 export default function DashboardPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      router.push("/chat");
-    }
-  }, [isAuthenticated, router]);
 
   const features = [
     {

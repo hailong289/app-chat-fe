@@ -219,18 +219,22 @@ jobs:
     if: always()
     env:
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      DOWNLOAD_BASE: ${{ env.GH_RELEASE_DOWNLOAD_BASE }}
     steps:
       - name: Send Discord notification (desktop)
         run: |
           BUILD_STATUS="${{ needs.build-desktop.result }}"
           RELEASE_STATUS="${{ needs.publish-desktop-release.result }}"
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/latest"
+          WIN_URL="${DOWNLOAD_BASE}/IChat-Windows.msi"
+          MAC_URL="${DOWNLOAD_BASE}/IChat-macOS.dmg"
+          LINUX_URL="${DOWNLOAD_BASE}/IChat-Linux.deb"
           if [ "$RELEASE_STATUS" = "success" ]; then
-            MESSAGE=$'✅ Desktop đã publish lên GitHub Releases!\n📦 '"$RELEASE_URL"$'\n🔗 Windows: ${{ env.GH_RELEASE_DOWNLOAD_BASE }}/IChat-Windows.msi'
+            MESSAGE=$'✅ Desktop đã publish lên GitHub Releases!\n📦 '"$RELEASE_URL"$'\n🪟 Windows: '"$WIN_URL"$'\n🍎 macOS: '"$MAC_URL"$'\n🐧 Linux: '"$LINUX_URL"
           elif [ "$BUILD_STATUS" = "success" ]; then
             MESSAGE=$'⚠️ Desktop build xong nhưng publish release thất bại.\nKiểm tra: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
           else
-            MESSAGE=$'❌ Desktop build thất bại (một hoặc nhiều nền tảng).\nKiểm tra: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+            MESSAGE=$'❌ Desktop build thất bại (Windows / macOS / Linux).\nKiểm tra: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
           fi
           PAYLOAD=$(jq -n --arg content "$MESSAGE" '{content: $content}')
           curl -fsS -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL"

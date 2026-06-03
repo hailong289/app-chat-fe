@@ -71,8 +71,13 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!path) return;
     const isAuthRoute = path === "/auth" || path.startsWith("/auth/");
+    // /dashboard và /download luôn public; user đã login vẫn truy cập được
     const isPublic =
-      isAuthRoute || path === "/dashboard" || path === "/download";
+      isAuthRoute ||
+      path === "/dashboard" ||
+      path === "/download" ||
+      path.startsWith("/dashboard/") ||
+      path.startsWith("/download/");
 
     if (isAuthenticated && isAuthRoute) {
       router.replace("/chat");
@@ -141,12 +146,17 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     requestPermission();
   }, [firebase, isAuthenticated]);
   // Define valid routes
-  const validRoutes = ["/", "/chat", "/settings", "/contacts", '/flash-card', '/todo', '/docs'];
+  const appShellRoutes = ["/", "/chat", "/settings", "/contacts", "/flash-card", "/todo", "/docs"];
+  const marketingRoutes = ["/dashboard", "/download"];
+  const isMarketingPage = marketingRoutes.some(
+    (route) => path === route || path.startsWith(`${route}/`),
+  );
   const isValidRoute =
-    !validRoutes.some(
-      (route) => path === route || path.startsWith(route + "/"),
+    !appShellRoutes.some(
+      (route) => path === route || path.startsWith(`${route}/`),
     ) ||
     isAuthPage ||
+    isMarketingPage ||
     path.startsWith("/call");
 
   const handleResizeStart = useCallback(
