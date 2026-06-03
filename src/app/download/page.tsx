@@ -117,7 +117,7 @@ export default function DownloadPage() {
               <div className="absolute inset-0 bg-primary/20 rounded-full blur-3xl dark:bg-primary/30" />
               <Image
                 src="/logo.png"
-                alt="EduChat"
+                alt="IChat"
                 width={96}
                 height={96}
                 className="relative z-10 drop-shadow-xl rounded-2xl"
@@ -125,7 +125,7 @@ export default function DownloadPage() {
             </div>
           </div>
           <h1 className="text-3xl md:text-5xl font-extrabold mb-4 bg-linear-to-r from-primary-500 via-sky-500 to-secondary-500 bg-clip-text text-transparent">
-            Tải EduChat trên mọi thiết bị
+            Tải IChat trên mọi thiết bị
           </h1>
           <p className="text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto mb-6">
             Dùng trên trình duyệt, cài bản desktop (Tauri) hoặc app di động
@@ -296,7 +296,7 @@ export default function DownloadPage() {
         </Card>
 
         <footer className="text-center pb-8 text-slate-500 dark:text-slate-500 text-sm">
-          <p>🎓 EduChat — Đề tài tốt nghiệp UIT · Đa nền tảng Web / Desktop / Mobile</p>
+          <p>🎓 IChat — Đề tài tốt nghiệp UIT · Đa nền tảng Web / Desktop / Mobile</p>
         </footer>
       </div>
     </div>

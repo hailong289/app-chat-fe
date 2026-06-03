@@ -25,7 +25,7 @@ export function PublicMarketingNav({
         >
           <Image src="/logo.png" alt="Logo" width={40} height={40} />
           <span className="text-xl font-bold text-slate-900 dark:text-slate-50">
-            EduChat <span className="text-primary-500">·</span>{" "}
+            IChat <span className="text-primary-500">·</span>{" "}
             <span className="text-slate-500 dark:text-slate-300 hidden sm:inline">
               Học tập thông minh
             </span>

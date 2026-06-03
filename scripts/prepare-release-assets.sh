@@ -17,22 +17,22 @@ DMG=$(find_installer dmg)
 DEB=$(find_installer deb)
 
 if [[ -n "$MSI" ]]; then
-  cp "$MSI" "$OUT_DIR/EduChat-Windows.msi"
-  echo "✓ Windows: $MSI → EduChat-Windows.msi"
+  cp "$MSI" "$OUT_DIR/IChat-Windows.msi"
+  echo "✓ Windows: $MSI → IChat-Windows.msi"
 else
   echo "::warning::Windows .msi not found under $BUNDLES_DIR"
 fi
 
 if [[ -n "$DMG" ]]; then
-  cp "$DMG" "$OUT_DIR/EduChat-macOS.dmg"
-  echo "✓ macOS: $DMG → EduChat-macOS.dmg"
+  cp "$DMG" "$OUT_DIR/IChat-macOS.dmg"
+  echo "✓ macOS: $DMG → IChat-macOS.dmg"
 else
   echo "::warning::macOS .dmg not found under $BUNDLES_DIR"
 fi
 
 if [[ -n "$DEB" ]]; then
-  cp "$DEB" "$OUT_DIR/EduChat-Linux.deb"
-  echo "✓ Linux: $DEB → EduChat-Linux.deb"
+  cp "$DEB" "$OUT_DIR/IChat-Linux.deb"
+  echo "✓ Linux: $DEB → IChat-Linux.deb"
 else
   echo "::warning::Linux .deb not found under $BUNDLES_DIR"
 fi

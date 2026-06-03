@@ -509,13 +509,13 @@ export default function DashboardPage() {
 
         {/* Footer */}
         <footer className="text-center pt-4 pb-8 text-slate-500 dark:text-slate-500 text-sm space-y-1">
-          <p>🎓 EduChat — Đề tài tốt nghiệp UIT</p>
+          <p>🎓 IChat — Đề tài tốt nghiệp UIT</p>
           <p>
             9 microservices · 8 AI endpoints · NestJS / Next.js / Yjs /
             Mediasoup
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-600">
-            © 2025 EduChat. Đề tài nghiên cứu nền tảng chat đa nền tảng tích
+            © 2025 IChat. Đề tài nghiên cứu nền tảng chat đa nền tảng tích
             hợp AI phục vụ học tập.
           </p>
         </footer>
