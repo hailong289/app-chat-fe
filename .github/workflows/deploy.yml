@@ -219,7 +219,7 @@ jobs:
     if: always()
     env:
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-      DOWNLOAD_BASE: ${{ env.GH_RELEASE_DOWNLOAD_BASE }}
+      DOWNLOAD_BASE: https://github.com/${{ github.repository }}/releases/latest/download
     steps:
       - name: Send Discord notification (desktop)
         run: |
