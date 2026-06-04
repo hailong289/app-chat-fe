@@ -11,7 +11,7 @@ export const InitAppChat = () => {
   const { socket } = useSocket("/chat");
   useEffect(() => {
     if (!authState.isAuthenticated) return;
-    contactState.getFriends();
+    // Friends are loaded in home.tsx boot — avoid duplicate /api/social/users/friends.
     contactState.getAllContacts();
     // authState.refreshToken();
     if (!socket) return;
