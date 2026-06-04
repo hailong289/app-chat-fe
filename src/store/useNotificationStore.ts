@@ -57,10 +57,8 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
   fetchNotifications: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await NotificationService.getNotifications({
-        limit: 50,
-        offset: 0,
-      });
+      const response = await NotificationService.getNotifications();
+      // Adjust based on actual API response structure
       const rawNotifications = response.metadata?.notifications || [];
       const notifications: Notification[] = rawNotifications.map((n: any) => ({
         _id: n.noti_id || n._id,
@@ -75,10 +73,7 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
         sender: n.noti_metadata?.sender || null,
       }));
 
-      const unreadCount =
-        typeof response.metadata?.unreadCount === "number"
-          ? response.metadata.unreadCount
-          : notifications.filter((n) => !n.isRead).length;
+      const unreadCount = notifications.filter((n) => !n.isRead).length;
 
       set({ notifications, unreadCount, isLoading: false });
     } catch (error: any) {

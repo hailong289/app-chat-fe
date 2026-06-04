@@ -1006,7 +1006,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       if (latestCachedId) {
         const response = (await MessageService.getMessages({
           roomId,
-          queryParams: { type: "new", msgId: latestCachedId, limit: 50 },
+          queryParams: { type: "new", msgId: latestCachedId, limit: 100 },
         })) as { data: { metadata: MessageType[] } };
         const newer = Array.isArray(response?.data?.metadata)
           ? response.data.metadata
