@@ -58,8 +58,8 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await NotificationService.getNotifications({
+        page: 1,
         limit: 50,
-        offset: 0,
       });
       const rawNotifications = response.metadata?.notifications || [];
       const notifications: Notification[] = rawNotifications.map((n: any) => ({
