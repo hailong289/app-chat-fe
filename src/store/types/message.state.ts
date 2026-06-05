@@ -122,6 +122,14 @@ export type MessageType = {
   room_event?: RoomEventType | null;
   /** Backend fallback text for system messages — used when room_event is missing */
   placeholder?: string;
+  /**
+   * Gap-marker flag (catch-up sync engine). When `true` this is a
+   * placeholder row inserted into the timeline to represent a window of
+   * messages the client hasn't pulled yet (large offline gap / room not
+   * open). The UI renders a "tải thêm tin" marker and lazy-loads the
+   * real messages on scroll via `loadOlderMessages`. Not a real message.
+   */
+  __gap?: boolean;
 };
 
 export type RoomEventActor = {

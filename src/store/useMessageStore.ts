@@ -33,6 +33,12 @@ const updateRoomDataWithGroups = (
   const currentUserId = currentUser?._id;
 
   const displayableMessages = newMessages.filter((msg) => {
+    // Gap-marker placeholders (catch-up sync engine) are bookkeeping
+    // rows in IndexedDB, not real messages — never render them as
+    // bubbles. The gap-marker UI is a separate timeline affordance.
+    if (msg.__gap) {
+      return false;
+    }
     if (currentUserId && msg.hiddenBy?.includes(currentUserId)) {
       return false;
     }

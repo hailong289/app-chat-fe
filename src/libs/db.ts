@@ -146,10 +146,21 @@ export function getCurrentDbUserId(): string | null {
   return currentDbUserId;
 }
 
+/**
+ * Row shape for the `sync_meta` table — a tiny per-user key/value store
+ * for the catch-up sync engine cursor (`lastEventSeq`) and bookkeeping
+ * (`lastSyncAt`). Keyed by `key` so each meta entry is a single row.
+ */
+export interface SyncMeta<T = unknown> {
+  key: string;
+  value: T;
+}
+
 export class AppDB extends Dexie {
   rooms!: Table<roomType, string>;
   contacts!: Table<ContactType, string>;
   messages!: Table<MessageType, string>;
+  sync_meta!: Table<SyncMeta, string>;
 
   constructor(name: string = "app-chat-db") {
     super(name);
@@ -220,7 +231,45 @@ export class AppDB extends Dexie {
         await trans.table("contacts").clear();
         await trans.table("messages").clear();
       });
+
+    // Version 7: Add `sync_meta` table for the catch-up sync engine
+    // cursor (`lastEventSeq`/`lastSyncAt`). The `__gap` boolean flag on
+    // `messages` (gap-marker placeholder rows) is stored as a plain
+    // record property — no new index needed, so the `messages` schema
+    // string is unchanged. Additive upgrade: existing rooms/messages/
+    // contacts are preserved (no .clear()).
+    this.version(7).stores({
+      rooms: "id, roomId, type, updatedAt",
+      contacts: "id, fullname, email, status, createdAt, updatedAt",
+      messages: "id, roomId, type, createdAt, pinned, [roomId+createdAt]",
+      sync_meta: "key", // primary key only — value is opaque JSON
+    });
   }
+}
+
+/**
+ * Read a typed value from the `sync_meta` key/value table. Returns
+ * `undefined` when the key has never been written (e.g. first login →
+ * `lastEventSeq` absent → cold-start). Non-fatal on Dexie errors
+ * (anon-DB fallback before login) — resolves `undefined`.
+ */
+export async function getMeta<T>(key: string): Promise<T | undefined> {
+  try {
+    const row = await db.sync_meta.get(key);
+    return row ? (row.value as T) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Upsert a value into the `sync_meta` key/value table. Used to advance
+ * the sync cursor (`lastEventSeq`) and stamp `lastSyncAt`. Safe to call
+ * inside a Dexie `rw` transaction (the engine advances the cursor in
+ * the same transaction that applies a batch — atomic).
+ */
+export async function setMeta<T>(key: string, value: T): Promise<void> {
+  await db.sync_meta.put({ key, value });
 }
 
 // Legacy singleton export removed — `db` is now a Proxy declared above
