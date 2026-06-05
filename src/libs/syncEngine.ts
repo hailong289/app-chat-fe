@@ -28,12 +28,12 @@ import { roomType } from "@/store/types/room.state";
 import { MessageType } from "@/store/types/message.state";
 
 /**
- * Feature flag. When `false`, `runCatchupSync()` always falls back to
- * the legacy full-load path (`coldStart`), so boot/socket integration
- * behaves exactly like before the engine existed. Flip to `false` to
- * disable the warm catch-up path in production if needed.
+ * Feature flag (re-export from `syncConfig` để tránh vòng import). `false` →
+ * `runCatchupSync()` luôn fallback luồng full-load cũ (`coldStart`) và mọi điểm
+ * tích hợp giữ hành vi cũ.
  */
-export const SYNC_ENGINE_ENABLED = true;
+import { SYNC_ENGINE_ENABLED } from "./syncConfig";
+export { SYNC_ENGINE_ENABLED };
 
 /** Keys used in the `sync_meta` key/value table. */
 export const SyncMetaKey = {
@@ -77,14 +77,6 @@ const SYNC_EVENTS_URL = "/chat/sync/events";
 const PULL_LIMIT = 200;
 /** Sentinel "very large" sinceSeq to fetch only the current cursor. */
 const COLD_CURSOR_PROBE_SINCE = Number.MAX_SAFE_INTEGER;
-
-/**
- * Window (in ms) within which a room counts as "recent" — a
- * `room.newmsgs` event for such a room triggers a real delta fetch
- * rather than a gap-marker. Rooms updated longer ago get a cheap
- * gap-marker that lazy-loads on scroll.
- */
-const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 // In-memory guard so overlapping triggers (boot + socket reconnect
 // firing near-simultaneously) don't run two pull loops at once.
@@ -151,6 +143,16 @@ export async function runCatchupSync(): Promise<void> {
         if (res?.requireFullResync) {
           await coldStart();
           return;
+        }
+
+        // Self-heal con trỏ bị "đầu độc": nếu cursor vượt seq hiện tại của server
+        // (vd lastEventSeq = MAX_SAFE_INTEGER do bug currentSeq cũ), pull sẽ rỗng
+        // vĩnh viễn. Realign về currentSeq để lần sau pull lại bình thường.
+        const serverSeq = toNum(res?.currentSeq);
+        if (serverSeq > 0 && cursor > serverSeq) {
+          await setMeta(SyncMetaKey.LAST_EVENT_SEQ, serverSeq);
+          await setMeta(SyncMetaKey.LAST_SYNC_AT, Date.now());
+          break;
         }
 
         const events = Array.isArray(res?.events) ? res.events : [];
@@ -344,15 +346,11 @@ async function applyRoomNewMsgs(p: Record<string, unknown>): Promise<void> {
   if (cachedNewestId && cachedNewestId === newestMsgId) return;
 
   const isOpen = roomStore.room?.id === localRoomId;
-  const isRecent =
-    !!room?.updatedAt &&
-    Date.now() - new Date(room.updatedAt).getTime() <= RECENT_WINDOW_MS;
 
-  if (isOpen || isRecent) {
-    // Pull the new window using the existing delta path. Fire it
-    // outside the Dexie transaction's critical section (it does its own
-    // network + IDB writes). Don't await network inside the apply loop
-    // to keep the cursor advance fast; it's idempotent on its own.
+  if (isOpen) {
+    // CHỈ room đang mở mới kéo cửa sổ tin mới (delta). Room khác → gap-marker,
+    // lazy-load lúc người dùng mở. Tránh fan-out fetch limit=100 cho hàng loạt
+    // room mỗi lần catch-up (đúng thiết kế "chỉ kéo cửa sổ mới nhất + gap").
     void useMessageStore
       .getState()
       .fetchMessagesFromAPI(localRoomId, {
@@ -360,8 +358,7 @@ async function applyRoomNewMsgs(p: Record<string, unknown>): Promise<void> {
         ...(cachedNewestId ? { msgId: cachedNewestId } : {}),
       } as never);
   } else if (newestMsgId !== cachedNewestId) {
-    // Large gap / room not open → insert a gap-marker placeholder so
-    // the timeline lazy-loads the window when the user scrolls to it.
+    // Room không mở → chèn gap-marker để timeline lazy-load khi cuộn tới.
     await insertGapMarker(localRoomId, newestMsgTs);
   }
 
