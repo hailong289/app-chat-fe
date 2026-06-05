@@ -282,6 +282,14 @@ export interface MessageState {
     },
   ) => Promise<MessageType[]>;
   loadOlderMessages: (roomId: string, limit?: number) => Promise<any[]>;
+  /**
+   * Lazy-load the window of messages a gap-marker placeholder stands for,
+   * then remove the gap marker from IndexedDB + state. Reuses the existing
+   * `fetchMessagesFromAPI` (type='new') path to pull messages newer than
+   * the newest cached real message. Idempotent / safe: no gap → no-op.
+   * Returns true when the gap was filled, false on no-op or error.
+   */
+  loadGap: (roomId: string, limit?: number) => Promise<boolean>;
   findMessage: (roomId: string, messageId: string) => Promise<boolean>;
   deleteMessage: (roomId: string, messageId: string) => Promise<void>;
   recallMessage: (roomId: string, messageId: string) => Promise<void>;
