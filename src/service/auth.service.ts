@@ -22,11 +22,11 @@ export default class AuthService {
   }
 
   static sendOtp(data: Pick<PayloadSendOtp, "email" | "type">) {
-    return apiService.post<AuthResponse>("/auth/send-otp", data);
+    return apiService.post<AuthResponse>("/notifications/send-otp", data);
   }
 
   static verifyOtp(data: Pick<PayloadVerifyOtp, "indicator" | "otp" | "type">) {
-    return apiService.post<AuthResponse>("/auth/verify-otp", data);
+    return apiService.post<AuthResponse>("/notifications/verify-otp", data);
   }
 
   static register(data: Omit<PayloadRegister, "callback">) {

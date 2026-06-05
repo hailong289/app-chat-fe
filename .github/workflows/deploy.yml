@@ -5,6 +5,9 @@ on:
     branches:
       - master
 
+env:
+  GH_RELEASE_DOWNLOAD_BASE: https://github.com/${{ github.repository }}/releases/latest/download
+
 jobs:
   # ─────────────────────────────────────────────
   # JOB 1: Deploy web lên Cloud Run
@@ -32,6 +35,9 @@ jobs:
             --build-arg NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             --build-arg NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }} \
             --build-arg NEXT_PUBLIC_SOCKET_URL=${{ secrets.NEXT_PUBLIC_SOCKET_URL }} \
+            --build-arg NEXT_PUBLIC_DESKTOP_DOWNLOAD_WINDOWS=${{ env.GH_RELEASE_DOWNLOAD_BASE }}/IChat-Windows.msi \
+            --build-arg NEXT_PUBLIC_DESKTOP_DOWNLOAD_MACOS=${{ env.GH_RELEASE_DOWNLOAD_BASE }}/IChat-macOS.dmg \
+            --build-arg NEXT_PUBLIC_DESKTOP_DOWNLOAD_LINUX=${{ env.GH_RELEASE_DOWNLOAD_BASE }}/IChat-Linux.deb \
             --build-arg NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }} \
             --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }} \
             --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }} \
@@ -60,6 +66,9 @@ jobs:
             --set-env-vars NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }} \
             --set-env-vars NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }} \
             --set-env-vars NEXT_PUBLIC_SOCKET_URL=${{ secrets.NEXT_PUBLIC_SOCKET_URL }} \
+            --set-env-vars NEXT_PUBLIC_DESKTOP_DOWNLOAD_WINDOWS=${{ env.GH_RELEASE_DOWNLOAD_BASE }}/IChat-Windows.msi \
+            --set-env-vars NEXT_PUBLIC_DESKTOP_DOWNLOAD_MACOS=${{ env.GH_RELEASE_DOWNLOAD_BASE }}/IChat-macOS.dmg \
+            --set-env-vars NEXT_PUBLIC_DESKTOP_DOWNLOAD_LINUX=${{ env.GH_RELEASE_DOWNLOAD_BASE }}/IChat-Linux.deb \
             --set-env-vars NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }} \
             --set-env-vars NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }} \
             --set-env-vars NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }} \
@@ -70,7 +79,7 @@ jobs:
             --set-env-vars NEXT_PUBLIC_FIREBASE_VAPID_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }}
 
   # ─────────────────────────────────────────────
-  # JOB 2: Build Tauri Desktop (Windows + macOS)
+  # JOB 2: Build Tauri Desktop (Windows + macOS + Linux)
   # ─────────────────────────────────────────────
   build-desktop:
     name: Build Tauri Desktop (${{ matrix.os }})
@@ -78,7 +87,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
     env:
       NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
       NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
@@ -94,6 +103,12 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -132,6 +147,50 @@ jobs:
             src-tauri/target/release/bundle/**
 
   # ─────────────────────────────────────────────
+  # JOB 3: Publish installers lên GitHub Releases
+  # ─────────────────────────────────────────────
+  publish-desktop-release:
+    name: Publish Desktop to GitHub Releases
+    needs: build-desktop
+    if: always() && needs.build-desktop.result != 'cancelled' && needs.build-desktop.result != 'skipped'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tauri-build-*
+          merge-multiple: true
+          path: bundles
+
+      - name: Prepare release assets
+        run: bash scripts/prepare-release-assets.sh bundles release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-${{ github.run_number }}
+          name: Desktop build ${{ github.run_number }}
+          make_latest: true
+          draft: false
+          prerelease: false
+          files: release/*
+          body: |
+            Bản cài desktop Tauri (tự động từ CI).
+
+            | Nền tảng | File |
+            |----------|------|
+            | Windows | `IChat-Windows.msi` |
+            | macOS | `IChat-macOS.dmg` |
+            | Linux | `IChat-Linux.deb` |
+
+            Commit: `${{ github.sha }}`
+
+            Trang tải: https://github.com/${{ github.repository }}/releases/latest
+
+  # ─────────────────────────────────────────────
   # JOB 4: Notification (bắn ngay khi từng job xong)
   # ─────────────────────────────────────────────
   notify-web:
@@ -139,37 +198,43 @@ jobs:
     runs-on: ubuntu-latest
     needs: deploy-web
     if: always()
+    env:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
     steps:
       - name: Send Discord notification (web)
         run: |
           WEB_STATUS="${{ needs.deploy-web.result }}"
-
-          if [ "$WEB_STATUS" == "success" ]; then
-            MESSAGE="✅ Web deploy thành công!\n🌐 Web: https://app-chat-fe-service-dyt45erana-as.a.run.app/"
+          if [ "$WEB_STATUS" = "success" ]; then
+            MESSAGE=$'✅ Web deploy thành công!\n🌐 Web: https://app-chat-fe-service-dyt45erana-as.a.run.app/\n📥 Download: ${{ secrets.NEXT_PUBLIC_APP_URL }}/download'
           else
-            MESSAGE="❌ Web deploy thất bại!\nKiểm tra tại ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            MESSAGE=$'❌ Web deploy thất bại!\nKiểm tra tại ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
           fi
-
-          curl --location '${{ secrets.DISCORD_WEBHOOK_URL }}' \
-            --header 'Content-Type: application/json' \
-            --data "{\"content\": \"$MESSAGE\", \"embeds\": null, \"attachments\": []}"
+          PAYLOAD=$(jq -n --arg content "$MESSAGE" '{content: $content}')
+          curl -fsS -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL"
 
   notify-desktop:
     name: Notify Desktop Build Result
     runs-on: ubuntu-latest
-    needs: build-desktop
+    needs: [build-desktop, publish-desktop-release]
     if: always()
+    env:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      DOWNLOAD_BASE: https://github.com/${{ github.repository }}/releases/latest/download
     steps:
       - name: Send Discord notification (desktop)
         run: |
-          DESKTOP_STATUS="${{ needs.build-desktop.result }}"
-
-          if [ "$DESKTOP_STATUS" == "success" ]; then
-            MESSAGE="✅ Desktop build (Windows + macOS) thành công!\n🖥️ Artifacts đã sẵn sàng tại Actions."
+          BUILD_STATUS="${{ needs.build-desktop.result }}"
+          RELEASE_STATUS="${{ needs.publish-desktop-release.result }}"
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/latest"
+          WIN_URL="${DOWNLOAD_BASE}/IChat-Windows.msi"
+          MAC_URL="${DOWNLOAD_BASE}/IChat-macOS.dmg"
+          LINUX_URL="${DOWNLOAD_BASE}/IChat-Linux.deb"
+          if [ "$RELEASE_STATUS" = "success" ]; then
+            MESSAGE=$'✅ Desktop đã publish lên GitHub Releases!\n📦 '"$RELEASE_URL"$'\n🪟 Windows: '"$WIN_URL"$'\n🍎 macOS: '"$MAC_URL"$'\n🐧 Linux: '"$LINUX_URL"
+          elif [ "$BUILD_STATUS" = "success" ]; then
+            MESSAGE=$'⚠️ Desktop build xong nhưng publish release thất bại.\nKiểm tra: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
           else
-            MESSAGE="❌ Desktop build (Windows + macOS) thất bại!\nKiểm tra tại ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            MESSAGE=$'❌ Desktop build thất bại (Windows / macOS / Linux).\nKiểm tra: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
           fi
-
-          curl --location '${{ secrets.DISCORD_WEBHOOK_URL }}' \
-            --header 'Content-Type: application/json' \
-            --data "{\"content\": \"$MESSAGE\", \"embeds\": null, \"attachments\": []}"
+          PAYLOAD=$(jq -n --arg content "$MESSAGE" '{content: $content}')
+          curl -fsS -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL"

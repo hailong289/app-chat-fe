@@ -226,11 +226,11 @@ export default function RegisterPage() {
         }
         const tempRegisterToken = result?.tempRegisterToken;
         if (!tempRegisterToken) {
-          setOtpError(t("auth.register.otpInvalid"));
+          setOtpError(t("auth.register.otpVerifyIncomplete"));
           return;
         }
 
-        // Immediately register with the token
+        // Register with token from OTP verify
         const dateOfBirth =
           saved.dateOfBirth instanceof CalendarDate ||
           saved.dateOfBirth instanceof CalendarDateTime ||

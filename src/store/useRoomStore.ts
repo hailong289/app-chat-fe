@@ -11,6 +11,7 @@ import {
   upsertOne,
 } from "@/libs/crud";
 import useMessageStore from "./useMessageStore";
+import { SYNC_ENGINE_ENABLED } from "@/libs/syncConfig";
 
 const useRoomStore = create<RoomsState>()((set, get) => ({
   isLoading: false,
@@ -60,14 +61,25 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     // Fire-and-forget: don't block `getRooms()` resolution, the FE
     // sidebar should appear right after the first DB write. Errors
     // inside `warmRoomCaches` are swallowed silently — best-effort.
-    const activeRoomId = get().room?.id;
-    const targets = (rooms as Array<{ id?: string; last_message?: { id?: string | null } | null }>)
-      .filter((r) => !!r.last_message?.id && !!r.id && r.id !== activeRoomId)
-      .map((r) => r.id as string);
-    if (targets.length > 0) {
-      void useMessageStore
-        .getState()
-        .warmRoomCaches(targets, { limit: 20, concurrency: 3 });
+    // Khi catch-up sync engine BẬT: KHÔNG prefetch 20 tin/room nữa. Engine chỉ
+    // kéo delta cho room thực sự có tin mới (room.newmsgs) + room đang mở; các
+    // room khác render từ IndexedDB và lazy-load lúc mở. Đây là điểm bỏ "refetch
+    // full" — mục tiêu giảm tải DB. Flag tắt → giữ prefetch cũ.
+    if (!SYNC_ENGINE_ENABLED) {
+      const activeRoomId = get().room?.id;
+      const targets = (
+        rooms as Array<{
+          id?: string;
+          last_message?: { id?: string | null } | null;
+        }>
+      )
+        .filter((r) => !!r.last_message?.id && !!r.id && r.id !== activeRoomId)
+        .map((r) => r.id as string);
+      if (targets.length > 0) {
+        void useMessageStore
+          .getState()
+          .warmRoomCaches(targets, { limit: 20, concurrency: 3 });
+      }
     }
 
     return rooms;
@@ -546,6 +558,41 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       });
 
       return { rooms: updatedRooms, room: updatedRoom, isLoading: false };
+    });
+  },
+  updatePinnedMessageFromSocket: (roomId: string, msg: { id: string; content: string; type?: string; pinned: boolean }) => {
+    set((state) => {
+      const targetRoom = state.rooms.find((r) => r.id === roomId || r.roomId === roomId);
+      if (!targetRoom) return state;
+
+      const pinnedMessages = targetRoom.pinned_messages || [];
+      const exists = pinnedMessages.some((pm) => pm.id === msg.id);
+
+      let updatedPinnedMessages: typeof pinnedMessages;
+      if (msg.pinned && !exists) {
+        updatedPinnedMessages = [...pinnedMessages, { id: msg.id, content: msg.content, type: msg.type || 'text' }];
+      } else if (!msg.pinned && exists) {
+        updatedPinnedMessages = pinnedMessages.filter((pm) => pm.id !== msg.id);
+      } else {
+        return state; // no change
+      }
+
+      const updatedRooms = state.rooms.map((r) =>
+        r.id === targetRoom.id || r.roomId === roomId
+          ? {
+              ...r,
+              pinned_messages: updatedPinnedMessages,
+              pinned_count: updatedPinnedMessages.length,
+            }
+          : r,
+      );
+
+      const updatedRoom =
+        state.room?.id === targetRoom.id
+          ? { ...state.room, pinned_messages: updatedPinnedMessages, pinned_count: updatedPinnedMessages.length }
+          : state.room;
+
+      return { rooms: updatedRooms, room: updatedRoom };
     });
   },
   getRoomByRoomId: (roomId: string) => {

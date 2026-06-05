@@ -8,8 +8,10 @@
     "dev:turbo": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "build:tauri": "npx tauri dev",
-    "build:tauri:release": "npx tauri build"
+    "inject:tauri-env": "node scripts/inject-tauri-env.mjs",
+    "restore:tauri-env": "node scripts/inject-tauri-env.mjs --restore",
+    "build:tauri": "node scripts/inject-tauri-env.mjs && npx tauri dev",
+    "build:tauri:release": "node scripts/inject-tauri-env.mjs && npx tauri build"
   },
   "dependencies": {
     "@blocknote/core": "^0.48.1",

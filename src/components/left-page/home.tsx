@@ -38,6 +38,7 @@ import useContactStore from "@/store/useContactStore";
 import useAuthStore from "@/store/useAuthStore";
 import TypingIndicator from "../chat/input/TypingIndicator";
 import useCounterStore from "@/store/useCounterStore";
+import { SYNC_ENGINE_ENABLED } from "@/libs/syncEngine";
 import {
   PencilSquareIcon,
   ChevronDoubleLeftIcon,
@@ -103,8 +104,17 @@ export const Home = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Paint the sidebar instantly from IndexedDB cache.
       await roomState.getRoomsByType("all");
-      await roomState.getRooms();
+      // Freshness: when the catch-up sync engine is enabled, the
+      // boot-level `runCatchupSync()` (AuthBootstrap in providers.tsx)
+      // already pulls the per-user change delta (and cold-starts with a
+      // full `getRooms()` on first login). So we skip the unconditional
+      // full `getRooms()` here to avoid the double full-fetch. When the
+      // flag is off, fall back to the legacy full load.
+      if (!SYNC_ENGINE_ENABLED) {
+        await roomState.getRooms();
+      }
       await contactState.syncChatPartners();
       // Friends usually populate via /contacts, but the online list lives
       // on /, so we need to seed db.contacts with friends here too.

@@ -129,6 +129,8 @@
       "otpSent": "OTP sent to your email",
       "otpSendFailed": "Failed to send OTP. Please try again.",
       "otpInvalid": "Invalid or expired OTP",
+      "otpVerifyIncomplete": "OTP verification incomplete. Please try again.",
+      "emailUsed": "Email is already in use",
       "otpLength": "OTP must be exactly 6 digits",
       "resendOtp": "Resend OTP",
       "resendIn": "Resend in {{seconds}}s",
@@ -234,6 +236,11 @@
       "scroll": {
         "more": "Still have {{count}} older messages • Scroll up to load",
         "loadMore": "more..."
+      },
+      "gap": {
+        "loadMore": "Load more messages",
+        "loading": "Loading messages…",
+        "retry": "Reload messages"
       },
       "actions": {
         "pin": "Pin",

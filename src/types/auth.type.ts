@@ -11,11 +11,17 @@ export interface PayloadSendOtp {
   callback?: (error?: any) => void;
 }
 
+/** Metadata từ POST /notifications/verify-otp (proxy auth gRPC). */
+export interface VerifyOtpMetadata {
+  tempRegisterToken?: string;
+  accessToken?: string;
+}
+
 export interface PayloadVerifyOtp {
   indicator: string;
   otp: string;
   type: "register" | "reset-password";
-  callback?: (result?: { tempRegisterToken?: string; accessToken?: string }, error?: any) => void;
+  callback?: (result?: VerifyOtpMetadata, error?: any) => void;
 }
 
 export interface PayloadRegister {

@@ -1,6 +1,7 @@
 "use client";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageItem } from "./MessageItem";
+import { GapMarker } from "./GapMarker";
 import { MessageType } from "@/store/types/message.state";
 import useAuthStore from "@/store/useAuthStore";
 
@@ -86,6 +87,19 @@ export const MessageGroup = memo(
         {/* Messages in this date group */}
         <AnimatePresence initial={false}>
           {group.messages.map((msg, msgIdx) => {
+            // Gap-marker placeholder (catch-up sync engine): render the
+            // "Tải thêm tin nhắn" affordance instead of a message bubble.
+            // It lazy-loads the missing window + removes itself on click.
+            if (msg.__gap) {
+              return (
+                <GapMarker
+                  key={msg.id}
+                  chatId={chatId}
+                  shouldAnimate={shouldAnimate}
+                />
+              );
+            }
+
             const isFirstInGroup = msgIdx === 0;
             const isLastInGroup = msgIdx === group.messages.length - 1;
             const prevMsg = msgIdx > 0 ? group.messages[msgIdx - 1] : null;

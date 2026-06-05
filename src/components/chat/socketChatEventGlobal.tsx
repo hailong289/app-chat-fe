@@ -9,6 +9,11 @@ import { socketEvent } from "@/types/socketEvent.type";
 import useCallStore from "@/store/useCallStore";
 import { useOnlinePresence } from "./hooks/useOnlinePresence";
 import { IncomingCallModal } from "../call/IncomingCallModal";
+import {
+  advanceCursorFromLive,
+  runCatchupSync,
+  SYNC_ENGINE_ENABLED,
+} from "@/libs/syncEngine";
 
 export const SocketEventChatGlobal = () => {
   const { socket: msgSocket } = useSocket("/chat");
@@ -34,12 +39,62 @@ export const SocketEventChatGlobal = () => {
   const onMsgUpsertCall = useRef((payload: any) =>
     useMessageStore.getState().upsetMsg(payload)
   );
+
+  // Live message:upsert handler that ALSO advances the catch-up sync
+  // cursor from the `seq` the BE now stamps on the payload — so the
+  // catch-up path resumes exactly where the live stream left off after
+  // a disconnect. Wraps the existing `upsetMsg` store mutation.
+  const onMsgUpsert = useRef((payload: any) => {
+    useMessageStore.getState().upsetMsg(payload);
+    if (SYNC_ENGINE_ENABLED) {
+      void advanceCursorFromLive(payload?.seq);
+    }
+  });
+
+  // mark:read handler that advances the cursor too (room.read events
+  // carry a `seq`). Reuses the existing setRoomReaded store mutation.
+  const onMarkRead = useRef((data: any) => {
+    useRoomStore.getState().setRoomReaded(data);
+    if (SYNC_ENGINE_ENABLED) {
+      void advanceCursorFromLive(data?.seq);
+    }
+  });
+
+  // On socket (re)connect, run a catch-up sync to patch anything missed
+  // while disconnected. Cheap when nothing is new (one round-trip that
+  // returns an empty event list).
+  const onSocketConnect = useRef(() => {
+    if (SYNC_ENGINE_ENABLED) {
+      void runCatchupSync();
+    }
+  });
   const onRoomRefresh = useRef((data: any) =>
     useRoomStore.getState().fetchAndUpdateRoom(data.roomId)
   );
   const onCallBusy = useRef((payload: any) =>
     useCallStore.getState().eventCall("busy", payload)
   );
+
+  // ── Message action inbound handlers ──────────────────────────────
+  // Backend broadcasts updated messages via message:upsert after each
+  // action (react/pin/delete/recall). These explicit listeners provide
+  // a safety net in case the backend emits dedicated events.
+  const onMsgReact = useRef((msg: any) => {
+    useMessageStore.getState().upsetMsg(msg);
+  });
+  const onMsgPinned = useRef((msg: any) => {
+    useMessageStore.getState().upsetMsg(msg);
+    if (msg.roomId) {
+      useRoomStore.getState().updatePinnedMessageFromSocket(msg.roomId, msg);
+    }
+  });
+  const onMsgDelete = useRef((msg: any) => {
+    useMessageStore.getState().upsetMsg(msg);
+  });
+  const onMsgRecall = useRef((msg: any) => {
+    useMessageStore.getState().upsetMsg(msg);
+  });
+
   // Multi-device handoff: this user accepted/joined the call from another
   // device → server tells THIS tab to release. We don't have a popup yet
   // (modal still showing), so just clear the incoming modal silently.
@@ -134,8 +189,9 @@ export const SocketEventChatGlobal = () => {
 
   useEffect(() => {
     if (!msgSocket || !call) return;
-    msgSocket.on(socketEvent.MSGUPSERT, messageState.upsetMsg);
-    msgSocket.on(socketEvent.MSGMARKREAD, roomState.setRoomReaded);
+    msgSocket.on(socketEvent.MSGUPSERT, onMsgUpsert.current);
+    msgSocket.on(socketEvent.MSGMARKREAD, onMarkRead.current);
+    msgSocket.on("connect", onSocketConnect.current);
     msgSocket.on(socketEvent.STATUS, onStatus.current);
     msgSocket.on("status:online:bulk", onStatusBulk.current);
     msgSocket.on(socketEvent.ROOMDELETE, roomState.roomDeleteSocket);
@@ -148,6 +204,10 @@ export const SocketEventChatGlobal = () => {
     call.on("call:handoff", onCallHandoff.current);
     msgSocket.on(socketEvent.ROOM_REFRESH, onRoomRefresh.current);
     msgSocket.on(socketEvent.UPDATE_QUIZ, handleUpdateQuiz.current);
+    msgSocket.on(socketEvent.MSGREACT, onMsgReact.current);
+    msgSocket.on(socketEvent.MSGPINNED, onMsgPinned.current);
+    msgSocket.on(socketEvent.MSGDELETE, onMsgDelete.current);
+    msgSocket.on(socketEvent.MSGRECALL, onMsgRecall.current);
 
     // Periodic presence refresh — covers the case where the user opened
     // their friend list 5 minutes after app start and would otherwise see
@@ -168,8 +228,9 @@ export const SocketEventChatGlobal = () => {
       call.off("call:end", onCallEnd.current);
       call.off("call:busy", onCallBusy.current);
       call.off("call:handoff", onCallHandoff.current);
-      msgSocket.off(socketEvent.MSGUPSERT, messageState.upsetMsg);
-      msgSocket.off(socketEvent.MSGMARKREAD, roomState.setRoomReaded);
+      msgSocket.off(socketEvent.MSGUPSERT, onMsgUpsert.current);
+      msgSocket.off(socketEvent.MSGMARKREAD, onMarkRead.current);
+      msgSocket.off("connect", onSocketConnect.current);
       msgSocket.off(socketEvent.STATUS, onStatus.current);
       msgSocket.off("status:online:bulk", onStatusBulk.current);
       msgSocket.off(socketEvent.ROOMDELETE, roomState.roomDeleteSocket);
@@ -177,6 +238,10 @@ export const SocketEventChatGlobal = () => {
       msgSocket.off(socketEvent.STATUSTYPING, roomState.handleTypingEvent);
       msgSocket.off(socketEvent.ROOM_REFRESH, onRoomRefresh.current);
       msgSocket.off(socketEvent.UPDATE_QUIZ, handleUpdateQuiz.current);
+      msgSocket.off(socketEvent.MSGREACT, onMsgReact.current);
+      msgSocket.off(socketEvent.MSGPINNED, onMsgPinned.current);
+      msgSocket.off(socketEvent.MSGDELETE, onMsgDelete.current);
+      msgSocket.off(socketEvent.MSGRECALL, onMsgRecall.current);
     };
   }, [msgSocket, call]);
   return <IncomingCallModal />;

@@ -16,6 +16,8 @@ export enum socketEvent {
   STATUS = "status:online",
   ROOMDELETE = "room:delete",
   MSGMARKREAD = "mark:read",
+  MSGDELIVERED = "message:delivered",
+  MSGSTATUS = "message:status",
   CALL = "call:request",
   ROOM_REFRESH = "room:refresh",
   UPDATE_QUIZ = "update:quiz",
