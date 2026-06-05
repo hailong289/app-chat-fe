@@ -82,6 +82,65 @@ const COLD_CURSOR_PROBE_SINCE = Number.MAX_SAFE_INTEGER;
 // firing near-simultaneously) don't run two pull loops at once.
 let syncInFlight: Promise<void> | null = null;
 
+// ── Multi-tab leader election (Phần 5c) ─────────────────────────────
+// Nhiều tab cùng user chia sẻ MỘT IndexedDB. Nếu mỗi tab tự pull catch-up →
+// trùng request + đua ghi. Dùng Web Locks: chỉ MỘT tab giữ được lock
+// "chat-catchup-sync" tại một thời điểm thực sự pull; tab khác bỏ qua vòng đó.
+// Sau khi leader apply xong, broadcast để các tab còn lại refresh sidebar từ
+// IndexedDB (read-only) mà khỏi pull lại.
+const CATCHUP_LOCK = "chat-catchup-sync";
+const SYNC_CHANNEL = "chat-sync";
+const crossTabChannel =
+  typeof window !== "undefined" && typeof BroadcastChannel !== "undefined"
+    ? new BroadcastChannel(SYNC_CHANNEL)
+    : null;
+let crossTabListenerStarted = false;
+
+/**
+ * Chạy `fn` dưới Web Lock độc quyền giữa các tab. Nếu trình duyệt không hỗ trợ
+ * Web Locks → chạy thẳng (fallback an toàn, chấp nhận trùng pull). Nếu tab khác
+ * đang giữ lock (`ifAvailable` → `lock===null`) → bỏ qua vòng này.
+ */
+async function withCatchupLock(fn: () => Promise<void>): Promise<void> {
+  const locks =
+    typeof navigator !== "undefined"
+      ? (navigator as Navigator).locks
+      : undefined;
+  if (!locks?.request) {
+    await fn();
+    return;
+  }
+  await locks.request(CATCHUP_LOCK, { ifAvailable: true }, async (lock) => {
+    if (!lock) return; // tab khác đang là leader → để nó pull + broadcast
+    await fn();
+  });
+}
+
+/** Báo các tab khác: vừa apply catch-up vào IndexedDB → hãy refresh từ cache. */
+function notifyOtherTabsSynced(): void {
+  try {
+    crossTabChannel?.postMessage({ t: "synced" });
+  } catch {
+    /* non-fatal */
+  }
+}
+
+/**
+ * Đăng ký listener cross-tab (gọi 1 lần lúc boot). Khi tab leader broadcast
+ * "synced", tab này refresh danh sách phòng từ IndexedDB (read-only, không gọi
+ * mạng) để phản ánh delta mà leader vừa ghi. Chat đang mở vẫn được socket live
+ * cập nhật như thường.
+ */
+export function startCrossTabSync(): void {
+  if (crossTabListenerStarted || !crossTabChannel) return;
+  crossTabListenerStarted = true;
+  crossTabChannel.onmessage = (ev: MessageEvent) => {
+    if ((ev.data as { t?: string })?.t === "synced") {
+      void useRoomStore.getState().getRoomsByType("all");
+    }
+  };
+}
+
 /** Coerce a possibly-string proto int64 to a JS number. */
 function toNum(v: number | string | null | undefined): number {
   const n = Number(v);
@@ -123,73 +182,84 @@ export async function runCatchupSync(): Promise<void> {
   if (syncInFlight) return syncInFlight;
   syncInFlight = (async () => {
     try {
-      if (!SYNC_ENGINE_ENABLED) {
-        await coldStart();
-        return;
-      }
-
-      const seq = await getMeta<number>(SyncMetaKey.LAST_EVENT_SEQ);
-      if (seq == null) {
-        await coldStart();
-        return;
-      }
-
-      let cursor = toNum(seq);
-      // Bounded loop — guards against a server that never sets
-      // hasMore=false (shouldn't happen, but don't spin forever).
-      for (let guard = 0; guard < 10_000; guard++) {
-        const res = await fetchEvents(cursor, PULL_LIMIT);
-
-        if (res?.requireFullResync) {
-          await coldStart();
-          return;
-        }
-
-        // Self-heal con trỏ bị "đầu độc": nếu cursor vượt seq hiện tại của server
-        // (vd lastEventSeq = MAX_SAFE_INTEGER do bug currentSeq cũ), pull sẽ rỗng
-        // vĩnh viễn. Realign về currentSeq để lần sau pull lại bình thường.
-        const serverSeq = toNum(res?.currentSeq);
-        if (serverSeq > 0 && cursor > serverSeq) {
-          await setMeta(SyncMetaKey.LAST_EVENT_SEQ, serverSeq);
-          await setMeta(SyncMetaKey.LAST_SYNC_AT, Date.now());
-          break;
-        }
-
-        const events = Array.isArray(res?.events) ? res.events : [];
-        const nextSeq = toNum(res?.nextSeq);
-
-        // Apply the whole batch + advance the cursor in ONE Dexie
-        // transaction. If any reducer throws, Dexie rolls back and the
-        // cursor is NOT advanced → the batch is retried next run.
-        await db.transaction(
-          "rw",
-          [db.rooms, db.messages, db.sync_meta],
-          async () => {
-            for (const ev of events) {
-              await applyEvent(ev);
-            }
-            await setMeta(
-              SyncMetaKey.LAST_EVENT_SEQ,
-              Math.max(cursor, nextSeq),
-            );
-          },
-        );
-
-        cursor = Math.max(cursor, nextSeq);
-        await setMeta(SyncMetaKey.LAST_SYNC_AT, Date.now());
-
-        if (!res?.hasMore) break;
-      }
+      // Web Lock: chỉ MỘT tab thực sự pull; tab khác bỏ qua (nhận refresh qua
+      // broadcast). Fallback chạy thẳng khi trình duyệt không hỗ trợ Web Locks.
+      await withCatchupLock(pullCatchupLoop);
     } catch (err) {
-      // Never throw out of the engine — a failed sync must not break
-      // boot. The cursor is only advanced on successful batches, so the
-      // next trigger (reconnect) safely resumes.
+      // Never throw out of the engine — a failed sync must not break boot.
+      // The cursor is only advanced on successful batches, so the next trigger
+      // (reconnect) safely resumes.
       console.error("[syncEngine] runCatchupSync failed:", err);
     } finally {
       syncInFlight = null;
     }
   })();
   return syncInFlight;
+}
+
+/**
+ * The catch-up pull loop. Runs UNDER the cross-tab Web Lock (one tab at a
+ * time). Cold-starts when the cursor is absent / a full resync is required;
+ * otherwise pulls deltas until `hasMore=false`, advancing the cursor in the
+ * same Dexie transaction as the apply.
+ */
+async function pullCatchupLoop(): Promise<void> {
+  if (!SYNC_ENGINE_ENABLED) {
+    await coldStart();
+    return;
+  }
+
+  const seq = await getMeta<number>(SyncMetaKey.LAST_EVENT_SEQ);
+  if (seq == null) {
+    await coldStart();
+    return;
+  }
+
+  let cursor = toNum(seq);
+  // Bounded loop — guards against a server that never sets hasMore=false.
+  for (let guard = 0; guard < 10_000; guard++) {
+    const res = await fetchEvents(cursor, PULL_LIMIT);
+
+    if (res?.requireFullResync) {
+      await coldStart();
+      return;
+    }
+
+    // Self-heal con trỏ bị "đầu độc": cursor vượt seq hiện tại của server (vd
+    // lastEventSeq = MAX_SAFE_INTEGER do bug currentSeq cũ) → pull rỗng vĩnh
+    // viễn. Realign về currentSeq để lần sau pull bình thường.
+    const serverSeq = toNum(res?.currentSeq);
+    if (serverSeq > 0 && cursor > serverSeq) {
+      await setMeta(SyncMetaKey.LAST_EVENT_SEQ, serverSeq);
+      await setMeta(SyncMetaKey.LAST_SYNC_AT, Date.now());
+      break;
+    }
+
+    const events = Array.isArray(res?.events) ? res.events : [];
+    const nextSeq = toNum(res?.nextSeq);
+
+    // Apply the whole batch + advance the cursor in ONE Dexie transaction. If
+    // any reducer throws, Dexie rolls back and the cursor is NOT advanced → the
+    // batch is retried next run.
+    await db.transaction(
+      "rw",
+      [db.rooms, db.messages, db.sync_meta],
+      async () => {
+        for (const ev of events) {
+          await applyEvent(ev);
+        }
+        await setMeta(SyncMetaKey.LAST_EVENT_SEQ, Math.max(cursor, nextSeq));
+      },
+    );
+
+    cursor = Math.max(cursor, nextSeq);
+    await setMeta(SyncMetaKey.LAST_SYNC_AT, Date.now());
+
+    // Các tab khác (cùng user) refresh sidebar từ IndexedDB sau khi ta ghi delta.
+    if (events.length > 0) notifyOtherTabsSynced();
+
+    if (!res?.hasMore) break;
+  }
 }
 
 /**
