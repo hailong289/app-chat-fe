@@ -238,6 +238,12 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     );
     // Use room.id if found, otherwise fallback to msgData.roomId
     const normalizedRoomId = roomFromStore?.id || msgData.roomId;
+    // CHUẨN HOÁ roomId về business id (room.id) NGAY trên chính msgData → state,
+    // IndexedDB và room-store dùng CHUNG một key. Socket gửi roomId = Mongo `_id`
+    // (BE pipeline project `roomId:'$msg_roomId'`); nếu ghi IndexedDB theo `_id`
+    // thô thì loadRoomFromCache (query theo room.id) KHÔNG thấy → vào lại phòng
+    // MẤT các tin chỉ-đến-qua-socket (chưa fetch API). Fix: đồng nhất về room.id.
+    msgData.roomId = normalizedRoomId;
 
     // Pre-check if this is a new message (for use outside the set callback)
     const prevRoomForCheck = get().messagesRoom[normalizedRoomId];
@@ -962,12 +968,26 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         attachments: null,
         reply: null,
       };
+      // MERGE thay vì REPLACE: giữ lại tin in-memory CHƯA có trong cache (vd tin
+      // socket/optimistic mà IndexedDB write fire-and-forget chưa kịp xong) → vào
+      // lại phòng KHÔNG mất tin. Sắp theo createdAt tăng dần (cũ → mới).
+      const existingMsgs = getAllMessagesFromGroups(currentRoom);
+      const cachedIds = new Set(cached.map((m) => m.id));
+      const extras = existingMsgs.filter((m) => !cachedIds.has(m.id));
+      const merged =
+        extras.length === 0
+          ? cached
+          : [...cached, ...extras].sort(
+              (a, b) =>
+                new Date(a.createdAt).getTime() -
+                new Date(b.createdAt).getTime(),
+            );
       set({
         messagesRoom: {
           ...get().messagesRoom,
           [roomId]: updateRoomDataWithGroups(
             currentRoom,
-            cached,
+            merged,
             currentRoom?.lastReadMessageId,
           ),
         },
