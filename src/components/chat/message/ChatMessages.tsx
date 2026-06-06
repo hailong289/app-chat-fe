@@ -231,10 +231,18 @@ export const ChatMessages = memo(
       if (messages.length === 0) return;
       const container = state.containerRef.current;
       if (!container) return;
-      // `behavior: "instant"` (or omitting behavior) snaps without
-      // animation. scrollHeight is up-to-date because this fires
-      // after DOM commit.
-      container.scrollTop = container.scrollHeight;
+      // SCROLL-TO-READ: nếu có divider 'Tin nhắn mới' (tin chưa đọc) → cuộn tới
+      // đó thay vì xuống đáy, để user thấy ngay chỗ còn dang dở. Không có →
+      // snap xuống đáy như cũ. `behavior: instant` để không giật/animation.
+      const divider = container.querySelector<HTMLElement>(
+        "[data-unread-divider]",
+      );
+      if (divider) {
+        divider.scrollIntoView({ block: "center" });
+      } else {
+        // scrollHeight up-to-date vì effect chạy sau DOM commit.
+        container.scrollTop = container.scrollHeight;
+      }
       initialScrolledChatIdRef.current = chatId;
     }, [chatId, messages.length, state.containerRef]);
 

@@ -959,6 +959,42 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       cached = [];
     }
 
+    // Seed con trỏ "đã đọc" cho unread-divider + scroll-to-read. Lấy
+    // room.last_read_id (con trỏ bền từ server) làm SNAPSHOT lúc mở phòng; CHỈ
+    // seed khi chưa có (null) → divider 'Tin nhắn mới' ĐỨNG YÊN trong phiên dù
+    // IntersectionObserver đánh dấu đọc sau đó (setRoomReaded chỉ đẩy con trỏ bền
+    // ở db.rooms cho lần mở SAU, không đụng lastReadMessageId đã seed).
+    const roomMeta = useRoomStore
+      .getState()
+      .rooms.find((r) => r.id === roomId || r.roomId === roomId);
+    const seedLastRead =
+      get().messagesRoom[roomId]?.lastReadMessageId ??
+      roomMeta?.last_read_id ??
+      null;
+
+    // Seed sớm vào store (kể cả khi cache rỗng) → mọi path sau (paint cache /
+    // fetchMessagesFromAPI) đều preserve `lastReadMessageId` cho unread-divider.
+    {
+      const cur0 = get().messagesRoom[roomId];
+      if (seedLastRead && cur0?.lastReadMessageId == null) {
+        set({
+          messagesRoom: {
+            ...get().messagesRoom,
+            [roomId]: {
+              ...(cur0 ?? {
+                groups: [],
+                displayedMessagesCount: 20,
+                input: null,
+                attachments: null,
+                reply: null,
+              }),
+              lastReadMessageId: seedLastRead,
+            },
+          },
+        });
+      }
+    }
+
     if (cached.length > 0) {
       // Push cache into the store immediately so the chat tab paints.
       const currentRoom = get().messagesRoom[roomId] || {
@@ -985,11 +1021,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       set({
         messagesRoom: {
           ...get().messagesRoom,
-          [roomId]: updateRoomDataWithGroups(
-            currentRoom,
-            merged,
-            currentRoom?.lastReadMessageId,
-          ),
+          [roomId]: updateRoomDataWithGroups(currentRoom, merged, seedLastRead),
         },
       });
     }

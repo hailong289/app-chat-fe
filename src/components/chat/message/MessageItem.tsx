@@ -140,6 +140,7 @@ export const MessageItem = memo(
       if (!isUnreadDivider) return null;
       return (
         <motion.div
+          data-unread-divider="true"
           initial={shouldAnimate ? { opacity: 0, scale: 0.8 } : false}
           animate={{ opacity: 1, scale: 1 }}
           transition={{
