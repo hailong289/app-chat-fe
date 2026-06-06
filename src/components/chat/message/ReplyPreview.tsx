@@ -1,5 +1,6 @@
 import { ArrowUturnLeftIcon } from "@heroicons/react/16/solid";
 import { useTranslation } from "react-i18next";
+import { MessageStatus } from "@/types/messageStatus.type";
 
 interface ReplyPreviewProps {
   readonly reply: any;
@@ -14,10 +15,10 @@ export function ReplyPreview({ reply, onJump }: ReplyPreviewProps) {
   // Field mapping:
   // - reply.isDeleted (or reply.status === 'recalled' or reply.isDelete) => message was recalled/deleted by sender
   // - reply.hiddenByMe => message was hidden by me
-  const isRecalled = 
-    !!reply.isDeleted || 
-    !!reply.isDelete || 
-    reply.status === "recalled";
+  const isRecalled =
+    !!reply.isDeleted ||
+    !!reply.isDelete ||
+    reply.status === MessageStatus.RECALLED;
     
   const isDeleted = !!reply.hiddenByMe;
 
