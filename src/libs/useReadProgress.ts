@@ -74,12 +74,16 @@ export function useReadProgress(opts: {
     return target.scrollHeight > target.clientHeight + 10;
   }, [container]);
 
+  // Tin cuối cùng nhìn thấy ở đáy (KỂ CẢ tin của mình) → dùng cho local
+  // read-state. Việc CÓ emit mark:read lên server hay không do markMessageAsRead
+  // tự quyết (bỏ emit nếu là tin của mình). Trước đây bỏ qua hẳn tin `isMine`
+  // → khi đáy phòng toàn tin của mình thì unread/last_read local KHÔNG cập nhật.
   const getLastReadableMessageId = useCallback(() => {
     const msgs = messagesRef.current;
     // Scan backwards
     for (let i = msgs.length - 1; i >= 0; i--) {
         const msg = msgs[i];
-        if (!msg.isMine && !msg.deleted) {
+        if (!msg.deleted) {
             return msg.id;
         }
     }

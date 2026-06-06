@@ -8,6 +8,7 @@ import React, {
   useCallback,
 } from "react";
 import formatTimeAgo from "@/libs/forrmattime";
+import { runCatchupSync } from "@/libs/syncEngine";
 import useRoomStore from "@/store/useRoomStore";
 import { MagnifyingGlassIcon, XCircleIcon } from "@heroicons/react/16/solid";
 import {
@@ -103,8 +104,11 @@ export const Home = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      await roomState.getRoomsByType("all");
-      await roomState.getRooms();
+      await roomState.getRoomsByType("all"); // hydrate sidebar từ cache tức thì
+      // Bỏ getRooms() full vô điều kiện → dùng catch-up event-sync. Warm path
+      // chỉ apply delta; cold-start (lần đầu/cursor cũ) tự getRooms() full bên
+      // trong. inFlight-guard tránh trùng với lần chạy ở AuthBootstrap.
+      await runCatchupSync();
       await contactState.syncChatPartners();
       // Friends usually populate via /contacts, but the online list lives
       // on /, so we need to seed db.contacts with friends here too.
