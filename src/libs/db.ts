@@ -146,10 +146,27 @@ export function getCurrentDbUserId(): string | null {
   return currentDbUserId;
 }
 
+/**
+ * Một dòng metadata đồng bộ (key-value). Dùng cho con trỏ catch-up
+ * (`lastEventSeq`) và timestamp lần sync gần nhất (`lastSyncAt`). Nằm trong
+ * cùng per-user DB nên con trỏ tự cô lập theo user.
+ */
+export interface SyncMetaRow {
+  key: string;
+  value: unknown;
+}
+
+/** Khoá metadata đồng bộ — tránh magic string rải rác. */
+export const SYNC_META_KEYS = {
+  LAST_EVENT_SEQ: "lastEventSeq",
+  LAST_SYNC_AT: "lastSyncAt",
+} as const;
+
 export class AppDB extends Dexie {
   rooms!: Table<roomType, string>;
   contacts!: Table<ContactType, string>;
   messages!: Table<MessageType, string>;
+  sync_meta!: Table<SyncMetaRow, string>;
 
   constructor(name: string = "app-chat-db") {
     super(name);
@@ -220,6 +237,39 @@ export class AppDB extends Dexie {
         await trans.table("contacts").clear();
         await trans.table("messages").clear();
       });
+
+    // Version 7: Thêm bảng `sync_meta` cho catch-up event-sync (con trỏ
+    // `lastEventSeq`). CHỈ thêm store mới — KHÔNG clear dữ liệu cũ để giữ
+    // nguyên cache rooms/messages/contacts hiện có (warm path).
+    this.version(7).stores({
+      rooms: "id, roomId, type, updatedAt",
+      contacts: "id, fullname, email, status, createdAt, updatedAt",
+      messages: "id, roomId, type, createdAt, pinned, [roomId+createdAt]",
+      sync_meta: "key",
+    });
+  }
+}
+
+/**
+ * Đọc một giá trị metadata đồng bộ. Trả `null` nếu chưa có / lỗi (fire-safe —
+ * không throw, để boot flow không vỡ). `null` ở `lastEventSeq` nghĩa là "chưa
+ * từng sync trên thiết bị này" → caller chạy cold-start.
+ */
+export async function getMeta<T = unknown>(key: string): Promise<T | null> {
+  try {
+    const row = await db.sync_meta.get(key);
+    return (row?.value ?? null) as T | null;
+  } catch {
+    return null;
+  }
+}
+
+/** Ghi (upsert) một giá trị metadata đồng bộ. Fire-safe — chỉ log khi lỗi. */
+export async function setMeta(key: string, value: unknown): Promise<void> {
+  try {
+    await db.sync_meta.put({ key, value });
+  } catch (error) {
+    console.error("[syncMeta] setMeta failed:", key, error);
   }
 }
 

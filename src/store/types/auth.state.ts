@@ -2,6 +2,8 @@ import {
   ForgotPasswordPayload,
   PayloadLogin,
   PayloadRegister,
+  PayloadSendOtp,
+  PayloadVerifyOtp,
   ResetPasswordPayload,
   UpdateAvatarPayload,
   UpdateProfilePayload,
@@ -20,6 +22,8 @@ export interface AuthState {
     expiredAt: number; // (ms epoch) client tính
   } | null;
   login: (payload: PayloadLogin) => void;
+  sendOtp: (payload: PayloadSendOtp) => void;
+  verifyOtp: (payload: PayloadVerifyOtp) => void;
   register: (payload: PayloadRegister) => void;
   logout: (callback?: (error?: any) => void) => void;
   setAuth: (isAuthenticated: boolean) => void;
@@ -35,6 +39,4 @@ export interface AuthState {
   updateProfile: (payload: UpdateProfilePayload) => void;
   updateAvatar: (payload: UpdateAvatarPayload) => void;
   updatePassword: (payload: UpdatePasswordPayload) => void;
-  // refreshAccessToken: () => Promise<string | null>;
-  // getValidAccessToken: () => Promise<string | null>;
 }

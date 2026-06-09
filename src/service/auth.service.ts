@@ -3,6 +3,8 @@ import {
   ForgotPasswordPayload,
   PayloadLogin,
   PayloadRegister,
+  PayloadSendOtp,
+  PayloadVerifyOtp,
   ResetPasswordPayload,
   UpdateAvatarPayload,
   UpdateProfilePayload,
@@ -11,20 +13,24 @@ import {
 import apiService from "./api.service";
 
 export default class AuthService {
-  static login(data: PayloadLogin) {
-    return apiService.post<AuthResponse>("/auth/login", data);
+  static login(data: Omit<PayloadLogin, "callback">) {
+    return apiService.post<AuthResponse>("/auth/login", {
+      username: data.username,
+      password: data.password,
+      fcmToken: data.fcmToken,
+    });
   }
 
-  static register(data: PayloadRegister) {
-    const params: any = data;
-    if (params.type === "phone") {
-      params.phone = params.username;
-      delete params.username;
-    } else {
-      params.email = params.username;
-      delete params.username;
-    }
-    return apiService.post<AuthResponse>("/auth/register", params);
+  static sendOtp(data: Pick<PayloadSendOtp, "email" | "type">) {
+    return apiService.post<AuthResponse>("/notifications/send-otp", data);
+  }
+
+  static verifyOtp(data: Pick<PayloadVerifyOtp, "indicator" | "otp" | "type">) {
+    return apiService.post<AuthResponse>("/notifications/verify-otp", data);
+  }
+
+  static register(data: Omit<PayloadRegister, "callback">) {
+    return apiService.post<AuthResponse>("/auth/register", data);
   }
 
   static logout(data?: { fcmToken?: string }) {

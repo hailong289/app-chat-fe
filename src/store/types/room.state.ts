@@ -52,6 +52,8 @@ export interface RoomsState {
   pinnedRoom: (roomId: string, pinned: boolean) => Promise<void>;
   mutedRoom: (roomId: string, muted: boolean) => Promise<void>;
   getRoomByRoomId: (roomId: string) => roomType | undefined;
+  /** Update pinned_messages array when a message pin state changes via socket */
+  updatePinnedMessageFromSocket: (roomId: string, msg: { id: string; content: string; type?: string; pinned: boolean }) => void;
 }
 
 export type roomType = {

@@ -1,19 +1,35 @@
 export interface PayloadLogin {
   username: string;
   password: string;
-  type?: "email" | "phone";
   fcmToken: string | null;
   callback?: (error?: any) => void; // Optional callback for success
 }
 
+export interface PayloadSendOtp {
+  email: string;
+  type: "register" | "reset-password";
+  callback?: (error?: any) => void;
+}
+
+/** Metadata từ POST /notifications/verify-otp (proxy auth gRPC). */
+export interface VerifyOtpMetadata {
+  tempRegisterToken?: string;
+  accessToken?: string;
+}
+
+export interface PayloadVerifyOtp {
+  indicator: string;
+  otp: string;
+  type: "register" | "reset-password";
+  callback?: (result?: VerifyOtpMetadata, error?: any) => void;
+}
+
 export interface PayloadRegister {
   fullname: string;
-  username: string;
+  tempRegisterToken: string;
   password: string;
-  confirm: string;
   gender: "male" | "female" | "other";
   dateOfBirth: string;
-  type?: "email" | "phone";
   fcmToken: string | null;
   callback?: (error?: any) => void; // Optional callback for success
 }
