@@ -11,12 +11,7 @@ import AlertModal from "@/components/modals/AlertModal";
 import useAuthStore from "@/store/useAuthStore";
 import { tokenStorage } from "@/utils/tokenStorage";
 import { openDbForUser } from "@/libs/db";
-import {
-  runCatchupSync,
-  startCrossTabSync,
-  SYNC_ENGINE_ENABLED,
-} from "@/libs/syncEngine";
-import useRoomStore from "@/store/useRoomStore";
+import { runCatchupSync, initSyncListener } from "@/libs/syncEngine";
 
 /**
  * Bootstrap auth state on every client tree mount — covers BOTH the
@@ -43,23 +38,12 @@ function AuthBootstrap() {
       if (!userId) return;
       try {
         openDbForUser(userId);
-      } catch (err) {
-        console.warn("[auth boot] openDbForUser failed", err);
-        return;
-      }
-      // Catch-up sync engine: pull the per-user change feed and apply
-      // the delta (cold-start fallback inside handles first login /
-      // cursor-too-old → full `getRooms()` load). Replaces the previous
-      // unconditional full room load. Behind a feature flag — if
-      // disabled, fall back to the legacy full load so the app behaves
-      // exactly as before.
-      if (SYNC_ENGINE_ENABLED) {
-        // Multi-tab: nghe broadcast từ tab leader để refresh sidebar từ
-        // IndexedDB khi tab khác đã pull catch-up (Phần 5c).
-        startCrossTabSync();
+        // Catch-up event-sync: bù delta sau login/mở lại thay vì full-refetch.
+        // Tự cold-start (full-load) bên trong nếu lần đầu / cursor quá cũ.
+        initSyncListener();
         void runCatchupSync();
-      } else {
-        void useRoomStore.getState().getRooms();
+      } catch (err) {
+        console.warn("[auth boot] openDbForUser / catchup failed", err);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

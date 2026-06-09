@@ -147,20 +147,26 @@ export function getCurrentDbUserId(): string | null {
 }
 
 /**
- * Row shape for the `sync_meta` table — a tiny per-user key/value store
- * for the catch-up sync engine cursor (`lastEventSeq`) and bookkeeping
- * (`lastSyncAt`). Keyed by `key` so each meta entry is a single row.
+ * Một dòng metadata đồng bộ (key-value). Dùng cho con trỏ catch-up
+ * (`lastEventSeq`) và timestamp lần sync gần nhất (`lastSyncAt`). Nằm trong
+ * cùng per-user DB nên con trỏ tự cô lập theo user.
  */
-export interface SyncMeta<T = unknown> {
+export interface SyncMetaRow {
   key: string;
-  value: T;
+  value: unknown;
 }
+
+/** Khoá metadata đồng bộ — tránh magic string rải rác. */
+export const SYNC_META_KEYS = {
+  LAST_EVENT_SEQ: "lastEventSeq",
+  LAST_SYNC_AT: "lastSyncAt",
+} as const;
 
 export class AppDB extends Dexie {
   rooms!: Table<roomType, string>;
   contacts!: Table<ContactType, string>;
   messages!: Table<MessageType, string>;
-  sync_meta!: Table<SyncMeta, string>;
+  sync_meta!: Table<SyncMetaRow, string>;
 
   constructor(name: string = "app-chat-db") {
     super(name);
@@ -232,44 +238,39 @@ export class AppDB extends Dexie {
         await trans.table("messages").clear();
       });
 
-    // Version 7: Add `sync_meta` table for the catch-up sync engine
-    // cursor (`lastEventSeq`/`lastSyncAt`). The `__gap` boolean flag on
-    // `messages` (gap-marker placeholder rows) is stored as a plain
-    // record property — no new index needed, so the `messages` schema
-    // string is unchanged. Additive upgrade: existing rooms/messages/
-    // contacts are preserved (no .clear()).
+    // Version 7: Thêm bảng `sync_meta` cho catch-up event-sync (con trỏ
+    // `lastEventSeq`). CHỈ thêm store mới — KHÔNG clear dữ liệu cũ để giữ
+    // nguyên cache rooms/messages/contacts hiện có (warm path).
     this.version(7).stores({
       rooms: "id, roomId, type, updatedAt",
       contacts: "id, fullname, email, status, createdAt, updatedAt",
       messages: "id, roomId, type, createdAt, pinned, [roomId+createdAt]",
-      sync_meta: "key", // primary key only — value is opaque JSON
+      sync_meta: "key",
     });
   }
 }
 
 /**
- * Read a typed value from the `sync_meta` key/value table. Returns
- * `undefined` when the key has never been written (e.g. first login →
- * `lastEventSeq` absent → cold-start). Non-fatal on Dexie errors
- * (anon-DB fallback before login) — resolves `undefined`.
+ * Đọc một giá trị metadata đồng bộ. Trả `null` nếu chưa có / lỗi (fire-safe —
+ * không throw, để boot flow không vỡ). `null` ở `lastEventSeq` nghĩa là "chưa
+ * từng sync trên thiết bị này" → caller chạy cold-start.
  */
-export async function getMeta<T>(key: string): Promise<T | undefined> {
+export async function getMeta<T = unknown>(key: string): Promise<T | null> {
   try {
     const row = await db.sync_meta.get(key);
-    return row ? (row.value as T) : undefined;
+    return (row?.value ?? null) as T | null;
   } catch {
-    return undefined;
+    return null;
   }
 }
 
-/**
- * Upsert a value into the `sync_meta` key/value table. Used to advance
- * the sync cursor (`lastEventSeq`) and stamp `lastSyncAt`. Safe to call
- * inside a Dexie `rw` transaction (the engine advances the cursor in
- * the same transaction that applies a batch — atomic).
- */
-export async function setMeta<T>(key: string, value: T): Promise<void> {
-  await db.sync_meta.put({ key, value });
+/** Ghi (upsert) một giá trị metadata đồng bộ. Fire-safe — chỉ log khi lỗi. */
+export async function setMeta(key: string, value: unknown): Promise<void> {
+  try {
+    await db.sync_meta.put({ key, value });
+  } catch (error) {
+    console.error("[syncMeta] setMeta failed:", key, error);
+  }
 }
 
 // Legacy singleton export removed — `db` is now a Proxy declared above

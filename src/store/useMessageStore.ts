@@ -9,6 +9,7 @@ import {
   RoomData,
 } from "./types/message.state";
 import { groupMessagesByDate } from "@/libs/timeline-helpers";
+import { MessageStatus, mergeStatus } from "@/types/messageStatus.type";
 import i18n from "@/i18n";
 import useAuthStore from "./useAuthStore";
 import useRoomStore from "./useRoomStore";
@@ -241,8 +242,13 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       msgData.createdAt = new Date().toISOString();
     }
 
-    // Lưu vào IndexedDB trước
-    msgData.status = "sent";
+    // Trạng thái từ server: có người đọc → READ; còn lại đã commit (có seq) → SENT.
+    // KHÔNG dùng timer mù; SENT suy ra từ việc tin đã về từ server (có msg.seq).
+    const serverStatus: MessageStatus =
+      (msgData.read_by?.length ?? msgData.read_by_count ?? 0) > 0
+        ? MessageStatus.READ
+        : MessageStatus.SENT;
+    msgData.status = serverStatus;
 
     // Normalize roomId: Socket may send MongoDB _id but frontend uses room.id (UUID)
     // Look up the room by _id to get the correct id for storage
@@ -255,6 +261,12 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     );
     // Use room.id if found, otherwise fallback to msgData.roomId
     const normalizedRoomId = roomFromStore?.id || msgData.roomId;
+    // CHUẨN HOÁ roomId về business id (room.id) NGAY trên chính msgData → state,
+    // IndexedDB và room-store dùng CHUNG một key. Socket gửi roomId = Mongo `_id`
+    // (BE pipeline project `roomId:'$msg_roomId'`); nếu ghi IndexedDB theo `_id`
+    // thô thì loadRoomFromCache (query theo room.id) KHÔNG thấy → vào lại phòng
+    // MẤT các tin chỉ-đến-qua-socket (chưa fetch API). Fix: đồng nhất về room.id.
+    msgData.roomId = normalizedRoomId;
 
     // Pre-check if this is a new message (for use outside the set callback)
     const prevRoomForCheck = get().messagesRoom[normalizedRoomId];
@@ -283,9 +295,12 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         // ID không tồn tại → thêm vào array
         updatedMessages = [...prevMessages, msgData];
       } else {
-        // ID đã tồn tại → cập nhật
+        // ID đã tồn tại → cập nhật. Giữ precedence trạng thái (không downgrade
+        // vd DELIVERED live đã set rồi MSGUPSERT lại về SENT).
         updatedMessages = prevMessages.map((msg, idx) =>
-          idx === existingIndex ? { ...msg, ...msgData } : msg,
+          idx === existingIndex
+            ? { ...msg, ...msgData, status: mergeStatus(msg.status, serverStatus) }
+            : msg,
         );
       }
 
@@ -461,7 +476,8 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         avatar: userAvatar || "",
       },
       // Removed isMine, isRead here as requested. Logic will handle it.
-      status: attachments && attachments.length > 0 ? "uploading" : "pending",
+      // Tin optimistic chưa có seq → SENDING (gồm cả đang upload attachment).
+      status: MessageStatus.SENDING,
       hiddenBy: [],
       hiddenAt: null,
       isDeleted: false,
@@ -548,7 +564,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
               id,
               attachments: uploadedAttachments.map((att) => att._id),
             });
-            get().autoMarkMessageSent(roomId, id, 3000);
+            get().autoFailIfUnsent(roomId, id);
           } else {
             console.warn(
               "⚠️ All attachments failed to upload — marking message failed",
@@ -558,7 +574,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
             const currentRoom = get().messagesRoom[roomId];
             const msgs = getAllMessagesFromGroups(currentRoom);
             const updatedMessages = msgs.map((msg) =>
-              msg.id === id ? { ...msg, status: "failed" as const } : msg,
+              msg.id === id ? { ...msg, status: MessageStatus.FAILED } : msg,
             );
             set({
               messagesRoom: {
@@ -578,7 +594,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           const currentRoom = get().messagesRoom[roomId];
           const msgs = getAllMessagesFromGroups(currentRoom);
           const updatedMessages = msgs.map((msg) =>
-            msg.id === id ? { ...msg, status: "failed" as const } : msg,
+            msg.id === id ? { ...msg, status: MessageStatus.FAILED } : msg,
           );
           set({
             messagesRoom: {
@@ -604,7 +620,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         desk_id: args.desk_id || args.desk?.deck_id,
         todoProjectId: args.todoProjectId,
       });
-      get().autoMarkMessageSent(roomId, id, 3000);
+      get().autoFailIfUnsent(roomId, id);
     }
   },
 
@@ -648,7 +664,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       const newMessages = response.data.metadata.map((msg: MessageType) => ({
         ...msg,
         roomId,
-        status: (msg.status || "delivered") as MessageType["status"],
+        status: (msg.status as MessageStatus) || MessageStatus.SENT,
         attachments: sanitizeAttachmentsFromAPI(msg.attachments),
       }));
 
@@ -790,7 +806,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
     // Cập nhật status về pending
     const updatedMessages = allMessages.map((msg) =>
-      msg.id === messageId ? { ...msg, status: "pending" as const } : msg,
+      msg.id === messageId ? { ...msg, status: MessageStatus.SENDING } : msg,
     );
 
     set({
@@ -816,7 +832,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           id: messageId,
         });
 
-        get().autoMarkMessageSent(roomId, messageId, 3000);
+        get().autoFailIfUnsent(roomId, messageId);
         return;
       }
 
@@ -869,7 +885,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           attachments: successful.map((att) => att._id),
         });
 
-        get().autoMarkMessageSent(roomId, messageId, 3000);
+        get().autoFailIfUnsent(roomId, messageId);
       } else {
         console.warn(
           "⚠️ Some or all attachments failed to upload on resend — marking message failed",
@@ -879,7 +895,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         const curRoom = get().messagesRoom[roomId];
         const curMsgs = getAllMessagesFromGroups(curRoom);
         const failedMessages = curMsgs.map((msg) =>
-          msg.id === messageId ? { ...msg, status: "failed" as const } : msg,
+          msg.id === messageId ? { ...msg, status: MessageStatus.FAILED } : msg,
         );
 
         set({
@@ -900,7 +916,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       const current = get().messagesRoom[roomId];
       const currentMsgs = getAllMessagesFromGroups(current);
       const failedMessages = currentMsgs.map((msg) =>
-        msg.id === messageId ? { ...msg, status: "failed" as const } : msg,
+        msg.id === messageId ? { ...msg, status: MessageStatus.FAILED } : msg,
       );
 
       set({
@@ -975,12 +991,26 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         attachments: null,
         reply: null,
       };
+      // MERGE thay vì REPLACE: giữ lại tin in-memory CHƯA có trong cache (vd tin
+      // socket/optimistic mà IndexedDB write fire-and-forget chưa kịp xong) → vào
+      // lại phòng KHÔNG mất tin. Sắp theo createdAt tăng dần (cũ → mới).
+      const existingMsgs = getAllMessagesFromGroups(currentRoom);
+      const cachedIds = new Set(cached.map((m) => m.id));
+      const extras = existingMsgs.filter((m) => !cachedIds.has(m.id));
+      const merged =
+        extras.length === 0
+          ? cached
+          : [...cached, ...extras].sort(
+              (a, b) =>
+                new Date(a.createdAt).getTime() -
+                new Date(b.createdAt).getTime(),
+            );
       set({
         messagesRoom: {
           ...get().messagesRoom,
           [roomId]: updateRoomDataWithGroups(
             currentRoom,
-            cached,
+            merged,
             currentRoom?.lastReadMessageId,
           ),
         },
@@ -1139,7 +1169,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       const messages = response.data.metadata.map((msg: MessageType) => ({
         ...msg,
         roomId,
-        status: (msg.status || "delivered") as MessageType["status"],
+        status: (msg.status as MessageStatus) || MessageStatus.SENT,
         attachments: sanitizeAttachmentsFromAPI(msg.attachments),
       }));
 
@@ -1749,7 +1779,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           msg.id === messageId
             ? {
                 ...msg,
-                status: "recalled" as MessageType["status"],
+                status: MessageStatus.RECALLED,
                 content: "[Tin nhắn đã bị thu hồi]",
               }
             : msg,
@@ -1773,7 +1803,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
             db.messages,
             sanitizeMessageForDB({
               ...msg,
-              status: "recalled" as MessageType["status"],
+              status: MessageStatus.RECALLED,
               content: "[Tin nhắn đã bị thu hồi]",
             }),
           );
@@ -2088,7 +2118,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       // nếu BE sửa content/type, thì ưu tiên cái mới
       content: payload.data.content ?? prevMsg.content,
       type: (payload.data.type as MessageType["type"]) ?? prevMsg.type,
-      status: "failed",
+      status: MessageStatus.FAILED,
       attachments: nextAttachments,
       // optional: nếu muốn lưu thời gian fail riêng thì thêm field khác
     };
@@ -2122,30 +2152,29 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       return false;
     }
   },
-  autoMarkMessageSent: (roomId: string, messageId: string, delayMs = 3000) => {
+  // Safety net: SENT nay đến từ server MSGUPSERT (kèm `seq`) qua upsetMsg —
+  // KHÔNG còn timer mù set "sent". Nếu sau `delayMs` mà tin vẫn SENDING (server
+  // chưa echo → mất kết nối/lỗi) thì đánh dấu FAILED để user gửi lại.
+  autoFailIfUnsent: (roomId: string, messageId: string, delayMs = 15000) => {
     setTimeout(() => {
       const state = get();
       const currentRoom = state.messagesRoom[roomId];
       if (!currentRoom) return;
 
       const msgs = getAllMessagesFromGroups(currentRoom);
+      let changed = false;
       const updatedMessages = msgs.map((msg) => {
         if (msg.id !== messageId) return msg;
-
-        // Nếu đã failed thì giữ nguyên
-        if (msg.status === "failed") return msg;
-
-        // Chỉ auto-set sent nếu vẫn pending / uploading / undefined
-        if (
-          msg.status === "pending" ||
-          msg.status === "uploading" ||
-          !msg.status
-        ) {
-          return { ...msg, status: "sent" as const };
+        // Vẫn đang gửi (chưa nhận seq từ server) → coi như lỗi gửi.
+        if (msg.status === MessageStatus.SENDING) {
+          changed = true;
+          const failed = { ...msg, status: MessageStatus.FAILED };
+          upsertOne(db.messages, failed);
+          return failed;
         }
-        upsertOne(db.messages, msg);
         return msg;
       });
+      if (!changed) return;
 
       set({
         messagesRoom: {
@@ -2198,6 +2227,72 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       return {
         ...state,
         messagesRoom: nextMessages,
+      };
+    });
+  },
+
+  setMessageStatus: (
+    roomId: string,
+    messageId: string,
+    status: MessageStatus,
+  ) => {
+    // Chuẩn hoá roomId (socket có thể gửi mongo _id).
+    const roomStore = useRoomStore.getState();
+    const room = roomStore.rooms.find(
+      (r) => r._id === roomId || r.roomId === roomId || r.id === roomId,
+    );
+    const rid = room?.id || roomId;
+    set((state) => {
+      const prevRoom = state.messagesRoom[rid];
+      if (!prevRoom) return state;
+      const msgs = getAllMessagesFromGroups(prevRoom);
+      let changed = false;
+      const updated = msgs.map((m) => {
+        if (m.id !== messageId) return m;
+        const next = mergeStatus(m.status, status);
+        if (next === m.status) return m;
+        changed = true;
+        return { ...m, status: next };
+      });
+      if (!changed) return state;
+      return {
+        ...state,
+        messagesRoom: {
+          ...state.messagesRoom,
+          [rid]: updateRoomDataWithGroups(
+            prevRoom,
+            updated,
+            prevRoom?.lastReadMessageId,
+          ),
+        },
+      };
+    });
+  },
+
+  removeMessageLocal: async (roomId: string, messageId: string) => {
+    // Xoá khỏi IndexedDB (best-effort).
+    try {
+      await db.messages.delete(messageId);
+    } catch (e) {
+      console.error("[removeMessageLocal] IndexedDB delete error:", e);
+    }
+    // Xoá khỏi state (groups) nếu phòng đang có trong store.
+    set((state) => {
+      const prevRoom = state.messagesRoom[roomId];
+      if (!prevRoom) return state;
+      const prevMessages = getAllMessagesFromGroups(prevRoom).filter(
+        (m) => m.id !== messageId,
+      );
+      return {
+        ...state,
+        messagesRoom: {
+          ...state.messagesRoom,
+          [roomId]: updateRoomDataWithGroups(
+            prevRoom,
+            prevMessages,
+            prevRoom?.lastReadMessageId,
+          ),
+        },
       };
     });
   },

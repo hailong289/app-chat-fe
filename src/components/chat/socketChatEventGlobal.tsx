@@ -6,14 +6,12 @@ import useRoomStore from "@/store/useRoomStore";
 import useMessageStore from "@/store/useMessageStore";
 import useContactStore from "@/store/useContactStore";
 import { socketEvent } from "@/types/socketEvent.type";
+import { advanceCursor, runCatchupSync } from "@/libs/syncEngine";
+import { MessageStatus } from "@/types/messageStatus.type";
+import useAuthStore from "@/store/useAuthStore";
 import useCallStore from "@/store/useCallStore";
 import { useOnlinePresence } from "./hooks/useOnlinePresence";
 import { IncomingCallModal } from "../call/IncomingCallModal";
-import {
-  advanceCursorFromLive,
-  runCatchupSync,
-  SYNC_ENGINE_ENABLED,
-} from "@/libs/syncEngine";
 
 export const SocketEventChatGlobal = () => {
   const { socket: msgSocket } = useSocket("/chat");
@@ -39,40 +37,49 @@ export const SocketEventChatGlobal = () => {
   const onMsgUpsertCall = useRef((payload: any) =>
     useMessageStore.getState().upsetMsg(payload)
   );
-
-  // Live message:upsert handler that ALSO advances the catch-up sync
-  // cursor from the `seq` the BE now stamps on the payload — so the
-  // catch-up path resumes exactly where the live stream left off after
-  // a disconnect. Wraps the existing `upsetMsg` store mutation.
-  const onMsgUpsert = useRef((payload: any) => {
-    useMessageStore.getState().upsetMsg(payload);
-    if (SYNC_ENGINE_ENABLED) {
-      void advanceCursorFromLive(payload?.seq);
-    }
-  });
-
-  // mark:read handler that advances the cursor too (room.read events
-  // carry a `seq`). Reuses the existing setRoomReaded store mutation.
-  const onMarkRead = useRef((data: any) => {
-    useRoomStore.getState().setRoomReaded(data);
-    if (SYNC_ENGINE_ENABLED) {
-      void advanceCursorFromLive(data?.seq);
-    }
-  });
-
-  // On socket (re)connect, run a catch-up sync to patch anything missed
-  // while disconnected. Cheap when nothing is new (one round-trip that
-  // returns an empty event list).
-  const onSocketConnect = useRef(() => {
-    if (SYNC_ENGINE_ENABLED) {
-      void runCatchupSync();
-    }
-  });
   const onRoomRefresh = useRef((data: any) =>
     useRoomStore.getState().fetchAndUpdateRoom(data.roomId)
   );
   const onCallBusy = useRef((payload: any) =>
     useCallStore.getState().eventCall("busy", payload)
+  );
+
+  // Giữ ref socket /chat cập nhật để các handler ổn định (useRef) emit được.
+  const socketRef = useRef<any>(null);
+  useEffect(() => {
+    socketRef.current = msgSocket;
+  }, [msgSocket]);
+
+  // Live MSGUPSERT: apply tin + TIẾN con trỏ catch-up từ `msg.seq` (một nguồn
+  // seq duy nhất cho cả live + catch-up). advanceCursor no-op nếu chưa có baseline.
+  // Đồng thời ACK "delivered" về người gửi khi tin của NGƯỜI KHÁC vừa tới máy mình.
+  const onMsgUpsert = useRef((msg: any) => {
+    useMessageStore.getState().upsetMsg(msg);
+    void advanceCursor(msg?.seq);
+    try {
+      const me = useAuthStore.getState().user?._id;
+      const senderId = msg?.sender?._id; // mongo _id (khớp ROOM_CLIENT ở BE)
+      if (me && senderId && senderId !== me && msg?.id) {
+        socketRef.current?.emit(socketEvent.MSGDELIVERED, {
+          roomId: msg.roomId,
+          msgId: msg.id,
+          senderId,
+        });
+      }
+    } catch {
+      /* ack delivered là best-effort */
+    }
+  });
+
+  // Người gửi nhận "delivered" (live, ephemeral) → set DELIVERED (không đè READ).
+  const onMsgStatus = useRef(
+    (data: { roomId: string; msgId?: string; status?: string }) => {
+      if (data?.status === "delivered" && data.msgId) {
+        useMessageStore
+          .getState()
+          .setMessageStatus(data.roomId, data.msgId, MessageStatus.DELIVERED);
+      }
+    },
   );
 
   // ── Message action inbound handlers ──────────────────────────────
@@ -81,18 +88,28 @@ export const SocketEventChatGlobal = () => {
   // a safety net in case the backend emits dedicated events.
   const onMsgReact = useRef((msg: any) => {
     useMessageStore.getState().upsetMsg(msg);
+    void advanceCursor(msg?.seq);
   });
   const onMsgPinned = useRef((msg: any) => {
     useMessageStore.getState().upsetMsg(msg);
+    void advanceCursor(msg?.seq);
     if (msg.roomId) {
       useRoomStore.getState().updatePinnedMessageFromSocket(msg.roomId, msg);
     }
   });
   const onMsgDelete = useRef((msg: any) => {
     useMessageStore.getState().upsetMsg(msg);
+    void advanceCursor(msg?.seq);
   });
   const onMsgRecall = useRef((msg: any) => {
     useMessageStore.getState().upsetMsg(msg);
+    void advanceCursor(msg?.seq);
+  });
+
+  // Reconnect: socket nối lại sau khi rớt mạng → catch-up vá phần event đã miss
+  // (rẻ nếu không có gì mới). Bao mọi phòng, không chỉ phòng đang mở.
+  const onReconnectSync = useRef(() => {
+    void runCatchupSync();
   });
 
   // Multi-device handoff: this user accepted/joined the call from another
@@ -190,8 +207,9 @@ export const SocketEventChatGlobal = () => {
   useEffect(() => {
     if (!msgSocket || !call) return;
     msgSocket.on(socketEvent.MSGUPSERT, onMsgUpsert.current);
-    msgSocket.on(socketEvent.MSGMARKREAD, onMarkRead.current);
-    msgSocket.on("connect", onSocketConnect.current);
+    msgSocket.on(socketEvent.MSGSTATUS, onMsgStatus.current);
+    msgSocket.on("connect", onReconnectSync.current);
+    msgSocket.on(socketEvent.MSGMARKREAD, roomState.setRoomReaded);
     msgSocket.on(socketEvent.STATUS, onStatus.current);
     msgSocket.on("status:online:bulk", onStatusBulk.current);
     msgSocket.on(socketEvent.ROOMDELETE, roomState.roomDeleteSocket);
@@ -229,8 +247,9 @@ export const SocketEventChatGlobal = () => {
       call.off("call:busy", onCallBusy.current);
       call.off("call:handoff", onCallHandoff.current);
       msgSocket.off(socketEvent.MSGUPSERT, onMsgUpsert.current);
-      msgSocket.off(socketEvent.MSGMARKREAD, onMarkRead.current);
-      msgSocket.off("connect", onSocketConnect.current);
+      msgSocket.off(socketEvent.MSGSTATUS, onMsgStatus.current);
+      msgSocket.off("connect", onReconnectSync.current);
+      msgSocket.off(socketEvent.MSGMARKREAD, roomState.setRoomReaded);
       msgSocket.off(socketEvent.STATUS, onStatus.current);
       msgSocket.off("status:online:bulk", onStatusBulk.current);
       msgSocket.off(socketEvent.ROOMDELETE, roomState.roomDeleteSocket);

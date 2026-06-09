@@ -11,7 +11,7 @@ import {
   upsertOne,
 } from "@/libs/crud";
 import useMessageStore from "./useMessageStore";
-import { SYNC_ENGINE_ENABLED } from "@/libs/syncConfig";
+import useAuthStore from "./useAuthStore";
 
 const useRoomStore = create<RoomsState>()((set, get) => ({
   isLoading: false,
@@ -61,25 +61,14 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     // Fire-and-forget: don't block `getRooms()` resolution, the FE
     // sidebar should appear right after the first DB write. Errors
     // inside `warmRoomCaches` are swallowed silently — best-effort.
-    // Khi catch-up sync engine BẬT: KHÔNG prefetch 20 tin/room nữa. Engine chỉ
-    // kéo delta cho room thực sự có tin mới (room.newmsgs) + room đang mở; các
-    // room khác render từ IndexedDB và lazy-load lúc mở. Đây là điểm bỏ "refetch
-    // full" — mục tiêu giảm tải DB. Flag tắt → giữ prefetch cũ.
-    if (!SYNC_ENGINE_ENABLED) {
-      const activeRoomId = get().room?.id;
-      const targets = (
-        rooms as Array<{
-          id?: string;
-          last_message?: { id?: string | null } | null;
-        }>
-      )
-        .filter((r) => !!r.last_message?.id && !!r.id && r.id !== activeRoomId)
-        .map((r) => r.id as string);
-      if (targets.length > 0) {
-        void useMessageStore
-          .getState()
-          .warmRoomCaches(targets, { limit: 20, concurrency: 3 });
-      }
+    const activeRoomId = get().room?.id;
+    const targets = (rooms as Array<{ id?: string; last_message?: { id?: string | null } | null }>)
+      .filter((r) => !!r.last_message?.id && !!r.id && r.id !== activeRoomId)
+      .map((r) => r.id as string);
+    if (targets.length > 0) {
+      void useMessageStore
+        .getState()
+        .warmRoomCaches(targets, { limit: 20, concurrency: 3 });
     }
 
     return rooms;
@@ -164,6 +153,9 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     }
     set({ isLoading: false, error: null });
     await deleteOne(db.rooms, room.id);
+    // Cascade: xoá luôn messages của phòng khỏi IndexedDB + state (tránh orphan
+    // tích tụ). clearRoomMessages xoá db.messages theo roomId + clear messagesRoom.
+    await useMessageStore.getState().clearRoomMessages(room.id);
     const rooms = get().rooms.filter((r) => r.id !== room.id);
     get().getRoomsByType(get().type);
     set({
@@ -400,13 +392,29 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     }
   },
   markMessageAsRead: (roomId: string, messageId: string, socket: any) => {
-    // Emit socket event
-    socket?.emit("mark:read", {
-      roomId,
-      lastMessageId: messageId,
-    });
+    // Tin của CHÍNH user → KHÔNG emit mark:read (không tự đánh dấu đọc tin
+    // mình), NHƯNG vẫn cập nhật local read-state (unread/last_read) bên dưới.
+    let isOwn = false;
+    try {
+      const me = useAuthStore.getState().user;
+      const roomData = useMessageStore.getState().messagesRoom[roomId];
+      const msg = roomData?.groups
+        ?.flatMap((g) => g.messages)
+        .find((m) => m.id === messageId);
+      const senderId = msg?.sender?.id || msg?.sender?._id;
+      isOwn = !!senderId && (senderId === me?.id || senderId === me?._id);
+    } catch {
+      /* fallback: coi như không phải tin mình → vẫn emit */
+    }
 
-    // Cập nhật local state và IndexedDB
+    if (!isOwn) {
+      socket?.emit("mark:read", {
+        roomId,
+        lastMessageId: messageId,
+      });
+    }
+
+    // LUÔN cập nhật local state + IndexedDB (kể cả khi tin mới nhất là của mình).
     get().setRoomReaded({
       lastMessageId: messageId,
       roomId: roomId,

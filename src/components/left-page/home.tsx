@@ -8,6 +8,7 @@ import React, {
   useCallback,
 } from "react";
 import formatTimeAgo from "@/libs/forrmattime";
+import { runCatchupSync } from "@/libs/syncEngine";
 import useRoomStore from "@/store/useRoomStore";
 import { MagnifyingGlassIcon, XCircleIcon } from "@heroicons/react/16/solid";
 import {
@@ -38,7 +39,6 @@ import useContactStore from "@/store/useContactStore";
 import useAuthStore from "@/store/useAuthStore";
 import TypingIndicator from "../chat/input/TypingIndicator";
 import useCounterStore from "@/store/useCounterStore";
-import { SYNC_ENGINE_ENABLED } from "@/libs/syncEngine";
 import {
   PencilSquareIcon,
   ChevronDoubleLeftIcon,
@@ -104,17 +104,11 @@ export const Home = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // Paint the sidebar instantly from IndexedDB cache.
-      await roomState.getRoomsByType("all");
-      // Freshness: when the catch-up sync engine is enabled, the
-      // boot-level `runCatchupSync()` (AuthBootstrap in providers.tsx)
-      // already pulls the per-user change delta (and cold-starts with a
-      // full `getRooms()` on first login). So we skip the unconditional
-      // full `getRooms()` here to avoid the double full-fetch. When the
-      // flag is off, fall back to the legacy full load.
-      if (!SYNC_ENGINE_ENABLED) {
-        await roomState.getRooms();
-      }
+      await roomState.getRoomsByType("all"); // hydrate sidebar từ cache tức thì
+      // Bỏ getRooms() full vô điều kiện → dùng catch-up event-sync. Warm path
+      // chỉ apply delta; cold-start (lần đầu/cursor cũ) tự getRooms() full bên
+      // trong. inFlight-guard tránh trùng với lần chạy ở AuthBootstrap.
+      await runCatchupSync();
       await contactState.syncChatPartners();
       // Friends usually populate via /contacts, but the online list lives
       // on /, so we need to seed db.contacts with friends here too.

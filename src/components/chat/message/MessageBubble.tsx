@@ -11,6 +11,7 @@ import { SystemMessageBubble } from "./SystemMessageBubble";
 import { extractFirstUrl } from "@/libs/url-helpers";
 import { MAX_MESSAGE_LENGTH } from "../constants/messageConstants";
 import { CallHistoryType, MessageType } from "@/store/types/message.state";
+import { MessageStatus } from "@/types/messageStatus.type";
 import { useTranslation } from "react-i18next";
 import { useRouter } from "next/navigation";
 import Helpers from "@/libs/helpers";
@@ -295,8 +296,8 @@ function getBubbleClasses(
     ${!isSameSenderAsPrev && !isMine ? "rounded-tl-md" : ""}
     ${!isSameSenderAsNext && isMine ? "rounded-br-md" : ""}
     ${!isSameSenderAsNext && !isMine ? "rounded-bl-md" : ""}
-    ${status === "pending" || status === "uploading" ? "opacity-60" : ""}
-    ${status === "failed" ? "opacity-80 border-2 border-red-400 dark:border-red-500" : ""}
+    ${status === MessageStatus.SENDING ? "opacity-60" : ""}
+    ${status === MessageStatus.FAILED ? "opacity-80 border-2 border-red-400 dark:border-red-500" : ""}
   `;
 }
 
@@ -377,8 +378,9 @@ function RegularMessageBubble({
           </button>
         )}
 
-        {/* Uploading indicator */}
-        {msg.status === "uploading" && <UploadingIndicator />}
+        {/* Uploading indicator — tin đang gửi có attachment */}
+        {msg.status === MessageStatus.SENDING &&
+          (msg.attachments?.length ?? 0) > 0 && <UploadingIndicator />}
       </div>
 
       {/* Link Preview - hiển thị nếu có URL */}
