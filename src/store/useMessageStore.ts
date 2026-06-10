@@ -33,7 +33,19 @@ const updateRoomDataWithGroups = (
   const currentUser = useAuthStore.getState().user;
   const currentUserId = currentUser?._id;
 
-  const displayableMessages = newMessages.filter((msg) => {
+  // Gap-marker placeholders (catch-up sync engine) are bookkeeping rows
+  // in IndexedDB, not real messages. We DO want them rendered as a
+  // timeline affordance ("Tải thêm tin nhắn" pill) at their chronological
+  // position, but they must NEVER participate in id-based sorting, dedupe
+  // counts, or newest-message computations. So we split them out here,
+  // sort/dedupe the real messages, then re-insert the gap markers by
+  // `createdAt` right before grouping.
+  const gapMarkers: MessageType[] = [];
+  const realMessages = newMessages.filter((msg) => {
+    if (msg.__gap) {
+      gapMarkers.push(msg);
+      return false;
+    }
     if (currentUserId && msg.hiddenBy?.includes(currentUserId)) {
       return false;
     }
@@ -42,14 +54,25 @@ const updateRoomDataWithGroups = (
 
   // Deduplicate messages by ID to prevent infinite loops/duplicate rendering
   const uniqueMessagesMap = new Map<string, MessageType>();
-  displayableMessages.forEach((msg) => {
+  realMessages.forEach((msg) => {
     uniqueMessagesMap.set(msg.id, msg);
   });
   const uniqueMessages = Array.from(uniqueMessagesMap.values()).sort((a, b) =>
     a.id.localeCompare(b.id),
   );
 
-  const groups = groupMessagesByDate(uniqueMessages, lastReadId);
+  // Re-insert gap markers (deduped by id) into the chronological stream.
+  // `groupMessagesByDate` buckets by `createdAt` and sorts within each day
+  // bucket by `createdAt`, so the gap pill lands at the right spot just by
+  // being present in the array. We append them; the grouper handles order.
+  let messagesForGrouping: MessageType[] = uniqueMessages;
+  if (gapMarkers.length > 0) {
+    const gapMap = new Map<string, MessageType>();
+    gapMarkers.forEach((g) => gapMap.set(g.id, g));
+    messagesForGrouping = [...uniqueMessages, ...Array.from(gapMap.values())];
+  }
+
+  const groups = groupMessagesByDate(messagesForGrouping, lastReadId);
 
   return {
     ...(prevRoom || {
@@ -1557,6 +1580,94 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       console.error("❌ Error loading older messages:", error);
       throw error;
     }
+  },
+
+  /**
+   * Lazy-load the window represented by a gap-marker placeholder
+   * (catch-up sync engine), then remove the marker so the real messages
+   * take its place.
+   *
+   * Flow:
+   *   1. Pull a window of messages newer than the newest cached REAL
+   *      message via the existing `fetchMessagesFromAPI` (type='new')
+   *      path. This upserts them into IndexedDB + state.
+   *   2. Delete the `__gap_<roomId>` row from IndexedDB and drop it from
+   *      the in-memory groups so the pill disappears.
+   *
+   * Idempotent & safe: if the room has no gap marker, nothing changes.
+   * On fetch error the marker is KEPT so the user can retry. Returns
+   * true when the gap was filled.
+   */
+  loadGap: async (roomId: string, limit: number = 50): Promise<boolean> => {
+    if (!roomId) return false;
+
+    const gapId = `__gap_${roomId}`;
+
+    // Bail early if there's no gap marker for this room (idempotent no-op).
+    const currentRoom = get().messagesRoom[roomId];
+    const currentMessages = getAllMessagesFromGroups(currentRoom);
+    const hasGap = currentMessages.some((m) => m.id === gapId && m.__gap);
+    let gapInDb = false;
+    if (!hasGap) {
+      try {
+        gapInDb = !!(await db.messages.get(gapId));
+      } catch {
+        gapInDb = false;
+      }
+      if (!gapInDb) return false;
+    }
+
+    // Newest REAL cached message id — the anchor for the type='new' delta.
+    const realMessages = currentMessages.filter((m) => !m.__gap);
+    const newestRealId = realMessages.length
+      ? [...realMessages].sort((a, b) => a.id.localeCompare(b.id)).at(-1)?.id
+      : undefined;
+
+    try {
+      // Reuse the existing message-fetch path. When we have a cached
+      // anchor, `fetchNewMessages` pulls the delta after it
+      // (getMessages type='new' + msgId) — exactly the gap window. With
+      // no anchor (empty cache) fall back to a plain latest-N fetch via
+      // `fetchMessagesFromAPI`.
+      if (newestRealId) {
+        await get().fetchNewMessages(roomId, newestRealId);
+      } else {
+        await get().fetchMessagesFromAPI(roomId, { limit });
+      }
+    } catch (error) {
+      console.error("❌ Error loading gap window:", error);
+      // Keep the marker so the user can retry.
+      return false;
+    }
+
+    // Remove the gap marker from IndexedDB (best-effort).
+    try {
+      await deleteOne(db.messages, gapId);
+    } catch {
+      /* non-fatal — state removal below still hides the pill */
+    }
+
+    // Remove the gap marker from state. `fetchMessagesFromAPI` may have
+    // already rebuilt the room groups above, so re-read fresh state.
+    const freshRoom = get().messagesRoom[roomId];
+    if (freshRoom) {
+      const freshMessages = getAllMessagesFromGroups(freshRoom);
+      if (freshMessages.some((m) => m.id === gapId)) {
+        const withoutGap = freshMessages.filter((m) => m.id !== gapId);
+        set({
+          messagesRoom: {
+            ...get().messagesRoom,
+            [roomId]: updateRoomDataWithGroups(
+              freshRoom,
+              withoutGap,
+              freshRoom?.lastReadMessageId,
+            ),
+          },
+        });
+      }
+    }
+
+    return true;
   },
 
   /**
