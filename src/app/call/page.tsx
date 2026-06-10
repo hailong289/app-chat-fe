@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect, Suspense, useCallback, useMemo } from "react";
+import { useRef, useState, useEffect, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Button,
@@ -26,7 +26,6 @@ import { isTauriRuntime } from "@/libs/helpers";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { useGoogleStt } from "@/hooks/useGoogleStt";
 import { SpeechToTextPanel } from "@/components/call/SpeechToTextPanel";
-import type { RemoteSttParticipant } from "@/components/call/SpeechToTextPanel";
 
 function CallPageContentInner() {
   const router = useRouter();
@@ -41,11 +40,6 @@ function CallPageContentInner() {
   const [videoAreaShifted, setVideoAreaShifted] = useState(false);
   const [sttLang, setSttLang] = useState("vi-VN");
   const [sttEngine, setSttEngine] = useState<"browser" | "google">("google");
-  const [sttSubscriptions, setSttSubscriptions] = useState<Record<string, boolean>>({});
-  const [remoteSttRequesters, setRemoteSttRequesters] = useState<Record<string, string>>({});
-  const [sttTranslateEnabled, setSttTranslateEnabled] = useState(true);
-  const [sttTranslateFrom, setSttTranslateFrom] = useState("auto");
-  const [sttTranslateTo, setSttTranslateTo] = useState("vi");
 
   const closeTauriOrBrowserWindow = useCallback(async (): Promise<boolean> => {
     if (isTauriRuntime()) {
@@ -194,19 +188,8 @@ function CallPageContentInner() {
   // ─── Speech-to-Text (Web Speech API) ─────────────────────────────────────
   const remoteMember = members.find((m: CallMember) => m.id !== currentUserId);
   const remoteSpeakerName = remoteMember?.fullname || "Người tham gia";
-  const remoteSttParticipants = useMemo<RemoteSttParticipant[]>(
-    () =>
-      members
-        .filter((m: CallMember) => m.id !== currentUserId)
-        .map((m: CallMember) => ({
-          id: m.id,
-          fullname: m.fullname || "Người tham gia",
-        })),
-    [currentUserId, members],
-  );
   const sttBrowser = useSpeechToText({
     lang: sttLang,
-    speakerUserId: currentUserId,
     speakerName: currentUser?.fullname || "Bạn",
     socket,
     roomId,
@@ -215,7 +198,6 @@ function CallPageContentInner() {
   const sttGoogle = useGoogleStt({
     socket,
     roomId,
-    speakerUserId: currentUserId,
     speakerName: currentUser?.fullname || "Bạn",
     remoteSpeakerName,
     language: sttLang.startsWith("vi") ? "vi" : "en",
@@ -228,26 +210,10 @@ function CallPageContentInner() {
     },
   });
   const stt = sttEngine === "google" ? sttGoogle : sttBrowser;
-  const startBrowserStt = sttBrowser.start;
-  const startGoogleStt = sttGoogle.start;
   const stopBrowserStt = sttBrowser.stop;
   const stopGoogleStt = sttGoogle.stop;
   const clearBrowserStt = sttBrowser.clear;
   const clearGoogleStt = sttGoogle.clear;
-  const sttSegments = useMemo(() => {
-    const seen = new Set<string>();
-    return [...sttBrowser.segments, ...sttGoogle.segments]
-      .filter((seg) => {
-        if (seen.has(seg.id)) return false;
-        seen.add(seg.id);
-        return true;
-      })
-      .sort((a, b) => {
-        const aTime = Number(a.id.replace(/^interim-/, "").match(/^\d+/)?.[0] ?? 0);
-        const bTime = Number(b.id.replace(/^interim-/, "").match(/^\d+/)?.[0] ?? 0);
-        return aTime - bTime;
-      });
-  }, [sttBrowser.segments, sttGoogle.segments]);
 
   useEffect(() => {
     if (sttEngine === "google") {
@@ -258,154 +224,17 @@ function CallPageContentInner() {
   }, [sttEngine, stopBrowserStt, stopGoogleStt]);
 
   const handleSttCopy = useCallback(() => {
-    const text = sttSegments
+    const text = stt.segments
       .filter((s) => s.isFinal)
       .map((s) => `[${s.timestamp}] [${s.speaker}] ${s.text}`)
       .join("\n");
     if (text) navigator.clipboard.writeText(text).catch(() => {});
-  }, [sttSegments]);
+  }, [stt.segments]);
 
   const handleSttClear = useCallback(() => {
     clearBrowserStt();
     clearGoogleStt();
   }, [clearBrowserStt, clearGoogleStt]);
-
-  const remoteSttRequesterNames = useMemo(
-    () => Object.values(remoteSttRequesters).filter(Boolean),
-    [remoteSttRequesters],
-  );
-  const remoteSttRequesterCount = remoteSttRequesterNames.length;
-
-  const emitSttControl = useCallback(
-    (targetUserId: string, enabled: boolean) => {
-      if (!socket || !roomId || !targetUserId) return;
-
-      socket.emit(
-        "call:stt-control",
-        {
-          roomId,
-          targetUserId,
-          enabled,
-          engine: sttEngine,
-          recognitionLanguage: sttLang,
-          translateFrom: sttTranslateFrom,
-          translateTo: sttTranslateTo,
-        },
-        (ack?: { ok?: boolean; error?: string }) => {
-          if (ack && ack.ok === false) {
-            console.warn("[STT] control failed:", ack.error);
-            setSttSubscriptions((prev) => {
-              const next = { ...prev };
-              if (enabled) delete next[targetUserId];
-              else next[targetUserId] = true;
-              return next;
-            });
-          }
-        },
-      );
-    },
-    [roomId, socket, sttEngine, sttLang, sttTranslateFrom, sttTranslateTo],
-  );
-
-  const handleSttSubscriptionChange = useCallback(
-    (targetUserId: string, enabled: boolean) => {
-      setSttSubscriptions((prev) => {
-        const next = { ...prev };
-        if (enabled) next[targetUserId] = true;
-        else delete next[targetUserId];
-        return next;
-      });
-      emitSttControl(targetUserId, enabled);
-    },
-    [emitSttControl],
-  );
-
-  const deactivateAllSttSubscriptions = useCallback(() => {
-    const activeTargetIds = Object.entries(sttSubscriptions)
-      .filter(([, enabled]) => enabled)
-      .map(([targetUserId]) => targetUserId);
-
-    activeTargetIds.forEach((targetUserId) => emitSttControl(targetUserId, false));
-    if (activeTargetIds.length > 0) setSttSubscriptions({});
-  }, [emitSttControl, sttSubscriptions]);
-
-  const sttControlConfigKey = `${sttEngine}:${sttLang}:${sttTranslateFrom}:${sttTranslateTo}`;
-  const lastSttControlConfigRef = useRef(sttControlConfigKey);
-
-  useEffect(() => {
-    if (lastSttControlConfigRef.current === sttControlConfigKey) return;
-    lastSttControlConfigRef.current = sttControlConfigKey;
-
-    const activeTargetIds = Object.entries(sttSubscriptions)
-      .filter(([, enabled]) => enabled)
-      .map(([targetUserId]) => targetUserId);
-
-    activeTargetIds.forEach((targetUserId) => emitSttControl(targetUserId, true));
-  }, [emitSttControl, sttControlConfigKey, sttSubscriptions]);
-
-  useEffect(() => {
-    if (!socket || !currentUserId) return;
-
-    const handleRemoteSttControl = (payload: {
-      roomId?: string;
-      requestedByUserId?: string;
-      requestedByName?: string;
-      targetUserId?: string;
-      enabled?: boolean;
-      engine?: "browser" | "google";
-      recognitionLanguage?: string;
-    }) => {
-      if (payload.roomId && payload.roomId !== roomId) return;
-      if (payload.targetUserId !== currentUserId) return;
-      if (!payload.requestedByUserId) return;
-
-      if (payload.engine === "browser" || payload.engine === "google") {
-        setSttEngine(payload.engine);
-      }
-      if (payload.recognitionLanguage) {
-        setSttLang(payload.recognitionLanguage);
-      }
-
-      setRemoteSttRequesters((prev) => {
-        const next = { ...prev };
-        if (payload.enabled) {
-          next[payload.requestedByUserId!] =
-            payload.requestedByName || "Người tham gia";
-        } else {
-          delete next[payload.requestedByUserId!];
-        }
-        return next;
-      });
-    };
-
-    socket.on("call:stt-control", handleRemoteSttControl);
-    return () => {
-      socket.off("call:stt-control", handleRemoteSttControl);
-    };
-  }, [currentUserId, roomId, socket]);
-
-  useEffect(() => {
-    if (remoteSttRequesterCount > 0) {
-      if (sttEngine === "google") {
-        stopBrowserStt();
-        void startGoogleStt();
-      } else {
-        stopGoogleStt();
-        startBrowserStt();
-      }
-      return;
-    }
-
-    stopBrowserStt();
-    stopGoogleStt();
-  }, [
-    remoteSttRequesterCount,
-    sttEngine,
-    startBrowserStt,
-    startGoogleStt,
-    stopBrowserStt,
-    stopGoogleStt,
-  ]);
 
   // ─── Active speaker detection (Web Audio level meter) ───────────────────
   //
@@ -1999,11 +1828,7 @@ function CallPageContentInner() {
               <Button
                 isIconOnly
                 className={`rounded-full h-14 w-14 p-0 backdrop-blur-sm ${
-                  isSttPanelOpen ||
-                    stt.isListening ||
-                    Object.values(sttSubscriptions).some(Boolean)
-                    ? "bg-secondary"
-                    : "bg-white/20"
+                  isSttPanelOpen || stt.isListening ? "bg-secondary" : "bg-white/20"
                 }`}
                 aria-label="Speech to Text"
                 onPress={() => {
@@ -2011,10 +1836,7 @@ function CallPageContentInner() {
                     setIsSttPanelOpen(true);
                     setVideoAreaShifted(true);
                   } else {
-                    deactivateAllSttSubscriptions();
-                    if (stt.isListening && remoteSttRequesterCount === 0) {
-                      stt.stop();
-                    }
+                    if (stt.isListening) stt.stop();
                     setIsSttPanelOpen(false);
                     setVideoAreaShifted(false);
                   }
@@ -2030,12 +1852,12 @@ function CallPageContentInner() {
         <SpeechToTextPanel
           isListening={stt.isListening}
           isSupported={stt.isSupported}
-          segments={sttSegments}
+          segments={stt.segments}
+          onToggle={stt.toggle}
           onClear={handleSttClear}
           onCopy={handleSttCopy}
           onClose={() => {
-            deactivateAllSttSubscriptions();
-            if (remoteSttRequesterCount === 0) stt.stop();
+            stt.stop();
             setIsSttPanelOpen(false);
             setVideoAreaShifted(false);
           }}
@@ -2043,17 +1865,6 @@ function CallPageContentInner() {
           onLangChange={setSttLang}
           sttEngine={sttEngine}
           onSttEngineChange={setSttEngine}
-          remoteParticipants={remoteSttParticipants}
-          subscriptions={sttSubscriptions}
-          onSubscriptionChange={handleSttSubscriptionChange}
-          isSendingTranscript={remoteSttRequesterCount > 0}
-          remoteRequesterNames={remoteSttRequesterNames}
-          translateEnabled={sttTranslateEnabled}
-          translateFrom={sttTranslateFrom}
-          translateTo={sttTranslateTo}
-          onTranslateEnabledChange={setSttTranslateEnabled}
-          onTranslateFromChange={setSttTranslateFrom}
-          onTranslateToChange={setSttTranslateTo}
         />
       )}
 

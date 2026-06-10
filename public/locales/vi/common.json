@@ -234,11 +234,6 @@
         "more": "Còn {{count}} tin nhắn cũ hơn • Cuộn lên để tải",
         "loadMore": "thêm..."
       },
-      "gap": {
-        "loadMore": "Tải thêm tin nhắn",
-        "loading": "Đang tải tin nhắn…",
-        "retry": "Tải lại tin nhắn"
-      },
       "actions": {
         "pin": "Gim",
         "unpin": "Bỏ gim",

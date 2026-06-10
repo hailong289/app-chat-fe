@@ -5,19 +5,16 @@ import type { Socket } from "socket.io-client";
 
 export interface SpeechSegment {
   id: string;
-  speakerUserId?: string;
   speaker: string;
   text: string;
   isFinal: boolean;
   timestamp: string;
-  detectedLanguage?: string;
 }
 
 interface UseSpeechToTextOptions {
   lang?: string;
   /** Called whenever a new final/interim segment is emitted */
   onSegment?: (seg: SpeechSegment) => void;
-  speakerUserId?: string;
   speakerName?: string;
   /** Socket.IO client connected to the /call namespace */
   socket?: Socket | null;
@@ -29,13 +26,11 @@ interface UseSpeechToTextOptions {
 
 interface RemoteSttPayload {
   actionUserId?: string;
-  speakerUserId?: string;
   roomId?: string;
   speaker?: string;
   text: string;
   isFinal: boolean;
   timestamp?: string;
-  detectedLanguage?: string;
 }
 
 const SpeechRecognitionAPI =
@@ -46,7 +41,6 @@ const SpeechRecognitionAPI =
 export function useSpeechToText({
   lang = "vi-VN",
   onSegment,
-  speakerUserId,
   speakerName = "Bạn",
   socket,
   roomId,
@@ -61,8 +55,6 @@ export function useSpeechToText({
   onSegmentRef.current = onSegment;
   const speakerNameRef = useRef(speakerName);
   speakerNameRef.current = speakerName;
-  const speakerUserIdRef = useRef(speakerUserId);
-  speakerUserIdRef.current = speakerUserId;
   const socketRef = useRef(socket);
   socketRef.current = socket;
   const roomIdRef = useRef(roomId);
@@ -91,12 +83,10 @@ export function useSpeechToText({
         if (isFinal) {
           const finalSeg: SpeechSegment = {
             id: Date.now().toString() + Math.random(),
-            speakerUserId: speakerUserIdRef.current,
             speaker: speakerNameRef.current,
             text: transcript,
             isFinal: true,
             timestamp: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-            detectedLanguage: lang.split("-")[0],
           };
           // Remove interim, add final
           setSegments((prev) => {
@@ -111,11 +101,9 @@ export function useSpeechToText({
           if (socketRef.current && roomIdRef.current) {
             socketRef.current.emit("call:stt-segment", {
               roomId: roomIdRef.current,
-              speakerUserId: speakerUserIdRef.current,
               speaker: speakerNameRef.current,
               text: transcript,
               isFinal: true,
-              detectedLanguage: lang.split("-")[0],
               timestamp: finalSeg.timestamp,
             });
           }
@@ -131,12 +119,10 @@ export function useSpeechToText({
             interimIdRef.current = interimId;
             const interimSeg: SpeechSegment = {
               id: interimId,
-              speakerUserId: speakerUserIdRef.current,
               speaker: speakerNameRef.current,
               text: transcript,
               isFinal: false,
               timestamp: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-              detectedLanguage: lang.split("-")[0],
             };
             return [...prev, interimSeg];
           });
@@ -199,11 +185,9 @@ export function useSpeechToText({
 
       const remoteSeg: SpeechSegment = {
         id: Date.now().toString() + Math.random(),
-        speakerUserId: data.speakerUserId || data.actionUserId,
         speaker: data.speaker || remoteSpeakerNameRef.current,
         text: data.text,
         isFinal: data.isFinal,
-        detectedLanguage: data.detectedLanguage,
         timestamp:
           data.timestamp ||
           new Date().toLocaleTimeString("vi-VN", {

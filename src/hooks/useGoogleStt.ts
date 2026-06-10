@@ -8,7 +8,6 @@ import type { SpeechSegment } from "@/hooks/useSpeechToText";
 interface UseGoogleSttOptions {
   socket?: Socket | null;
   roomId?: string | null;
-  speakerUserId?: string;
   speakerName?: string;
   remoteSpeakerName?: string;
   language?: "vi" | "en";
@@ -19,7 +18,6 @@ interface UseGoogleSttOptions {
 
 interface SttResultPayload {
   actionUserId?: string;
-  speakerUserId?: string;
   roomId?: string;
   speaker?: string;
   text: string;
@@ -56,7 +54,6 @@ function readBlobAsBase64(blob: Blob): Promise<string> {
 export function useGoogleStt({
   socket,
   roomId,
-  speakerUserId,
   speakerName = "Bạn",
   remoteSpeakerName = "Người tham gia",
   language = "vi",
@@ -81,8 +78,6 @@ export function useGoogleStt({
   roomIdRef.current = roomId;
   const speakerNameRef = useRef(speakerName);
   speakerNameRef.current = speakerName;
-  const speakerUserIdRef = useRef(speakerUserId);
-  speakerUserIdRef.current = speakerUserId;
   const remoteSpeakerNameRef = useRef(remoteSpeakerName);
   remoteSpeakerNameRef.current = remoteSpeakerName;
   const languageRef = useRef(language);
@@ -105,12 +100,10 @@ export function useGoogleStt({
 
       const seg: SpeechSegment = {
         id: Date.now().toString() + Math.random(),
-        speakerUserId: data.speakerUserId || data.actionUserId,
         speaker: data.speaker || remoteSpeakerNameRef.current,
         text: data.text,
         isFinal: true,
         timestamp: data.timestamp || nowTimestamp(),
-        detectedLanguage: data.detectedLanguage,
       };
       setSegments((prev) => [...prev, seg]);
       onSegmentRef.current?.(seg);
@@ -173,7 +166,6 @@ export function useGoogleStt({
             "call:stt-audio-chunk",
             {
               roomId: roomIdRef.current,
-              speakerUserId: speakerUserIdRef.current,
               speaker: speakerNameRef.current,
               audioChunk,
               mimeType: event.data.type || mimeType || "audio/webm",

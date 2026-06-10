@@ -78,14 +78,8 @@ export function useChatMessagesEffects({
 }: UseChatMessagesEffectsProps) {
   const currentUser = useAuthStore((state) => state.user);
 
-  // Derive flat messages list from groups for internal logic. Exclude
-  // gap-marker placeholders (catch-up sync engine) — they are a timeline
-  // affordance only and must NOT count as the newest message (silent
-  // delta-sync trigger / new-message autoscroll) or inflate counts.
-  const messages = useMemo(
-    () => groups.flatMap((g) => g.messages).filter((m) => !m.__gap),
-    [groups],
-  );
+  // Derive flat messages list from groups for internal logic
+  const messages = useMemo(() => groups.flatMap((g) => g.messages), [groups]);
   const isLoadingThisChat = loadingChatId === chatId;
 
   // ────────────────────────────────────────────────────────────────

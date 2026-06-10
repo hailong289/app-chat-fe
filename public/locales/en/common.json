@@ -237,11 +237,6 @@
         "more": "Still have {{count}} older messages • Scroll up to load",
         "loadMore": "more..."
       },
-      "gap": {
-        "loadMore": "Load more messages",
-        "loading": "Loading messages…",
-        "retry": "Reload messages"
-      },
       "actions": {
         "pin": "Pin",
         "unpin": "Unpin",

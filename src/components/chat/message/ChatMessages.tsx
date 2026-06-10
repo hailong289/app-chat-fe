@@ -86,14 +86,8 @@ export const ChatMessages = memo(
     );
 
     // Optimize store subscription
-    // Derived messages for local usage if needed (e.g. for length checks).
-    // Exclude gap-marker placeholders (catch-up sync engine): they are a
-    // timeline affordance only and must NOT count toward message
-    // length/pagination math or the newest-message-id computation below.
-    const messages = useMemo(
-      () => groups.flatMap((g) => g.messages).filter((m) => !m.__gap),
-      [groups],
-    );
+    // Derived messages for local usage if needed (e.g. for length checks)
+    const messages = useMemo(() => groups.flatMap((g) => g.messages), [groups]);
 
     // Compute visible groups from all groups
     const visibleGroups = useMemo(
