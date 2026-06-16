@@ -2,7 +2,6 @@ import { QuizzResponse } from "@/types/quizz.type";
 import { TodoProject } from "@/types/todo.type";
 import { SendMessageArgs } from "../useMessageStore";
 import { CallMember } from "./call.state";
-import { MessageStatus } from "@/types/messageStatus.type";
 
 export type MessageSender = {
   _id: string;
@@ -103,8 +102,15 @@ export type MessageType = {
   }>;
   isDeleted: boolean;
   read_by_count?: number;
-  /** Trạng thái vòng đời tin (5 trạng thái + RECALLED). Xem MessageStatus. */
-  status?: MessageStatus;
+  status?:
+    | "sent"
+    | "delivered"
+    | "read"
+    | "failed"
+    | "pending"
+    | "uploading"
+    | "uploaded"
+    | "recalled";
   call_history?: CallHistoryType | null;
   summary?: MessageSummary | null;
   translation?: MessageTranslation | null;
@@ -273,14 +279,6 @@ export interface MessageState {
   recallMessage: (roomId: string, messageId: string) => Promise<void>;
   fetchNewMessages: (roomId: string, lastMessageId?: string) => Promise<void>;
   clearRoomMessages: (roomId: string) => Promise<void>;
-  /** Xoá 1 message khỏi IndexedDB + state (delete-for-me / message.hidden). */
-  removeMessageLocal: (roomId: string, messageId: string) => Promise<void>;
-  /** Đặt trạng thái 1 message theo precedence (không downgrade) — dùng cho DELIVERED live. */
-  setMessageStatus: (
-    roomId: string,
-    messageId: string,
-    status: MessageStatus,
-  ) => void;
 
   uploadAttachments: (data: {
     roomId: string;
@@ -310,8 +308,7 @@ export interface MessageState {
       id?: string;
     };
   }) => void;
-  /** Safety net: nếu sau delay tin vẫn SENDING (server chưa echo seq) → FAILED. */
-  autoFailIfUnsent: (
+  autoMarkMessageSent: (
     roomId: string,
     messageId: string,
     delayMs?: number,

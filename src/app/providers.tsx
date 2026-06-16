@@ -11,7 +11,6 @@ import AlertModal from "@/components/modals/AlertModal";
 import useAuthStore from "@/store/useAuthStore";
 import { tokenStorage } from "@/utils/tokenStorage";
 import { openDbForUser } from "@/libs/db";
-import { runCatchupSync, initSyncListener } from "@/libs/syncEngine";
 
 /**
  * Bootstrap auth state on every client tree mount — covers BOTH the
@@ -38,12 +37,8 @@ function AuthBootstrap() {
       if (!userId) return;
       try {
         openDbForUser(userId);
-        // Catch-up event-sync: bù delta sau login/mở lại thay vì full-refetch.
-        // Tự cold-start (full-load) bên trong nếu lần đầu / cursor quá cũ.
-        initSyncListener();
-        void runCatchupSync();
       } catch (err) {
-        console.warn("[auth boot] openDbForUser / catchup failed", err);
+        console.warn("[auth boot] openDbForUser failed", err);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

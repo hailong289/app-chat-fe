@@ -10,7 +10,6 @@ import { QuizMessageCard } from "./QuizMessageCard";
 import { FlashcardDeckMessageCard } from "./FlashcardDeckMessageCard";
 import { SystemMessageBubble } from "./SystemMessageBubble";
 import { MessageType } from "@/store/types/message.state";
-import { MessageStatus } from "@/types/messageStatus.type";
 import { ArrowPathIcon, EyeDropperIcon } from "@heroicons/react/16/solid";
 import { useTranslation } from "react-i18next";
 import useAuthStore from "@/store/useAuthStore";
@@ -251,7 +250,7 @@ export const MessageItem = memo(
             isMine ? "flex-row-reverse" : "flex-row"
           }`}
         >
-          {msg.status === MessageStatus.FAILED && isMine && (
+          {msg.status === "failed" && isMine && (
             <Button
               size="sm"
               color="danger"
@@ -269,69 +268,46 @@ export const MessageItem = memo(
           <span className="text-xs text-gray-400 dark:text-gray-500">
             {formatMessageTime(msg.createdAt)}
           </span>
-          {/* Vòng đời 5 trạng thái (chỉ tin của mình, trừ FAILED đã có nút resend) */}
-          {isMine &&
-            msg.status !== MessageStatus.FAILED &&
-            (() => {
-              const seen =
-                (msg.read_by?.length ?? msg.read_by_count ?? 0) > 0;
-              // Đang gửi (chưa có seq) → spinner
-              if (msg.status === MessageStatus.SENDING) {
-                return (
-                  <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center">
-                    <Tooltip
-                      content={t("chat.messages.item.sending")}
-                      size="sm"
-                      placement="left-start"
-                    >
-                      <span className="inline-flex items-center gap-1">
-                        <Spinner size="sm" color="default" />
-                      </span>
-                    </Tooltip>
-                  </span>
-                );
-              }
-              // Đã đọc → ✓✓ xanh (read_by ngụ ý cao nhất)
-              if (seen || msg.status === MessageStatus.READ) {
-                return (
-                  <Tooltip
-                    content={t("chat.messages.item.seen")}
-                    size="sm"
-                    placement="left-start"
-                  >
-                    <span className="text-xs text-blue-500 dark:text-blue-400">
-                      ✓✓
-                    </span>
-                  </Tooltip>
-                );
-              }
-              // Đã tới máy nhận → ✓✓ xám
-              if (msg.status === MessageStatus.DELIVERED) {
-                return (
-                  <Tooltip
-                    content={t("chat.messages.item.delivered")}
-                    size="sm"
-                    placement="left-start"
-                  >
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      ✓✓
-                    </span>
-                  </Tooltip>
-                );
-              }
-              // Đã lên server → ✓ xám
-              return (
+          {isMine && msg.status === "sent" && (
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              {/* Prefer read_by array length if available, fallback to count or 0 */}
+              {(msg.read_by?.length ?? msg.read_by_count ?? 0) > 0 ? (
+                <Tooltip
+                  content={t("chat.messages.item.seen")}
+                  size="sm"
+                  placement="left-start"
+                >
+                  ✓✓
+                </Tooltip>
+              ) : (
                 <Tooltip
                   content={t("chat.messages.item.sent")}
                   size="sm"
                   placement="left-start"
                 >
-                  <span className="text-xs text-gray-400 dark:text-gray-500">
-                    ✓
+                  ✓
+                </Tooltip>
+              )}
+            </span>
+          )}
+          {isMine &&
+            (msg.status === "pending" || msg.status === "uploading") && (
+              <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center">
+                <Tooltip
+                  content={
+                    msg.status === "pending"
+                      ? ` ${t("chat.messages.item.sending")}`
+                      : t("chat.messages.item.uploading")
+                  }
+                  size="sm"
+                  placement="left-start"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <Spinner size="sm" color="default" />
                   </span>
                 </Tooltip>
-              );
-            })()}
+              </span>
+            )}
         </div>
       );
     };
