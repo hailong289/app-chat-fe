@@ -23,7 +23,6 @@ interface CreateQuizzPayload {
   quiz_description: string;
   quiz_status: "draft" | "active";
   quiz_roomId: string;
-  quiz_createdBy: string;
   quiz_questions: QuizzResponse["quiz_questions"];
   quiz_startTime?: string;
   quiz_endTime?: string;
