@@ -4,7 +4,6 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { SpeechSegment } from "@/hooks/useSpeechToText";
 import { aiService } from "@/service/ai.service";
 import {
-  MicrophoneIcon,
   XMarkIcon,
   ClipboardDocumentIcon,
   TrashIcon,
@@ -38,11 +37,6 @@ const TRANSLATE_LANGUAGE_OPTIONS = [
   { code: "es", label: "Spanish" },
 ] as const;
 
-export interface RemoteSttParticipant {
-  id: string;
-  fullname: string;
-}
-
 export interface TranslatedSegment {
   originalId: string;
   translated: string;
@@ -59,13 +53,9 @@ interface SpeechToTextPanelProps {
   /** Current speech recognition language code e.g. "vi-VN" */
   lang: string;
   onLangChange: (lang: string) => void;
-  sttEngine: "browser" | "google";
-  onSttEngineChange: (engine: "browser" | "google") => void;
-  remoteParticipants: RemoteSttParticipant[];
-  subscriptions: Record<string, boolean>;
-  onSubscriptionChange: (targetUserId: string, enabled: boolean) => void;
-  isSendingTranscript: boolean;
-  remoteRequesterNames: string[];
+  isRemoteListening: boolean;
+  onRemoteListeningChange: (enabled: boolean) => void;
+  hasRemotePeers: boolean;
   translateEnabled: boolean;
   translateFrom: string;
   translateTo: string;
@@ -83,13 +73,9 @@ export function SpeechToTextPanel({
   onClose,
   lang,
   onLangChange,
-  sttEngine,
-  onSttEngineChange,
-  remoteParticipants,
-  subscriptions,
-  onSubscriptionChange,
-  isSendingTranscript,
-  remoteRequesterNames,
+  isRemoteListening,
+  onRemoteListeningChange,
+  hasRemotePeers,
   translateEnabled,
   translateFrom,
   translateTo,
@@ -99,7 +85,6 @@ export function SpeechToTextPanel({
 }: SpeechToTextPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLangMenu, setShowLangMenu] = useState(false);
-  // translations: map of segment id → translated text
   const [translations, setTranslations] = useState<Map<string, TranslatedSegment>>(new Map());
   const translatingRef = useRef<Set<string>>(new Set());
 
@@ -113,7 +98,6 @@ export function SpeechToTextPanel({
     [translateFrom, translateTo],
   );
 
-  // Auto-translate newly finalized segments using explicit from/to settings.
   useEffect(() => {
     if (!canTranslate) return;
     const finalSegments = segments.filter((s) => s.isFinal);
@@ -123,17 +107,15 @@ export function SpeechToTextPanel({
       if (translatingRef.current.has(key)) continue;
       translatingRef.current.add(key);
 
-      // Set loading state
       setTranslations((prev) => {
         const next = new Map(prev);
         next.set(key, { originalId: seg.id, translated: "", isLoading: true });
         return next;
       });
 
-      // Call translation API with model=null (free/model-0)
       const srcApiCode = translateFrom === "auto" ? "auto" : translateFrom;
       aiService
-        .translate(seg.text, srcApiCode, translateTo, /* model */ null)
+        .translate(seg.text, srcApiCode, translateTo, null)
         .then((res) => {
           setTranslations((prev) => {
             const next = new Map(prev);
@@ -154,14 +136,12 @@ export function SpeechToTextPanel({
     }
   }, [segments, canTranslate, translateFrom, translateTo, translations, translationKeyFor]);
 
-  // Clear translations when segments are cleared
   useEffect(() => {
     if (segments.length === 0) {
       setTranslations(new Map());
     }
   }, [segments.length]);
 
-  // Auto-scroll to bottom when new text arrives
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -172,7 +152,6 @@ export function SpeechToTextPanel({
     if (!canTranslate) {
       onCopy();
     } else {
-      // Copy with both original + translation
       const text = segments
         .filter((s) => s.isFinal)
         .map((s) => {
@@ -187,7 +166,6 @@ export function SpeechToTextPanel({
 
   return (
     <div className="absolute inset-y-0 right-0 z-40 flex h-full w-full max-w-[420px] flex-col overflow-hidden border-l border-white/15 bg-black/90 shadow-2xl backdrop-blur-md sm:w-[420px]">
-      {/* Header */}
       <div className="shrink-0 border-b border-white/10 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
         {isListening && (
@@ -201,23 +179,6 @@ export function SpeechToTextPanel({
           {isListening && <span className="text-red-400 ml-2 text-xs">● LIVE</span>}
         </span>
 
-        <select
-          title="Chọn engine nhận dạng"
-          value={sttEngine}
-          onChange={(e) =>
-            onSttEngineChange(e.target.value as "browser" | "google")
-          }
-          className="max-w-28 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg px-2 py-1.5 outline-none"
-        >
-          <option className="bg-gray-900 text-white" value="google">
-            Google AI
-          </option>
-          <option className="bg-gray-900 text-white" value="browser">
-            Browser
-          </option>
-        </select>
-
-        {/* Lang picker button */}
         <div className="relative">
           <button
             type="button"
@@ -229,7 +190,6 @@ export function SpeechToTextPanel({
             {currentLangInfo.label.split(" ").slice(1).join(" ")}
           </button>
 
-          {/* Dropdown */}
           {showLangMenu && (
             <div className="absolute right-0 top-full mt-2 bg-gray-900 border border-white/15 rounded-xl shadow-2xl overflow-hidden z-50 w-52">
               <div className="text-white/40 text-[10px] font-semibold uppercase px-3 py-1.5 border-b border-white/10">
@@ -256,7 +216,7 @@ export function SpeechToTextPanel({
                 ))}
               </div>
               <div className="px-3 py-2 border-t border-white/10 text-[10px] text-white/40">
-                Ngôn ngữ này chỉ dùng cho nhận dạng giọng nói.
+                Google STT hỗ trợ tiếng Việt và English.
               </div>
             </div>
           )}
@@ -338,31 +298,21 @@ export function SpeechToTextPanel({
         </div>
       </div>
 
-      {/* Transcript body */}
       <div
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-2.5"
         onClick={() => setShowLangMenu(false)}
       >
-        {!isSupported && isSendingTranscript ? (
+        {!isSupported ? (
           <p className="text-white/50 text-xs text-center py-4">
-            {sttEngine === "google" ? (
-              <>
-                Trình duyệt không hỗ trợ thu âm MediaRecorder.<br />
-                Hãy đổi sang Browser STT hoặc dùng Chrome/Edge.
-              </>
-            ) : (
-              <>
-                Trình duyệt không hỗ trợ Speech Recognition.<br />
-                Hãy dùng Chrome hoặc Edge.
-              </>
-            )}
+            Trình duyệt không hỗ trợ thu âm MediaRecorder.<br />
+            Hãy dùng Chrome hoặc Edge.
           </p>
         ) : segments.length === 0 ? (
           <p className="text-white/40 text-xs text-center py-4 select-none">
-            {isListening
+            {isRemoteListening
               ? "Đang xử lý phiên âm..."
-              : "Bật switch người muốn nhận phiên âm"}
+              : "Bật switch để nhận phiên âm từ mọi người"}
           </p>
         ) : (
           segments.map((seg) => {
@@ -376,7 +326,6 @@ export function SpeechToTextPanel({
                   <span className="text-white/45 text-[10px] font-semibold leading-none">
                     {seg.speaker}
                   </span>
-                  {/* Original text */}
                   <p
                     className={`text-sm leading-relaxed break-words ${
                       seg.isFinal ? "text-white" : "text-white/50 italic"
@@ -385,7 +334,6 @@ export function SpeechToTextPanel({
                     {seg.text}
                   </p>
 
-                  {/* Translation row */}
                   {canTranslate && seg.isFinal && (
                     <div className="flex items-start gap-1.5">
                       <span className="text-secondary/70 text-[10px] mt-0.5 shrink-0">
@@ -407,65 +355,44 @@ export function SpeechToTextPanel({
         )}
       </div>
 
-      {/* Footer: remote STT switches */}
       <div className="shrink-0 border-t border-white/10 px-4 py-3">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <span className="text-xs font-semibold uppercase text-white/35">
-            Nhận phiên âm từ
-          </span>
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-3 py-2">
+          <div className="min-w-0">
+            <span className="block text-sm text-white">Nhận phiên âm</span>
+            <span className="text-xs text-white/40">
+              {!hasRemotePeers
+                ? "Chưa có người tham gia khác"
+                : isRemoteListening
+                  ? "Đang lắng nghe tất cả người trong cuộc gọi"
+                  : "Tắt"}
+            </span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isRemoteListening}
+            disabled={!hasRemotePeers || !isSupported}
+            onClick={() => {
+              setShowLangMenu(false);
+              onRemoteListeningChange(!isRemoteListening);
+            }}
+            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+              isRemoteListening ? "bg-secondary" : "bg-white/20"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                isRemoteListening ? "translate-x-5" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
+        <div className="mt-2 flex items-center justify-end">
           <span className="text-white/40 text-xs">
             {segments.filter((s) => s.isFinal).length} câu
             {canTranslate && ` -> ${targetLangInfo.code.toUpperCase()}`}
           </span>
         </div>
-        <div className="space-y-2">
-          {remoteParticipants.length === 0 ? (
-            <p className="text-xs text-white/40">Chưa có người tham gia khác.</p>
-          ) : (
-            remoteParticipants.map((participant) => {
-              const enabled = !!subscriptions[participant.id];
-              return (
-                <div
-                  key={participant.id}
-                  className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-3 py-2"
-                >
-                  <span className="min-w-0 truncate text-sm text-white">
-                    {participant.fullname}
-                  </span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={enabled}
-                    onClick={() => {
-                      setShowLangMenu(false);
-                      onSubscriptionChange(participant.id, !enabled);
-                    }}
-                    className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                      enabled ? "bg-secondary" : "bg-white/20"
-                    }`}
-                  >
-                    <span
-                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                        enabled ? "translate-x-5" : "translate-x-0.5"
-                      }`}
-                    />
-                  </button>
-                </div>
-              );
-            })
-          )}
-        </div>
-        {isSendingTranscript && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-200">
-            <MicrophoneIcon className="h-4 w-4 animate-pulse" />
-            <span className="min-w-0">
-              Đang gửi phiên âm của bạn
-              {remoteRequesterNames.length > 0
-                ? ` cho ${remoteRequesterNames.join(", ")}`
-                : ""}
-            </span>
-          </div>
-        )}
       </div>
     </div>
   );

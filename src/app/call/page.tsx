@@ -23,10 +23,8 @@ import useSfuCallStore from "@/store/useSfuCallStore";
 import { CallMember } from "@/store/types/call.state";
 import { useTranslation } from "react-i18next";
 import { isTauriRuntime } from "@/libs/helpers";
-import { useSpeechToText } from "@/hooks/useSpeechToText";
-import { useGoogleStt } from "@/hooks/useGoogleStt";
+import { useRemoteStreamStt } from "../../hooks/useRemoteStreamStt";
 import { SpeechToTextPanel } from "@/components/call/SpeechToTextPanel";
-import type { RemoteSttParticipant } from "@/components/call/SpeechToTextPanel";
 
 function CallPageContentInner() {
   const router = useRouter();
@@ -40,9 +38,7 @@ function CallPageContentInner() {
   const [isSttPanelOpen, setIsSttPanelOpen] = useState(false);
   const [videoAreaShifted, setVideoAreaShifted] = useState(false);
   const [sttLang, setSttLang] = useState("vi-VN");
-  const [sttEngine, setSttEngine] = useState<"browser" | "google">("google");
-  const [sttSubscriptions, setSttSubscriptions] = useState<Record<string, boolean>>({});
-  const [remoteSttRequesters, setRemoteSttRequesters] = useState<Record<string, string>>({});
+  const [isSttRemoteListening, setIsSttRemoteListening] = useState(false);
   const [sttTranslateEnabled, setSttTranslateEnabled] = useState(true);
   const [sttTranslateFrom, setSttTranslateFrom] = useState("auto");
   const [sttTranslateTo, setSttTranslateTo] = useState("vi");
@@ -191,221 +187,40 @@ function CallPageContentInner() {
 
   } = useCallStore();
 
-  // ─── Speech-to-Text (Web Speech API) ─────────────────────────────────────
-  const remoteMember = members.find((m: CallMember) => m.id !== currentUserId);
-  const remoteSpeakerName = remoteMember?.fullname || "Người tham gia";
-  const remoteSttParticipants = useMemo<RemoteSttParticipant[]>(
-    () =>
-      members
-        .filter((m: CallMember) => m.id !== currentUserId)
-        .map((m: CallMember) => ({
-          id: m.id,
-          fullname: m.fullname || "Người tham gia",
-        })),
+  // ─── Speech-to-Text (remote stream capture) ───────────────────────────────
+  const hasRemoteSttPeers = useMemo(
+    () => members.some((m: CallMember) => m.id !== currentUserId),
     [currentUserId, members],
   );
-  const sttBrowser = useSpeechToText({
-    lang: sttLang,
-    speakerUserId: currentUserId,
-    speakerName: currentUser?.fullname || "Bạn",
-    socket,
+
+  const remoteStreamStt = useRemoteStreamStt({
+    enabled: isSttRemoteListening,
+    remoteStreams,
     roomId,
-    remoteSpeakerName,
-  });
-  const sttGoogle = useGoogleStt({
+    currentUserId,
+    members,
+    mutedPeerIds: micOffPeers,
     socket,
-    roomId,
-    speakerUserId: currentUserId,
-    speakerName: currentUser?.fullname || "Bạn",
-    remoteSpeakerName,
     language: sttLang.startsWith("vi") ? "vi" : "en",
-    chunkDurationMs: 3000,
-    onError: (message) => {
-      console.warn("[GoogleSTT]", message);
-      setSttEngine((current) =>
-        current === "google" ? "browser" : current,
-      );
+    chunkDurationMs: 2500,
+    onError: (message: string) => {
+      console.warn("[RemoteStreamSTT]", message);
     },
   });
-  const stt = sttEngine === "google" ? sttGoogle : sttBrowser;
-  const startBrowserStt = sttBrowser.start;
-  const startGoogleStt = sttGoogle.start;
-  const stopBrowserStt = sttBrowser.stop;
-  const stopGoogleStt = sttGoogle.stop;
-  const clearBrowserStt = sttBrowser.clear;
-  const clearGoogleStt = sttGoogle.clear;
-  const sttSegments = useMemo(() => {
-    const seen = new Set<string>();
-    return [...sttBrowser.segments, ...sttGoogle.segments]
-      .filter((seg) => {
-        if (seen.has(seg.id)) return false;
-        seen.add(seg.id);
-        return true;
-      })
-      .sort((a, b) => {
-        const aTime = Number(a.id.replace(/^interim-/, "").match(/^\d+/)?.[0] ?? 0);
-        const bTime = Number(b.id.replace(/^interim-/, "").match(/^\d+/)?.[0] ?? 0);
-        return aTime - bTime;
-      });
-  }, [sttBrowser.segments, sttGoogle.segments]);
 
-  useEffect(() => {
-    if (sttEngine === "google") {
-      stopBrowserStt();
-    } else {
-      stopGoogleStt();
-    }
-  }, [sttEngine, stopBrowserStt, stopGoogleStt]);
+  const sttSegments = remoteStreamStt.segments;
 
   const handleSttCopy = useCallback(() => {
     const text = sttSegments
-      .filter((s) => s.isFinal)
-      .map((s) => `[${s.timestamp}] [${s.speaker}] ${s.text}`)
+      .filter((s: { isFinal: boolean }) => s.isFinal)
+      .map((s: { timestamp: string; speaker: string; text: string }) => `[${s.timestamp}] [${s.speaker}] ${s.text}`)
       .join("\n");
     if (text) navigator.clipboard.writeText(text).catch(() => {});
   }, [sttSegments]);
 
   const handleSttClear = useCallback(() => {
-    clearBrowserStt();
-    clearGoogleStt();
-  }, [clearBrowserStt, clearGoogleStt]);
-
-  const remoteSttRequesterNames = useMemo(
-    () => Object.values(remoteSttRequesters).filter(Boolean),
-    [remoteSttRequesters],
-  );
-  const remoteSttRequesterCount = remoteSttRequesterNames.length;
-
-  const emitSttControl = useCallback(
-    (targetUserId: string, enabled: boolean) => {
-      if (!socket || !roomId || !targetUserId) return;
-
-      socket.emit(
-        "call:stt-control",
-        {
-          roomId,
-          targetUserId,
-          enabled,
-          engine: sttEngine,
-          recognitionLanguage: sttLang,
-          translateFrom: sttTranslateFrom,
-          translateTo: sttTranslateTo,
-        },
-        (ack?: { ok?: boolean; error?: string }) => {
-          if (ack && ack.ok === false) {
-            console.warn("[STT] control failed:", ack.error);
-            setSttSubscriptions((prev) => {
-              const next = { ...prev };
-              if (enabled) delete next[targetUserId];
-              else next[targetUserId] = true;
-              return next;
-            });
-          }
-        },
-      );
-    },
-    [roomId, socket, sttEngine, sttLang, sttTranslateFrom, sttTranslateTo],
-  );
-
-  const handleSttSubscriptionChange = useCallback(
-    (targetUserId: string, enabled: boolean) => {
-      setSttSubscriptions((prev) => {
-        const next = { ...prev };
-        if (enabled) next[targetUserId] = true;
-        else delete next[targetUserId];
-        return next;
-      });
-      emitSttControl(targetUserId, enabled);
-    },
-    [emitSttControl],
-  );
-
-  const deactivateAllSttSubscriptions = useCallback(() => {
-    const activeTargetIds = Object.entries(sttSubscriptions)
-      .filter(([, enabled]) => enabled)
-      .map(([targetUserId]) => targetUserId);
-
-    activeTargetIds.forEach((targetUserId) => emitSttControl(targetUserId, false));
-    if (activeTargetIds.length > 0) setSttSubscriptions({});
-  }, [emitSttControl, sttSubscriptions]);
-
-  const sttControlConfigKey = `${sttEngine}:${sttLang}:${sttTranslateFrom}:${sttTranslateTo}`;
-  const lastSttControlConfigRef = useRef(sttControlConfigKey);
-
-  useEffect(() => {
-    if (lastSttControlConfigRef.current === sttControlConfigKey) return;
-    lastSttControlConfigRef.current = sttControlConfigKey;
-
-    const activeTargetIds = Object.entries(sttSubscriptions)
-      .filter(([, enabled]) => enabled)
-      .map(([targetUserId]) => targetUserId);
-
-    activeTargetIds.forEach((targetUserId) => emitSttControl(targetUserId, true));
-  }, [emitSttControl, sttControlConfigKey, sttSubscriptions]);
-
-  useEffect(() => {
-    if (!socket || !currentUserId) return;
-
-    const handleRemoteSttControl = (payload: {
-      roomId?: string;
-      requestedByUserId?: string;
-      requestedByName?: string;
-      targetUserId?: string;
-      enabled?: boolean;
-      engine?: "browser" | "google";
-      recognitionLanguage?: string;
-    }) => {
-      if (payload.roomId && payload.roomId !== roomId) return;
-      if (payload.targetUserId !== currentUserId) return;
-      if (!payload.requestedByUserId) return;
-
-      if (payload.engine === "browser" || payload.engine === "google") {
-        setSttEngine(payload.engine);
-      }
-      if (payload.recognitionLanguage) {
-        setSttLang(payload.recognitionLanguage);
-      }
-
-      setRemoteSttRequesters((prev) => {
-        const next = { ...prev };
-        if (payload.enabled) {
-          next[payload.requestedByUserId!] =
-            payload.requestedByName || "Người tham gia";
-        } else {
-          delete next[payload.requestedByUserId!];
-        }
-        return next;
-      });
-    };
-
-    socket.on("call:stt-control", handleRemoteSttControl);
-    return () => {
-      socket.off("call:stt-control", handleRemoteSttControl);
-    };
-  }, [currentUserId, roomId, socket]);
-
-  useEffect(() => {
-    if (remoteSttRequesterCount > 0) {
-      if (sttEngine === "google") {
-        stopBrowserStt();
-        void startGoogleStt();
-      } else {
-        stopGoogleStt();
-        startBrowserStt();
-      }
-      return;
-    }
-
-    stopBrowserStt();
-    stopGoogleStt();
-  }, [
-    remoteSttRequesterCount,
-    sttEngine,
-    startBrowserStt,
-    startGoogleStt,
-    stopBrowserStt,
-    stopGoogleStt,
-  ]);
+    remoteStreamStt.clear();
+  }, [remoteStreamStt]);
 
   // ─── Active speaker detection (Web Audio level meter) ───────────────────
   //
@@ -2000,8 +1815,7 @@ function CallPageContentInner() {
                 isIconOnly
                 className={`rounded-full h-14 w-14 p-0 backdrop-blur-sm ${
                   isSttPanelOpen ||
-                    stt.isListening ||
-                    Object.values(sttSubscriptions).some(Boolean)
+                    isSttRemoteListening
                     ? "bg-secondary"
                     : "bg-white/20"
                 }`}
@@ -2011,10 +1825,7 @@ function CallPageContentInner() {
                     setIsSttPanelOpen(true);
                     setVideoAreaShifted(true);
                   } else {
-                    deactivateAllSttSubscriptions();
-                    if (stt.isListening && remoteSttRequesterCount === 0) {
-                      stt.stop();
-                    }
+                    setIsSttRemoteListening(false);
                     setIsSttPanelOpen(false);
                     setVideoAreaShifted(false);
                   }
@@ -2028,26 +1839,21 @@ function CallPageContentInner() {
       {/* Speech-to-Text panel */}
       {isSttPanelOpen && (
         <SpeechToTextPanel
-          isListening={stt.isListening}
-          isSupported={stt.isSupported}
+          isListening={remoteStreamStt.isListening}
+          isSupported={remoteStreamStt.isSupported}
           segments={sttSegments}
           onClear={handleSttClear}
           onCopy={handleSttCopy}
           onClose={() => {
-            deactivateAllSttSubscriptions();
-            if (remoteSttRequesterCount === 0) stt.stop();
+            setIsSttRemoteListening(false);
             setIsSttPanelOpen(false);
             setVideoAreaShifted(false);
           }}
           lang={sttLang}
           onLangChange={setSttLang}
-          sttEngine={sttEngine}
-          onSttEngineChange={setSttEngine}
-          remoteParticipants={remoteSttParticipants}
-          subscriptions={sttSubscriptions}
-          onSubscriptionChange={handleSttSubscriptionChange}
-          isSendingTranscript={remoteSttRequesterCount > 0}
-          remoteRequesterNames={remoteSttRequesterNames}
+          isRemoteListening={isSttRemoteListening}
+          onRemoteListeningChange={setIsSttRemoteListening}
+          hasRemotePeers={hasRemoteSttPeers}
           translateEnabled={sttTranslateEnabled}
           translateFrom={sttTranslateFrom}
           translateTo={sttTranslateTo}
