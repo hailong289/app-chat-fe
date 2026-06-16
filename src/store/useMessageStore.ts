@@ -602,11 +602,13 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       // Lấy tin nhắn mới từ API
       const response = (await MessageService.getMessages({
         roomId,
-        queryParams: {
-          msgId: lastMessageId, // Lấy tin nhắn sau ID này
-          limit: 50,
-          type: "new",
-        },
+        queryParams: lastMessageId
+          ? {
+              msgId: lastMessageId,
+              limit: 50,
+              type: "new",
+            }
+          : { limit: 50 },
       })) as { data: { metadata: MessageType[] } };
 
       // Validate response structure
@@ -988,50 +990,61 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       return { cached, fetched: Promise.resolve() };
     }
 
-    // Empty IDB AND server says the room has no last_message → genuine
-    // empty room (never had a message, or all messages were deleted at
-    // the system level). Skip the network round-trip entirely so the
-    // chat tab paints the empty state immediately instead of showing a
-    // spinner while the BE returns []. Even one cached row is enough
-    // to fall through to the normal sync path.
-    if (cached.length === 0 && !serverLatestId) {
-      return { cached, fetched: Promise.resolve() };
-    }
-
-    // Track the background fetch as a returned promise so callers can
-    // await "I'm done, even if I returned nothing". The promise REJECTS
-    // on actual network/server errors so the chat-switch effect can
-    // retry; resolves on success or empty result.
+    // Still fetch when cache is empty — room metadata may lack
+    // `last_message` even though messages exist (common on groups).
     const fetched = (async () => {
-      if (latestCachedId) {
+      const fetchLimit = Math.max(limit, 100);
+
+      const fetchLatest = async () => {
         const response = (await MessageService.getMessages({
           roomId,
-          queryParams: { type: "new", msgId: latestCachedId, limit: 100 },
+          queryParams: { limit: fetchLimit },
         })) as { data: { metadata: MessageType[] } };
-        const newer = Array.isArray(response?.data?.metadata)
+        return Array.isArray(response?.data?.metadata)
           ? response.data.metadata
           : [];
-        if (newer.length === 0) return; // cache fresh — nothing to do
-        await get().fetchMessagesFromAPI(roomId, {
-          limit: 100,
-          __preloaded: newer,
-        } as never);
-      } else {
-        // First visit / cache empty — full latest-N fetch. We hit
-        // MessageService directly here (instead of fetchMessagesFromAPI
-        // which swallows errors and returns []) so the caller can
-        // distinguish "API returned empty" from "API errored" and retry.
+      };
+
+      const fetchDelta = async (pivotId: string) => {
         const response = (await MessageService.getMessages({
           roomId,
-          queryParams: { limit },
+          queryParams: { type: "new", msgId: pivotId, limit: fetchLimit },
         })) as { data: { metadata: MessageType[] } };
-        const fresh = Array.isArray(response?.data?.metadata)
+        return Array.isArray(response?.data?.metadata)
           ? response.data.metadata
           : [];
+      };
+
+      const mergePreloaded = async (messages: MessageType[]) => {
         await get().fetchMessagesFromAPI(roomId, {
-          limit,
-          __preloaded: fresh,
+          limit: fetchLimit,
+          __preloaded: messages,
         } as never);
+      };
+
+      // No local cache → full latest-N fetch.
+      if (!latestCachedId) {
+        await mergePreloaded(await fetchLatest());
+        return;
+      }
+
+      // Groups often lack `last_message` in room metadata. Delta-only
+      // (`type=new`) can return [] even when history exists on the server.
+      if (!serverLatestId) {
+        await mergePreloaded(await fetchLatest());
+        return;
+      }
+
+      // Reliable anchors on both sides → delta first.
+      const newer = await fetchDelta(latestCachedId);
+      if (newer.length > 0) {
+        await mergePreloaded(newer);
+        return;
+      }
+
+      // Delta empty but server still ahead of cache → full fetch fallback.
+      if (serverLatestId !== latestCachedId) {
+        await mergePreloaded(await fetchLatest());
       }
     })();
 

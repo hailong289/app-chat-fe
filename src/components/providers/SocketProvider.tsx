@@ -14,6 +14,12 @@ import useAuthStore from "@/store/useAuthStore";
 import { subscribeTokenRefresh } from "@/libs/tokenRefresh";
 import { tokenStorage } from "@/utils/tokenStorage";
 import { isTauriRuntime } from "@/libs/helpers";
+import {
+  getGuestCallToken,
+  hasGuestSfuCallPending,
+  isGuestSfuCallMode,
+} from "@/libs/guest-call-auth";
+import { usePathname } from "next/navigation";
 
 /* ================= TYPES ================= */
 
@@ -60,6 +66,20 @@ function getAccessToken(): string | null {
   }
 }
 
+function shouldUseGuestToken(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    isGuestSfuCallMode() &&
+    !!getGuestCallToken() &&
+    window.location.pathname.startsWith("/call")
+  );
+}
+
+function getHandshakeToken(): string | null {
+  if (shouldUseGuestToken()) return getGuestCallToken();
+  return getAccessToken();
+}
+
 function getOrCreateClientId(namespace: string) {
   const key = `socket_cid_${namespace.replace(/\//g, "_")}`;
   if (typeof window === "undefined") return "";
@@ -92,6 +112,8 @@ export function SocketProvider({
   // actual access token instead so the connect-on-login effect fires
   // when login flips it from null → real value.
   const accessToken = useAuthStore((s) => s.tokens?.accessToken ?? null);
+  const pathname = usePathname();
+  const isOnCallRoute = pathname?.startsWith("/call") ?? false;
   // `userId` is the "confirmed authenticated" signal — it's only set
   // after fetchMe() succeeds (or login() returns user). We gate socket
   // creation on this, NOT on `accessToken` alone, because on boot the
@@ -100,7 +122,22 @@ export function SocketProvider({
   // to handshake failures and spurious token refreshes.
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const isAuthConfirmed = !!accessToken && !!userId;
-  const isLoggedOut = !accessToken;
+  const [guestCallActive, setGuestCallActive] = useState(
+    () => typeof window !== "undefined" && (isGuestSfuCallMode() || hasGuestSfuCallPending()),
+  );
+  const isGuestSession =
+    guestCallActive && isGuestSfuCallMode() && !!getGuestCallToken() && isOnCallRoute;
+  const canConnectSockets = isAuthConfirmed || isGuestSession;
+  const effectiveNamespaces = isGuestSession ? ["/call"] : namespaces;
+  const isLoggedOut = !accessToken && !isGuestSession;
+
+  useEffect(() => {
+    const syncGuest = () =>
+      setGuestCallActive(isGuestSfuCallMode() || hasGuestSfuCallPending());
+    window.addEventListener("guest-call-session-changed", syncGuest);
+    return () =>
+      window.removeEventListener("guest-call-session-changed", syncGuest);
+  }, []);
 
   const socketsRef = useRef<Record<string, Socket>>({});
   const [socketStates, setSocketStates] = useState<
@@ -132,17 +169,15 @@ export function SocketProvider({
    * sockets, only the post-logout-empty case kicks in.
    */
   useEffect(() => {
-    // Wait for confirmed auth (fetchMe-verified user), not just a
-    // synchronously-seeded accessToken from localStorage.
-    if (!isAuthConfirmed) return;
-    namespaces.forEach((rawNs) => {
+    if (!canConnectSockets) return;
+    effectiveNamespaces.forEach((rawNs) => {
       const ns = normalizeNs(rawNs);
       if (socketsRef.current[ns]) return;
 
       const socket = io(`${baseUrl}${ns}`, {
         transports: ["websocket", "polling"],
         autoConnect: false,
-        auth: { token: getAccessToken() },
+        auth: { token: getHandshakeToken() },
         query: {
           clientId: getOrCreateClientId(ns),
           version: "1.1.0",
@@ -271,26 +306,27 @@ export function SocketProvider({
       socketsRef.current[ns] = socket;
       updateState(ns, { status: "idle" });
     });
-  }, [namespaces, baseUrl, updateState, isAuthConfirmed]);
+  }, [effectiveNamespaces, baseUrl, updateState, canConnectSockets, isGuestSession]);
 
   /* ========= 2️⃣ TOKEN READY → CONNECT / RECONNECT ALL ========= */
-  // Re-runs when `accessToken` changes (refresh, logout) AND auth has
-  // been confirmed via fetchMe. Without the `isAuthConfirmed` gate, a
-  // stale token from localStorage would dial out before the user is
-  // verified, causing a handshake failure / refresh storm.
   useEffect(() => {
-    if (!isAuthConfirmed) return;
-    const token = accessToken || getAccessToken();
+    if (!canConnectSockets) return;
+    const token = getHandshakeToken();
     if (!token) return;
 
     Object.entries(socketsRef.current).forEach(([ns, socket]) => {
+      const prevAuth = (socket.auth as { token?: string } | undefined)?.token;
       socket.auth = { token };
       if (!socket.connected) {
         updateState(ns, { status: "connecting" });
         socket.connect();
+      } else if (prevAuth !== token) {
+        socket.disconnect();
+        updateState(ns, { status: "connecting" });
+        socket.connect();
       }
     });
-  }, [accessToken, isAuthConfirmed, updateState]);
+  }, [accessToken, canConnectSockets, isGuestSession, isOnCallRoute, updateState]);
 
   /* ========= 2b️⃣ TOKEN REFRESHED → RE-HANDSHAKE SOCKETS ========= */
   // When the access token rotates (refresh succeeded), the Socket.IO
@@ -304,6 +340,7 @@ export function SocketProvider({
   // been written (subscribers are notified post-write).
   useEffect(() => {
     const unsubscribe = subscribeTokenRefresh((newToken) => {
+      if (isGuestSession) return;
       if (!newToken) {
         // Refresh failed — disconnect everything; the logout flow will
         // tear sockets down via isLoggedOut on next render too.
@@ -322,7 +359,7 @@ export function SocketProvider({
       });
     });
     return unsubscribe;
-  }, [updateState]);
+  }, [updateState, isGuestSession]);
 
   /* ========= 3️⃣ LOGOUT → DISCONNECT ========= */
   const disconnectAll = useCallback(() => {
@@ -369,7 +406,7 @@ export function useSocket(namespace: string = "/") {
 
   const connect = useCallback(() => {
     if (!socket) return;
-    if (!socket.connected && getAccessToken()) {
+    if (!socket.connected && getHandshakeToken()) {
       socket.connect();
     }
   }, [socket]);
@@ -381,7 +418,7 @@ export function useSocket(namespace: string = "/") {
   const forceReconnect = useCallback(() => {
     if (!socket) return;
     socket.disconnect();
-    if (getAccessToken()) socket.connect();
+    if (getHandshakeToken()) socket.connect();
   }, [socket]);
 
   return {
