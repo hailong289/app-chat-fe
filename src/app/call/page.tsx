@@ -44,7 +44,7 @@ function CallPageContentInner() {
   const [sttEngine, setSttEngine] = useState<"browser" | "google">("google");
   const [isSttRemoteListening, setIsSttRemoteListening] = useState(false);
   const [remoteSttRequesters, setRemoteSttRequesters] = useState<Record<string, string>>({});
-  const [sttTranslateEnabled, setSttTranslateEnabled] = useState(true);
+  const [sttTranslateEnabled, setSttTranslateEnabled] = useState(false);
   const [sttTranslateFrom, setSttTranslateFrom] = useState("auto");
   const [sttTranslateTo, setSttTranslateTo] = useState("vi");
 
