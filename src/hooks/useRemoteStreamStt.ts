@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 import { getSupportedMimeType } from "@/libs/mime";
 import {
+  isGarbageSttText,
   normalizeAudioMimeType,
   parseRemoteStreamUserId,
   readBlobAsBase64,
@@ -75,7 +76,7 @@ export function useRemoteStreamStt({
   members,
   mutedPeerIds,
   language = "vi",
-  chunkDurationMs = 2500,
+  chunkDurationMs = 3000,
   onSegment,
   onError,
 }: UseRemoteStreamSttOptions) {
@@ -236,6 +237,7 @@ export function useRemoteStreamStt({
 
     const handleSttResult = (data: SttResultPayload) => {
       if (data.roomId && data.roomId !== roomIdRef.current) return;
+      if (isGarbageSttText(data.text)) return;
 
       const seg: SpeechSegment = {
         id: Date.now().toString() + Math.random(),

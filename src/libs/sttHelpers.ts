@@ -33,3 +33,12 @@ export function parseRemoteStreamUserId(
   }
   return streamKey;
 }
+
+/** Skip empty transcripts and timestamp-only noise from STT models */
+export function isGarbageSttText(text: string): boolean {
+  const t = text.trim();
+  if (!t) return true;
+  if (/^(\d{1,2}:\d{2})(\s+\d{1,2}:\d{2})*$/.test(t)) return true;
+  if (/^[\d:\s.]+$/.test(t) && t.includes(":")) return true;
+  return false;
+}

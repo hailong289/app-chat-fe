@@ -23,7 +23,10 @@ import useSfuCallStore from "@/store/useSfuCallStore";
 import { CallMember } from "@/store/types/call.state";
 import { useTranslation } from "react-i18next";
 import { isTauriRuntime } from "@/libs/helpers";
-import { useRemoteStreamStt } from "../../hooks/useRemoteStreamStt";
+import { useRemoteStreamStt } from "@/hooks/useRemoteStreamStt";
+import { useSpeechToText } from "@/hooks/useSpeechToText";
+import type { SpeechSegment } from "@/hooks/useSpeechToText";
+import { isGarbageSttText } from "@/libs/sttHelpers";
 import { SpeechToTextPanel } from "@/components/call/SpeechToTextPanel";
 
 function CallPageContentInner() {
@@ -38,7 +41,9 @@ function CallPageContentInner() {
   const [isSttPanelOpen, setIsSttPanelOpen] = useState(false);
   const [videoAreaShifted, setVideoAreaShifted] = useState(false);
   const [sttLang, setSttLang] = useState("vi-VN");
+  const [sttEngine, setSttEngine] = useState<"browser" | "google">("google");
   const [isSttRemoteListening, setIsSttRemoteListening] = useState(false);
+  const [remoteSttRequesters, setRemoteSttRequesters] = useState<Record<string, string>>({});
   const [sttTranslateEnabled, setSttTranslateEnabled] = useState(true);
   const [sttTranslateFrom, setSttTranslateFrom] = useState("auto");
   const [sttTranslateTo, setSttTranslateTo] = useState("vi");
@@ -187,14 +192,18 @@ function CallPageContentInner() {
 
   } = useCallStore();
 
-  // ─── Speech-to-Text (remote stream capture) ───────────────────────────────
-  const hasRemoteSttPeers = useMemo(
-    () => members.some((m: CallMember) => m.id !== currentUserId),
+  // ─── Speech-to-Text (remote stream capture + browser relay) ───────────────
+  const remoteSttPeerIds = useMemo(
+    () =>
+      members
+        .filter((m: CallMember) => m.id !== currentUserId)
+        .map((m: CallMember) => m.id),
     [currentUserId, members],
   );
+  const hasRemoteSttPeers = remoteSttPeerIds.length > 0;
 
-  const remoteStreamStt = useRemoteStreamStt({
-    enabled: isSttRemoteListening,
+  const googleRemoteStt = useRemoteStreamStt({
+    enabled: isSttRemoteListening && sttEngine === "google",
     remoteStreams,
     roomId,
     currentUserId,
@@ -202,25 +211,153 @@ function CallPageContentInner() {
     mutedPeerIds: micOffPeers,
     socket,
     language: sttLang.startsWith("vi") ? "vi" : "en",
-    chunkDurationMs: 2500,
+    chunkDurationMs: 3000,
     onError: (message: string) => {
       console.warn("[RemoteStreamSTT]", message);
     },
   });
 
-  const sttSegments = remoteStreamStt.segments;
+  const browserStt = useSpeechToText({
+    lang: sttLang,
+    speakerUserId: currentUserId,
+    speakerName: currentUser?.fullname || "Bạn",
+    socket,
+    roomId,
+  });
+
+  const remoteSttRequesterCount = Object.keys(remoteSttRequesters).length;
+
+  const emitSttControlForAll = useCallback(
+    (enabled: boolean) => {
+      if (!socket || !roomId) return;
+      for (const targetUserId of remoteSttPeerIds) {
+        socket.emit(
+          "call:stt-control",
+          {
+            roomId,
+            targetUserId,
+            enabled,
+            engine: sttEngine,
+            recognitionLanguage: sttLang,
+            translateFrom: sttTranslateFrom,
+            translateTo: sttTranslateTo,
+          },
+          (ack?: { ok?: boolean; error?: string }) => {
+            if (ack && ack.ok === false) {
+              console.warn("[STT] control failed:", ack.error);
+            }
+          },
+        );
+      }
+    },
+    [roomId, socket, remoteSttPeerIds, sttEngine, sttLang, sttTranslateFrom, sttTranslateTo],
+  );
+
+  useEffect(() => {
+    if (!isSttRemoteListening || sttEngine !== "browser") return;
+    emitSttControlForAll(true);
+    return () => {
+      emitSttControlForAll(false);
+    };
+  }, [isSttRemoteListening, sttEngine, emitSttControlForAll]);
+
+  useEffect(() => {
+    if (!socket || !currentUserId) return;
+
+    const handleRemoteSttControl = (payload: {
+      roomId?: string;
+      requestedByUserId?: string;
+      requestedByName?: string;
+      targetUserId?: string;
+      enabled?: boolean;
+      engine?: "browser" | "google";
+      recognitionLanguage?: string;
+    }) => {
+      if (payload.roomId && payload.roomId !== roomId) return;
+      if (payload.targetUserId !== currentUserId) return;
+      if (!payload.requestedByUserId) return;
+
+      if (payload.engine === "browser" || payload.engine === "google") {
+        setSttEngine(payload.engine);
+      }
+      if (payload.recognitionLanguage) {
+        setSttLang(payload.recognitionLanguage);
+      }
+
+      setRemoteSttRequesters((prev) => {
+        const next = { ...prev };
+        if (payload.enabled) {
+          next[payload.requestedByUserId!] =
+            payload.requestedByName || "Người tham gia";
+        } else {
+          delete next[payload.requestedByUserId!];
+        }
+        return next;
+      });
+    };
+
+    socket.on("call:stt-control", handleRemoteSttControl);
+    return () => {
+      socket.off("call:stt-control", handleRemoteSttControl);
+    };
+  }, [currentUserId, roomId, socket]);
+
+  const startBrowserStt = browserStt.start;
+  const stopBrowserStt = browserStt.stop;
+
+  useEffect(() => {
+    if (remoteSttRequesterCount > 0 && sttEngine === "browser") {
+      startBrowserStt();
+      return;
+    }
+    stopBrowserStt();
+  }, [remoteSttRequesterCount, sttEngine, startBrowserStt, stopBrowserStt]);
+
+  const sttSegments = useMemo(() => {
+    const raw =
+      sttEngine === "google" ? googleRemoteStt.segments : browserStt.segments;
+    return raw.filter((seg: SpeechSegment) => !isGarbageSttText(seg.text));
+  }, [sttEngine, googleRemoteStt.segments, browserStt.segments]);
+
+  const sttIsListening =
+    sttEngine === "google"
+      ? googleRemoteStt.isListening
+      : isSttRemoteListening;
+
+  const sttIsSupported =
+    sttEngine === "google" ? googleRemoteStt.isSupported : browserStt.isSupported;
 
   const handleSttCopy = useCallback(() => {
     const text = sttSegments
-      .filter((s: { isFinal: boolean }) => s.isFinal)
-      .map((s: { timestamp: string; speaker: string; text: string }) => `[${s.timestamp}] [${s.speaker}] ${s.text}`)
+      .filter((s) => s.isFinal)
+      .map((s) => `[${s.timestamp}] [${s.speaker}] ${s.text}`)
       .join("\n");
     if (text) navigator.clipboard.writeText(text).catch(() => {});
   }, [sttSegments]);
 
   const handleSttClear = useCallback(() => {
-    remoteStreamStt.clear();
-  }, [remoteStreamStt]);
+    googleRemoteStt.clear();
+    browserStt.clear();
+  }, [googleRemoteStt, browserStt]);
+
+  const handleSttRemoteListeningChange = useCallback(
+    (enabled: boolean) => {
+      if (!enabled && sttEngine === "browser") {
+        emitSttControlForAll(false);
+      }
+      setIsSttRemoteListening(enabled);
+    },
+    [emitSttControlForAll, sttEngine],
+  );
+
+  const handleSttPanelClose = useCallback(() => {
+    setIsSttRemoteListening(false);
+    if (sttEngine === "browser") {
+      emitSttControlForAll(false);
+    }
+    setIsSttPanelOpen(false);
+    setVideoAreaShifted(false);
+  }, [emitSttControlForAll, sttEngine]);
 
   // ─── Active speaker detection (Web Audio level meter) ───────────────────
   //
@@ -1825,9 +1962,7 @@ function CallPageContentInner() {
                     setIsSttPanelOpen(true);
                     setVideoAreaShifted(true);
                   } else {
-                    setIsSttRemoteListening(false);
-                    setIsSttPanelOpen(false);
-                    setVideoAreaShifted(false);
+                    handleSttPanelClose();
                   }
                 }}
               >
@@ -1839,20 +1974,18 @@ function CallPageContentInner() {
       {/* Speech-to-Text panel */}
       {isSttPanelOpen && (
         <SpeechToTextPanel
-          isListening={remoteStreamStt.isListening}
-          isSupported={remoteStreamStt.isSupported}
+          isListening={sttIsListening}
+          isSupported={sttIsSupported}
           segments={sttSegments}
           onClear={handleSttClear}
           onCopy={handleSttCopy}
-          onClose={() => {
-            setIsSttRemoteListening(false);
-            setIsSttPanelOpen(false);
-            setVideoAreaShifted(false);
-          }}
+          onClose={handleSttPanelClose}
           lang={sttLang}
           onLangChange={setSttLang}
+          sttEngine={sttEngine}
+          onSttEngineChange={setSttEngine}
           isRemoteListening={isSttRemoteListening}
-          onRemoteListeningChange={setIsSttRemoteListening}
+          onRemoteListeningChange={handleSttRemoteListeningChange}
           hasRemotePeers={hasRemoteSttPeers}
           translateEnabled={sttTranslateEnabled}
           translateFrom={sttTranslateFrom}

@@ -53,6 +53,8 @@ interface SpeechToTextPanelProps {
   /** Current speech recognition language code e.g. "vi-VN" */
   lang: string;
   onLangChange: (lang: string) => void;
+  sttEngine: "browser" | "google";
+  onSttEngineChange: (engine: "browser" | "google") => void;
   isRemoteListening: boolean;
   onRemoteListeningChange: (enabled: boolean) => void;
   hasRemotePeers: boolean;
@@ -73,6 +75,8 @@ export function SpeechToTextPanel({
   onClose,
   lang,
   onLangChange,
+  sttEngine,
+  onSttEngineChange,
   isRemoteListening,
   onRemoteListeningChange,
   hasRemotePeers,
@@ -97,6 +101,12 @@ export function SpeechToTextPanel({
     (seg: SpeechSegment) => `${seg.id}:${translateFrom}:${translateTo}`,
     [translateFrom, translateTo],
   );
+  const engineSupported =
+    sttEngine === "google"
+      ? isSupported
+      : typeof window !== "undefined" &&
+        (!!(window as Window & { SpeechRecognition?: unknown }).SpeechRecognition ||
+          !!(window as Window & { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition);
 
   useEffect(() => {
     if (!canTranslate) return;
@@ -174,10 +184,26 @@ export function SpeechToTextPanel({
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
           </span>
         )}
-        <span className="text-white text-sm font-semibold flex-1">
+        <span className="text-white text-sm font-semibold flex-1 min-w-[8rem]">
           Phiên Âm Giọng Nói
           {isListening && <span className="text-red-400 ml-2 text-xs">● LIVE</span>}
         </span>
+
+        <select
+          title="Chọn engine nhận dạng"
+          value={sttEngine}
+          onChange={(e) =>
+            onSttEngineChange(e.target.value as "browser" | "google")
+          }
+          className="max-w-28 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg px-2 py-1.5 outline-none"
+        >
+          <option className="bg-gray-900 text-white" value="google">
+            Google AI
+          </option>
+          <option className="bg-gray-900 text-white" value="browser">
+            Browser
+          </option>
+        </select>
 
         <div className="relative">
           <button
@@ -216,7 +242,9 @@ export function SpeechToTextPanel({
                 ))}
               </div>
               <div className="px-3 py-2 border-t border-white/10 text-[10px] text-white/40">
-                Google STT hỗ trợ tiếng Việt và English.
+                {sttEngine === "google"
+                  ? "Google STT hỗ trợ tiếng Việt và English."
+                  : "Browser STT dùng Web Speech API (Chrome/Edge)."}
               </div>
             </div>
           )}
@@ -303,10 +331,19 @@ export function SpeechToTextPanel({
         className="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-2.5"
         onClick={() => setShowLangMenu(false)}
       >
-        {!isSupported ? (
+        {!engineSupported ? (
           <p className="text-white/50 text-xs text-center py-4">
-            Trình duyệt không hỗ trợ thu âm MediaRecorder.<br />
-            Hãy dùng Chrome hoặc Edge.
+            {sttEngine === "google" ? (
+              <>
+                Trình duyệt không hỗ trợ thu âm MediaRecorder.<br />
+                Hãy dùng Chrome hoặc Edge.
+              </>
+            ) : (
+              <>
+                Trình duyệt không hỗ trợ Speech Recognition.<br />
+                Hãy dùng Chrome hoặc Edge.
+              </>
+            )}
           </p>
         ) : segments.length === 0 ? (
           <p className="text-white/40 text-xs text-center py-4 select-none">
@@ -315,7 +352,9 @@ export function SpeechToTextPanel({
               : "Bật switch để nhận phiên âm từ mọi người"}
           </p>
         ) : (
-          segments.map((seg) => {
+          segments
+            .filter((seg) => seg.text?.trim())
+            .map((seg) => {
             const tr = translations.get(translationKeyFor(seg));
             return (
               <div key={seg.id} className="group flex gap-2">
@@ -356,14 +395,16 @@ export function SpeechToTextPanel({
       </div>
 
       <div className="shrink-0 border-t border-white/10 px-4 py-3">
-        <div className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-3 py-2">
-          <div className="min-w-0">
-            <span className="block text-sm text-white">Nhận phiên âm</span>
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-3 py-2.5">
+          <div className="min-w-0 flex-1">
+            <span className="block text-sm font-medium text-white">Nhận phiên âm</span>
             <span className="text-xs text-white/40">
               {!hasRemotePeers
                 ? "Chưa có người tham gia khác"
                 : isRemoteListening
-                  ? "Đang lắng nghe tất cả người trong cuộc gọi"
+                  ? sttEngine === "google"
+                    ? "Đang lắng nghe luồng audio từ mọi người"
+                    : "Đang nhận phiên âm qua Browser STT"
                   : "Tắt"}
             </span>
           </div>
@@ -371,18 +412,20 @@ export function SpeechToTextPanel({
             type="button"
             role="switch"
             aria-checked={isRemoteListening}
-            disabled={!hasRemotePeers || !isSupported}
+            aria-label="Bật nhận phiên âm"
+            disabled={!hasRemotePeers || !engineSupported}
             onClick={() => {
               setShowLangMenu(false);
               onRemoteListeningChange(!isRemoteListening);
             }}
-            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-              isRemoteListening ? "bg-secondary" : "bg-white/20"
+            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-secondary/60 disabled:cursor-not-allowed disabled:opacity-40 ${
+              isRemoteListening ? "bg-secondary" : "bg-white/25"
             }`}
           >
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                isRemoteListening ? "translate-x-5" : "translate-x-0.5"
+              aria-hidden
+              className={`pointer-events-none inline-block h-6 w-6 rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out ${
+                isRemoteListening ? "translate-x-5" : "translate-x-0"
               }`}
             />
           </button>
