@@ -32,6 +32,7 @@ import {
   buildGuestUserFromSession,
   clearGuestCallSession,
   getGuestCallMeta,
+  getGuestCallPhase,
   isGuestCallSupportedMode,
   isGuestSfuCallMode,
 } from "@/libs/guest-call-auth";
@@ -1243,6 +1244,10 @@ function CallPageContentInner() {
   }
 
   if (!socket) {
+    // GuestNameModal is shown while phase is pending — avoid "Connecting..." flash.
+    if (getGuestCallPhase() === "pending") {
+      return null;
+    }
     return (
       <div className="bg-dark h-screen w-full flex items-center justify-center">
         <p className="text-gray-500">{t("callPage.loading.connecting")}</p>

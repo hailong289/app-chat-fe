@@ -8,6 +8,7 @@ import { AuthResponse } from "@/types/auth.type";
 import { cleanupFirebaseMessaging, messaging } from "@/libs/firebase";
 import { openDbForUser, closeUserDb } from "@/libs/db";
 import { trackAuthInFlight } from "@/libs/tokenRefresh";
+import { shouldSkipAuthenticatedApis } from "@/libs/guest-call-auth";
 import useMessageStore from "./useMessageStore";
 import useRoomStore from "./useRoomStore";
 
@@ -285,6 +286,7 @@ const useAuthStore = create<AuthState>()(
         }
       },
       fetchMe: async () => {
+        if (shouldSkipAuthenticatedApis()) return;
         // Pulled apart from refreshToken: this is for the "I have an
         // accessToken in localStorage but no user info" boot path. Hits
         // /auth/me which (server-side) reads JWT → returns the latest
@@ -317,6 +319,7 @@ const useAuthStore = create<AuthState>()(
         }
       },
       refreshToken: async () => {
+        if (shouldSkipAuthenticatedApis()) return;
         // refreshToken lives in the HttpOnly cookie now — FE doesn't
         // see it. We just call the endpoint; BE reads the cookie and
         // returns a fresh accessToken in the body. No header / no body
@@ -353,8 +356,10 @@ const useAuthStore = create<AuthState>()(
         } catch (error: any) {
           console.error("Manual refresh failed:", error?.message || error);
           // Refresh failed (cookie expired / revoked / never set) →
-          // full logout flow.
-          get().logout();
+          // full logout flow. Skip on guest call tabs.
+          if (!shouldSkipAuthenticatedApis()) {
+            get().logout();
+          }
         }
       },
       forgotPassword: async (payload) => {

@@ -67,6 +67,38 @@ export function hasGuestSfuCallPending(): boolean {
   return !!pending && isGuestCallSupportedMode(pending.callMode);
 }
 
+/**
+ * True when this browser tab is a guest call invite on `/call`.
+ * Includes pending name entry and active guest session. Also detects
+ * `?guestToken=` before GuestCallBootstrap parses it into storage —
+ * AuthBootstrap mounts earlier in the tree and must not call fetchMe.
+ */
+export function isGuestCallPageContext(): boolean {
+  if (typeof window === "undefined") return false;
+  if (!window.location.pathname.startsWith("/call")) return false;
+  if (isGuestSfuCallMode() || hasGuestSfuCallPending()) return true;
+  return new URLSearchParams(window.location.search).has("guestToken");
+}
+
+/** Guest tabs must not hit authenticated REST APIs or 401 logout flows. */
+export function shouldSkipAuthenticatedApis(): boolean {
+  return isGuestCallPageContext();
+}
+
+export type GuestCallPhase = "none" | "pending" | "active";
+
+/** Lifecycle phase for guest call socket gating (pending → active must re-render). */
+export function getGuestCallPhase(): GuestCallPhase {
+  if (typeof window === "undefined") return "none";
+  if (!window.location.pathname.startsWith("/call")) return "none";
+  if (isGuestSfuCallMode() && !!getGuestCallToken()) return "active";
+  if (hasGuestSfuCallPending()) return "pending";
+  if (new URLSearchParams(window.location.search).has("guestToken")) {
+    return "pending";
+  }
+  return "none";
+}
+
 export function getGuestCallToken(): string | null {
   if (typeof window === "undefined") return null;
   return sessionStorage.getItem(GUEST_TOKEN_KEY);

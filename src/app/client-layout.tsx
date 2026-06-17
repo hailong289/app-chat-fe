@@ -14,6 +14,7 @@ import { isWebEmbedMode, isWebEmbedRoute } from "@/libs/web-embed";
 import {
   hasGuestSfuCallPending,
   isGuestSfuCallMode,
+  shouldSkipAuthenticatedApis,
 } from "@/libs/guest-call-auth";
 import { Header } from "@/components/intro/header";
 import { LeftSide } from "@/components/intro/left-side";
@@ -144,7 +145,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     // even contributes to permission-quality scoring that can downgrade
     // future requests. Gating on `isAuthenticated` defers the ask
     // until the user is committed to the app.
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || shouldSkipAuthenticatedApis()) return;
     const requestPermission = async () => {
       try {
         await firebase.requestPermission();

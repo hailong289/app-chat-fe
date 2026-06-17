@@ -15,8 +15,9 @@ import { subscribeTokenRefresh } from "@/libs/tokenRefresh";
 import { tokenStorage } from "@/utils/tokenStorage";
 import { isTauriRuntime } from "@/libs/helpers";
 import {
+  getGuestCallPhase,
   getGuestCallToken,
-  hasGuestSfuCallPending,
+  type GuestCallPhase,
   isGuestSfuCallMode,
 } from "@/libs/guest-call-auth";
 import { usePathname } from "next/navigation";
@@ -122,18 +123,21 @@ export function SocketProvider({
   // to handshake failures and spurious token refreshes.
   const userId = useAuthStore((s) => s.user?.id ?? null);
   const isAuthConfirmed = !!accessToken && !!userId;
-  const [guestCallActive, setGuestCallActive] = useState(
-    () => typeof window !== "undefined" && (isGuestSfuCallMode() || hasGuestSfuCallPending()),
+  const [guestCallPhase, setGuestCallPhase] = useState<GuestCallPhase>(() =>
+    typeof window !== "undefined" ? getGuestCallPhase() : "none",
   );
-  const isGuestSession =
-    guestCallActive && isGuestSfuCallMode() && !!getGuestCallToken() && isOnCallRoute;
-  const canConnectSockets = isAuthConfirmed || isGuestSession;
+  const isGuestOnCallPage = isOnCallRoute && guestCallPhase !== "none";
+  const isGuestSession = guestCallPhase === "active" && !!getGuestCallToken();
+  // On guest call tabs, ignore stale accessToken from another session in
+  // the same browser — only connect the /call socket with guest JWT.
+  const canConnectSockets =
+    isGuestSession || (isAuthConfirmed && !isGuestOnCallPage);
   const effectiveNamespaces = isGuestSession ? ["/call"] : namespaces;
-  const isLoggedOut = !accessToken && !isGuestSession;
+  const isLoggedOut = !accessToken && !isGuestSession && !isGuestOnCallPage;
 
   useEffect(() => {
-    const syncGuest = () =>
-      setGuestCallActive(isGuestSfuCallMode() || hasGuestSfuCallPending());
+    const syncGuest = () => setGuestCallPhase(getGuestCallPhase());
+    syncGuest();
     window.addEventListener("guest-call-session-changed", syncGuest);
     return () =>
       window.removeEventListener("guest-call-session-changed", syncGuest);
@@ -306,7 +310,7 @@ export function SocketProvider({
       socketsRef.current[ns] = socket;
       updateState(ns, { status: "idle" });
     });
-  }, [effectiveNamespaces, baseUrl, updateState, canConnectSockets, isGuestSession]);
+  }, [effectiveNamespaces, baseUrl, updateState, canConnectSockets, guestCallPhase]);
 
   /* ========= 2️⃣ TOKEN READY → CONNECT / RECONNECT ALL ========= */
   useEffect(() => {
@@ -326,7 +330,7 @@ export function SocketProvider({
         socket.connect();
       }
     });
-  }, [accessToken, canConnectSockets, isGuestSession, isOnCallRoute, updateState]);
+  }, [accessToken, canConnectSockets, guestCallPhase, isOnCallRoute, updateState]);
 
   /* ========= 2b️⃣ TOKEN REFRESHED → RE-HANDSHAKE SOCKETS ========= */
   // When the access token rotates (refresh succeeded), the Socket.IO

@@ -10,6 +10,7 @@ import {
   isGuestCallSupportedMode,
   isGuestSfuCallMode,
   clearGuestCallSession,
+  shouldSkipAuthenticatedApis,
 } from "@/libs/guest-call-auth";
 import { tokenStorage } from "@/utils/tokenStorage";
 import { User } from "@/types/auth.type";
@@ -1250,9 +1251,10 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
         };
       });
 
-      currentState.socket?.emit("call:share-screen", {
+      const { socket, roomId } = get();
+      socket?.emit("call:share-screen", {
         roomId,
-        actionUserId: userId,
+        actionUserId: userId ?? getCallActorUserId(),
         isSharing: false,
       });
     }
@@ -1772,7 +1774,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       currentUser = buildGuestUserFromSession() as NonNullable<
         ReturnType<typeof useAuthStore.getState>["user"]
       >;
-    } else if (!currentUser && tokenStorage.get()) {
+    } else if (!currentUser && tokenStorage.get() && !shouldSkipAuthenticatedApis()) {
       // Trigger fetchMe if not already in flight, then poll.
       void useAuthStore.getState().fetchMe();
       const start = Date.now();
