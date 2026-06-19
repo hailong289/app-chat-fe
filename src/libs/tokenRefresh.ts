@@ -1,4 +1,5 @@
 import useAuthStore from "@/store/useAuthStore";
+import { shouldSkipAuthenticatedApis } from "@/libs/guest-call-auth";
 
 /**
  * Singleton refresh-token manager.
@@ -35,6 +36,7 @@ let authPromise: Promise<unknown> | null = null;
  * promise — no double network request.
  */
 export function refreshAccessToken(): Promise<string | null> {
+  if (shouldSkipAuthenticatedApis()) return Promise.resolve(null);
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {

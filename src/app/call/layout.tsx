@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GuestCallBootstrap } from "@/components/call/GuestCallBootstrap";
 
 export const metadata: Metadata = {
   title: "Cuộc gọi - Ichat",
@@ -10,6 +11,11 @@ export default function CallLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return children;
+  return (
+    <>
+      <GuestCallBootstrap />
+      {children}
+    </>
+  );
 }
 
