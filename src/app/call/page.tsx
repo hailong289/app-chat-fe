@@ -17,16 +17,26 @@ import { MicrophoneIcon, PhoneXMarkIcon, VideoCameraIcon, VideoCameraSlashIcon, 
 import { useSocket } from "@/components/providers/SocketProvider";
 import useAuthStore from "@/store/useAuthStore";
 import Helpers from "@/libs/helpers";
-import useCallStore from "@/store/useCallStore";
+import useCallStore, { getStoredActiveCallId } from "@/store/useCallStore";
 import useP2pCallStore from "@/store/useP2pCallStore";
 import useSfuCallStore from "@/store/useSfuCallStore";
 import { CallMember } from "@/store/types/call.state";
 import { useTranslation } from "react-i18next";
 import { isTauriRuntime } from "@/libs/helpers";
+import { useRemoteStreamStt } from "@/hooks/useRemoteStreamStt";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
-import { useGoogleStt } from "@/hooks/useGoogleStt";
+import type { SpeechSegment } from "@/hooks/useSpeechToText";
+import { isGarbageSttText } from "@/libs/sttHelpers";
 import { SpeechToTextPanel } from "@/components/call/SpeechToTextPanel";
-import type { RemoteSttParticipant } from "@/components/call/SpeechToTextPanel";
+import {
+  buildGuestUserFromSession,
+  clearGuestCallSession,
+  getGuestCallMeta,
+  getGuestCallPhase,
+  isGuestCallSupportedMode,
+  isGuestSfuCallMode,
+} from "@/libs/guest-call-auth";
+import GuestCallLinkService from "@/service/guest-call-link.service";
 
 function CallPageContentInner() {
   const router = useRouter();
@@ -41,13 +51,14 @@ function CallPageContentInner() {
   const [videoAreaShifted, setVideoAreaShifted] = useState(false);
   const [sttLang, setSttLang] = useState("vi-VN");
   const [sttEngine, setSttEngine] = useState<"browser" | "google">("google");
-  const [sttSubscriptions, setSttSubscriptions] = useState<Record<string, boolean>>({});
+  const [isSttRemoteListening, setIsSttRemoteListening] = useState(false);
   const [remoteSttRequesters, setRemoteSttRequesters] = useState<Record<string, string>>({});
-  const [sttTranslateEnabled, setSttTranslateEnabled] = useState(true);
+  const [sttTranslateEnabled, setSttTranslateEnabled] = useState(false);
   const [sttTranslateFrom, setSttTranslateFrom] = useState("auto");
   const [sttTranslateTo, setSttTranslateTo] = useState("vi");
 
-  const closeTauriOrBrowserWindow = useCallback(async (): Promise<boolean> => {
+  const closeTauriOrBrowserWindow = useCallback(
+    async (guestTab = false): Promise<boolean> => {
     if (isTauriRuntime()) {
       try {
         const { Window, getCurrentWindow } = await import("@tauri-apps/api/window");
@@ -65,12 +76,17 @@ function CallPageContentInner() {
           return true;
         }
       } catch {}
-    } else if (window.opener) {
+    }
+
+    // Popup (opener) or guest invite tab — attempt to close the window.
+    if (window.opener || guestTab || isGuestSfuCallMode()) {
       window.close();
       return true;
     }
     return false;
-  }, []);
+  },
+    [],
+  );
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -93,18 +109,29 @@ function CallPageContentInner() {
 
   // callMode is stable for the lifetime of this call window (set from URL params
   // once and never changes). Use it to register only the relevant socket listeners.
-  const callMode = (searchParams.get("callMode") as "p2p" | "sfu") || "p2p";
+  const guestMetaForCall = isGuestSfuCallMode() ? getGuestCallMeta() : null;
+  const callMode =
+    (searchParams.get("callMode") as "p2p" | "sfu") ||
+    guestMetaForCall?.callMode ||
+    "p2p";
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  const currentUser = useAuthStore((state) => state.user);
+  const authUser = useAuthStore((state) => state.user);
+  const guestSession = isGuestSfuCallMode() ? buildGuestUserFromSession() : null;
+  const currentUser = guestSession || authUser;
   const currentUserId = currentUser?.id;
+  const isGuestCall = !!guestSession;
 
-  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const [guestLinkCopied, setGuestLinkCopied] = useState(false);
+  const [guestLinkError, setGuestLinkError] = useState<string | null>(null);
+
   const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const localVideoRef = useRef<HTMLVideoElement>(null);
   const hasEndedRef = useRef(false);
+  const callBootstrapRef = useRef(false);
   const [busyUser, setBusyUser] = useState<string | null>(null);
   // Banner shown to the caller when the callee rejects or doesn't pick up.
   // Without this, the popup just closes the moment `call:end status=rejected/
@@ -179,6 +206,7 @@ function CallPageContentInner() {
     mode,
     members,
     roomId,
+    callId,
     handleCreateLocalStream,
     updateCallState,
     eventCall,
@@ -191,157 +219,123 @@ function CallPageContentInner() {
 
   } = useCallStore();
 
-  // ─── Speech-to-Text (Web Speech API) ─────────────────────────────────────
-  const remoteMember = members.find((m: CallMember) => m.id !== currentUserId);
-  const remoteSpeakerName = remoteMember?.fullname || "Người tham gia";
-  const remoteSttParticipants = useMemo<RemoteSttParticipant[]>(
+  const effectiveCallId =
+    callId ||
+    searchParams.get("callId") ||
+    getGuestCallMeta()?.callId ||
+    getStoredActiveCallId() ||
+    null;
+
+  const handleCopyGuestLink = useCallback(async () => {
+    let linkCallId = effectiveCallId;
+    if (!linkCallId) {
+      const start = Date.now();
+      while (Date.now() - start < 5000) {
+        linkCallId =
+          useCallStore.getState().callId ||
+          getStoredActiveCallId() ||
+          searchParams.get("callId");
+        if (linkCallId) break;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+    }
+    if (!roomId || !linkCallId || callMode !== "sfu") {
+      setGuestLinkError(
+        !linkCallId
+          ? "Cuộc gọi chưa sẵn sàng — thử lại sau vài giây"
+          : null,
+      );
+      return;
+    }
+    try {
+      setGuestLinkError(null);
+      const res = await GuestCallLinkService.createLink({
+        roomId,
+        callId: linkCallId,
+        callType: (mode === "video" ? "video" : "audio") as "video" | "audio",
+        callMode: "sfu",
+      });
+      const payload = (res as { data?: { metadata?: { url?: string }; url?: string } }).data;
+      const url = payload?.metadata?.url || payload?.url;
+      if (!url) throw new Error("Không tạo được link mời");
+      await navigator.clipboard.writeText(url);
+      setGuestLinkCopied(true);
+      setTimeout(() => setGuestLinkCopied(false), 2500);
+    } catch (err) {
+      setGuestLinkError(
+        err instanceof Error ? err.message : "Không tạo được link mời khách",
+      );
+    }
+  }, [roomId, effectiveCallId, mode, callMode, searchParams]);
+
+  // ─── Speech-to-Text (remote stream capture + browser relay) ───────────────
+  const remoteSttPeerIds = useMemo(
     () =>
       members
         .filter((m: CallMember) => m.id !== currentUserId)
-        .map((m: CallMember) => ({
-          id: m.id,
-          fullname: m.fullname || "Người tham gia",
-        })),
+        .map((m: CallMember) => m.id),
     [currentUserId, members],
   );
-  const sttBrowser = useSpeechToText({
+  const hasRemoteSttPeers = remoteSttPeerIds.length > 0;
+
+  const googleRemoteStt = useRemoteStreamStt({
+    enabled: isSttRemoteListening && sttEngine === "google",
+    remoteStreams,
+    roomId,
+    currentUserId,
+    members,
+    mutedPeerIds: micOffPeers,
+    socket,
+    language: sttLang.startsWith("vi") ? "vi" : "en",
+    chunkDurationMs: 3000,
+    onError: (message: string) => {
+      console.warn("[RemoteStreamSTT]", message);
+    },
+  });
+
+  const browserStt = useSpeechToText({
     lang: sttLang,
     speakerUserId: currentUserId,
     speakerName: currentUser?.fullname || "Bạn",
     socket,
     roomId,
-    remoteSpeakerName,
   });
-  const sttGoogle = useGoogleStt({
-    socket,
-    roomId,
-    speakerUserId: currentUserId,
-    speakerName: currentUser?.fullname || "Bạn",
-    remoteSpeakerName,
-    language: sttLang.startsWith("vi") ? "vi" : "en",
-    chunkDurationMs: 3000,
-    onError: (message) => {
-      console.warn("[GoogleSTT]", message);
-      setSttEngine((current) =>
-        current === "google" ? "browser" : current,
-      );
+
+  const remoteSttRequesterCount = Object.keys(remoteSttRequesters).length;
+
+  const emitSttControlForAll = useCallback(
+    (enabled: boolean) => {
+      if (!socket || !roomId) return;
+      for (const targetUserId of remoteSttPeerIds) {
+        socket.emit(
+          "call:stt-control",
+          {
+            roomId,
+            targetUserId,
+            enabled,
+            engine: sttEngine,
+            recognitionLanguage: sttLang,
+            translateFrom: sttTranslateFrom,
+            translateTo: sttTranslateTo,
+          },
+          (ack?: { ok?: boolean; error?: string }) => {
+            if (ack && ack.ok === false) {
+              console.warn("[STT] control failed:", ack.error);
+            }
+          },
+        );
+      }
     },
-  });
-  const stt = sttEngine === "google" ? sttGoogle : sttBrowser;
-  const startBrowserStt = sttBrowser.start;
-  const startGoogleStt = sttGoogle.start;
-  const stopBrowserStt = sttBrowser.stop;
-  const stopGoogleStt = sttGoogle.stop;
-  const clearBrowserStt = sttBrowser.clear;
-  const clearGoogleStt = sttGoogle.clear;
-  const sttSegments = useMemo(() => {
-    const seen = new Set<string>();
-    return [...sttBrowser.segments, ...sttGoogle.segments]
-      .filter((seg) => {
-        if (seen.has(seg.id)) return false;
-        seen.add(seg.id);
-        return true;
-      })
-      .sort((a, b) => {
-        const aTime = Number(a.id.replace(/^interim-/, "").match(/^\d+/)?.[0] ?? 0);
-        const bTime = Number(b.id.replace(/^interim-/, "").match(/^\d+/)?.[0] ?? 0);
-        return aTime - bTime;
-      });
-  }, [sttBrowser.segments, sttGoogle.segments]);
+    [roomId, socket, remoteSttPeerIds, sttEngine, sttLang, sttTranslateFrom, sttTranslateTo],
+  );
 
   useEffect(() => {
-    if (sttEngine === "google") {
-      stopBrowserStt();
-    } else {
-      stopGoogleStt();
-    }
-  }, [sttEngine, stopBrowserStt, stopGoogleStt]);
-
-  const handleSttCopy = useCallback(() => {
-    const text = sttSegments
-      .filter((s) => s.isFinal)
-      .map((s) => `[${s.timestamp}] [${s.speaker}] ${s.text}`)
-      .join("\n");
-    if (text) navigator.clipboard.writeText(text).catch(() => {});
-  }, [sttSegments]);
-
-  const handleSttClear = useCallback(() => {
-    clearBrowserStt();
-    clearGoogleStt();
-  }, [clearBrowserStt, clearGoogleStt]);
-
-  const remoteSttRequesterNames = useMemo(
-    () => Object.values(remoteSttRequesters).filter(Boolean),
-    [remoteSttRequesters],
-  );
-  const remoteSttRequesterCount = remoteSttRequesterNames.length;
-
-  const emitSttControl = useCallback(
-    (targetUserId: string, enabled: boolean) => {
-      if (!socket || !roomId || !targetUserId) return;
-
-      socket.emit(
-        "call:stt-control",
-        {
-          roomId,
-          targetUserId,
-          enabled,
-          engine: sttEngine,
-          recognitionLanguage: sttLang,
-          translateFrom: sttTranslateFrom,
-          translateTo: sttTranslateTo,
-        },
-        (ack?: { ok?: boolean; error?: string }) => {
-          if (ack && ack.ok === false) {
-            console.warn("[STT] control failed:", ack.error);
-            setSttSubscriptions((prev) => {
-              const next = { ...prev };
-              if (enabled) delete next[targetUserId];
-              else next[targetUserId] = true;
-              return next;
-            });
-          }
-        },
-      );
-    },
-    [roomId, socket, sttEngine, sttLang, sttTranslateFrom, sttTranslateTo],
-  );
-
-  const handleSttSubscriptionChange = useCallback(
-    (targetUserId: string, enabled: boolean) => {
-      setSttSubscriptions((prev) => {
-        const next = { ...prev };
-        if (enabled) next[targetUserId] = true;
-        else delete next[targetUserId];
-        return next;
-      });
-      emitSttControl(targetUserId, enabled);
-    },
-    [emitSttControl],
-  );
-
-  const deactivateAllSttSubscriptions = useCallback(() => {
-    const activeTargetIds = Object.entries(sttSubscriptions)
-      .filter(([, enabled]) => enabled)
-      .map(([targetUserId]) => targetUserId);
-
-    activeTargetIds.forEach((targetUserId) => emitSttControl(targetUserId, false));
-    if (activeTargetIds.length > 0) setSttSubscriptions({});
-  }, [emitSttControl, sttSubscriptions]);
-
-  const sttControlConfigKey = `${sttEngine}:${sttLang}:${sttTranslateFrom}:${sttTranslateTo}`;
-  const lastSttControlConfigRef = useRef(sttControlConfigKey);
-
-  useEffect(() => {
-    if (lastSttControlConfigRef.current === sttControlConfigKey) return;
-    lastSttControlConfigRef.current = sttControlConfigKey;
-
-    const activeTargetIds = Object.entries(sttSubscriptions)
-      .filter(([, enabled]) => enabled)
-      .map(([targetUserId]) => targetUserId);
-
-    activeTargetIds.forEach((targetUserId) => emitSttControl(targetUserId, true));
-  }, [emitSttControl, sttControlConfigKey, sttSubscriptions]);
+    if (!isSttRemoteListening || sttEngine !== "browser") return;
+    emitSttControlForAll(true);
+    return () => {
+      emitSttControlForAll(false);
+    };
+  }, [isSttRemoteListening, sttEngine, emitSttControlForAll]);
 
   useEffect(() => {
     if (!socket || !currentUserId) return;
@@ -384,28 +378,62 @@ function CallPageContentInner() {
     };
   }, [currentUserId, roomId, socket]);
 
+  const startBrowserStt = browserStt.start;
+  const stopBrowserStt = browserStt.stop;
+
   useEffect(() => {
-    if (remoteSttRequesterCount > 0) {
-      if (sttEngine === "google") {
-        stopBrowserStt();
-        void startGoogleStt();
-      } else {
-        stopGoogleStt();
-        startBrowserStt();
-      }
+    if (remoteSttRequesterCount > 0 && sttEngine === "browser") {
+      startBrowserStt();
       return;
     }
-
     stopBrowserStt();
-    stopGoogleStt();
-  }, [
-    remoteSttRequesterCount,
-    sttEngine,
-    startBrowserStt,
-    startGoogleStt,
-    stopBrowserStt,
-    stopGoogleStt,
-  ]);
+  }, [remoteSttRequesterCount, sttEngine, startBrowserStt, stopBrowserStt]);
+
+  const sttSegments = useMemo(() => {
+    const raw =
+      sttEngine === "google" ? googleRemoteStt.segments : browserStt.segments;
+    return raw.filter((seg: SpeechSegment) => !isGarbageSttText(seg.text));
+  }, [sttEngine, googleRemoteStt.segments, browserStt.segments]);
+
+  const sttIsListening =
+    sttEngine === "google"
+      ? googleRemoteStt.isListening
+      : isSttRemoteListening;
+
+  const sttIsSupported =
+    sttEngine === "google" ? googleRemoteStt.isSupported : browserStt.isSupported;
+
+  const handleSttCopy = useCallback(() => {
+    const text = sttSegments
+      .filter((s) => s.isFinal)
+      .map((s) => `[${s.timestamp}] [${s.speaker}] ${s.text}`)
+      .join("\n");
+    if (text) navigator.clipboard.writeText(text).catch(() => {});
+  }, [sttSegments]);
+
+  const handleSttClear = useCallback(() => {
+    googleRemoteStt.clear();
+    browserStt.clear();
+  }, [googleRemoteStt, browserStt]);
+
+  const handleSttRemoteListeningChange = useCallback(
+    (enabled: boolean) => {
+      if (!enabled && sttEngine === "browser") {
+        emitSttControlForAll(false);
+      }
+      setIsSttRemoteListening(enabled);
+    },
+    [emitSttControlForAll, sttEngine],
+  );
+
+  const handleSttPanelClose = useCallback(() => {
+    setIsSttRemoteListening(false);
+    if (sttEngine === "browser") {
+      emitSttControlForAll(false);
+    }
+    setIsSttPanelOpen(false);
+    setVideoAreaShifted(false);
+  }, [emitSttControlForAll, sttEngine]);
 
   // ─── Active speaker detection (Web Audio level meter) ───────────────────
   //
@@ -972,9 +1000,11 @@ function CallPageContentInner() {
     if (currentStatus === "accepted" || currentStatus === "ended") {
       return; // call already in progress / over — don't re-bootstrap from URL
     }
+    if (callBootstrapRef.current) return;
+    const guestMeta = isGuestSfuCallMode() ? getGuestCallMeta() : null;
     (async () => {
       await updateCallState({
-        roomId: searchParams.get("roomId") || "",
+        roomId: searchParams.get("roomId") || guestMeta?.roomId || "",
         status: searchParams.get("status") as
           | "idle"
           | "calling"
@@ -983,12 +1013,18 @@ function CallPageContentInner() {
           | "accepted"
           | "declined"
           | "joined",
-        mode: searchParams.get("callType") as "audio" | "video",
-        callMode: (searchParams.get("callMode") as "p2p" | "sfu") || "p2p",
-        callId: searchParams.get("callId") || null,
-        members: Helpers.decryptUserInfo(
-          searchParams.get("members") || "[]",
-        ) as CallMember[],
+        mode: (searchParams.get("callType") as "audio" | "video") ||
+          guestMeta?.callType ||
+          "video",
+        callMode: isGuestCallSupportedMode(guestMeta?.callMode)
+          ? "sfu"
+          : ((searchParams.get("callMode") as "p2p" | "sfu") || "p2p"),
+        callId: searchParams.get("callId") || guestMeta?.callId || null,
+        members: isGuestSfuCallMode()
+          ? []
+          : (Helpers.decryptUserInfo(
+              searchParams.get("members") || "[]",
+            ) as CallMember[]),
         action: {
           isMicEnabled: true,
           isCameraEnabled: searchParams.get("callType") === "video",
@@ -1001,6 +1037,7 @@ function CallPageContentInner() {
         },
         socket: socket,
       });
+      callBootstrapRef.current = true;
     })();
   }, [searchParams, socket]);
 
@@ -1044,9 +1081,26 @@ function CallPageContentInner() {
   useEffect(() => {
     if (callStatus === "ended") {
       hasEndedRef.current = true;
-      void closeTauriOrBrowserWindow();
+      if (isGuestCall) {
+        clearGuestCallSession();
+      }
+      void closeTauriOrBrowserWindow(isGuestCall).then((closed) => {
+        // Guest tabs are opened directly (no opener) — browsers may block
+        // window.close(), so navigate away as a fallback.
+        if (isGuestCall) {
+          setTimeout(() => {
+            if (!window.closed) {
+              router.replace("/dashboard");
+            }
+          }, 300);
+          return;
+        }
+        if (!closed) {
+          router.replace("/");
+        }
+      });
     }
-  }, [callStatus, closeTauriOrBrowserWindow]);
+  }, [callStatus, closeTauriOrBrowserWindow, isGuestCall, router]);
 
   const handleEndCall = useCallback(() => {
     if (hasEndedRef.current) {
@@ -1075,10 +1129,10 @@ function CallPageContentInner() {
     endCall({
       roomId: roomId,
       actionUserId: currentUserId,
-      status,
-      callId: searchParams.get("callId") || "",
+      status: isGuestCall ? "ended" : status,
+      callId: effectiveCallId || "",
     });
-  }, [callStatus, currentUserId, endCall, roomId, searchParams]);
+  }, [callStatus, currentUserId, endCall, roomId, searchParams, isGuestCall, effectiveCallId]);
 
   useEffect(() => {
     const handleWindowClose = () => {
@@ -1190,6 +1244,10 @@ function CallPageContentInner() {
   }
 
   if (!socket) {
+    // GuestNameModal is shown while phase is pending — avoid "Connecting..." flash.
+    if (getGuestCallPhase() === "pending") {
+      return null;
+    }
     return (
       <div className="bg-dark h-screen w-full flex items-center justify-center">
         <p className="text-gray-500">{t("callPage.loading.connecting")}</p>
@@ -1204,6 +1262,13 @@ function CallPageContentInner() {
       </div>
     );
   }
+
+  const otherActiveMembers = members.filter(
+    (m: CallMember) =>
+      m.id !== currentUserId &&
+      m.status === "started",
+  );
+  const hasOtherParticipants = otherActiveMembers.length > 0;
 
   // Screen-share aware layout. When anyone (local or remote) is actively
   // broadcasting their screen, the screen takes the main full-frame area and
@@ -1775,7 +1840,9 @@ function CallPageContentInner() {
               })}
             </div>
           )
-        ) : callStatus === "accepted" && remoteStreams.size === 0 ? (
+        ) : callStatus === "accepted" &&
+          remoteStreams.size === 0 &&
+          !hasOtherParticipants ? (
           <div className="w-full h-full flex flex-col items-center justify-center gap-4">
             <Avatar
               src={getUserInfo().avatar}
@@ -1785,6 +1852,31 @@ function CallPageContentInner() {
             <p className="text-gray-300 text-base">
               {t("callPage.status.waitingForOthers")}
             </p>
+          </div>
+        ) : callStatus === "accepted" &&
+          remoteStreams.size === 0 &&
+          hasOtherParticipants ? (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-6 p-6">
+            <p className="text-gray-300 text-base">
+              {t("callPage.loading.connecting")}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              {otherActiveMembers.map((member: CallMember) => (
+                <div
+                  key={member.id}
+                  className="flex flex-col items-center gap-2"
+                >
+                  <Avatar
+                    src={member.avatar}
+                    name={member.fullname || t("callPage.labels.unknown")}
+                    className="w-20 h-20 text-xl"
+                  />
+                  <span className="text-sm text-gray-300 max-w-[120px] truncate text-center">
+                    {member.fullname || t("callPage.labels.unknownUser")}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -1994,14 +2086,13 @@ function CallPageContentInner() {
             >
               <Cog6ToothIcon className="h-6 w-6 text-white" />
             </Button>
-            {/* STT button - only during accepted calls */}
-            {callStatus === "accepted" && (
+            {/* STT button - only during accepted calls (not for guests) */}
+            {callStatus === "accepted" && !isGuestCall && (
               <Button
                 isIconOnly
                 className={`rounded-full h-14 w-14 p-0 backdrop-blur-sm ${
                   isSttPanelOpen ||
-                    stt.isListening ||
-                    Object.values(sttSubscriptions).some(Boolean)
+                    isSttRemoteListening
                     ? "bg-secondary"
                     : "bg-white/20"
                 }`}
@@ -2011,12 +2102,7 @@ function CallPageContentInner() {
                     setIsSttPanelOpen(true);
                     setVideoAreaShifted(true);
                   } else {
-                    deactivateAllSttSubscriptions();
-                    if (stt.isListening && remoteSttRequesterCount === 0) {
-                      stt.stop();
-                    }
-                    setIsSttPanelOpen(false);
-                    setVideoAreaShifted(false);
+                    handleSttPanelClose();
                   }
                 }}
               >
@@ -2028,26 +2114,19 @@ function CallPageContentInner() {
       {/* Speech-to-Text panel */}
       {isSttPanelOpen && (
         <SpeechToTextPanel
-          isListening={stt.isListening}
-          isSupported={stt.isSupported}
+          isListening={sttIsListening}
+          isSupported={sttIsSupported}
           segments={sttSegments}
           onClear={handleSttClear}
           onCopy={handleSttCopy}
-          onClose={() => {
-            deactivateAllSttSubscriptions();
-            if (remoteSttRequesterCount === 0) stt.stop();
-            setIsSttPanelOpen(false);
-            setVideoAreaShifted(false);
-          }}
+          onClose={handleSttPanelClose}
           lang={sttLang}
           onLangChange={setSttLang}
           sttEngine={sttEngine}
           onSttEngineChange={setSttEngine}
-          remoteParticipants={remoteSttParticipants}
-          subscriptions={sttSubscriptions}
-          onSubscriptionChange={handleSttSubscriptionChange}
-          isSendingTranscript={remoteSttRequesterCount > 0}
-          remoteRequesterNames={remoteSttRequesterNames}
+          isRemoteListening={isSttRemoteListening}
+          onRemoteListeningChange={handleSttRemoteListeningChange}
+          hasRemotePeers={hasRemoteSttPeers}
           translateEnabled={sttTranslateEnabled}
           translateFrom={sttTranslateFrom}
           translateTo={sttTranslateTo}
@@ -2103,6 +2182,38 @@ function CallPageContentInner() {
                   </SelectItem>
                 ))}
               </Select>
+              {!isGuestCall && callMode === "sfu" && roomId && (
+                <div className="rounded-lg border border-default-200 p-3 space-y-2">
+                  <p className="text-sm font-medium">Mời khách vào cuộc gọi nhóm</p>
+                  <p className="text-xs text-default-500">
+                    Tạo link có hạn — khách không cần tài khoản, chỉ tham gia cuộc gọi SFU.
+                  </p>
+                  {guestLinkError && (
+                    <p className="text-xs text-danger">{guestLinkError}</p>
+                  )}
+                  {(effectiveCallId ||
+                    callStatus === "calling" ||
+                    callStatus === "accepted") ? (
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      color={guestLinkCopied ? "success" : "primary"}
+                      isDisabled={!roomId}
+                      onPress={() => void handleCopyGuestLink()}
+                    >
+                      {guestLinkCopied
+                        ? "Đã copy link"
+                        : effectiveCallId
+                          ? "Copy link mời khách"
+                          : "Copy link mời khách (đang tải...)"}
+                    </Button>
+                  ) : (
+                    <p className="text-xs text-default-400">
+                      Đang khởi tạo cuộc gọi...
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </ModalBody>
           <ModalFooter>

@@ -9,7 +9,6 @@ import {
   RoomData,
 } from "./types/message.state";
 import { groupMessagesByDate } from "@/libs/timeline-helpers";
-import { MessageStatus, mergeStatus } from "@/types/messageStatus.type";
 import i18n from "@/i18n";
 import useAuthStore from "./useAuthStore";
 import useRoomStore from "./useRoomStore";
@@ -33,19 +32,7 @@ const updateRoomDataWithGroups = (
   const currentUser = useAuthStore.getState().user;
   const currentUserId = currentUser?._id;
 
-  // Gap-marker placeholders (catch-up sync engine) are bookkeeping rows
-  // in IndexedDB, not real messages. We DO want them rendered as a
-  // timeline affordance ("Tải thêm tin nhắn" pill) at their chronological
-  // position, but they must NEVER participate in id-based sorting, dedupe
-  // counts, or newest-message computations. So we split them out here,
-  // sort/dedupe the real messages, then re-insert the gap markers by
-  // `createdAt` right before grouping.
-  const gapMarkers: MessageType[] = [];
-  const realMessages = newMessages.filter((msg) => {
-    if (msg.__gap) {
-      gapMarkers.push(msg);
-      return false;
-    }
+  const displayableMessages = newMessages.filter((msg) => {
     if (currentUserId && msg.hiddenBy?.includes(currentUserId)) {
       return false;
     }
@@ -54,25 +41,14 @@ const updateRoomDataWithGroups = (
 
   // Deduplicate messages by ID to prevent infinite loops/duplicate rendering
   const uniqueMessagesMap = new Map<string, MessageType>();
-  realMessages.forEach((msg) => {
+  displayableMessages.forEach((msg) => {
     uniqueMessagesMap.set(msg.id, msg);
   });
   const uniqueMessages = Array.from(uniqueMessagesMap.values()).sort((a, b) =>
     a.id.localeCompare(b.id),
   );
 
-  // Re-insert gap markers (deduped by id) into the chronological stream.
-  // `groupMessagesByDate` buckets by `createdAt` and sorts within each day
-  // bucket by `createdAt`, so the gap pill lands at the right spot just by
-  // being present in the array. We append them; the grouper handles order.
-  let messagesForGrouping: MessageType[] = uniqueMessages;
-  if (gapMarkers.length > 0) {
-    const gapMap = new Map<string, MessageType>();
-    gapMarkers.forEach((g) => gapMap.set(g.id, g));
-    messagesForGrouping = [...uniqueMessages, ...Array.from(gapMap.values())];
-  }
-
-  const groups = groupMessagesByDate(messagesForGrouping, lastReadId);
+  const groups = groupMessagesByDate(uniqueMessages, lastReadId);
 
   return {
     ...(prevRoom || {
@@ -242,13 +218,8 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       msgData.createdAt = new Date().toISOString();
     }
 
-    // Trạng thái từ server: có người đọc → READ; còn lại đã commit (có seq) → SENT.
-    // KHÔNG dùng timer mù; SENT suy ra từ việc tin đã về từ server (có msg.seq).
-    const serverStatus: MessageStatus =
-      (msgData.read_by?.length ?? msgData.read_by_count ?? 0) > 0
-        ? MessageStatus.READ
-        : MessageStatus.SENT;
-    msgData.status = serverStatus;
+    // Lưu vào IndexedDB trước
+    msgData.status = "sent";
 
     // Normalize roomId: Socket may send MongoDB _id but frontend uses room.id (UUID)
     // Look up the room by _id to get the correct id for storage
@@ -261,12 +232,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
     );
     // Use room.id if found, otherwise fallback to msgData.roomId
     const normalizedRoomId = roomFromStore?.id || msgData.roomId;
-    // CHUẨN HOÁ roomId về business id (room.id) NGAY trên chính msgData → state,
-    // IndexedDB và room-store dùng CHUNG một key. Socket gửi roomId = Mongo `_id`
-    // (BE pipeline project `roomId:'$msg_roomId'`); nếu ghi IndexedDB theo `_id`
-    // thô thì loadRoomFromCache (query theo room.id) KHÔNG thấy → vào lại phòng
-    // MẤT các tin chỉ-đến-qua-socket (chưa fetch API). Fix: đồng nhất về room.id.
-    msgData.roomId = normalizedRoomId;
 
     // Pre-check if this is a new message (for use outside the set callback)
     const prevRoomForCheck = get().messagesRoom[normalizedRoomId];
@@ -295,12 +260,9 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         // ID không tồn tại → thêm vào array
         updatedMessages = [...prevMessages, msgData];
       } else {
-        // ID đã tồn tại → cập nhật. Giữ precedence trạng thái (không downgrade
-        // vd DELIVERED live đã set rồi MSGUPSERT lại về SENT).
+        // ID đã tồn tại → cập nhật
         updatedMessages = prevMessages.map((msg, idx) =>
-          idx === existingIndex
-            ? { ...msg, ...msgData, status: mergeStatus(msg.status, serverStatus) }
-            : msg,
+          idx === existingIndex ? { ...msg, ...msgData } : msg,
         );
       }
 
@@ -476,8 +438,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         avatar: userAvatar || "",
       },
       // Removed isMine, isRead here as requested. Logic will handle it.
-      // Tin optimistic chưa có seq → SENDING (gồm cả đang upload attachment).
-      status: MessageStatus.SENDING,
+      status: attachments && attachments.length > 0 ? "uploading" : "pending",
       hiddenBy: [],
       hiddenAt: null,
       isDeleted: false,
@@ -564,7 +525,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
               id,
               attachments: uploadedAttachments.map((att) => att._id),
             });
-            get().autoFailIfUnsent(roomId, id);
+            get().autoMarkMessageSent(roomId, id, 3000);
           } else {
             console.warn(
               "⚠️ All attachments failed to upload — marking message failed",
@@ -574,7 +535,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
             const currentRoom = get().messagesRoom[roomId];
             const msgs = getAllMessagesFromGroups(currentRoom);
             const updatedMessages = msgs.map((msg) =>
-              msg.id === id ? { ...msg, status: MessageStatus.FAILED } : msg,
+              msg.id === id ? { ...msg, status: "failed" as const } : msg,
             );
             set({
               messagesRoom: {
@@ -594,7 +555,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           const currentRoom = get().messagesRoom[roomId];
           const msgs = getAllMessagesFromGroups(currentRoom);
           const updatedMessages = msgs.map((msg) =>
-            msg.id === id ? { ...msg, status: MessageStatus.FAILED } : msg,
+            msg.id === id ? { ...msg, status: "failed" as const } : msg,
           );
           set({
             messagesRoom: {
@@ -620,7 +581,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         desk_id: args.desk_id || args.desk?.deck_id,
         todoProjectId: args.todoProjectId,
       });
-      get().autoFailIfUnsent(roomId, id);
+      get().autoMarkMessageSent(roomId, id, 3000);
     }
   },
 
@@ -641,11 +602,13 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       // Lấy tin nhắn mới từ API
       const response = (await MessageService.getMessages({
         roomId,
-        queryParams: {
-          msgId: lastMessageId, // Lấy tin nhắn sau ID này
-          limit: 50,
-          type: "new",
-        },
+        queryParams: lastMessageId
+          ? {
+              msgId: lastMessageId,
+              limit: 50,
+              type: "new",
+            }
+          : { limit: 50 },
       })) as { data: { metadata: MessageType[] } };
 
       // Validate response structure
@@ -664,7 +627,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       const newMessages = response.data.metadata.map((msg: MessageType) => ({
         ...msg,
         roomId,
-        status: (msg.status as MessageStatus) || MessageStatus.SENT,
+        status: (msg.status || "delivered") as MessageType["status"],
         attachments: sanitizeAttachmentsFromAPI(msg.attachments),
       }));
 
@@ -806,7 +769,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
 
     // Cập nhật status về pending
     const updatedMessages = allMessages.map((msg) =>
-      msg.id === messageId ? { ...msg, status: MessageStatus.SENDING } : msg,
+      msg.id === messageId ? { ...msg, status: "pending" as const } : msg,
     );
 
     set({
@@ -832,7 +795,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           id: messageId,
         });
 
-        get().autoFailIfUnsent(roomId, messageId);
+        get().autoMarkMessageSent(roomId, messageId, 3000);
         return;
       }
 
@@ -885,7 +848,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           attachments: successful.map((att) => att._id),
         });
 
-        get().autoFailIfUnsent(roomId, messageId);
+        get().autoMarkMessageSent(roomId, messageId, 3000);
       } else {
         console.warn(
           "⚠️ Some or all attachments failed to upload on resend — marking message failed",
@@ -895,7 +858,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         const curRoom = get().messagesRoom[roomId];
         const curMsgs = getAllMessagesFromGroups(curRoom);
         const failedMessages = curMsgs.map((msg) =>
-          msg.id === messageId ? { ...msg, status: MessageStatus.FAILED } : msg,
+          msg.id === messageId ? { ...msg, status: "failed" as const } : msg,
         );
 
         set({
@@ -916,7 +879,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       const current = get().messagesRoom[roomId];
       const currentMsgs = getAllMessagesFromGroups(current);
       const failedMessages = currentMsgs.map((msg) =>
-        msg.id === messageId ? { ...msg, status: MessageStatus.FAILED } : msg,
+        msg.id === messageId ? { ...msg, status: "failed" as const } : msg,
       );
 
       set({
@@ -991,26 +954,12 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         attachments: null,
         reply: null,
       };
-      // MERGE thay vì REPLACE: giữ lại tin in-memory CHƯA có trong cache (vd tin
-      // socket/optimistic mà IndexedDB write fire-and-forget chưa kịp xong) → vào
-      // lại phòng KHÔNG mất tin. Sắp theo createdAt tăng dần (cũ → mới).
-      const existingMsgs = getAllMessagesFromGroups(currentRoom);
-      const cachedIds = new Set(cached.map((m) => m.id));
-      const extras = existingMsgs.filter((m) => !cachedIds.has(m.id));
-      const merged =
-        extras.length === 0
-          ? cached
-          : [...cached, ...extras].sort(
-              (a, b) =>
-                new Date(a.createdAt).getTime() -
-                new Date(b.createdAt).getTime(),
-            );
       set({
         messagesRoom: {
           ...get().messagesRoom,
           [roomId]: updateRoomDataWithGroups(
             currentRoom,
-            merged,
+            cached,
             currentRoom?.lastReadMessageId,
           ),
         },
@@ -1041,50 +990,61 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       return { cached, fetched: Promise.resolve() };
     }
 
-    // Empty IDB AND server says the room has no last_message → genuine
-    // empty room (never had a message, or all messages were deleted at
-    // the system level). Skip the network round-trip entirely so the
-    // chat tab paints the empty state immediately instead of showing a
-    // spinner while the BE returns []. Even one cached row is enough
-    // to fall through to the normal sync path.
-    if (cached.length === 0 && !serverLatestId) {
-      return { cached, fetched: Promise.resolve() };
-    }
-
-    // Track the background fetch as a returned promise so callers can
-    // await "I'm done, even if I returned nothing". The promise REJECTS
-    // on actual network/server errors so the chat-switch effect can
-    // retry; resolves on success or empty result.
+    // Still fetch when cache is empty — room metadata may lack
+    // `last_message` even though messages exist (common on groups).
     const fetched = (async () => {
-      if (latestCachedId) {
+      const fetchLimit = Math.max(limit, 100);
+
+      const fetchLatest = async () => {
         const response = (await MessageService.getMessages({
           roomId,
-          queryParams: { type: "new", msgId: latestCachedId, limit: 100 },
+          queryParams: { limit: fetchLimit },
         })) as { data: { metadata: MessageType[] } };
-        const newer = Array.isArray(response?.data?.metadata)
+        return Array.isArray(response?.data?.metadata)
           ? response.data.metadata
           : [];
-        if (newer.length === 0) return; // cache fresh — nothing to do
-        await get().fetchMessagesFromAPI(roomId, {
-          limit: 100,
-          __preloaded: newer,
-        } as never);
-      } else {
-        // First visit / cache empty — full latest-N fetch. We hit
-        // MessageService directly here (instead of fetchMessagesFromAPI
-        // which swallows errors and returns []) so the caller can
-        // distinguish "API returned empty" from "API errored" and retry.
+      };
+
+      const fetchDelta = async (pivotId: string) => {
         const response = (await MessageService.getMessages({
           roomId,
-          queryParams: { limit },
+          queryParams: { type: "new", msgId: pivotId, limit: fetchLimit },
         })) as { data: { metadata: MessageType[] } };
-        const fresh = Array.isArray(response?.data?.metadata)
+        return Array.isArray(response?.data?.metadata)
           ? response.data.metadata
           : [];
+      };
+
+      const mergePreloaded = async (messages: MessageType[]) => {
         await get().fetchMessagesFromAPI(roomId, {
-          limit,
-          __preloaded: fresh,
+          limit: fetchLimit,
+          __preloaded: messages,
         } as never);
+      };
+
+      // No local cache → full latest-N fetch.
+      if (!latestCachedId) {
+        await mergePreloaded(await fetchLatest());
+        return;
+      }
+
+      // Groups often lack `last_message` in room metadata. Delta-only
+      // (`type=new`) can return [] even when history exists on the server.
+      if (!serverLatestId) {
+        await mergePreloaded(await fetchLatest());
+        return;
+      }
+
+      // Reliable anchors on both sides → delta first.
+      const newer = await fetchDelta(latestCachedId);
+      if (newer.length > 0) {
+        await mergePreloaded(newer);
+        return;
+      }
+
+      // Delta empty but server still ahead of cache → full fetch fallback.
+      if (serverLatestId !== latestCachedId) {
+        await mergePreloaded(await fetchLatest());
       }
     })();
 
@@ -1169,7 +1129,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       const messages = response.data.metadata.map((msg: MessageType) => ({
         ...msg,
         roomId,
-        status: (msg.status as MessageStatus) || MessageStatus.SENT,
+        status: (msg.status || "delivered") as MessageType["status"],
         attachments: sanitizeAttachmentsFromAPI(msg.attachments),
       }));
 
@@ -1583,94 +1543,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
   },
 
   /**
-   * Lazy-load the window represented by a gap-marker placeholder
-   * (catch-up sync engine), then remove the marker so the real messages
-   * take its place.
-   *
-   * Flow:
-   *   1. Pull a window of messages newer than the newest cached REAL
-   *      message via the existing `fetchMessagesFromAPI` (type='new')
-   *      path. This upserts them into IndexedDB + state.
-   *   2. Delete the `__gap_<roomId>` row from IndexedDB and drop it from
-   *      the in-memory groups so the pill disappears.
-   *
-   * Idempotent & safe: if the room has no gap marker, nothing changes.
-   * On fetch error the marker is KEPT so the user can retry. Returns
-   * true when the gap was filled.
-   */
-  loadGap: async (roomId: string, limit: number = 50): Promise<boolean> => {
-    if (!roomId) return false;
-
-    const gapId = `__gap_${roomId}`;
-
-    // Bail early if there's no gap marker for this room (idempotent no-op).
-    const currentRoom = get().messagesRoom[roomId];
-    const currentMessages = getAllMessagesFromGroups(currentRoom);
-    const hasGap = currentMessages.some((m) => m.id === gapId && m.__gap);
-    let gapInDb = false;
-    if (!hasGap) {
-      try {
-        gapInDb = !!(await db.messages.get(gapId));
-      } catch {
-        gapInDb = false;
-      }
-      if (!gapInDb) return false;
-    }
-
-    // Newest REAL cached message id — the anchor for the type='new' delta.
-    const realMessages = currentMessages.filter((m) => !m.__gap);
-    const newestRealId = realMessages.length
-      ? [...realMessages].sort((a, b) => a.id.localeCompare(b.id)).at(-1)?.id
-      : undefined;
-
-    try {
-      // Reuse the existing message-fetch path. When we have a cached
-      // anchor, `fetchNewMessages` pulls the delta after it
-      // (getMessages type='new' + msgId) — exactly the gap window. With
-      // no anchor (empty cache) fall back to a plain latest-N fetch via
-      // `fetchMessagesFromAPI`.
-      if (newestRealId) {
-        await get().fetchNewMessages(roomId, newestRealId);
-      } else {
-        await get().fetchMessagesFromAPI(roomId, { limit });
-      }
-    } catch (error) {
-      console.error("❌ Error loading gap window:", error);
-      // Keep the marker so the user can retry.
-      return false;
-    }
-
-    // Remove the gap marker from IndexedDB (best-effort).
-    try {
-      await deleteOne(db.messages, gapId);
-    } catch {
-      /* non-fatal — state removal below still hides the pill */
-    }
-
-    // Remove the gap marker from state. `fetchMessagesFromAPI` may have
-    // already rebuilt the room groups above, so re-read fresh state.
-    const freshRoom = get().messagesRoom[roomId];
-    if (freshRoom) {
-      const freshMessages = getAllMessagesFromGroups(freshRoom);
-      if (freshMessages.some((m) => m.id === gapId)) {
-        const withoutGap = freshMessages.filter((m) => m.id !== gapId);
-        set({
-          messagesRoom: {
-            ...get().messagesRoom,
-            [roomId]: updateRoomDataWithGroups(
-              freshRoom,
-              withoutGap,
-              freshRoom?.lastReadMessageId,
-            ),
-          },
-        });
-      }
-    }
-
-    return true;
-  },
-
-  /**
    * Find a message by ID in DB or API
    * Used for jumping to a specific message
    */
@@ -1779,7 +1651,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
           msg.id === messageId
             ? {
                 ...msg,
-                status: MessageStatus.RECALLED,
+                status: "recalled" as MessageType["status"],
                 content: "[Tin nhắn đã bị thu hồi]",
               }
             : msg,
@@ -1803,7 +1675,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
             db.messages,
             sanitizeMessageForDB({
               ...msg,
-              status: MessageStatus.RECALLED,
+              status: "recalled" as MessageType["status"],
               content: "[Tin nhắn đã bị thu hồi]",
             }),
           );
@@ -2118,7 +1990,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       // nếu BE sửa content/type, thì ưu tiên cái mới
       content: payload.data.content ?? prevMsg.content,
       type: (payload.data.type as MessageType["type"]) ?? prevMsg.type,
-      status: MessageStatus.FAILED,
+      status: "failed",
       attachments: nextAttachments,
       // optional: nếu muốn lưu thời gian fail riêng thì thêm field khác
     };
@@ -2152,29 +2024,30 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       return false;
     }
   },
-  // Safety net: SENT nay đến từ server MSGUPSERT (kèm `seq`) qua upsetMsg —
-  // KHÔNG còn timer mù set "sent". Nếu sau `delayMs` mà tin vẫn SENDING (server
-  // chưa echo → mất kết nối/lỗi) thì đánh dấu FAILED để user gửi lại.
-  autoFailIfUnsent: (roomId: string, messageId: string, delayMs = 15000) => {
+  autoMarkMessageSent: (roomId: string, messageId: string, delayMs = 3000) => {
     setTimeout(() => {
       const state = get();
       const currentRoom = state.messagesRoom[roomId];
       if (!currentRoom) return;
 
       const msgs = getAllMessagesFromGroups(currentRoom);
-      let changed = false;
       const updatedMessages = msgs.map((msg) => {
         if (msg.id !== messageId) return msg;
-        // Vẫn đang gửi (chưa nhận seq từ server) → coi như lỗi gửi.
-        if (msg.status === MessageStatus.SENDING) {
-          changed = true;
-          const failed = { ...msg, status: MessageStatus.FAILED };
-          upsertOne(db.messages, failed);
-          return failed;
+
+        // Nếu đã failed thì giữ nguyên
+        if (msg.status === "failed") return msg;
+
+        // Chỉ auto-set sent nếu vẫn pending / uploading / undefined
+        if (
+          msg.status === "pending" ||
+          msg.status === "uploading" ||
+          !msg.status
+        ) {
+          return { ...msg, status: "sent" as const };
         }
+        upsertOne(db.messages, msg);
         return msg;
       });
-      if (!changed) return;
 
       set({
         messagesRoom: {
@@ -2227,72 +2100,6 @@ const useMessageStore = create<MessageState>()((set, get) => ({
       return {
         ...state,
         messagesRoom: nextMessages,
-      };
-    });
-  },
-
-  setMessageStatus: (
-    roomId: string,
-    messageId: string,
-    status: MessageStatus,
-  ) => {
-    // Chuẩn hoá roomId (socket có thể gửi mongo _id).
-    const roomStore = useRoomStore.getState();
-    const room = roomStore.rooms.find(
-      (r) => r._id === roomId || r.roomId === roomId || r.id === roomId,
-    );
-    const rid = room?.id || roomId;
-    set((state) => {
-      const prevRoom = state.messagesRoom[rid];
-      if (!prevRoom) return state;
-      const msgs = getAllMessagesFromGroups(prevRoom);
-      let changed = false;
-      const updated = msgs.map((m) => {
-        if (m.id !== messageId) return m;
-        const next = mergeStatus(m.status, status);
-        if (next === m.status) return m;
-        changed = true;
-        return { ...m, status: next };
-      });
-      if (!changed) return state;
-      return {
-        ...state,
-        messagesRoom: {
-          ...state.messagesRoom,
-          [rid]: updateRoomDataWithGroups(
-            prevRoom,
-            updated,
-            prevRoom?.lastReadMessageId,
-          ),
-        },
-      };
-    });
-  },
-
-  removeMessageLocal: async (roomId: string, messageId: string) => {
-    // Xoá khỏi IndexedDB (best-effort).
-    try {
-      await db.messages.delete(messageId);
-    } catch (e) {
-      console.error("[removeMessageLocal] IndexedDB delete error:", e);
-    }
-    // Xoá khỏi state (groups) nếu phòng đang có trong store.
-    set((state) => {
-      const prevRoom = state.messagesRoom[roomId];
-      if (!prevRoom) return state;
-      const prevMessages = getAllMessagesFromGroups(prevRoom).filter(
-        (m) => m.id !== messageId,
-      );
-      return {
-        ...state,
-        messagesRoom: {
-          ...state.messagesRoom,
-          [roomId]: updateRoomDataWithGroups(
-            prevRoom,
-            prevMessages,
-            prevRoom?.lastReadMessageId,
-          ),
-        },
       };
     });
   },

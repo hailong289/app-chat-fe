@@ -3,6 +3,15 @@ import { CallMember, CallState } from "./types/call.state";
 import Helpers from "@/libs/helpers";
 import { isTauriRuntime } from "@/libs/helpers";
 import useAuthStore from "./useAuthStore";
+import {
+  buildGuestUserFromSession,
+  getGuestCallMeta,
+  getGuestCallToken,
+  isGuestCallSupportedMode,
+  isGuestSfuCallMode,
+  clearGuestCallSession,
+  shouldSkipAuthenticatedApis,
+} from "@/libs/guest-call-auth";
 import { tokenStorage } from "@/utils/tokenStorage";
 import { User } from "@/types/auth.type";
 
@@ -48,6 +57,44 @@ function _stopDurationTicker() {
   }
 }
 
+/** Poll until recv transport is ready, then pull existing SFU producers. */
+function _scheduleSfuGetProducers(delayMs = 0) {
+  const emitGetProducers = (attempt = 0) => {
+    const { sfu: sfuNow } = useSfuCallStore.getState();
+    const { roomId, socket, callId } = useCallStore.getState();
+    if (sfuNow.recvTransport && sfuNow.device && roomId && socket) {
+      socket.emit("signal", {
+        type: "getProducers",
+        roomId,
+        callId: callId ?? undefined,
+        target: "sfu",
+      });
+      return;
+    }
+    if (attempt === 8 && roomId && socket && sfuNow.device && !sfuNow.recvTransport) {
+      socket.emit("signal", { type: "join", roomId, callId: callId ?? undefined, target: "sfu" });
+    }
+    if (attempt < 25) {
+      setTimeout(() => emitGetProducers(attempt + 1), 120);
+    }
+  };
+  if (delayMs <= 0) {
+    emitGetProducers();
+  } else {
+    setTimeout(() => emitGetProducers(), delayMs);
+  }
+}
+
+/** Prevent duplicate guest/late-join SFU bootstrap (React StrictMode). */
+let _sfuJoinBootstrapPromise: Promise<void> | null = null;
+
+/** Auth user id or guest session id — used for call socket payloads. */
+function getCallActorUserId(): string | undefined {
+  return (
+    useAuthStore.getState().user?.id ?? buildGuestUserFromSession()?.id ?? undefined
+  );
+}
+
 const CALL_ACTIVE_KEY = "appchat_call_active";
 
 function _setCallActive(callId: string) {
@@ -64,10 +111,16 @@ function _clearCallActive() {
 
 function _getActiveCallId(): string | null {
   try {
-    return localStorage.getItem(CALL_ACTIVE_KEY);
+    const raw = localStorage.getItem(CALL_ACTIVE_KEY);
+    return raw && raw !== "pending" ? raw : null;
   } catch {
     return null;
   }
+}
+
+/** Resolved call id from localStorage (excludes stale "pending" placeholder). */
+export function getStoredActiveCallId(): string | null {
+  return _getActiveCallId();
 }
 
 function _isTauriRuntime() {
@@ -652,6 +705,10 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
 
     _stopDurationTicker();
 
+    if (isGuestSfuCallMode()) {
+      clearGuestCallSession();
+    }
+
     set({
       status: "ended",
       roomId: null,
@@ -667,7 +724,8 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   },
 
   handleEndCall: (payload: any) => {
-    const { roomId, actionUserId, members, callId } = payload;
+    const { roomId, actionUserId, members, callId, status } = payload;
+    const isGuest = isGuestSfuCallMode();
 
     // If we're showing the IncomingCallModal for this very call and the caller
     // cancelled (or the call was ended elsewhere) → close the modal silently.
@@ -688,7 +746,12 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     // Use `callMode` (set at openCall from room type) — counting
     // members is wrong: a 2-member group chat is still a group call,
     // and BE auto-miss broadcasts may omit/trim members.
-    if (get().callMode === "sfu") {
+    //
+    // Guests always fully exit on any call:end — they can't continue alone.
+    // forceEnd=true when BE decides the whole call is over (no active members).
+    const forceFullTeardown = isGuest || payload.forceEnd === true;
+
+    if (get().callMode === "sfu" && !forceFullTeardown) {
       // Multiple participants: only remove the user who left
       const key = `${roomId}-${actionUserId}`;
 
@@ -786,6 +849,10 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
 
     _stopDurationTicker();
 
+    if (isGuest) {
+      clearGuestCallSession();
+    }
+
     set({
       status: "ended",
       roomId: null,
@@ -805,15 +872,17 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   // SFU-specific cases go through handleSFUSignal → useSfuCallStore.
 
   eventCall: async (event: string, payload: any) => {
-    const authStore = useAuthStore.getState();
-    const currentUser = authStore.user;
+    const guestSession = isGuestSfuCallMode() ? buildGuestUserFromSession() : null;
+    const currentUser = useAuthStore.getState().user ?? guestSession;
     const status = get().status;
     if (!currentUser) {
       console.warn("[Call] User not authenticated, cannot handle call event");
       return;
     }
 
-    if (!window.opener && event !== "request" && event !== "busy") {
+    const allowWithoutOpener =
+      isGuestSfuCallMode() || event === "request" || event === "busy";
+    if (!window.opener && !allowWithoutOpener) {
       return;
     }
 
@@ -924,16 +993,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
             Helpers.updateURLParams("status", "accepted");
           }
 
-          const emitGetProducers = (attempt = 0) => {
-            const { sfu: sfuNow } = useSfuCallStore.getState();
-            const { roomId: r, socket: s } = get();
-            if (sfuNow.recvTransport && sfuNow.device && r && s) {
-              s.emit("signal", { type: "getProducers", roomId: r, target: "sfu" });
-            } else if (attempt < 15) {
-              setTimeout(() => emitGetProducers(attempt + 1), 300);
-            }
-          };
-          setTimeout(() => emitGetProducers(), 500);
+          _scheduleSfuGetProducers(0);
         }
         break;
     }
@@ -1037,6 +1097,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
     // SFU: produce tracks if sendTransport is already ready
     if (get().callMode === "sfu") {
       await useSfuCallStore.getState().produceLocalStream(stream);
+      _scheduleSfuGetProducers(0);
     }
 
     if (currentState.devices.audioInputs.length === 0) {
@@ -1048,10 +1109,9 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
 
   handleShareScreen: async (value: boolean) => {
     const currentState = get();
-    const roomId = currentState.roomId;
-    const userId = useAuthStore.getState().user?.id;
+    const userId = getCallActorUserId();
 
-    if (!roomId) {
+    if (!currentState.roomId) {
       console.error("[Call] RoomId not found");
       return;
     }
@@ -1111,34 +1171,54 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       // migration logic in onShareScreen (moves an already-consumed track
       // from camera Map → screen Map if consume arrived first).
       if (currentState.callMode === "sfu") {
-        const sendTransport = useSfuCallStore.getState().sfu.sendTransport;
-        let screenProducerId: string | undefined;
-        if (sendTransport && !sendTransport.closed) {
-          try {
-            const producer = await sendTransport.produce({
-              track: screenTrack,
-              appData: { source: "screen" },
-            });
-            screenProducerId = producer.id;
-            useSfuCallStore.setState((prev) => ({
-              sfu: { ...prev.sfu, screenProducer: producer },
-            }));
-          } catch (err) {
-            console.error("[Call] SFU produce screen failed:", err);
-            screenTrack.stop();
-            return;
-          }
+        // Wait for SFU send transport (guest join bootstrap may still be running).
+        let sendTransport = useSfuCallStore.getState().sfu.sendTransport;
+        const transportWaitStart = Date.now();
+        while (
+          (!sendTransport || sendTransport.closed) &&
+          Date.now() - transportWaitStart < 10000
+        ) {
+          await new Promise((r) => setTimeout(r, 100));
+          sendTransport = useSfuCallStore.getState().sfu.sendTransport;
         }
-        currentState.socket?.emit("call:share-screen", {
+        if (!sendTransport || sendTransport.closed) {
+          console.error("[Call] SFU sendTransport not ready for screen share");
+          screenTrack.stop();
+          set((prev) => ({
+            stream: { ...prev.stream, localScreenStream: null },
+            action: { ...prev.action, isSharingScreen: false },
+          }));
+          return;
+        }
+
+        let screenProducerId: string | undefined;
+        try {
+          const producer = await sendTransport.produce({
+            track: screenTrack,
+            appData: { source: "screen" },
+          });
+          screenProducerId = producer.id;
+          useSfuCallStore.setState((prev) => ({
+            sfu: { ...prev.sfu, screenProducer: producer },
+          }));
+        } catch (err) {
+          console.error("[Call] SFU produce screen failed:", err);
+          screenTrack.stop();
+          return;
+        }
+
+        const { socket, roomId } = get();
+        socket?.emit("call:share-screen", {
           roomId,
-          actionUserId: userId,
+          actionUserId: userId ?? getCallActorUserId(),
           isSharing: true,
           screenProducerId,
         });
       } else {
-        currentState.socket?.emit("call:share-screen", {
+        const { socket, roomId } = get();
+        socket?.emit("call:share-screen", {
           roomId,
-          actionUserId: userId,
+          actionUserId: userId ?? getCallActorUserId(),
           isSharing: true,
         });
         await useP2pCallStore.getState().replaceScreenTrackInPeers(screenTrack);
@@ -1171,9 +1251,10 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
         };
       });
 
-      currentState.socket?.emit("call:share-screen", {
+      const { socket, roomId } = get();
+      socket?.emit("call:share-screen", {
         roomId,
-        actionUserId: userId,
+        actionUserId: userId ?? getCallActorUserId(),
         isSharing: false,
       });
     }
@@ -1680,16 +1761,20 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
   // ─── Call state initialization ────────────────────────────────────────────
 
   updateCallState: async (state) => {
-    // The /call popup is a fresh window with its own React tree.
-    // useAuthStore is hydrated from localStorage, but the `user`
-    // object is fetched asynchronously by AuthBootstrap → /auth/me.
-    // updateCallState fires immediately on mount, so we have to
-    // BLOCK here until the user resolves — otherwise acceptCall hits
-    // `currentUser.id` on null + crashes (the call:accepted socket
-    // emit then never fires → caller never gets the offer → media
-    // doesn't map).
+    const guestMeta = isGuestSfuCallMode() ? getGuestCallMeta() : null;
+    const guestToken = guestMeta ? getGuestCallToken() : null;
     let currentUser = useAuthStore.getState().user;
-    if (!currentUser && tokenStorage.get()) {
+
+    if (guestMeta && guestToken) {
+      if (!isGuestCallSupportedMode(guestMeta.callMode)) {
+        console.error("[updateCallState] guest call requires SFU mode");
+        clearGuestCallSession();
+        return;
+      }
+      currentUser = buildGuestUserFromSession() as NonNullable<
+        ReturnType<typeof useAuthStore.getState>["user"]
+      >;
+    } else if (!currentUser && tokenStorage.get() && !shouldSkipAuthenticatedApis()) {
       // Trigger fetchMe if not already in flight, then poll.
       void useAuthStore.getState().fetchMe();
       const start = Date.now();
@@ -1706,7 +1791,7 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       }
     }
     if (!currentUser) {
-      console.error("[updateCallState] no user + no token, aborting");
+      console.error("[updateCallState] no user + no guest session, aborting");
       return;
     }
     const socket = state.socket;
@@ -1738,13 +1823,20 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       return;
     }
 
-    const effectiveCallMode = state.callMode || get().callMode;
+    const guestMetaForMode = isGuestSfuCallMode() ? getGuestCallMeta() : null;
+    let effectiveCallMode =
+      guestMetaForMode?.callMode === "sfu"
+        ? "sfu"
+        : state.callMode || get().callMode;
     let canonicalRoomId = state.roomId;
     let canonicalMembers: CallMember[] = state.members ?? [];
     let elapsedSeconds = 0;
     let canonicalStartedAt: string | null = get().action.startedAt;
+    let resolvedCallId: string | null =
+      (state as { callId?: string | null }).callId || get().callId || null;
 
     if (state.status === "joined" && socket) {
+      const runJoinedBootstrap = async () => {
       set((prev) => ({ ...prev, socket: state.socket }));
 
       const joinCallId = (state as any).callId || get().callId;
@@ -1763,16 +1855,30 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       } | null = null;
 
       if (joinCallId) {
+        resolvedCallId = joinCallId;
+        set((prev) => ({ ...prev, callId: joinCallId }));
+        _setCallActive(joinCallId);
+
         canonicalRoomId = await new Promise<string>((resolve) => {
           const fallback = setTimeout(() => resolve(state.roomId ?? ""), 3000);
+          const guestMeta = isGuestSfuCallMode() ? getGuestCallMeta() : null;
           socket.emit(
             "call:join",
-            { roomId: state.roomId, callId: joinCallId },
+            {
+              roomId: state.roomId,
+              callId: joinCallId,
+              ...(guestMeta?.guestName
+                ? { guestName: guestMeta.guestName }
+                : {}),
+            },
             (response: any) => {
               clearTimeout(fallback);
               if (response?.ok) {
                 joinHistory = response.history || null;
                 joinCallState = response.callState || null;
+                if (response.callMode === "p2p" || response.callMode === "sfu") {
+                  effectiveCallMode = response.callMode;
+                }
               }
               resolve(
                 response?.ok && response?.room?.room_id
@@ -1788,6 +1894,10 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
         canonicalMembers = joinHistory.members;
       }
 
+      if (joinHistory?.call_mode === "p2p" || joinHistory?.call_mode === "sfu") {
+        effectiveCallMode = joinHistory.call_mode;
+      }
+
       if (joinHistory?.started_at) {
         canonicalStartedAt = joinHistory.started_at;
         elapsedSeconds = Math.max(
@@ -1797,6 +1907,16 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
           ),
         );
       }
+
+      // Commit room + members before SFU init so async signal handlers read
+      // the canonical roomId (guest join / late-join race fix).
+      set((prev) => ({
+        ...prev,
+        roomId: canonicalRoomId,
+        members: canonicalMembers,
+        callId: joinCallId ?? prev.callId,
+        callMode: effectiveCallMode,
+      }));
 
       // Seed the UI from the BE snapshot before any toggle event arrives.
       // Only `peersSharingScreen` + `screenProducerIds` are stored in
@@ -1842,8 +1962,14 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
         socket?.emit("signal", {
           type: "join",
           roomId: canonicalRoomId,
+          callId: joinCallId ?? undefined,
           target: "sfu",
         });
+        _scheduleSfuGetProducers();
+      } else if (isGuestSfuCallMode()) {
+        console.error("[updateCallState] guest join requires SFU call mode");
+        clearGuestCallSession();
+        return;
       }
 
       if (effectiveCallMode === "p2p") {
@@ -1866,28 +1992,60 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
           }
           await get().acceptCall({
             roomId: canonicalRoomId,
-            members: state.members,
+            members: canonicalMembers,
             currentUser,
             socket: state.socket,
             callId: joinCallId,
           });
         })();
       }
+      };
+
+      if (!_sfuJoinBootstrapPromise) {
+        _sfuJoinBootstrapPromise = runJoinedBootstrap().finally(() => {
+          _sfuJoinBootstrapPromise = null;
+        });
+      }
+      await _sfuJoinBootstrapPromise;
     } else if (state.status === "calling" && socket) {
+      const requestPayload = {
+        actionUserId: currentUser?.id || "",
+        membersIds: state.members?.map((m: CallMember) => m.id) || [],
+        roomId: state.roomId,
+        callType: state.mode,
+      };
+      const onRequestAck = (response: {
+        ok?: boolean;
+        room?: { room_id?: string };
+        callId?: string;
+        startedAt?: string;
+      }) => {
+        if (response?.startedAt) canonicalStartedAt = response.startedAt;
+        if (response?.callId) {
+          resolvedCallId = response.callId;
+          set((prev) => ({ ...prev, callId: response.callId! }));
+          Helpers.updateURLParams("callId", response.callId);
+          _setCallActive(response.callId);
+        }
+        if (response?.ok && response?.room?.room_id) {
+          canonicalRoomId = response.room.room_id;
+        }
+      };
+
       if (effectiveCallMode === "sfu") {
         canonicalRoomId = await new Promise<string>((resolve) => {
           const fallback = setTimeout(() => resolve(state.roomId ?? ""), 3000);
           socket.emit(
             "call:request",
-            {
-              actionUserId: currentUser?.id || "",
-              membersIds: state.members?.map((m: CallMember) => m.id) || [],
-              roomId: state.roomId,
-              callType: state.mode,
-            },
-            (response: any) => {
+            requestPayload,
+            (response: {
+              ok?: boolean;
+              room?: { room_id?: string };
+              callId?: string;
+              startedAt?: string;
+            }) => {
               clearTimeout(fallback);
-              if (response?.startedAt) canonicalStartedAt = response.startedAt;
+              onRequestAck(response);
               resolve(
                 response?.ok && response?.room?.room_id
                   ? response.room.room_id
@@ -1903,11 +2061,22 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
           target: "sfu",
         });
       } else {
-        socket?.emit("call:request", {
-          actionUserId: currentUser?.id || "",
-          membersIds: state.members?.map((m: CallMember) => m.id) || [],
-          roomId: state.roomId,
-          callType: state.mode,
+        await new Promise<void>((resolve) => {
+          const fallback = setTimeout(() => resolve(), 3000);
+          socket.emit(
+            "call:request",
+            requestPayload,
+            (response: {
+              ok?: boolean;
+              room?: { room_id?: string };
+              callId?: string;
+              startedAt?: string;
+            }) => {
+              clearTimeout(fallback);
+              onRequestAck(response);
+              resolve();
+            },
+          );
         });
       }
     }
@@ -1917,6 +2086,8 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       ...state,
       roomId: canonicalRoomId,
       members: canonicalMembers,
+      callId: resolvedCallId ?? prev.callId,
+      callMode: effectiveCallMode,
       action: {
         ...prev.action,
         ...(state.action ?? {}),
@@ -1925,6 +2096,11 @@ const useCallStore: UseBoundStore<StoreApi<CallState>> = create<CallState>()((se
       },
       ...(state.status === "joined" ? { status: "accepted" } : {}),
     }));
+
+    if (resolvedCallId) {
+      Helpers.updateURLParams("callId", resolvedCallId);
+      _setCallActive(resolvedCallId);
+    }
 
     // Start the canonical duration ticker once we have a startedAt anchor.
     // Caller hits this on "calling" (after call:request resolves with startedAt);

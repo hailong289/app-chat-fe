@@ -239,7 +239,6 @@ export const CreateQuizzModal = ({
         quiz_description: editedQuizz.quiz_description,
         quiz_status: (editedQuizz.quiz_status as "draft" | "active") || "draft",
         quiz_roomId: roomId,
-        quiz_createdBy: userId,
         quiz_questions: editedQuizz.quiz_questions,
         quiz_startTime: editedQuizz.quiz_startTime,
         quiz_endTime: editedQuizz.quiz_endTime,

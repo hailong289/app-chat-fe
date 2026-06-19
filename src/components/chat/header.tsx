@@ -43,9 +43,6 @@ import useContactStore from "@/store/useContactStore";
 import { useTranslation } from "react-i18next";
 import { ChevronDownIcon } from "@heroicons/react/16/solid";
 import { aiService, SearchResult } from "@/service/ai.service";
-import { db } from "@/libs/db";
-import type { MessageType } from "@/store/types/message.state";
-import { formatMessageTime } from "@/libs/timeline-helpers";
 
 interface ChatHeaderProps {
   // chatName?: string;
@@ -73,11 +70,6 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
   const [showSearch, setShowSearch] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<SearchResult[]>([]);
-  // Map messageId → message local (IndexedDB) để render đúng nội dung tin thay
-  // vì text thô của search; tin không có trong cache sẽ fallback result.text.
-  const [searchLocalMap, setSearchLocalMap] = React.useState<
-    Record<string, MessageType>
-  >({});
   const [isSearching, setIsSearching] = React.useState(false);
   const roomState = useRoomStore((state) => state);
   const { socket } = useSocket("/chat");
@@ -128,32 +120,13 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
     setSearchValue(query);
     if (query.length < 2) {
       setSearchResults([]);
-      setSearchLocalMap({});
       return;
     }
 
     setIsSearching(true);
     try {
       const res = await aiService.search(query, roomState.room?._id);
-      const results = res.results || [];
-      setSearchResults(results);
-
-      // Map messageId → message local (IndexedDB) để render đúng tin nhắn.
-      const ids = results.map((r) => r.messageId).filter(Boolean);
-      if (ids.length) {
-        try {
-          const rows = await db.messages.bulkGet(ids);
-          const map: Record<string, MessageType> = {};
-          rows.forEach((m) => {
-            if (m?.id) map[m.id] = m;
-          });
-          setSearchLocalMap(map);
-        } catch {
-          setSearchLocalMap({});
-        }
-      } else {
-        setSearchLocalMap({});
-      }
+      setSearchResults(res.results || []);
     } catch (error) {
       console.error("Search failed", error);
     } finally {
@@ -283,35 +256,24 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               {searchResults.length > 0 && (
                 <div className="absolute top-full left-0 w-full bg-white dark:bg-slate-800 shadow-lg rounded-b-lg z-50 max-h-[300px] overflow-y-auto border border-gray-200 dark:border-gray-700">
                   <Listbox aria-label="Search Results">
-                    {searchResults.map((result, index) => {
-                      // Map với message local (IndexedDB) → render đúng nội dung
-                      // tin nhắn; fallback text thô của search nếu chưa cache.
-                      const localMsg = searchLocalMap[result.messageId];
-                      const displayText = localMsg?.content || result.text;
-                      const senderName = localMsg?.sender?.fullname;
-                      return (
-                        <ListboxItem
-                          key={result.contextId || index}
-                          description={
-                            senderName
-                              ? `${senderName} • ${formatMessageTime(
-                                  localMsg?.createdAt || "",
-                                )}`
-                              : `Score: ${(result.score * 100).toFixed(0)}%`
-                          }
-                          startContent={
-                            <DocumentIcon className="w-5 h-5 text-primary" />
-                          }
-                          onClick={() => {
-                            // Nhảy tới đúng tin trong hội thoại (useChatScroll tự
-                            // findMessage DB→API nếu ngoài cửa sổ + highlight).
-                            setScrollto(result.messageId);
-                          }}
-                        >
-                          {displayText}
-                        </ListboxItem>
-                      );
-                    })}
+                    {searchResults.map((result, index) => (
+                      <ListboxItem
+                        key={result.contextId || index}
+                        description={`Score: ${(result.score * 100).toFixed(
+                          0
+                        )}%`}
+                        startContent={
+                          <DocumentIcon className="w-5 h-5 text-primary" />
+                        }
+                        onClick={() => {
+                          console.log("Navigate to", result.messageId);
+                          setScrollto(result.messageId);
+                          // TODO: Implement navigation to message or document
+                        }}
+                      >
+                        {result.text}
+                      </ListboxItem>
+                    ))}
                   </Listbox>
                 </div>
               )}

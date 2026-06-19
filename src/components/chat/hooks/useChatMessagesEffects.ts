@@ -78,14 +78,8 @@ export function useChatMessagesEffects({
 }: UseChatMessagesEffectsProps) {
   const currentUser = useAuthStore((state) => state.user);
 
-  // Derive flat messages list from groups for internal logic. Exclude
-  // gap-marker placeholders (catch-up sync engine) — they are a timeline
-  // affordance only and must NOT count as the newest message (silent
-  // delta-sync trigger / new-message autoscroll) or inflate counts.
-  const messages = useMemo(
-    () => groups.flatMap((g) => g.messages).filter((m) => !m.__gap),
-    [groups],
-  );
+  // Derive flat messages list from groups for internal logic
+  const messages = useMemo(() => groups.flatMap((g) => g.messages), [groups]);
   const isLoadingThisChat = loadingChatId === chatId;
 
   // ────────────────────────────────────────────────────────────────
@@ -256,16 +250,15 @@ export function useChatMessagesEffects({
   ]);
 
   // ────────────────────────────────────────────────────────────────
-  // Effect: scroll-to-bottom on socket reconnect. Việc ĐỒNG BỘ tin đã
-  // miss khi rớt mạng nay do catch-up event-sync (runCatchupSync trên
-  // 'connect' ở socketChatEventGlobal) lo cho MỌI phòng — ở đây chỉ giữ
-  // hành vi cuộn xuống đáy phòng đang mở để khỏi trùng fetch.
+  // Effect: silent re-sync on socket reconnect — pull the latest 50 in
+  // case any messages were missed during the network blip. No spinner.
   // ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!socket) return;
 
     const handleReconnect = () => {
-      setTimeout(() => {
+      setTimeout(async () => {
+        await messageState.fetchMessagesFromAPI(chatId, { limit: 50 });
         requestAnimationFrame(() => {
           if (containerRef.current) {
             containerRef.current.scrollTop =
@@ -281,7 +274,7 @@ export function useChatMessagesEffects({
     return () => {
       socket.off("connect", handleReconnect);
     };
-  }, [socket, chatId, containerRef, bottomRef]);
+  }, [socket, chatId, messageState, containerRef, bottomRef]);
 
   // Effect: Scroll detection and load more
   useEffect(() => {

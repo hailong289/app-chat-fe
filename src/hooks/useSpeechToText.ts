@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
+import { isGarbageSttText } from "@/libs/sttHelpers";
 
 export interface SpeechSegment {
   id: string;
@@ -89,6 +90,7 @@ export function useSpeechToText({
         const isFinal = result.isFinal;
 
         if (isFinal) {
+          if (isGarbageSttText(transcript)) continue;
           const finalSeg: SpeechSegment = {
             id: Date.now().toString() + Math.random(),
             speakerUserId: speakerUserIdRef.current,
@@ -196,6 +198,7 @@ export function useSpeechToText({
 
     const handleRemoteStt = (data: RemoteSttPayload) => {
       if (data.roomId && data.roomId !== roomIdRef.current) return;
+      if (isGarbageSttText(data.text)) return;
 
       const remoteSeg: SpeechSegment = {
         id: Date.now().toString() + Math.random(),

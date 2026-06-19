@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 import { getSupportedMimeType } from "@/libs/mime";
+import {
+  normalizeAudioMimeType,
+  readBlobAsBase64,
+  sttNowTimestamp,
+} from "@/libs/sttHelpers";
 import type { SpeechSegment } from "@/hooks/useSpeechToText";
 
 interface UseGoogleSttOptions {
@@ -34,23 +39,7 @@ interface SttAck {
 }
 
 function nowTimestamp() {
-  return new Date().toLocaleTimeString("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
-function readBlobAsBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error);
-    reader.onloadend = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      resolve(result.split(",")[1] || "");
-    };
-    reader.readAsDataURL(blob);
-  });
+  return sttNowTimestamp();
 }
 
 export function useGoogleStt({
@@ -74,6 +63,8 @@ export function useGoogleStt({
       typeof MediaRecorder !== "undefined",
   );
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isListeningRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
   const socketRef = useRef(socket);
   socketRef.current = socket;
@@ -129,7 +120,44 @@ export function useGoogleStt({
     };
   }, [socket, roomId, reportError]);
 
+  const sendAudioChunk = useCallback(
+    async (blob: Blob, mimeType: string) => {
+      if (!blob.size || blob.size < 256 || !socketRef.current || !roomIdRef.current) {
+        return;
+      }
+
+      const audioChunk = await readBlobAsBase64(blob);
+      if (!audioChunk) return;
+
+      socketRef.current.emit(
+        "call:stt-audio-chunk",
+        {
+          roomId: roomIdRef.current,
+          speakerUserId: speakerUserIdRef.current,
+          speaker: speakerNameRef.current,
+          audioChunk,
+          mimeType: normalizeAudioMimeType(mimeType),
+          language: languageRef.current,
+        },
+        (ack?: SttAck) => {
+          if (ack && ack.ok === false) {
+            reportError(
+              ack.error || "Không thể nhận dạng giọng nói lúc này",
+            );
+          }
+        },
+      );
+    },
+    [reportError],
+  );
+
   const stop = useCallback(() => {
+    isListeningRef.current = false;
+    if (chunkTimerRef.current) {
+      clearTimeout(chunkTimerRef.current);
+      chunkTimerRef.current = null;
+    }
+
     const recorder = mediaRecorderRef.current;
     mediaRecorderRef.current = null;
     if (recorder && recorder.state !== "inactive") {
@@ -160,49 +188,57 @@ export function useGoogleStt({
       streamRef.current = stream;
 
       const mimeType = getSupportedMimeType();
-      const recorder = new MediaRecorder(stream, { mimeType });
+      isListeningRef.current = true;
 
-      recorder.ondataavailable = async (event) => {
-        if (!event.data.size || !socketRef.current || !roomIdRef.current) return;
+      const startRecorderCycle = () => {
+        if (!isListeningRef.current || !streamRef.current) return;
+
+        const recorder = new MediaRecorder(streamRef.current, { mimeType });
+        mediaRecorderRef.current = recorder;
+
+        recorder.ondataavailable = (event) => {
+          if (!event.data.size) return;
+          const chunkMime = event.data.type || mimeType || "audio/webm";
+          void sendAudioChunk(event.data, chunkMime).catch((err) => {
+            reportError(
+              err instanceof Error
+                ? err.message
+                : "Không thể đọc audio chunk",
+            );
+          });
+        };
+
+        recorder.onerror = () => {
+          reportError("MediaRecorder gặp lỗi khi thu âm");
+          stop();
+        };
+
+        recorder.onstop = () => {
+          if (!isListeningRef.current || mediaRecorderRef.current !== recorder) {
+            return;
+          }
+          mediaRecorderRef.current = null;
+          chunkTimerRef.current = setTimeout(startRecorderCycle, 50);
+        };
 
         try {
-          const audioChunk = await readBlobAsBase64(event.data);
-          if (!audioChunk) return;
-
-          socketRef.current.emit(
-            "call:stt-audio-chunk",
-            {
-              roomId: roomIdRef.current,
-              speakerUserId: speakerUserIdRef.current,
-              speaker: speakerNameRef.current,
-              audioChunk,
-              mimeType: event.data.type || mimeType || "audio/webm",
-              language: languageRef.current,
-            },
-            (ack?: SttAck) => {
-              if (ack && ack.ok === false) {
-                reportError(
-                  ack.error || "Không thể nhận dạng giọng nói lúc này",
-                );
-              }
-            },
-          );
+          recorder.start();
+          chunkTimerRef.current = setTimeout(() => {
+            if (recorder.state === "recording") {
+              recorder.stop();
+            }
+          }, chunkDurationMs);
         } catch (err) {
           reportError(
             err instanceof Error
               ? err.message
-              : "Không thể đọc audio chunk",
+              : "Không thể bật MediaRecorder",
           );
+          stop();
         }
       };
 
-      recorder.onerror = () => {
-        reportError("MediaRecorder gặp lỗi khi thu âm");
-        stop();
-      };
-
-      recorder.start(chunkDurationMs);
-      mediaRecorderRef.current = recorder;
+      startRecorderCycle();
       setIsListening(true);
     } catch (err) {
       stop();
@@ -212,7 +248,7 @@ export function useGoogleStt({
           : "Không thể bật micro cho Google STT",
       );
     }
-  }, [chunkDurationMs, isListening, isSupported, reportError, stop]);
+  }, [chunkDurationMs, isListening, isSupported, reportError, sendAudioChunk, stop]);
 
   const toggle = useCallback(() => {
     if (isListening) stop();
