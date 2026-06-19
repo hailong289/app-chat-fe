@@ -11,10 +11,6 @@ import AlertModal from "@/components/modals/AlertModal";
 import useAuthStore from "@/store/useAuthStore";
 import { tokenStorage } from "@/utils/tokenStorage";
 import { openDbForUser } from "@/libs/db";
-import {
-  applyGuestCallTokenFromUrl,
-  shouldSkipAuthenticatedApis,
-} from "@/libs/guest-call-auth";
 
 /**
  * Bootstrap auth state on every client tree mount — covers BOTH the
@@ -34,10 +30,6 @@ function AuthBootstrap() {
   const fetchMe = useAuthStore((s) => s.fetchMe);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    // Parse ?guestToken= before fetchMe — this effect mounts above
-    // GuestCallBootstrap in the tree, so pending invite must be stored here.
-    applyGuestCallTokenFromUrl();
-    if (shouldSkipAuthenticatedApis()) return;
     if (!tokenStorage.get()) return;
     if (user) return;
     void fetchMe().then(() => {

@@ -4,14 +4,12 @@ import useContactStore from "@/store/useContactStore";
 import { useEffect } from "react";
 import { useSocket } from "../providers/SocketProvider";
 import { deleteOldMessagesKeepLatest } from "@/utils/localStorage";
-import { shouldSkipAuthenticatedApis } from "@/libs/guest-call-auth";
 
 export const InitAppChat = () => {
   const contactState = useContactStore((state) => state);
   const authState = useAuthStore((state) => state);
   const { socket } = useSocket("/chat");
   useEffect(() => {
-    if (shouldSkipAuthenticatedApis()) return;
     if (!authState.isAuthenticated) return;
     contactState.getFriends();
     contactState.getAllContacts();
