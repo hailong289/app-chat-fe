@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import useAuthStore from "./useAuthStore";
-import { ContactState } from "./types/contact.type";
+import { ContactState, ContactType } from "./types/contact.type";
 import { createJSONStorage, persist } from "zustand/middleware";
 import ContactService from "@/service/contact.service";
 import { getOne, upsertMany, upsertOne } from "@/libs/crud";
@@ -224,14 +224,33 @@ const useContactStore = create<ContactState>()(
         set({ isLoading: true, error: null });
         try {
           await ContactService.sendInvitation(receiverId);
-          set({ isLoading: false });
-          const contact = get().contacts.find((c) => c.id === receiverId);
-          if (!contact) return;
-          contact.friendship = "PENDING";
-          contact.actionUserId = userId;
-          await upsertOne(db.contacts, contact);
-          await get().getAllContacts();
-          set({ contact });
+
+          // The profile UI binds to `state.contact` (not the `contacts`
+          // array), and the contacts page only loads `contact` via
+          // setContact — the in-memory `contacts` list is often empty here.
+          // The old code did `contacts.find(...)` and bailed when not found,
+          // so the button never flipped to "Đã gửi lời mời". Update the
+          // displayed contact + any matching list entry immutably instead.
+          const markPending = <T extends { id: string; friendship: ContactType["friendship"]; actionUserId: string | null }>(
+            c: T,
+          ): T =>
+            c.id === receiverId
+              ? { ...c, friendship: "PENDING", actionUserId: userId }
+              : c;
+
+          const current = get().contact;
+          const updatedContact = current ? markPending(current) : current;
+          const updatedContacts = get().contacts.map(markPending);
+
+          if (updatedContact && updatedContact.id === receiverId) {
+            await upsertOne(db.contacts, updatedContact);
+          }
+
+          set({
+            contact: updatedContact,
+            contacts: updatedContacts,
+            isLoading: false,
+          });
         } catch (error: any) {
           set({
             error: error?.message || "An error occurred",

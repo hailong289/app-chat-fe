@@ -11,11 +11,6 @@ import {
   useMemo,
 } from "react";
 import { isWebEmbedMode, isWebEmbedRoute } from "@/libs/web-embed";
-import {
-  hasGuestSfuCallPending,
-  isGuestSfuCallMode,
-  shouldSkipAuthenticatedApis,
-} from "@/libs/guest-call-auth";
 import { Header } from "@/components/intro/header";
 import { LeftSide } from "@/components/intro/left-side";
 import { useFirebase } from "@/components/providers/firebase.provider";
@@ -76,14 +71,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!path) return;
     const isAuthRoute = path === "/auth" || path.startsWith("/auth/");
-    const hasGuestCallSession =
-      typeof window !== "undefined" &&
-      path.startsWith("/call") &&
-      (isGuestSfuCallMode() || hasGuestSfuCallPending());
     // /dashboard và /download luôn public; user đã login vẫn truy cập được
     const isPublic =
       isAuthRoute ||
-      hasGuestCallSession ||
       path === "/dashboard" ||
       path === "/download" ||
       path.startsWith("/dashboard/") ||
@@ -145,7 +135,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     // even contributes to permission-quality scoring that can downgrade
     // future requests. Gating on `isAuthenticated` defers the ask
     // until the user is committed to the app.
-    if (!isAuthenticated || shouldSkipAuthenticatedApis()) return;
+    if (!isAuthenticated) return;
     const requestPermission = async () => {
       try {
         await firebase.requestPermission();

@@ -6,15 +6,10 @@ import { Device } from "mediasoup-client";
 import useCallStore from "./useCallStore";
 
 // Module-level Set prevents duplicate consumption (race condition guard).
+// Both produce:broadcast and getProducers can fire for the same producerId
+// concurrently. _consumingProducerIds is updated synchronously before any
+// await, so concurrent async handlers always see the updated value.
 const _consumingProducerIds = new Set<string>();
-
-// Pending mediasoup transport.connect() callbacks — resolved when the SFU
-// server acks connectTransport. Calling callback() before the server finishes
-// DTLS handshake causes consume/produce to silently fail on late joiners.
-const _pendingTransportConnects = new Map<
-  string,
-  { callback: () => void; errback: (error: Error) => void }
->();
 
 const EMPTY_SFU: SfuSessionState = {
   device: null,
@@ -87,22 +82,16 @@ const useSfuCallStore: UseBoundStore<StoreApi<SfuStoreState>> = create<SfuStoreS
 
   teardownSfu: () => {
     const { sfu } = get();
-    const { socket, roomId, callId } = useCallStore.getState();
+    const { socket, roomId } = useCallStore.getState();
 
     // Notify SFU server to remove this participant before closing transports
     if (roomId && socket) {
-      socket.emit("signal", {
-        type: "leave",
-        roomId,
-        callId: callId ?? undefined,
-        target: "sfu",
-      });
+      socket.emit("signal", { type: "leave", roomId, target: "sfu" });
     }
 
     sfu.sendTransport?.close();
     sfu.recvTransport?.close();
     _consumingProducerIds.clear();
-    _pendingTransportConnects.clear();
 
     set({ sfu: { ...EMPTY_SFU } });
   },
@@ -126,21 +115,9 @@ const useSfuCallStore: UseBoundStore<StoreApi<SfuStoreState>> = create<SfuStoreS
 
     if (ok === false) {
       if (type === "createTransport") {
-        const { socket, roomId, callId } = useCallStore.getState();
+        const { socket, roomId } = useCallStore.getState();
         console.warn(`[SFU] createTransport failed (${message}), re-joining SFU room...`);
-        socket?.emit("signal", {
-          type: "join",
-          roomId,
-          callId: callId ?? undefined,
-          target: "sfu",
-        });
-      } else if (type === "connectTransport") {
-        const tid = transportId || (payload as { transportId?: string }).transportId;
-        if (tid) {
-          const pending = _pendingTransportConnects.get(tid);
-          pending?.errback(new Error(message || "connectTransport failed"));
-          _pendingTransportConnects.delete(tid);
-        }
+        socket?.emit("signal", { type: "join", roomId, target: "sfu" });
       } else {
         console.error(`[SFU] Signal error (${type}):`, message);
       }
@@ -150,8 +127,7 @@ const useSfuCallStore: UseBoundStore<StoreApi<SfuStoreState>> = create<SfuStoreS
     try {
       switch (type) {
         case "join": {
-          const { socket: currentSocket, roomId: currentRoomId, callId } =
-            useCallStore.getState();
+          const { socket: currentSocket, roomId: currentRoomId } = useCallStore.getState();
           const { sfu } = get();
           if (!sfu.device) return;
 
@@ -163,28 +139,14 @@ const useSfuCallStore: UseBoundStore<StoreApi<SfuStoreState>> = create<SfuStoreS
           currentSocket?.emit("signal", {
             type: "createTransport",
             roomId: currentRoomId,
-            callId: callId ?? undefined,
             target: "sfu",
             direction: "send",
           });
           break;
         }
 
-        case "connectTransport": {
-          const tid =
-            transportId || (payload as { transportId?: string }).transportId;
-          if (tid) {
-            const pending = _pendingTransportConnects.get(tid);
-            if (pending) {
-              pending.callback();
-              _pendingTransportConnects.delete(tid);
-            }
-          }
-          break;
-        }
-
         case "createTransport": {
-          const { socket, roomId, callId } = useCallStore.getState();
+          const { socket, roomId } = useCallStore.getState();
           const { sfu } = get();
           if (!sfu.device || !roomId) return;
 
@@ -203,22 +165,16 @@ const useSfuCallStore: UseBoundStore<StoreApi<SfuStoreState>> = create<SfuStoreS
                 dtlsParameters,
               });
 
-          transport.on("connect", ({ dtlsParameters: dtls }, callback, errback) => {
-            _pendingTransportConnects.set(transport.id, { callback, errback });
+          transport.on("connect", ({ dtlsParameters: dtls }, callback) => {
             socket?.emit("signal", {
               type: "connectTransport",
               roomId,
-              callId: callId ?? undefined,
               target: "sfu",
               transportId: transport.id,
               dtlsParameters: dtls,
             });
-            setTimeout(() => {
-              const pending = _pendingTransportConnects.get(transport.id);
-              if (!pending) return;
-              _pendingTransportConnects.delete(transport.id);
-              pending.callback();
-            }, 2000);
+            // Assume success (awaiting ack adds complexity without much benefit)
+            callback();
           });
 
           if (isSend) {
@@ -261,7 +217,6 @@ const useSfuCallStore: UseBoundStore<StoreApi<SfuStoreState>> = create<SfuStoreS
             socket?.emit("signal", {
               type: "createTransport",
               roomId,
-              callId: callId ?? undefined,
               target: "sfu",
               direction: "recv",
             });
@@ -271,7 +226,6 @@ const useSfuCallStore: UseBoundStore<StoreApi<SfuStoreState>> = create<SfuStoreS
             socket?.emit("signal", {
               type: "getProducers",
               roomId,
-              callId: callId ?? undefined,
               target: "sfu",
             });
           }

@@ -17,7 +17,7 @@ import { MicrophoneIcon, PhoneXMarkIcon, VideoCameraIcon, VideoCameraSlashIcon, 
 import { useSocket } from "@/components/providers/SocketProvider";
 import useAuthStore from "@/store/useAuthStore";
 import Helpers from "@/libs/helpers";
-import useCallStore, { getStoredActiveCallId } from "@/store/useCallStore";
+import useCallStore from "@/store/useCallStore";
 import useP2pCallStore from "@/store/useP2pCallStore";
 import useSfuCallStore from "@/store/useSfuCallStore";
 import { CallMember } from "@/store/types/call.state";
@@ -28,15 +28,6 @@ import { useSpeechToText } from "@/hooks/useSpeechToText";
 import type { SpeechSegment } from "@/hooks/useSpeechToText";
 import { isGarbageSttText } from "@/libs/sttHelpers";
 import { SpeechToTextPanel } from "@/components/call/SpeechToTextPanel";
-import {
-  buildGuestUserFromSession,
-  clearGuestCallSession,
-  getGuestCallMeta,
-  getGuestCallPhase,
-  isGuestCallSupportedMode,
-  isGuestSfuCallMode,
-} from "@/libs/guest-call-auth";
-import GuestCallLinkService from "@/service/guest-call-link.service";
 
 function CallPageContentInner() {
   const router = useRouter();
@@ -57,8 +48,7 @@ function CallPageContentInner() {
   const [sttTranslateFrom, setSttTranslateFrom] = useState("auto");
   const [sttTranslateTo, setSttTranslateTo] = useState("vi");
 
-  const closeTauriOrBrowserWindow = useCallback(
-    async (guestTab = false): Promise<boolean> => {
+  const closeTauriOrBrowserWindow = useCallback(async (): Promise<boolean> => {
     if (isTauriRuntime()) {
       try {
         const { Window, getCurrentWindow } = await import("@tauri-apps/api/window");
@@ -76,17 +66,12 @@ function CallPageContentInner() {
           return true;
         }
       } catch {}
-    }
-
-    // Popup (opener) or guest invite tab — attempt to close the window.
-    if (window.opener || guestTab || isGuestSfuCallMode()) {
+    } else if (window.opener) {
       window.close();
       return true;
     }
     return false;
-  },
-    [],
-  );
+  }, []);
 
   useEffect(() => {
     if (!isTauriRuntime()) return;
@@ -109,29 +94,18 @@ function CallPageContentInner() {
 
   // callMode is stable for the lifetime of this call window (set from URL params
   // once and never changes). Use it to register only the relevant socket listeners.
-  const guestMetaForCall = isGuestSfuCallMode() ? getGuestCallMeta() : null;
-  const callMode =
-    (searchParams.get("callMode") as "p2p" | "sfu") ||
-    guestMetaForCall?.callMode ||
-    "p2p";
+  const callMode = (searchParams.get("callMode") as "p2p" | "sfu") || "p2p";
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  const authUser = useAuthStore((state) => state.user);
-  const guestSession = isGuestSfuCallMode() ? buildGuestUserFromSession() : null;
-  const currentUser = guestSession || authUser;
+  const currentUser = useAuthStore((state) => state.user);
   const currentUserId = currentUser?.id;
-  const isGuestCall = !!guestSession;
 
-  const [guestLinkCopied, setGuestLinkCopied] = useState(false);
-  const [guestLinkError, setGuestLinkError] = useState<string | null>(null);
-
-  const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const hasEndedRef = useRef(false);
-  const callBootstrapRef = useRef(false);
   const [busyUser, setBusyUser] = useState<string | null>(null);
   // Banner shown to the caller when the callee rejects or doesn't pick up.
   // Without this, the popup just closes the moment `call:end status=rejected/
@@ -206,7 +180,6 @@ function CallPageContentInner() {
     mode,
     members,
     roomId,
-    callId,
     handleCreateLocalStream,
     updateCallState,
     eventCall,
@@ -218,55 +191,6 @@ function CallPageContentInner() {
     setDevice,
 
   } = useCallStore();
-
-  const effectiveCallId =
-    callId ||
-    searchParams.get("callId") ||
-    getGuestCallMeta()?.callId ||
-    getStoredActiveCallId() ||
-    null;
-
-  const handleCopyGuestLink = useCallback(async () => {
-    let linkCallId = effectiveCallId;
-    if (!linkCallId) {
-      const start = Date.now();
-      while (Date.now() - start < 5000) {
-        linkCallId =
-          useCallStore.getState().callId ||
-          getStoredActiveCallId() ||
-          searchParams.get("callId");
-        if (linkCallId) break;
-        await new Promise((r) => setTimeout(r, 200));
-      }
-    }
-    if (!roomId || !linkCallId || callMode !== "sfu") {
-      setGuestLinkError(
-        !linkCallId
-          ? "Cuộc gọi chưa sẵn sàng — thử lại sau vài giây"
-          : null,
-      );
-      return;
-    }
-    try {
-      setGuestLinkError(null);
-      const res = await GuestCallLinkService.createLink({
-        roomId,
-        callId: linkCallId,
-        callType: (mode === "video" ? "video" : "audio") as "video" | "audio",
-        callMode: "sfu",
-      });
-      const payload = (res as { data?: { metadata?: { url?: string }; url?: string } }).data;
-      const url = payload?.metadata?.url || payload?.url;
-      if (!url) throw new Error("Không tạo được link mời");
-      await navigator.clipboard.writeText(url);
-      setGuestLinkCopied(true);
-      setTimeout(() => setGuestLinkCopied(false), 2500);
-    } catch (err) {
-      setGuestLinkError(
-        err instanceof Error ? err.message : "Không tạo được link mời khách",
-      );
-    }
-  }, [roomId, effectiveCallId, mode, callMode, searchParams]);
 
   // ─── Speech-to-Text (remote stream capture + browser relay) ───────────────
   const remoteSttPeerIds = useMemo(
@@ -1000,11 +924,9 @@ function CallPageContentInner() {
     if (currentStatus === "accepted" || currentStatus === "ended") {
       return; // call already in progress / over — don't re-bootstrap from URL
     }
-    if (callBootstrapRef.current) return;
-    const guestMeta = isGuestSfuCallMode() ? getGuestCallMeta() : null;
     (async () => {
       await updateCallState({
-        roomId: searchParams.get("roomId") || guestMeta?.roomId || "",
+        roomId: searchParams.get("roomId") || "",
         status: searchParams.get("status") as
           | "idle"
           | "calling"
@@ -1013,18 +935,12 @@ function CallPageContentInner() {
           | "accepted"
           | "declined"
           | "joined",
-        mode: (searchParams.get("callType") as "audio" | "video") ||
-          guestMeta?.callType ||
-          "video",
-        callMode: isGuestCallSupportedMode(guestMeta?.callMode)
-          ? "sfu"
-          : ((searchParams.get("callMode") as "p2p" | "sfu") || "p2p"),
-        callId: searchParams.get("callId") || guestMeta?.callId || null,
-        members: isGuestSfuCallMode()
-          ? []
-          : (Helpers.decryptUserInfo(
-              searchParams.get("members") || "[]",
-            ) as CallMember[]),
+        mode: searchParams.get("callType") as "audio" | "video",
+        callMode: (searchParams.get("callMode") as "p2p" | "sfu") || "p2p",
+        callId: searchParams.get("callId") || null,
+        members: Helpers.decryptUserInfo(
+          searchParams.get("members") || "[]",
+        ) as CallMember[],
         action: {
           isMicEnabled: true,
           isCameraEnabled: searchParams.get("callType") === "video",
@@ -1037,7 +953,6 @@ function CallPageContentInner() {
         },
         socket: socket,
       });
-      callBootstrapRef.current = true;
     })();
   }, [searchParams, socket]);
 
@@ -1081,26 +996,9 @@ function CallPageContentInner() {
   useEffect(() => {
     if (callStatus === "ended") {
       hasEndedRef.current = true;
-      if (isGuestCall) {
-        clearGuestCallSession();
-      }
-      void closeTauriOrBrowserWindow(isGuestCall).then((closed) => {
-        // Guest tabs are opened directly (no opener) — browsers may block
-        // window.close(), so navigate away as a fallback.
-        if (isGuestCall) {
-          setTimeout(() => {
-            if (!window.closed) {
-              router.replace("/dashboard");
-            }
-          }, 300);
-          return;
-        }
-        if (!closed) {
-          router.replace("/");
-        }
-      });
+      void closeTauriOrBrowserWindow();
     }
-  }, [callStatus, closeTauriOrBrowserWindow, isGuestCall, router]);
+  }, [callStatus, closeTauriOrBrowserWindow]);
 
   const handleEndCall = useCallback(() => {
     if (hasEndedRef.current) {
@@ -1129,10 +1027,10 @@ function CallPageContentInner() {
     endCall({
       roomId: roomId,
       actionUserId: currentUserId,
-      status: isGuestCall ? "ended" : status,
-      callId: effectiveCallId || "",
+      status,
+      callId: searchParams.get("callId") || "",
     });
-  }, [callStatus, currentUserId, endCall, roomId, searchParams, isGuestCall, effectiveCallId]);
+  }, [callStatus, currentUserId, endCall, roomId, searchParams]);
 
   useEffect(() => {
     const handleWindowClose = () => {
@@ -1244,10 +1142,6 @@ function CallPageContentInner() {
   }
 
   if (!socket) {
-    // GuestNameModal is shown while phase is pending — avoid "Connecting..." flash.
-    if (getGuestCallPhase() === "pending") {
-      return null;
-    }
     return (
       <div className="bg-dark h-screen w-full flex items-center justify-center">
         <p className="text-gray-500">{t("callPage.loading.connecting")}</p>
@@ -1262,13 +1156,6 @@ function CallPageContentInner() {
       </div>
     );
   }
-
-  const otherActiveMembers = members.filter(
-    (m: CallMember) =>
-      m.id !== currentUserId &&
-      m.status === "started",
-  );
-  const hasOtherParticipants = otherActiveMembers.length > 0;
 
   // Screen-share aware layout. When anyone (local or remote) is actively
   // broadcasting their screen, the screen takes the main full-frame area and
@@ -1840,9 +1727,7 @@ function CallPageContentInner() {
               })}
             </div>
           )
-        ) : callStatus === "accepted" &&
-          remoteStreams.size === 0 &&
-          !hasOtherParticipants ? (
+        ) : callStatus === "accepted" && remoteStreams.size === 0 ? (
           <div className="w-full h-full flex flex-col items-center justify-center gap-4">
             <Avatar
               src={getUserInfo().avatar}
@@ -1852,31 +1737,6 @@ function CallPageContentInner() {
             <p className="text-gray-300 text-base">
               {t("callPage.status.waitingForOthers")}
             </p>
-          </div>
-        ) : callStatus === "accepted" &&
-          remoteStreams.size === 0 &&
-          hasOtherParticipants ? (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-6 p-6">
-            <p className="text-gray-300 text-base">
-              {t("callPage.loading.connecting")}
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              {otherActiveMembers.map((member: CallMember) => (
-                <div
-                  key={member.id}
-                  className="flex flex-col items-center gap-2"
-                >
-                  <Avatar
-                    src={member.avatar}
-                    name={member.fullname || t("callPage.labels.unknown")}
-                    className="w-20 h-20 text-xl"
-                  />
-                  <span className="text-sm text-gray-300 max-w-[120px] truncate text-center">
-                    {member.fullname || t("callPage.labels.unknownUser")}
-                  </span>
-                </div>
-              ))}
-            </div>
           </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -2086,8 +1946,8 @@ function CallPageContentInner() {
             >
               <Cog6ToothIcon className="h-6 w-6 text-white" />
             </Button>
-            {/* STT button - only during accepted calls (not for guests) */}
-            {callStatus === "accepted" && !isGuestCall && (
+            {/* STT button - only during accepted calls */}
+            {callStatus === "accepted" && (
               <Button
                 isIconOnly
                 className={`rounded-full h-14 w-14 p-0 backdrop-blur-sm ${
@@ -2182,38 +2042,6 @@ function CallPageContentInner() {
                   </SelectItem>
                 ))}
               </Select>
-              {!isGuestCall && callMode === "sfu" && roomId && (
-                <div className="rounded-lg border border-default-200 p-3 space-y-2">
-                  <p className="text-sm font-medium">Mời khách vào cuộc gọi nhóm</p>
-                  <p className="text-xs text-default-500">
-                    Tạo link có hạn — khách không cần tài khoản, chỉ tham gia cuộc gọi SFU.
-                  </p>
-                  {guestLinkError && (
-                    <p className="text-xs text-danger">{guestLinkError}</p>
-                  )}
-                  {(effectiveCallId ||
-                    callStatus === "calling" ||
-                    callStatus === "accepted") ? (
-                    <Button
-                      size="sm"
-                      variant="flat"
-                      color={guestLinkCopied ? "success" : "primary"}
-                      isDisabled={!roomId}
-                      onPress={() => void handleCopyGuestLink()}
-                    >
-                      {guestLinkCopied
-                        ? "Đã copy link"
-                        : effectiveCallId
-                          ? "Copy link mời khách"
-                          : "Copy link mời khách (đang tải...)"}
-                    </Button>
-                  ) : (
-                    <p className="text-xs text-default-400">
-                      Đang khởi tạo cuộc gọi...
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
           </ModalBody>
           <ModalFooter>

@@ -11,7 +11,6 @@ import {
   isRefreshing,
   refreshAccessToken,
 } from "@/libs/tokenRefresh";
-import { shouldSkipAuthenticatedApis } from "@/libs/guest-call-auth";
 import { tokenStorage } from "@/utils/tokenStorage";
 
 // Endpoints that MUST NOT trigger refresh-and-retry on 401 — refreshing
@@ -132,14 +131,12 @@ class ApiService {
         const responseData = error.response?.data as any;
 
         // Refresh-and-retry path — 401 + not already retried + not a path
-        // that would loop (e.g. /auth/refresh itself). Guest call tabs
-        // have no auth session — skip refresh to avoid logout cascade.
+        // that would loop (e.g. /auth/refresh itself).
         if (
           statusCode === 401 &&
           originalRequest &&
           !originalRequest._retry &&
-          !shouldSkipRefresh(originalRequest.url) &&
-          !shouldSkipAuthenticatedApis()
+          !shouldSkipRefresh(originalRequest.url)
         ) {
           originalRequest._retry = true;
           const newToken = await refreshAccessToken();
@@ -158,8 +155,12 @@ class ApiService {
         }
 
         // 401 with no recovery available → clear auth, let UI redirect.
-        // Guest call tabs must not clear auth or trigger logout side effects.
-        if (statusCode === 401 && !shouldSkipAuthenticatedApis()) {
+        // No JS-side cookie clear: cookie is HttpOnly + scoped to /auth,
+        // BE clears it via clearAuthCookie() on logout / refresh-failure.
+        // Drop both the in-memory auth flag AND the stored accessToken
+        // — otherwise a reload would re-seed isAuthenticated=true from
+        // the dead token in localStorage.
+        if (statusCode === 401) {
           tokenStorage.clear();
           useAuthStore.getState().setAuth(false);
         }

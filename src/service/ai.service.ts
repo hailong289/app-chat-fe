@@ -189,12 +189,21 @@ export const aiService = {
     roomId?: string,
     limit = 5
   ): Promise<SearchResponse> => {
-    const response = await apiService.post<ApiEnvelope<SearchResponse>>("/ai/search", {
+    const response = await apiService.post<
+      ApiEnvelope<SearchResponse> & Partial<SearchResponse>
+    >("/ai/search", {
       query,
       limit,
       roomId,
     });
-    return response.data?.metadata || { results: [] };
+    // The /ai/search gateway endpoint returns the raw gRPC result `{ results }`
+    // (no `metadata` envelope, unlike Response.success endpoints — same as
+    // /ai/usage/report). Accept both shapes so we render results whether or not
+    // the backend later wraps the payload.
+    const data = response.data;
+    if (data?.metadata) return data.metadata;
+    if (Array.isArray(data?.results)) return { results: data.results };
+    return { results: [] };
   },
 
   suggestReplies: async (
