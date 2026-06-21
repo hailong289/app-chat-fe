@@ -8,6 +8,8 @@ import { isTauriRuntime } from "@/libs/helpers";
 
 type PromptMode = "request" | "denied" | null;
 
+import { shouldSkipAuthenticatedApis } from "@/libs/guest-call-auth";
+
 export default function NotificationPermission() {
   const { requestPermission, token, messaging } = useFirebase();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -16,6 +18,7 @@ export default function NotificationPermission() {
 
   useEffect(() => {
     if (globalThis.window === undefined) return;
+    if (shouldSkipAuthenticatedApis()) return;
 
     // Không có Firebase messaging (không socket / FCM không khả dụng)
     if (!messaging) return;
