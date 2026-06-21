@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import useAuthStore from "./useAuthStore";
-import { ContactState } from "./types/contact.type";
+import { ContactState, ContactType } from "./types/contact.type";
 import { createJSONStorage, persist } from "zustand/middleware";
 import ContactService from "@/service/contact.service";
 import { getOne, upsertMany, upsertOne } from "@/libs/crud";
