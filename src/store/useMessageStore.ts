@@ -578,7 +578,7 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         id,
         documentId: args.documentId, // Send documentId
         quizId: args.quiz?._id, // Send quizId
-        desk_id: args.desk_id || args.desk?._id || args.desk?.deck_id,
+        desk_id: args.desk?.id,
         todoProjectId: args.todoProjectId,
       });
       get().autoMarkMessageSent(roomId, id, 3000);
