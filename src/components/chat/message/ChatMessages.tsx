@@ -45,11 +45,13 @@ export const ChatMessages = memo(
     chatId,
     noAction,
     scrollto,
+    setScrollto,
     toggleInput,
   }: {
     chatId: string;
     noAction: boolean;
     scrollto?: string | null;
+    setScrollto?: (id: string | null) => void;
     toggleInput: boolean;
   }) => {
     const { t } = useTranslation();
@@ -205,11 +207,22 @@ export const ChatMessages = memo(
       }
     }, [toggleInput, scrollToBottom]);
 
+    // Jump-to-message ("bước nhảy"): fire exactly ONCE per target, then
+    // clear the cached target. The effect deps include `scrollToMessage`
+    // whose identity changes on every new message — without the ref guard
+    // + clear, the view re-jumps to a stale id on each re-render and even
+    // carries the stale target across room switches.
+    const lastJumpRef = useRef<string | null>(null);
     useEffect(() => {
-      if (scrollto) {
-        scrollToMessage(scrollto);
-      }
-    }, [scrollto, scrollToMessage]);
+      if (!scrollto) return;
+      if (lastJumpRef.current === scrollto) return;
+      lastJumpRef.current = scrollto;
+      Promise.resolve(scrollToMessage(scrollto)).finally(() => {
+        // Clear the jump info once the jump completes so it can't replay.
+        setScrollto?.(null);
+        lastJumpRef.current = null;
+      });
+    }, [scrollto, scrollToMessage, setScrollto]);
 
     // Jump to the bottom INSTANTLY on first paint of a chat. Without
     // this, messages render top-down (scrollTop=0 by default) so the

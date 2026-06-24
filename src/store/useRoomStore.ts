@@ -60,14 +60,42 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
     // Fire-and-forget: don't block `getRooms()` resolution, the FE
     // sidebar should appear right after the first DB write. Errors
     // inside `warmRoomCaches` are swallowed silently — best-effort.
+    // Warm only the WARM_TOP_N most-recently-active rooms — those the
+    // user is realistically about to open. Warming every room on login
+    // pulled up to 100 messages each and saturated the gateway + IDB on
+    // accounts with many rooms. The rest warm lazily on first open via
+    // the chat-switch effect's own `loadRoomFromCache`.
+    // ponytail: top-N + idle defer; swap for a single server /sync
+    // bootstrap endpoint if N rooms still cost too many round-trips.
+    const WARM_TOP_N = 12;
     const activeRoomId = get().room?.id;
-    const targets = (rooms as Array<{ id?: string; last_message?: { id?: string | null } | null }>)
+    const targets = (
+      rooms as Array<{
+        id?: string;
+        updatedAt?: string;
+        last_message?: { id?: string | null } | null;
+      }>
+    )
       .filter((r) => !!r.last_message?.id && !!r.id && r.id !== activeRoomId)
+      .toSorted(
+        (a, b) =>
+          new Date(b.updatedAt ?? 0).getTime() -
+          new Date(a.updatedAt ?? 0).getTime(),
+      )
+      .slice(0, WARM_TOP_N)
       .map((r) => r.id as string);
     if (targets.length > 0) {
-      void useMessageStore
-        .getState()
-        .warmRoomCaches(targets, { limit: 20, concurrency: 3 });
+      // Defer to browser idle time so the sidebar/first chat paint first.
+      const warm = () =>
+        void useMessageStore
+          .getState()
+          .warmRoomCaches(targets, { limit: 20, concurrency: 3 });
+      if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+        (window as unknown as { requestIdleCallback: (cb: () => void) => void })
+          .requestIdleCallback(warm);
+      } else {
+        setTimeout(warm, 0);
+      }
     }
 
     return rooms;

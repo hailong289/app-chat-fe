@@ -94,7 +94,7 @@ export interface SendMessageArgs {
   desk_id?: string; // Add desk_id
   desk?: any; // Full desk object for optimistic UI
 }
-import { upsertOne, deleteOne } from "@/libs/crud";
+import { upsertOne, upsertMany, deleteOne } from "@/libs/crud";
 import { db } from "@/libs/db";
 import { ObjectId } from "bson";
 import UploadService from "@/service/uploadfile.service";
@@ -1133,12 +1133,10 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         attachments: sanitizeAttachmentsFromAPI(msg.attachments),
       }));
 
-      // Upsert từng tin nhắn vào IndexedDB (đã được sanitize)
-      await Promise.all(
-        messages.map((msg: MessageType) =>
-          upsertOne(db.messages, sanitizeMessageForDB(msg)),
-        ),
-      );
+      // Single bulkPut instead of N parallel put()s — one IDB
+      // transaction vs one-per-message. Big win on login when warming
+      // many rooms × tens of messages each.
+      await upsertMany(db.messages, messages.map(sanitizeMessageForDB));
 
       // Lấy room hiện tại và merge messages
       const currentRoom = get().messagesRoom[roomId] || {
