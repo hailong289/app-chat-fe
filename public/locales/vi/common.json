@@ -218,6 +218,12 @@
       "useFile": "Dùng file này",
       "cancel": "Hủy"
     },
+    "message": {
+      "type": {
+        "image": "[Hình ảnh]",
+        "file": "[Tệp đính kèm]"
+      }
+    },
     "messages": {
       "you": "Bạn",
       "empty": {

@@ -141,7 +141,7 @@ export default function FlashCardPage() {
         content: shareContent,
         attachments: [],
         type: "flashcard",
-        desk_id: sharingDeckId,
+        desk_id: deck?._id || sharingDeckId,
         desk: deck,
         socket,
         userId: currentUser?._id || "",

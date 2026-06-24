@@ -3,11 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 import { getSupportedMimeType } from "@/libs/mime";
-import {
-  normalizeAudioMimeType,
-  readBlobAsBase64,
-  sttNowTimestamp,
-} from "@/libs/sttHelpers";
+import { blobToGeminiWav, sttNowTimestamp } from "@/libs/sttHelpers";
 import type { SpeechSegment } from "@/hooks/useSpeechToText";
 
 interface UseGoogleSttOptions {
@@ -121,13 +117,14 @@ export function useGoogleStt({
   }, [socket, roomId, reportError]);
 
   const sendAudioChunk = useCallback(
-    async (blob: Blob, mimeType: string) => {
+    async (blob: Blob, _mimeType: string) => {
       if (!blob.size || blob.size < 256 || !socketRef.current || !roomIdRef.current) {
         return;
       }
 
-      const audioChunk = await readBlobAsBase64(blob);
-      if (!audioChunk) return;
+      // Re-encode sang WAV vì Gemini không nhận webm/mp4 (xem blobToGeminiWav).
+      const wav = await blobToGeminiWav(blob);
+      if (!wav) return;
 
       socketRef.current.emit(
         "call:stt-audio-chunk",
@@ -135,8 +132,8 @@ export function useGoogleStt({
           roomId: roomIdRef.current,
           speakerUserId: speakerUserIdRef.current,
           speaker: speakerNameRef.current,
-          audioChunk,
-          mimeType: normalizeAudioMimeType(mimeType),
+          audioChunk: wav.base64,
+          mimeType: wav.mimeType,
           language: languageRef.current,
         },
         (ack?: SttAck) => {

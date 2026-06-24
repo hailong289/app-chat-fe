@@ -4,10 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 import { getSupportedMimeType } from "@/libs/mime";
 import {
+  blobToGeminiWav,
   isGarbageSttText,
-  normalizeAudioMimeType,
   parseRemoteStreamUserId,
-  readBlobAsBase64,
   sttNowTimestamp,
 } from "@/libs/sttHelpers";
 import type { CallMember } from "@/store/types/call.state";
@@ -143,12 +142,13 @@ export function useRemoteStreamStt({
   }, [stopPeerRecorder]);
 
   const sendAudioChunk = useCallback(
-    async (peer: PeerRecorder, blob: Blob, mimeType: string) => {
+    async (peer: PeerRecorder, blob: Blob, _mimeType: string) => {
       if (!blob.size || blob.size < 256) return;
       if (!socketRef.current || !roomIdRef.current) return;
 
-      const audioChunk = await readBlobAsBase64(blob);
-      if (!audioChunk) return;
+      // Re-encode sang WAV vì Gemini không nhận webm/mp4 (xem blobToGeminiWav).
+      const wav = await blobToGeminiWav(blob);
+      if (!wav) return;
 
       socketRef.current.emit(
         "call:stt-audio-chunk",
@@ -156,8 +156,8 @@ export function useRemoteStreamStt({
           roomId: roomIdRef.current,
           speakerUserId: peer.userId,
           speaker: nameByUserId.get(peer.userId) || "Người tham gia",
-          audioChunk,
-          mimeType: normalizeAudioMimeType(mimeType),
+          audioChunk: wav.base64,
+          mimeType: wav.mimeType,
           language: languageRef.current,
         },
         (ack?: SttAck) => {
