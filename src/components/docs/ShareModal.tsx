@@ -310,22 +310,47 @@ export default function ShareModal({
                             <span className="text-xs text-gray-500">
                               {share.user?.usr_email}
                             </span>
-                            <span className="text-xs text-gray-400 capitalize">
-                              {share.role}
-                            </span>
                           </div>
                         </div>
 
-                        {document.ownerId === currentUser?._id && (
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="light"
-                            color="danger"
-                            onPress={() => handleUnshare(share.userId)}
-                          >
-                            <XMarkIcon className="w-4 h-4" />
-                          </Button>
+                        {document.ownerId === currentUser?._id ? (
+                          <div className="flex items-center gap-2">
+                            {/* Đổi quyền từng người (viewer/editor). BE upsert
+                                role khi gọi shareDocument lại. */}
+                            <Select
+                              size="sm"
+                              aria-label={t("share.changeRole") || "Đổi quyền"}
+                              className="w-28"
+                              selectedKeys={[share.role]}
+                              disallowEmptySelection
+                              onChange={(e) => {
+                                const role = e.target.value;
+                                if (role && role !== share.role) {
+                                  handleShare(share.userId, role);
+                                }
+                              }}
+                            >
+                              <SelectItem key="viewer">
+                                {t("share.roleViewer") || "Viewer"}
+                              </SelectItem>
+                              <SelectItem key="editor">
+                                {t("share.roleEditor") || "Editor"}
+                              </SelectItem>
+                            </Select>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="light"
+                              color="danger"
+                              onPress={() => handleUnshare(share.userId)}
+                            >
+                              <XMarkIcon className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 capitalize">
+                            {share.role}
+                          </span>
                         )}
                       </div>
                     ))}
