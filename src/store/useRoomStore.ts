@@ -215,14 +215,15 @@ const useRoomStore = create<RoomsState>()((set, get) => ({
       const messageStore = useMessageStore.getState();
       await messageStore.clearRoomMessages(targetRoomId);
 
-      const updatedRoom = response.data.metadata ?? room;
-      await upsertOne(db.rooms, updatedRoom);
-      await get().getRoomsByType(state.type);
-
+      // "Xoá lịch sử hội thoại" = xoá hẳn room + tin nhắn khỏi local
+      // (IndexedDB + state). Trước đây chỉ clear messages rồi upsert lại
+      // room nên room vẫn nằm trong danh sách. Cùng cơ chế roomDeleteSocket.
+      await deleteOne(db.rooms, targetRoomId);
       set((current) => ({
         isLoading: false,
         error: null,
-        room: current.room?.id === targetRoomId ? updatedRoom : current.room,
+        rooms: current.rooms.filter((r) => r.id !== targetRoomId),
+        room: current.room?.id === targetRoomId ? null : current.room,
       }));
       return true;
     } catch (error) {
