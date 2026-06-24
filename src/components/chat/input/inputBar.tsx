@@ -1025,6 +1025,14 @@ export default function ChatInputBar({
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={(e) => {
+                  // Bỏ qua Enter khi IME đang ghép ký tự (gõ tiếng Việt trên
+                  // Mac): phím Enter xác nhận composition KHÔNG được tính là
+                  // gửi, nếu không sẽ gửi trùng tin nhắn.
+                  if (
+                    e.nativeEvent.isComposing ||
+                    e.keyCode === 229
+                  )
+                    return;
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
                     onSend();
