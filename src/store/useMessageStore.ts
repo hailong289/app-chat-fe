@@ -578,7 +578,10 @@ const useMessageStore = create<MessageState>()((set, get) => ({
         id,
         documentId: args.documentId, // Send documentId
         quizId: args.quiz?._id, // Send quizId
-        desk_id: args.desk?.id,
+        // Ưu tiên desk_id truyền vào (=deck._id), rồi _id/id của deck. Trước
+        // đây chỉ đọc args.desk?.id → undefined (deck chỉ có _id) → BE không
+        // nhận desk_id → tin flashcard render thành text.
+        desk_id: args.desk_id || args.desk?._id || args.desk?.id,
         todoProjectId: args.todoProjectId,
       });
       get().autoMarkMessageSent(roomId, id, 3000);
