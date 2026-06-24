@@ -105,14 +105,15 @@ function TodoProjectMessageBubble({
   const handleJoinProject = async () => {
     if (!todoProjectId || isJoining) return;
 
-    // If already joined, don't call join API.
-    if (isAlreadyJoined) {
-      router.push(`/todo/${todoProjectId}`);
-      return;
-    }
     try {
       setIsJoining(true);
+      // LUÔN gọi join (BE addProjectMember dùng $addToSet — idempotent) rồi mới
+      // điều hướng. Trước đây nếu isAlreadyJoined (state cũ từ message lúc còn
+      // là thành viên) thì bỏ qua join → sau khi đã RỜI nhóm, bấm lại chỉ điều
+      // hướng vào /todo → getProjectById 404 "không tìm thấy dự án". Gọi join
+      // luôn đảm bảo là thành viên trước khi vào trang.
       await todoService.joinProject(todoProjectId);
+      setIsAlreadyJoined(true);
       router.push(`/todo/${todoProjectId}`);
     } catch (err) {
       const e = err as any;
