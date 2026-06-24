@@ -138,7 +138,10 @@ export function parseRemoteStreamUserId(
 export function isGarbageSttText(text: string): boolean {
   const t = text.trim();
   if (!t) return true;
-  if (/^(\d{1,2}:\d{2})(\s+\d{1,2}:\d{2})*$/.test(t)) return true;
-  if (/^[\d:\s.]+$/.test(t) && t.includes(":")) return true;
+  // Timestamp-only text like "00:00", "00:00 00:01", "00:00, 00:01, 00:02"
+  if (/^(\d{1,2}:\d{2})([,;\s]+\d{1,2}:\d{2})*$/.test(t)) return true;
+  if (/^[\d:\s.,;]+$/.test(t) && t.includes(":")) return true;
+  // Single timestamp wrapped in noise like "00:00." or ".00:00."
+  if (/^[\s.,;]*\d{1,2}:\d{2}[\s.,;]*$/.test(t)) return true;
   return false;
 }
