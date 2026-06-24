@@ -4,6 +4,7 @@ import { consumeAiSse } from "./ai-stream.service";
 export interface SearchResult {
   text: string;
   contextId: string;
+  contextType?: string;
   score: number;
   messageId: string;
 }
