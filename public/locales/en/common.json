@@ -221,6 +221,12 @@
       "useFile": "Use this file",
       "cancel": "Cancel"
     },
+    "message": {
+      "type": {
+        "image": "[Image]",
+        "file": "[File]"
+      }
+    },
     "messages": {
       "you": "You",
       "empty": {

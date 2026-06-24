@@ -69,6 +69,7 @@ export function ChatPageContent() {
               chatId={chatId}
               noAction={noAction}
               scrollto={scrollto}
+              setScrollto={setScrollto}
               toggleInput={toggleInput}
             />
 

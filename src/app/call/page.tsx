@@ -41,7 +41,7 @@ function CallPageContentInner() {
   const [isSttPanelOpen, setIsSttPanelOpen] = useState(false);
   const [videoAreaShifted, setVideoAreaShifted] = useState(false);
   const [sttLang, setSttLang] = useState("vi-VN");
-  const [sttEngine, setSttEngine] = useState<"browser" | "google">("google");
+  const [sttEngine, setSttEngine] = useState<"browser" | "google">("browser");
   const [isSttRemoteListening, setIsSttRemoteListening] = useState(false);
   const [remoteSttRequesters, setRemoteSttRequesters] = useState<Record<string, string>>({});
   const [sttTranslateEnabled, setSttTranslateEnabled] = useState(false);

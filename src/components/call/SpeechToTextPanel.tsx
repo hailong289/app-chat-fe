@@ -197,11 +197,11 @@ export function SpeechToTextPanel({
           }
           className="max-w-28 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg px-2 py-1.5 outline-none"
         >
-          <option className="bg-gray-900 text-white" value="google">
-            Google AI
-          </option>
           <option className="bg-gray-900 text-white" value="browser">
             Browser
+          </option>
+          <option className="bg-gray-900 text-white" value="google">
+            Google AI
           </option>
         </select>
 

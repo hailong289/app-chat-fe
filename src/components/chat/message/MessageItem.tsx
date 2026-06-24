@@ -194,7 +194,6 @@ export const MessageItem = memo(
       reads?: any[];
       count?: number;
     }) => {
-      console.log("🚀 ~ ReadAvatars ~ reads:", reads);
       if (!reads || (count ?? 0) <= 0) return null;
       return (
         <div className="flex gap-1 items-end mb-1">
@@ -204,10 +203,17 @@ export const MessageItem = memo(
               content={`${read_by.user.fullname || "User"} • ${formatMessageTime(read_by.readAt)}`}
               size="sm"
             >
+              {/* HeroUI v2: className chỉ style base wrapper — phải dùng
+                  classNames.img để thu nhỏ luôn ảnh, nếu không ảnh giữ kích
+                  thước mặc định và bị base tí hon che → chỉ thấy vòng trống. */}
               <Avatar
                 src={read_by.user.avatar || undefined}
-                className="w-3 h-3 ring-2 ring-white dark:ring-gray-800"
                 name={read_by.user.fullname || "User"}
+                classNames={{
+                  base: "w-5 h-5 ring-2 ring-white dark:ring-gray-800",
+                  img: "w-5 h-5",
+                  name: "text-[8px]",
+                }}
               />
             </Tooltip>
           ))}

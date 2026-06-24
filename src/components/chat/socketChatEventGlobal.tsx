@@ -168,6 +168,19 @@ export const SocketEventChatGlobal = () => {
     call.on("call:busy", onCallBusy.current);
     call.on("call:handoff", onCallHandoff.current);
     msgSocket.on(socketEvent.ROOM_REFRESH, onRoomRefresh.current);
+    // Room mới / member list đổi → join kênh roomId (để nhận tin nhắn realtime
+    // tiếp theo) rồi fetch lại room cho user hiện tại. Member vừa được add
+    // nhận event này qua ROOM_CLIENT của họ nên thấy room ngay, không reload.
+    const onRoomUpsert = (data: { roomId?: string }) => {
+      if (!data?.roomId) return;
+      try {
+        msgSocket.emit(socketEvent.JOINROOM, { roomId: data.roomId });
+      } catch {
+        /* join thất bại không chặn việc cập nhật room */
+      }
+      useRoomStore.getState().fetchAndUpdateRoom(data.roomId);
+    };
+    msgSocket.on(socketEvent.ROOMUPSERT, onRoomUpsert);
     msgSocket.on(socketEvent.UPDATE_QUIZ, handleUpdateQuiz.current);
     msgSocket.on(socketEvent.MSGREACT, onMsgReact.current);
     msgSocket.on(socketEvent.MSGPINNED, onMsgPinned.current);
@@ -201,6 +214,7 @@ export const SocketEventChatGlobal = () => {
       msgSocket.off(socketEvent.ERRORMSG, messageState.upsetMsgError);
       msgSocket.off(socketEvent.STATUSTYPING, roomState.handleTypingEvent);
       msgSocket.off(socketEvent.ROOM_REFRESH, onRoomRefresh.current);
+      msgSocket.off(socketEvent.ROOMUPSERT, onRoomUpsert);
       msgSocket.off(socketEvent.UPDATE_QUIZ, handleUpdateQuiz.current);
       msgSocket.off(socketEvent.MSGREACT, onMsgReact.current);
       msgSocket.off(socketEvent.MSGPINNED, onMsgPinned.current);
