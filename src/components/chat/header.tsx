@@ -44,6 +44,13 @@ import { useTranslation } from "react-i18next";
 import { ChevronDownIcon } from "@heroicons/react/16/solid";
 import { aiService, SearchResult } from "@/service/ai.service";
 
+const SEARCH_SCOPES: Record<string, { label: string; icon: typeof DocumentIcon }> = {
+  room: { label: "Tin nhắn", icon: ChatBubbleLeftEllipsisIcon },
+  file: { label: "Tệp", icon: FolderIcon },
+  document: { label: "Tài liệu", icon: DocumentIcon },
+  default: { label: "Kết quả", icon: DocumentIcon },
+};
+
 interface ChatHeaderProps {
   // chatName?: string;
   // isOnline?: boolean;
@@ -256,24 +263,24 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({
               {searchResults.length > 0 && (
                 <div className="absolute top-full left-0 w-full bg-white dark:bg-slate-800 shadow-lg rounded-b-lg z-50 max-h-[300px] overflow-y-auto border border-gray-200 dark:border-gray-700">
                   <Listbox aria-label="Search Results">
-                    {searchResults.map((result, index) => (
-                      <ListboxItem
-                        key={result.contextId || index}
-                        description={`Score: ${(result.score * 100).toFixed(
-                          0
-                        )}%`}
-                        startContent={
-                          <DocumentIcon className="w-5 h-5 text-primary" />
-                        }
-                        onClick={() => {
-                          console.log("Navigate to", result.messageId);
-                          setScrollto(result.messageId);
-                          // TODO: Implement navigation to message or document
-                        }}
-                      >
-                        {result.text}
-                      </ListboxItem>
-                    ))}
+                    {searchResults.map((result, index) => {
+                      const scope = SEARCH_SCOPES[result.contextType ?? ""] ?? SEARCH_SCOPES.default;
+                      const ScopeIcon = scope.icon;
+                      return (
+                        <ListboxItem
+                          key={result.messageId || result.contextId || index}
+                          description={`${scope.label} · Score: ${(result.score * 100).toFixed(0)}%`}
+                          startContent={
+                            <ScopeIcon className="w-5 h-5 text-primary" />
+                          }
+                          onClick={() => {
+                            setScrollto(result.messageId);
+                          }}
+                        >
+                          {result.text}
+                        </ListboxItem>
+                      );
+                    })}
                   </Listbox>
                 </div>
               )}
